@@ -1,3 +1,8 @@
+import {
+	recordFileJson,
+	recordFileExists,
+	recordFileText,
+} from "#benchmark/record-read-scope";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
 import { benchmarkRunPaths, checkpointStageNames } from "#benchmark/run-layout";
 import { loadRunManifest } from "#benchmark/manifest";
@@ -125,8 +130,8 @@ export async function latestCheckpointStage(
 	run: string,
 ): Promise<string | undefined> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	const manifestFile = Bun.file(paths.manifestFile);
-	if (!(await manifestFile.exists())) {
+	const { manifestFile } = paths;
+	if (!(await recordFileExists(manifestFile))) {
 		return undefined;
 	}
 
@@ -168,7 +173,7 @@ async function manifestBackedIdentity(
 	status: string,
 	progress: RunProgress = RECORDED,
 ): Promise<RunIdentity> {
-	if (!(await Bun.file(paths.manifestFile).exists())) {
+	if (!(await recordFileExists(paths.manifestFile))) {
 		throw new IncompleteRunRecordError(
 			`incomplete: no manifest.json at ${paths.manifestFile}`,
 		);
@@ -198,7 +203,7 @@ async function eventBackedIdentity(
 	status: string,
 	links: readonly ContextLink[],
 ): Promise<RunIdentity> {
-	const caseId = (await Bun.file(paths.manifestFile).exists())
+	const caseId = (await recordFileExists(paths.manifestFile))
 		? await sourceCaseId(paths.manifestFile)
 		: undefined;
 
@@ -301,7 +306,7 @@ export async function endingIdentity(
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	switch (ending.kind) {
 		case "main-artifact": {
-			return artifactIdentity(await Bun.file(paths.artifactFile).text());
+			return artifactIdentity(await recordFileText(paths.artifactFile));
 		}
 		case "stopped": {
 			return manifestBackedIdentity(paths, stoppedStatus(ending.stage));
@@ -342,7 +347,7 @@ export async function endingIdentity(
 		}
 		case "no-events": {
 			throw new IncompleteRunRecordError(
-				(await Bun.file(paths.manifestFile).exists())
+				(await recordFileExists(paths.manifestFile))
 					? "no record: no stage record and no run events"
 					: "no manifest recorded",
 			);
@@ -382,12 +387,12 @@ export async function checkpointlessStageRecorded(
 	paths: BenchmarkRunPaths,
 	stage: string,
 ): Promise<boolean> {
-	const file = Bun.file(paths.stageFile(stage));
-	if (!(await file.exists())) {
+	const file = paths.stageFile(stage);
+	if (!(await recordFileExists(file))) {
 		return false;
 	}
 
-	const contents: unknown = JSON.parse(await file.text());
+	const contents: unknown = await recordFileJson(file);
 	const recorded =
 		stoppedStageRecordSchema.safeParse(contents).data?.stage ??
 		awaitingJudgeStageRecordSchema.safeParse(contents).data?.stage;

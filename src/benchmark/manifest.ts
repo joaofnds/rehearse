@@ -1,3 +1,5 @@
+import { parseRecord } from "./record-parse-cache";
+import { scopedRecordReader } from "./record-read-scope";
 import { z } from "zod";
 import { effortSchema, LEGACY_CASE_ID } from "./config";
 import { pipelineDefinitionSchema } from "./pipeline";
@@ -68,39 +70,34 @@ export async function writeRunManifest(
 	await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-export async function loadRunManifest(path: string): Promise<RunManifest> {
-	const file = Bun.file(path);
+export const loadRunManifest = scopedRecordReader(
+	async (path): Promise<RunManifest> => {
+		const file = Bun.file(path);
 
-	if (!(await file.exists())) {
-		throw new Error(
-			`No run manifest at ${path}; runs recorded before manifests cannot be replayed`,
-		);
-	}
+		if (!(await file.exists())) {
+			throw new Error(
+				`No run manifest at ${path}; runs recorded before manifests cannot be replayed`,
+			);
+		}
 
-	return parseRunManifest(await file.text());
-}
+		return parseRunManifest(await file.text());
+	},
+);
 
 /**
  * The parse without the read, so a caller holding its own verified handle
  * does not reopen the path to hand it here.
  */
+const readableRunManifestSchema = z.union([
+	runManifestSchema,
+	legacyRunManifestSchema.transform((legacy) =>
+		runManifestSchema.parse({
+			...legacy,
+			pipeline: { ...legacy.pipeline, target: LEGACY_TARGET_DEFINITION },
+		}),
+	),
+]);
+
 export function parseRunManifest(text: string): RunManifest {
-	const document: unknown = JSON.parse(text);
-	const current = runManifestSchema.safeParse(document);
-	if (current.success) {
-		return current.data;
-	}
-
-	const legacy = legacyRunManifestSchema.safeParse(document);
-	if (!legacy.success) {
-		return runManifestSchema.parse(document);
-	}
-
-	return runManifestSchema.parse({
-		...legacy.data,
-		pipeline: {
-			...legacy.data.pipeline,
-			target: LEGACY_TARGET_DEFINITION,
-		},
-	});
+	return parseRecord(readableRunManifestSchema, text);
 }

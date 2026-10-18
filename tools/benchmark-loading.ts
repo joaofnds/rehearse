@@ -8,6 +8,8 @@ const [base, repetitions] = argumentsSchema.parse([Bun.argv[2], Bun.argv[3]]);
 const DEFAULT_PATHS = [
 	"/",
 	"/api/run-listing",
+	"/api/run-staleness",
+	"/api/corpus-summary",
 	"/api/runs",
 	"/api/corpus",
 	"/api/cases",
@@ -16,13 +18,7 @@ const DEFAULT_PATHS = [
 	"/api/settings/records",
 	"/api/calibration",
 ] as const;
-const STARTUP_PATHS = [
-	"/api/runs",
-	"/api/corpus",
-	"/api/run-listing",
-	"/api/comparisons",
-	"/api/settings",
-] as const;
+const STARTUP_PATHS = ["/api/corpus-summary", "/api/comparisons"] as const;
 
 interface Reading {
 	readonly path: string;
@@ -59,7 +55,53 @@ async function read(path: string): Promise<Reading> {
 	};
 }
 
+interface InitialReading {
+	readonly ms: number;
+	readonly requests: readonly Reading[];
+}
+
+async function initialReading(
+	listing: Promise<Reading>,
+	settings: Promise<Reading>,
+	started: number,
+): Promise<InitialReading> {
+	await listing;
+	const requests = await Promise.all([
+		listing,
+		settings,
+		...STARTUP_PATHS.map((path) => read(path)),
+	]);
+	return { ms: rounded(performance.now() - started), requests };
+}
+
+interface FreshnessReading {
+	readonly readyMs: number;
+	readonly request: Reading;
+}
+
+async function freshnessReading(
+	listing: Promise<Reading>,
+	started: number,
+): Promise<FreshnessReading> {
+	await listing;
+	const request = await read("/api/run-staleness");
+	return { readyMs: rounded(performance.now() - started), request };
+}
+
 const paths = Bun.argv.length > 4 ? Bun.argv.slice(4) : DEFAULT_PATHS;
+const startup = [];
+for (let index = 0; index < repetitions; index += 1) {
+	const started = performance.now();
+	const listing = read("/api/run-listing");
+	const settings = read("/api/settings");
+	const [initial, freshness, list] = await Promise.all([
+		initialReading(listing, settings, started),
+		freshnessReading(listing, started),
+		listing,
+	]);
+	startup.push({ ...initial, listReadyMs: list.ms, freshness });
+}
+
 const endpoints = [];
 for (const path of paths) {
 	const samples: Reading[] = [];
@@ -77,13 +119,6 @@ for (const path of paths) {
 		bytes: samples.at(-1)?.bytes,
 		samplesMs: samples.map(({ ms }) => ms),
 	});
-}
-
-const startup = [];
-for (let index = 0; index < repetitions; index += 1) {
-	const started = performance.now();
-	const requests = await Promise.all(STARTUP_PATHS.map((path) => read(path)));
-	startup.push({ ms: rounded(performance.now() - started), requests });
 }
 
 console.log(

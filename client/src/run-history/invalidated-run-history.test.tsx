@@ -96,7 +96,7 @@ function serving(
 ): Served {
 	const byPath = new Map<string, unknown>([
 		...SHELL_BASELINE,
-		["/api/runs", served.runs ?? history()],
+		["/api/run-listing", served.runs ?? history()],
 		["/api/corpus", served.corpus ?? corpus(LAST_EDIT)],
 		["/api/settings", LIVE_SETTINGS],
 	]);
@@ -198,7 +198,7 @@ describe("/?invalidatedBy", () => {
 	it("keeps listing the rows when a later read of run history fails", async () => {
 		const { answers } = serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
 		await durableRecords();
-		answers.delete("/api/runs");
+		answers.delete("/api/run-listing");
 
 		focusManager.setFocused(false);
 		focusManager.setFocused(true);
@@ -412,7 +412,7 @@ describe("/?invalidatedBy", () => {
 			[
 				"run history failed",
 				NAMED,
-				{ failing: "/api/runs" },
+				{ failing: "/api/run-listing" },
 				"Could not load run history, so no result is listed as invalidated.",
 			],
 			[
@@ -424,7 +424,7 @@ describe("/?invalidatedBy", () => {
 			[
 				"run history is loading",
 				NAMED,
-				{ pending: "/api/runs" },
+				{ pending: "/api/run-listing" },
 				"Reading run history…",
 			],
 		];

@@ -1,0 +1,564 @@
+{
+	"measuredAt": "2026-10-18",
+	"baselineCommit": "a2fc339a",
+	"runtime": "Bun 1.4.0",
+	"machine": "Apple M5 Pro arm64",
+	"method": "Alternating fresh production server processes; warm OS filesystem caches; same saved records and corpus; first HTTP batch immediately after readiness; startup includes reconciliation and candidate parser prewarm. No provider calls. Python urllib timings include response bodies. Baseline cases directory resolves to the same local cases as candidate, including ignored local cases. Candidate starts listing/settings first and defers sidebar metadata and freshness until listing completes.",
+	"cold": {
+		"baseline": [
+			{
+				"ms": 1214.9,
+				"requests": [
+					{
+						"path": "/api/runs",
+						"ms": 925.6,
+						"bytes": 1438260
+					},
+					{
+						"path": "/api/corpus",
+						"ms": 1212.2,
+						"bytes": 29274
+					},
+					{
+						"path": "/api/run-listing",
+						"ms": 640.3,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 86.1,
+						"bytes": 3117
+					},
+					{
+						"path": "/api/settings",
+						"ms": 15.7,
+						"bytes": 480
+					}
+				],
+				"listReadyMs": 932.3,
+				"serverReadyMs": 82.9
+			},
+			{
+				"ms": 1272.0,
+				"requests": [
+					{
+						"path": "/api/runs",
+						"ms": 953.6,
+						"bytes": 1438260
+					},
+					{
+						"path": "/api/corpus",
+						"ms": 1271.4,
+						"bytes": 29274
+					},
+					{
+						"path": "/api/run-listing",
+						"ms": 636.2,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 71.0,
+						"bytes": 3117
+					},
+					{
+						"path": "/api/settings",
+						"ms": 7.5,
+						"bytes": 480
+					}
+				],
+				"listReadyMs": 958.4,
+				"serverReadyMs": 66.0
+			},
+			{
+				"ms": 1185.8,
+				"requests": [
+					{
+						"path": "/api/runs",
+						"ms": 875.3,
+						"bytes": 1438260
+					},
+					{
+						"path": "/api/corpus",
+						"ms": 1185.3,
+						"bytes": 29274
+					},
+					{
+						"path": "/api/run-listing",
+						"ms": 582.2,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 69.4,
+						"bytes": 3117
+					},
+					{
+						"path": "/api/settings",
+						"ms": 6.9,
+						"bytes": 480
+					}
+				],
+				"listReadyMs": 880.3,
+				"serverReadyMs": 75.7
+			},
+			{
+				"ms": 1146.6,
+				"requests": [
+					{
+						"path": "/api/runs",
+						"ms": 862.2,
+						"bytes": 1438260
+					},
+					{
+						"path": "/api/corpus",
+						"ms": 1145.9,
+						"bytes": 29274
+					},
+					{
+						"path": "/api/run-listing",
+						"ms": 593.1,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 71.0,
+						"bytes": 3117
+					},
+					{
+						"path": "/api/settings",
+						"ms": 7.4,
+						"bytes": 480
+					}
+				],
+				"listReadyMs": 866.9,
+				"serverReadyMs": 70.5
+			},
+			{
+				"ms": 1202.2,
+				"requests": [
+					{
+						"path": "/api/runs",
+						"ms": 888.6,
+						"bytes": 1438260
+					},
+					{
+						"path": "/api/corpus",
+						"ms": 1201.6,
+						"bytes": 29274
+					},
+					{
+						"path": "/api/run-listing",
+						"ms": 612.7,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 68.4,
+						"bytes": 3117
+					},
+					{
+						"path": "/api/settings",
+						"ms": 7.0,
+						"bytes": 480
+					}
+				],
+				"listReadyMs": 893.2,
+				"serverReadyMs": 70.3
+			}
+		],
+		"candidate": [
+			{
+				"ms": 162.4,
+				"requests": [
+					{
+						"path": "/api/run-listing",
+						"ms": 84.5,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/settings",
+						"ms": 8.4,
+						"bytes": 480
+					},
+					{
+						"path": "/api/corpus-summary",
+						"ms": 76.1,
+						"bytes": 23695
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 53.9,
+						"bytes": 3117
+					}
+				],
+				"listReadyMs": 86.0,
+				"freshness": {
+					"request": {
+						"path": "/api/run-staleness",
+						"ms": 419.0,
+						"bytes": 215914
+					},
+					"readyMs": 505.8
+				},
+				"serverReadyMs": 291.2
+			},
+			{
+				"ms": 163.0,
+				"requests": [
+					{
+						"path": "/api/run-listing",
+						"ms": 84.1,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/settings",
+						"ms": 8.3,
+						"bytes": 480
+					},
+					{
+						"path": "/api/corpus-summary",
+						"ms": 77.2,
+						"bytes": 23695
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 55.0,
+						"bytes": 3117
+					}
+				],
+				"listReadyMs": 85.5,
+				"freshness": {
+					"request": {
+						"path": "/api/run-staleness",
+						"ms": 347.5,
+						"bytes": 215914
+					},
+					"readyMs": 433.7
+				},
+				"serverReadyMs": 290.1
+			},
+			{
+				"ms": 147.4,
+				"requests": [
+					{
+						"path": "/api/run-listing",
+						"ms": 74.3,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/settings",
+						"ms": 7.2,
+						"bytes": 480
+					},
+					{
+						"path": "/api/corpus-summary",
+						"ms": 71.5,
+						"bytes": 23695
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 47.4,
+						"bytes": 3117
+					}
+				],
+				"listReadyMs": 75.7,
+				"freshness": {
+					"request": {
+						"path": "/api/run-staleness",
+						"ms": 372.6,
+						"bytes": 215914
+					},
+					"readyMs": 449.1
+				},
+				"serverReadyMs": 252.4
+			},
+			{
+				"ms": 174.2,
+				"requests": [
+					{
+						"path": "/api/run-listing",
+						"ms": 85.0,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/settings",
+						"ms": 7.8,
+						"bytes": 480
+					},
+					{
+						"path": "/api/corpus-summary",
+						"ms": 87.4,
+						"bytes": 23695
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 54.9,
+						"bytes": 3117
+					}
+				],
+				"listReadyMs": 86.6,
+				"freshness": {
+					"request": {
+						"path": "/api/run-staleness",
+						"ms": 436.1,
+						"bytes": 215914
+					},
+					"readyMs": 523.4
+				},
+				"serverReadyMs": 300.1
+			},
+			{
+				"ms": 150.6,
+				"requests": [
+					{
+						"path": "/api/run-listing",
+						"ms": 75.1,
+						"bytes": 301985
+					},
+					{
+						"path": "/api/settings",
+						"ms": 6.5,
+						"bytes": 480
+					},
+					{
+						"path": "/api/corpus-summary",
+						"ms": 73.6,
+						"bytes": 23695
+					},
+					{
+						"path": "/api/comparisons",
+						"ms": 51.1,
+						"bytes": 3117
+					}
+				],
+				"listReadyMs": 76.7,
+				"freshness": {
+					"request": {
+						"path": "/api/run-staleness",
+						"ms": 346.3,
+						"bytes": 215914
+					},
+					"readyMs": 423.8
+				},
+				"serverReadyMs": 288.6
+			}
+		]
+	},
+	"responses": [
+		{
+			"path": "/api/run-listing",
+			"equalAfterOmittingReadManifest": true,
+			"baselineSha256": "b9dad22461ad156470486eb1712fa90300538c0e149a2c613faac9ebfb802903",
+			"candidateSha256": "b9dad22461ad156470486eb1712fa90300538c0e149a2c613faac9ebfb802903"
+		},
+		{
+			"path": "/api/runs",
+			"equalAfterOmittingReadManifest": true,
+			"baselineSha256": "4e6316c4bab61fdd00ef3f0bb989e2e4f647730a154287a247b3f7e35b253487",
+			"candidateSha256": "4e6316c4bab61fdd00ef3f0bb989e2e4f647730a154287a247b3f7e35b253487"
+		},
+		{
+			"path": "/api/corpus",
+			"equalAfterOmittingReadManifest": true,
+			"baselineSha256": "ee5c69c404bdfd33f08cab6216527797747bdd36e8e47a438201f9a654f5ebe0",
+			"candidateSha256": "ee5c69c404bdfd33f08cab6216527797747bdd36e8e47a438201f9a654f5ebe0"
+		},
+		{
+			"path": "/api/comparisons",
+			"equalAfterOmittingReadManifest": true,
+			"baselineSha256": "ca89582e478ac987c473004528d8a5cafcaa4270a03a3c8e3182fcd33571755a",
+			"candidateSha256": "ca89582e478ac987c473004528d8a5cafcaa4270a03a3c8e3182fcd33571755a"
+		}
+	],
+	"warm": {
+		"/api/run-listing": [
+			{
+				"path": "/api/run-listing",
+				"ms": 69.8,
+				"bytes": 301985
+			},
+			{
+				"path": "/api/run-listing",
+				"ms": 68.5,
+				"bytes": 301985
+			},
+			{
+				"path": "/api/run-listing",
+				"ms": 66.0,
+				"bytes": 301985
+			},
+			{
+				"path": "/api/run-listing",
+				"ms": 68.7,
+				"bytes": 301985
+			},
+			{
+				"path": "/api/run-listing",
+				"ms": 72.2,
+				"bytes": 301985
+			}
+		],
+		"/api/corpus-summary": [
+			{
+				"path": "/api/corpus-summary",
+				"ms": 27.9,
+				"bytes": 23695
+			},
+			{
+				"path": "/api/corpus-summary",
+				"ms": 26.9,
+				"bytes": 23695
+			},
+			{
+				"path": "/api/corpus-summary",
+				"ms": 28.7,
+				"bytes": 23695
+			},
+			{
+				"path": "/api/corpus-summary",
+				"ms": 26.7,
+				"bytes": 23695
+			},
+			{
+				"path": "/api/corpus-summary",
+				"ms": 26.8,
+				"bytes": 23695
+			}
+		],
+		"/api/run-staleness": [
+			{
+				"path": "/api/run-staleness",
+				"ms": 183.4,
+				"bytes": 215914
+			},
+			{
+				"path": "/api/run-staleness",
+				"ms": 183.3,
+				"bytes": 215914
+			},
+			{
+				"path": "/api/run-staleness",
+				"ms": 196.4,
+				"bytes": 215914
+			},
+			{
+				"path": "/api/run-staleness",
+				"ms": 186.1,
+				"bytes": 215914
+			},
+			{
+				"path": "/api/run-staleness",
+				"ms": 178.8,
+				"bytes": 215914
+			}
+		],
+		"/api/runs": [
+			{
+				"path": "/api/runs",
+				"ms": 236.5,
+				"bytes": 481067
+			},
+			{
+				"path": "/api/runs",
+				"ms": 251.9,
+				"bytes": 481067
+			},
+			{
+				"path": "/api/runs",
+				"ms": 234.5,
+				"bytes": 481067
+			},
+			{
+				"path": "/api/runs",
+				"ms": 228.7,
+				"bytes": 481067
+			},
+			{
+				"path": "/api/runs",
+				"ms": 237.1,
+				"bytes": 481067
+			}
+		],
+		"/api/corpus": [
+			{
+				"path": "/api/corpus",
+				"ms": 377.2,
+				"bytes": 29274
+			},
+			{
+				"path": "/api/corpus",
+				"ms": 369.5,
+				"bytes": 29274
+			},
+			{
+				"path": "/api/corpus",
+				"ms": 379.1,
+				"bytes": 29274
+			},
+			{
+				"path": "/api/corpus",
+				"ms": 381.2,
+				"bytes": 29274
+			},
+			{
+				"path": "/api/corpus",
+				"ms": 466.1,
+				"bytes": 29274
+			}
+		]
+	},
+	"records": {
+		"readable": 189,
+		"pipeline": 41,
+		"sessionAttempts": 74,
+		"replays": 3,
+		"groups": 71,
+		"corpusFiles": 137
+	},
+	"browser": {
+		"method": "First navigation after restarting production server; built client; observer started before rows existed; observation waits two animation frames after tbody rows appear. Same owned Chromium preview,1280x800. OS filesystem/browser resources were warm. Before measurement used full run-history and corpus endpoints.",
+		"before": {
+			"visibleRowsAtMs": 870,
+			"runHistoryRequestMs": 752.5,
+			"listingRequestMs": 487.1
+		},
+		"after": {
+			"visibleRowsAtMs": 211,
+			"observationStartedAtMs": 71.5,
+			"rows": 189,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"startMs": 58.4,
+					"durationMs": 77.4,
+					"endMs": 135.8
+				},
+				{
+					"path": "/api/settings",
+					"startMs": 58.7,
+					"durationMs": 1.9,
+					"endMs": 60.6
+				},
+				{
+					"path": "/api/corpus-summary",
+					"startMs": 156,
+					"durationMs": 85.6,
+					"endMs": 241.6
+				},
+				{
+					"path": "/api/run-staleness",
+					"startMs": 156.6,
+					"durationMs": 259.3,
+					"endMs": 415.9
+				},
+				{
+					"path": "/api/comparisons",
+					"startMs": 156.8,
+					"durationMs": 61.8,
+					"endMs": 218.6
+				}
+			]
+		}
+	}
+}

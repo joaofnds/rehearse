@@ -3,7 +3,7 @@ import { CurrentLink } from "#client/system/components/current-link";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
-import { corpusQuery } from "#client/corpus/corpus-query";
+import { corpusSummaryQuery } from "#client/corpus/corpus-query";
 import {
 	listedEntryCount,
 	runListingQuery,
@@ -59,15 +59,24 @@ function NavEntry({
  * undefined until its collection loads, so an unloaded badge renders nothing
  * rather than a zero it cannot vouch for.
  */
-function useBadgeCounts(): BadgeCounts {
+interface ShellCounts extends BadgeCounts {
+	readonly metadataReady: boolean;
+}
+
+function useBadgeCounts(): ShellCounts {
 	const runs = useQuery(runListingQuery);
-	const corpus = useQuery(corpusQuery);
-	const comparisons = useQuery(comparisonIndexQuery);
+	const metadataReady = !runs.isPending;
+	const corpus = useQuery({ ...corpusSummaryQuery, enabled: metadataReady });
+	const comparisons = useQuery({
+		...comparisonIndexQuery,
+		enabled: metadataReady,
+	});
 
 	return {
 		runs: runs.data === undefined ? undefined : listedEntryCount(runs.data),
 		corpus: corpus.data?.files.length,
 		comparisons: comparisons.data?.comparisons.length,
+		metadataReady,
 	};
 }
 
@@ -157,7 +166,7 @@ export function AppShell(): React.JSX.Element {
 						))}
 					</ul>
 					<div className="md:mt-auto">
-						<CorpusCard />
+						<CorpusCard enabled={counts.metadataReady} />
 					</div>
 				</nav>
 

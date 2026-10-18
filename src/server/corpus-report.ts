@@ -31,6 +31,36 @@ export interface CorpusReport {
 	readonly lastEdit: LastEdit;
 }
 
+export type CorpusSummary = Omit<CorpusReport, "files" | "lastEdit"> & {
+	readonly files: readonly Pick<
+		CorpusFileReport,
+		"path" | "sha256" | "lastEditedAt"
+	>[];
+};
+
+/** The sidebar's corpus identity and file count need no saved-record judgments. */
+export function corpusSummary(source: CorpusRoot): Promise<CorpusSummary> {
+	return withCorpusReadScope(async () => {
+		const layout = await hashCorpusLayout(source);
+		const files = await Promise.all(
+			layout.files.map(async (file) => {
+				const stats = await stat(join(source.root, file.path));
+				return { ...file, lastEditedAt: stats.mtime.toISOString() };
+			}),
+		);
+
+		return {
+			root: source.root,
+			digest:
+				layout.refusals.length > 0
+					? undefined
+					: corpusVersionDigest(layout.files),
+			files,
+			refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
+		};
+	});
+}
+
 export function corpusReport(
 	source: CorpusRoot,
 	runsDirectory: string,

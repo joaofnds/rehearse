@@ -11,9 +11,44 @@ type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
  * themselves, typically in `afterEach`.
  */
 export function stubFetch(body: RunHistoryResponseBody): void {
-	const stub = (): Promise<Response> => Promise.resolve(Response.json(body));
+	const stub = (request: string | URL | Request): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+		return Promise.resolve(
+			Response.json(
+				pathname === "/api/run-staleness" ? stalenessBody(body) : body,
+			),
+		);
+	};
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;
+}
+
+/** The separate list and freshness routes projected from one typed history fixture. */
+export function runHistoryReplies(
+	history: RunHistoryResponseBody,
+): ReadonlyMap<string, unknown> {
+	return new Map<string, unknown>([
+		["/api/runs", history],
+		["/api/run-listing", history],
+		["/api/run-staleness", stalenessBody(history)],
+	]);
+}
+
+type RunStalenessBody = InferResponseType<
+	(typeof apiClient.api)["run-staleness"]["$get"]
+>;
+
+export function stalenessBody(
+	history: RunHistoryResponseBody,
+): RunStalenessBody {
+	return {
+		records: Object.fromEntries(
+			history.rows.map((row) => [row.recordId, row.staleness]),
+		),
+	};
 }
 
 /**

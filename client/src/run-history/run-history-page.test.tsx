@@ -343,7 +343,7 @@ describe(RunHistoryPage.name, () => {
 		it("says a spend limit is set when the settings hold a ceiling", async () => {
 			stubFetchByPath(
 				new Map<string, unknown>([
-					["/api/runs", { rows: [], launches: [], unreadable: [] }],
+					["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 					["/api/settings", settingsReading(20)],
 				]),
 			);
@@ -358,7 +358,7 @@ describe(RunHistoryPage.name, () => {
 		it("does not say a spend limit is set when the settings hold none", async () => {
 			stubFetchByPath(
 				new Map<string, unknown>([
-					["/api/runs", { rows: [], launches: [], unreadable: [] }],
+					["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 					["/api/settings", settingsReading(null)],
 				]),
 			);
@@ -375,7 +375,7 @@ describe(RunHistoryPage.name, () => {
 			new FakeServer(
 				new Map<string, Reply>([
 					[
-						"GET /api/runs",
+						"GET /api/run-listing",
 						{ status: 200, body: { rows: [], launches: [], unreadable: [] } },
 					],
 					[
@@ -450,7 +450,7 @@ describe(RunHistoryPage.name, () => {
 		new FakeServer(
 			new Map([
 				[
-					"GET /api/runs",
+					"GET /api/run-listing",
 					{
 						status: 409,
 						body: {
@@ -642,7 +642,6 @@ describe(RunHistoryPage.name, () => {
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions },
-				readManifest: [],
 			};
 		}
 
@@ -685,7 +684,6 @@ describe(RunHistoryPage.name, () => {
 					changedFiles: [],
 					onlyCorpusFiles: false,
 					distance: { kind: "measured", versions: 0 },
-					readManifest: [],
 				} satisfies RowStaleness,
 				"✓clean",
 			],
@@ -724,7 +722,6 @@ describe(RunHistoryPage.name, () => {
 					changedFiles: [],
 					onlyCorpusFiles: false,
 					distance: { kind: "measured", versions: 0 },
-					readManifest: [],
 				} satisfies RowStaleness,
 				"⚠stale",
 			],
@@ -1176,8 +1173,19 @@ describe(RunHistoryPage.name, () => {
 					unreadable: [],
 				},
 			];
-			const stub = (): Promise<Response> =>
-				Promise.resolve(Response.json(bodies.shift()));
+			const stub = (request: string | URL | Request): Promise<Response> => {
+				const { pathname } = new URL(
+					request instanceof Request ? request.url : request,
+					"http://localhost",
+				);
+				return Promise.resolve(
+					Response.json(
+						pathname === "/api/run-staleness"
+							? { records: {} }
+							: bodies.shift(),
+					),
+				);
+			};
 			stub.preconnect = fetch.preconnect;
 			globalThis.fetch = stub;
 
@@ -1236,7 +1244,14 @@ describe(RunHistoryPage.name, () => {
 
 		it("re-reads the list no faster than the idle pace once no run is in flight", async () => {
 			let requests = 0;
-			const stub = (): Promise<Response> => {
+			const stub = (request: string | URL | Request): Promise<Response> => {
+				const { pathname } = new URL(
+					request instanceof Request ? request.url : request,
+					"http://localhost",
+				);
+				if (pathname === "/api/run-staleness") {
+					return Promise.resolve(Response.json({ records: {} }));
+				}
 				requests += 1;
 
 				return Promise.resolve(
@@ -1272,7 +1287,10 @@ describe(RunHistoryPage.name, () => {
 				replies: ReadonlyMap<string, Reply> = new Map(),
 			): FakeServer {
 				const server = new FakeServer(
-					new Map([["GET /api/runs", { status: 200, body }], ...replies]),
+					new Map([
+						["GET /api/run-listing", { status: 200, body }],
+						...replies,
+					]),
 				);
 				server.install();
 
@@ -2461,7 +2479,9 @@ describe(RunHistoryPage.name, () => {
 
 	it("opens the launch dialog from New run", async () => {
 		stubFetchByPath(
-			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+			new Map([
+				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
+			]),
 		);
 		renderPage();
 
@@ -2474,7 +2494,9 @@ describe(RunHistoryPage.name, () => {
 
 	it("opens the launch dialog on n", async () => {
 		stubFetchByPath(
-			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+			new Map([
+				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
+			]),
 		);
 		renderPage();
 		await screen.findByRole("button", { name: "New run" });
@@ -2488,7 +2510,9 @@ describe(RunHistoryPage.name, () => {
 
 	it("leaves an n typed into the search field to the search", async () => {
 		stubFetchByPath(
-			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+			new Map([
+				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
+			]),
 		);
 		renderPage();
 		await screen.findByRole("button", { name: "New run" });
@@ -3152,7 +3176,7 @@ describe(RunHistoryPage.name, () => {
 		it("compares the first chosen as arm A and the second as arm B", async () => {
 			stubFetchByPath(
 				new Map<string, unknown>([
-					["/api/runs", history],
+					["/api/run-listing", history],
 					[
 						"/api/settings",
 						{
@@ -4069,7 +4093,6 @@ describe(RunHistoryPage.name, () => {
 			changedFiles: [],
 			onlyCorpusFiles: false,
 			distance: { kind: "measured", versions: 0 },
-			readManifest: [],
 		};
 
 		function pipelineRun(
@@ -4231,7 +4254,12 @@ describe(RunHistoryPage.name, () => {
 		}> {
 			respondingWith(body);
 			const page = renderPage();
-			await page.findByRole("button", { name: /^All(?: \d+)?$/u });
+			await page.findByRole("button", {
+				name: `All ${String(body.rows.length + body.launches.length)}`,
+			});
+			await waitFor(() => {
+				expect(page.queryAllByText("Checking freshness…")).toHaveLength(0);
+			});
 
 			return {
 				page,
@@ -4432,7 +4460,7 @@ describe(RunHistoryPage.name, () => {
 		): FakeServer {
 			const server = new FakeServer(
 				new Map<string, Reply | LiveReply>([
-					["GET /api/runs", { status: 200, body }],
+					["GET /api/run-listing", { status: 200, body }],
 					[
 						"GET /api/settings",
 						{
@@ -4604,7 +4632,7 @@ describe(RunHistoryPage.name, () => {
 				history(),
 				new Map([
 					[
-						"GET /api/runs",
+						"GET /api/run-listing",
 						new LiveReply(() => ({
 							status: 200,
 							body: {
@@ -4653,7 +4681,7 @@ describe(RunHistoryPage.name, () => {
 					history(),
 					new Map([
 						[
-							"GET /api/runs",
+							"GET /api/run-listing",
 							new LiveReply(() => ({
 								status: 200,
 								body: dropped
@@ -4704,7 +4732,7 @@ describe(RunHistoryPage.name, () => {
 					history(),
 					new Map([
 						[
-							"GET /api/runs",
+							"GET /api/run-listing",
 							new LiveReply(() =>
 								failing
 									? { status: 500, body: {} }

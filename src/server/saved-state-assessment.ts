@@ -1,4 +1,4 @@
-import type { SessionAttemptRecord } from "#benchmark/session-record";
+import type { SessionAttemptState } from "#benchmark/session-record";
 import type { Immutable } from "#benchmark/contracts";
 import { redactAbsolutePaths } from "./redact-path";
 
@@ -12,7 +12,7 @@ export type SavedStateAssessment =
 	| { readonly state: "unavailable"; readonly reason: string };
 
 export function savedStateAssessment(
-	record: Immutable<SessionAttemptRecord>,
+	record: Immutable<SessionAttemptState>,
 ): SavedStateAssessment {
 	if ("stateGradingError" in record && record.stateGradingError !== undefined) {
 		return {

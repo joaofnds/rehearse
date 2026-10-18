@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { runHistoryReplies } from "#client/test-support/fetch-stub";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import {
 	UNREAD_GROUP_FIGURES,
@@ -50,7 +51,6 @@ function run(
 			causes: [],
 			changedFiles: [],
 			onlyCorpusFiles: false,
-			readManifest: [],
 			distance: { kind: "measured", versions: current ? 0 : 1 },
 		},
 		progress: { state: "recorded" },
@@ -136,22 +136,17 @@ it("keeps stale corpus selection separate from current and unmeasured corpus", (
 it("intersects Failed and current corpus, searches IDs, and clears an empty result", async () => {
 	renderAppWithStub(
 		"/",
-		new Map([
-			[
-				"/api/runs",
-				{
-					rows: [
-						run("failed", "FAIL"),
-						run("old", "FAIL", false),
-						run("missing"),
-						{ ...run("error"), status: "FAILED" },
-						run("passed", "PASS"),
-					],
-					launches: [],
-					unreadable: [],
-				},
+		runHistoryReplies({
+			rows: [
+				run("failed", "FAIL"),
+				run("old", "FAIL", false),
+				run("missing"),
+				{ ...run("error"), status: "FAILED" },
+				run("passed", "PASS"),
 			],
-		]),
+			launches: [],
+			unreadable: [],
+		}),
 	);
 	await screen.findByRole("table", { name: "Run history" });
 	fireEvent.click(screen.getByRole("button", { name: "Failed" }));
@@ -188,16 +183,11 @@ it("intersects Failed and current corpus, searches IDs, and clears an empty resu
 it("restores discovery from the Runs navigation after inspecting a run", async () => {
 	const router = renderAppWithStub(
 		"/",
-		new Map([
-			[
-				"/api/runs",
-				{
-					rows: [run("failed", "FAIL"), run("passed", "PASS")],
-					launches: [],
-					unreadable: [],
-				},
-			],
-		]),
+		runHistoryReplies({
+			rows: [run("failed", "FAIL"), run("passed", "PASS")],
+			launches: [],
+			unreadable: [],
+		}),
 	);
 	await screen.findByRole("table", { name: "Run history" });
 	fireEvent.click(screen.getByRole("button", { name: "Failed" }));
@@ -336,38 +326,33 @@ it("sorts records through the URL with missing dates and incomplete costs last",
 	const partial = "2026-10-05T11-00-00.000Z";
 	const router = renderAppWithStub(
 		"/?status=failed&query=audit",
-		new Map([
-			[
-				"/api/runs",
+		runHistoryReplies({
+			rows: [
+				{ ...run("legacy", "FAIL"), caseId: undefined },
 				{
-					rows: [
-						{ ...run("legacy", "FAIL"), caseId: undefined },
-						{
-							...run(older, "FAIL"),
-							caseId: "alpha",
-							cost: { state: "available", usd: 5.25, parts: [], missing: [] },
-						},
-						{
-							...run(newer, "FAIL"),
-							caseId: "zeta",
-							cost: { state: "available", usd: 2.1, parts: [], missing: [] },
-						},
-						{
-							...run(partial, "FAIL"),
-							caseId: "gamma",
-							cost: {
-								state: "available",
-								usd: 100,
-								parts: [],
-								missing: [{ part: "worker", reason: "metrics missing" }],
-							},
-						},
-					],
-					launches: [],
-					unreadable: [],
+					...run(older, "FAIL"),
+					caseId: "alpha",
+					cost: { state: "available", usd: 5.25, parts: [], missing: [] },
+				},
+				{
+					...run(newer, "FAIL"),
+					caseId: "zeta",
+					cost: { state: "available", usd: 2.1, parts: [], missing: [] },
+				},
+				{
+					...run(partial, "FAIL"),
+					caseId: "gamma",
+					cost: {
+						state: "available",
+						usd: 100,
+						parts: [],
+						missing: [{ part: "worker", reason: "metrics missing" }],
+					},
 				},
 			],
-		]),
+			launches: [],
+			unreadable: [],
+		}),
 	);
 	await screen.findByRole("table", { name: "Run history" });
 	expect(visibleRunIds()).toEqual([newer, partial, older, "legacy"]);
@@ -410,22 +395,17 @@ it("keeps active launches separate and ended launch history accessible with cons
 		stage: undefined,
 		attempts: 1,
 		launchedAt: "2026-10-10T12:00:00.000Z",
-	};
+	} as const;
 	renderAppWithStub(
 		"/",
-		new Map([
-			[
-				"/api/runs",
-				{
-					rows: [run("saved", "PASS")],
-					launches: [
-						{ ...launch, id: "active-launch", status: "RUNNING" },
-						{ ...launch, id: "ended-launch", status: "OPERATOR_STOPPED" },
-					],
-					unreadable: [],
-				},
+		runHistoryReplies({
+			rows: [run("saved", "PASS")],
+			launches: [
+				{ ...launch, id: "active-launch", status: "RUNNING" },
+				{ ...launch, id: "ended-launch", status: "OPERATOR_STOPPED" },
 			],
-		]),
+			unreadable: [],
+		}),
 	);
 	const records = await screen.findByRole("table", { name: "Run history" });
 	expect(within(records).getAllByRole("row")).toHaveLength(2);
@@ -489,24 +469,19 @@ it("includes stopped steps only when their recorded grade falls below the run's 
 	}
 	renderAppWithStub(
 		"/?status=failed",
-		new Map([
-			[
-				"/api/runs",
+		runHistoryReplies({
+			rows: [
+				stopped("below-high-minimum", "A+", "A", false),
+				stopped("above-low-minimum", "D", "C", true),
+				{ ...run("unjudged-stop"), status: "STOPPED:build" },
 				{
-					rows: [
-						stopped("below-high-minimum", "A+", "A", false),
-						stopped("above-low-minimum", "D", "C", true),
-						{ ...run("unjudged-stop"), status: "STOPPED:build" },
-						{
-							...stopped("missing-minimum", "A+", "A", false),
-							minimumGrade: UNREAD_RUN_FIGURES.minimumGrade,
-						},
-					],
-					launches: [],
-					unreadable: [],
+					...stopped("missing-minimum", "A+", "A", false),
+					minimumGrade: UNREAD_RUN_FIGURES.minimumGrade,
 				},
 			],
-		]),
+			launches: [],
+			unreadable: [],
+		}),
 	);
 	const table = await screen.findByRole("table", { name: "Run history" });
 	expect(within(table).getAllByRole("row")).toHaveLength(2);
@@ -539,20 +514,15 @@ it("finds failed stage and session groups without classifying unjudged errors as
 	}
 	renderAppWithStub(
 		"/?status=failed&kind=group",
-		new Map([
-			[
-				"/api/runs",
-				{
-					rows: [
-						group("stage-failure", "stage", 1),
-						group("checks-failure", "session", 1),
-						group("missing-judgment", "stage", 0),
-					],
-					launches: [],
-					unreadable: [],
-				},
+		runHistoryReplies({
+			rows: [
+				group("stage-failure", "stage", 1),
+				group("checks-failure", "session", 1),
+				group("missing-judgment", "stage", 0),
 			],
-		]),
+			launches: [],
+			unreadable: [],
+		}),
 	);
 	const table = await screen.findByRole("table", { name: "Run history" });
 	expect(within(table).getAllByRole("row")).toHaveLength(3);

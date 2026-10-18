@@ -4,7 +4,10 @@ import {
 	renderAppAt,
 	SHELL_BASELINE,
 } from "#client/test-support/render-app";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import {
+	stubFetchByPath,
+	runHistoryReplies,
+} from "#client/test-support/fetch-stub";
 import {
 	act,
 	fireEvent,
@@ -179,7 +182,7 @@ describe(GroupWorkspacePage.name, () => {
 		const router = renderAppWithStub(
 			"/?query=audit-log&kind=group&status=ended",
 			new Map<string, unknown>([
-				["/api/runs", { rows: [group()], launches: [], unreadable: [] }],
+				...runHistoryReplies({ rows: [group()], launches: [], unreadable: [] }),
 				[`/api/groups/${GROUP}/reads`, { reps: [], reasons: [] }],
 			]),
 		);

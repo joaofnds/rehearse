@@ -229,9 +229,13 @@ links no attempt history, since its attempts record no session.
 
 ## Browser UI
 
-Run-history and corpus reports reuse repeated corpus reads within each report;
-the next request reads the filesystem again. The [loading benchmark](performance.md)
-records initial loading and endpoint costs and how to repeat the measurements.
+Runs shows saved readings before its separate freshness check completes; pending
+freshness stays explicit and corpus filters wait for a judgment. The sidebar reads
+a small corpus summary. Reports reuse filesystem reads within a report, and the
+server reuses validated records only when their exact bytes and schema match.
+Every request rediscovers files and checks current evidence. The
+[loading benchmark](performance.md) records first-visit and server-startup costs
+and how to repeat the measurements.
 
 The shared [visual system](../client/src/system/README.md) uses distinct primary
 actions, blue links, scoped assessment colors and larger reading/metadata type.

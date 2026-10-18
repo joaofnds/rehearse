@@ -104,7 +104,6 @@ export function judgedStaleness(stale: boolean): HistoryRow["staleness"] {
 		changedFiles: [],
 		onlyCorpusFiles: stale,
 		distance: { kind: "measured", versions: stale ? 1 : 0 },
-		readManifest: [],
 	};
 }
 

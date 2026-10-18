@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
-import { corpusQuery } from "#client/corpus/corpus-query";
+import { corpusSummaryQuery } from "#client/corpus/corpus-query";
 import { plural } from "#client/plural";
 import { SectionLabel } from "#client/system/components/section-label";
 
-function latestEdit(files: CorpusResponse["files"]): string | undefined {
+function latestEdit(
+	files: readonly Pick<CorpusResponse["files"][number], "lastEditedAt">[],
+): string | undefined {
 	const times = files.map((file) => file.lastEditedAt).toSorted();
 
 	return times.at(-1);
@@ -41,8 +43,12 @@ function DigestLine({
 }
 
 /** The always-visible answer to which corpus am I looking at (SPEC.md:62). */
-export function CorpusCard(): React.JSX.Element {
-	const query = useQuery(corpusQuery);
+export function CorpusCard({
+	enabled,
+}: {
+	readonly enabled: boolean;
+}): React.JSX.Element {
+	const query = useQuery({ ...corpusSummaryQuery, enabled });
 	const edited =
 		query.data === undefined ? undefined : latestEdit(query.data.files);
 

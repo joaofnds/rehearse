@@ -88,6 +88,5 @@ export function unversionedStaleness(judgment: {
 			kind: "not-recorded",
 			reason: "recorded before corpus versions",
 		},
-		readManifest: [],
 	};
 }

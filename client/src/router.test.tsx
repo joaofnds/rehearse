@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
+import { runHistoryReplies } from "#client/test-support/fetch-stub";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "./router";
@@ -389,10 +390,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("opens the stopped step from Runs in the same workspace", async () => {
-		renderAppWithStub(
-			"/",
-			new Map<string, unknown>([["/api/runs", history([stoppedRow()])]]),
-		);
+		renderAppWithStub("/", runHistoryReplies(history([stoppedRow()])));
 		const link = await screen.findByRole("link", { name: /^build/u });
 		const href = link.getAttribute("href") ?? "";
 		expect(href).toBe(`/runs/${RUN}/stages/build`);

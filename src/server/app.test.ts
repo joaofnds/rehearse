@@ -12,7 +12,9 @@ import {
 	fixedCorpusSource,
 	nothingRunning,
 	NO_PROVIDER_PROJECTS,
+	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
+import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkedCorpusSource } from "#benchmark/corpus-source";
@@ -148,6 +150,87 @@ describe(createAppServer.name, () => {
 
 		expect(response.status).toBe(200);
 		expect(body.rows).toEqual([]);
+	});
+
+	it("answers separate freshness readings with the same judgments as the full history", async () => {
+		const { app, runsRoot } = await appServer();
+		await new RecordedRunsFixture(runsRoot).write();
+		const fullResponse = await app.request("/api/runs", { headers: LOOPBACK });
+		const full = z
+			.object({
+				rows: z.array(
+					z.object({ recordId: z.string(), staleness: z.unknown() }),
+				),
+			})
+			.parse(await fullResponse.json());
+
+		const response = await app.request("/api/run-staleness", {
+			headers: LOOPBACK,
+		});
+		const reading = z
+			.object({ records: z.record(z.string(), z.unknown()) })
+			.parse(await response.json());
+
+		expect(response.status).toBe(200);
+		expect(full.rows.map(({ recordId }) => reading.records[recordId])).toEqual(
+			full.rows.map(({ staleness }) => staleness),
+		);
+	});
+
+	it("sees external record replacement and deletion after a cached read", async () => {
+		const { app, runsRoot } = await appServer();
+		const fixture = new RecordedRunsFixture(runsRoot);
+		await fixture.write();
+		await app.request("/api/run-listing", { headers: LOOPBACK });
+		const record = parseSessionAttemptRecord(
+			await Bun.file(fixture.sessionAttemptFile).text(),
+		);
+		await Bun.write(
+			fixture.sessionAttemptFile,
+			JSON.stringify({ ...record, elapsedMs: record.elapsedMs + 123 }),
+		);
+
+		const response = await app.request("/api/run-listing", {
+			headers: LOOPBACK,
+		});
+		const listing = z
+			.object({
+				rows: z.array(z.object({ kind: z.string(), wallTime: z.unknown() })),
+			})
+			.parse(await response.json());
+
+		expect(response.status).toBe(200);
+		expect(
+			listing.rows.find(({ kind }) => kind === "session-attempt")?.wallTime,
+		).toEqual({ state: "available", ms: record.elapsedMs + 123 });
+
+		await rm(fixture.sessionAttemptFile);
+		const removedResponse = await app.request("/api/run-listing", {
+			headers: LOOPBACK,
+		});
+		const removed = runHistoryResponseSchema.parse(
+			await removedResponse.json(),
+		);
+		expect(removed.rows).toHaveLength(listing.rows.length - 1);
+	});
+
+	it("answers the corpus identity without record usage and sees subsequent file edits", async () => {
+		const { app, liveRoot } = await appServer("linked");
+		const firstResponse = await app.request("/api/corpus-summary", {
+			headers: LOOPBACK,
+		});
+		const first = corpusResponseSchema.parse(await firstResponse.json());
+		await Bun.write(join(liveRoot, "CLAUDE.md"), "new instructions\n");
+
+		const response = await app.request("/api/corpus-summary", {
+			headers: LOOPBACK,
+		});
+		const body: unknown = await response.json();
+		const summary = corpusResponseSchema.parse(body);
+
+		expect(response.status).toBe(200);
+		expect(summary.digest).not.toBe(first.digest);
+		expect(body).not.toHaveProperty("lastEdit");
 	});
 
 	it("serves a built client asset by path", async () => {

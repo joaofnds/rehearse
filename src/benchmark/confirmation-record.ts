@@ -1,3 +1,5 @@
+import type { Immutable } from "./contracts";
+import { parseRecord } from "./record-parse-cache";
 import { z } from "zod";
 import { startedAtSchema } from "./recorded-time";
 import { APPROVAL_METHODS, effortSchema, LEGACY_CASE_ID } from "./config";
@@ -358,8 +360,8 @@ export type ParsedConfirmationRepRecord = z.infer<
 
 export function parseConfirmationRepRecord(
 	text: string,
-): ParsedConfirmationRepRecord {
-	return parsedConfirmationRepRecordSchema.parse(JSON.parse(text));
+): Immutable<ParsedConfirmationRepRecord> {
+	return parseRecord(parsedConfirmationRepRecordSchema, text);
 }
 
 const frozenFileSchema = z
@@ -629,8 +631,8 @@ export const groupStartedAtSchema = z
 
 export function parseConfirmationGroupRecord(
 	text: string,
-): ParsedConfirmationGroupRecord {
-	return parsedConfirmationGroupRecordSchema.parse(JSON.parse(text));
+): Immutable<ParsedConfirmationGroupRecord> {
+	return parseRecord(parsedConfirmationGroupRecordSchema, text);
 }
 
 export interface DeclaredConfirmationGroup {

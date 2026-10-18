@@ -18,11 +18,29 @@ async function fetchCorpusReport(): Promise<CorpusResponse> {
 }
 
 /**
- * The corpus query, shared by the screen, the nav badge that counts its files
- * and the sidebar's corpus card, so all three read one cache entry
- * (SPEC.md:78).
+ * The full corpus report for the corpus screen. Sidebar readers use the
+ * summary below; both share the corpus invalidation prefix.
  */
 export const corpusQuery = {
 	queryKey: ["corpus"],
 	queryFn: fetchCorpusReport,
+} as const;
+
+async function fetchCorpusSummary(): Promise<
+	InferResponseType<(typeof apiClient.api)["corpus-summary"]["$get"]>
+> {
+	const response = await apiClient.api["corpus-summary"].$get();
+	if (!response.ok) {
+		throw new Error(
+			`Could not read the corpus: ${await refusalReason(response)}`,
+		);
+	}
+
+	return response.json();
+}
+
+/** Shares invalidation with the full report without computing record usage for the sidebar. */
+export const corpusSummaryQuery = {
+	queryKey: [...corpusQuery.queryKey, "summary"],
+	queryFn: fetchCorpusSummary,
 } as const;

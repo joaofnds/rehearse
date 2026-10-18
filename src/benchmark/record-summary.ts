@@ -1,3 +1,4 @@
+import { parseRecord } from "./record-parse-cache";
 import { z } from "zod";
 import { COMPARISON_ARMS } from "./comparison-record";
 import type {
@@ -109,7 +110,7 @@ export const runSummarySchema = z
 export type RunSummaryRecord = Immutable<z.infer<typeof runSummarySchema>>;
 
 export function parseRunSummaryRecord(text: string): RunSummaryRecord {
-	return runSummarySchema.parse(JSON.parse(text));
+	return parseRecord(runSummarySchema, text);
 }
 
 export function runSummary(runName: string, record: RunSummaryRecord): string {
@@ -278,7 +279,7 @@ export type GroupReportSummaryRecord = Immutable<
 export function parseGroupReportSummaryRecord(
 	text: string,
 ): GroupReportSummaryRecord {
-	return groupReportSummarySchema.parse(JSON.parse(text));
+	return parseRecord(groupReportSummarySchema, text);
 }
 
 export function groupSummary(

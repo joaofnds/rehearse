@@ -175,7 +175,15 @@ describe(StageReviewPage.name, () => {
 		).toEqual(
 			new Set([
 				...[...SHELL_BASELINE.keys()]
-					.filter((path) => path !== "/api/runs" && path !== "/api/calibration")
+					.filter(
+						(path) =>
+							![
+								"/api/runs",
+								"/api/calibration",
+								"/api/corpus",
+								"/api/run-staleness",
+							].includes(path),
+					)
 					.map((path) => `GET ${path}`),
 				`GET ${REVIEW_PATH}`,
 			]),
@@ -304,7 +312,15 @@ describe(StageReviewPage.name, () => {
 		).toEqual(
 			new Set([
 				...[...SHELL_BASELINE.keys()]
-					.filter((path) => path !== "/api/runs" && path !== "/api/calibration")
+					.filter(
+						(path) =>
+							![
+								"/api/runs",
+								"/api/calibration",
+								"/api/corpus",
+								"/api/run-staleness",
+							].includes(path),
+					)
 					.map((path) => `GET ${path}`),
 				`GET ${REVIEW_PATH}`,
 			]),

@@ -1,3 +1,8 @@
+import {
+	withRecordReadScope,
+	recordFileExists,
+} from "#benchmark/record-read-scope";
+import { concurrentMap } from "#benchmark/concurrent-map";
 import { unhandled } from "#benchmark/contracts";
 import type { GradedHardBlockers, Immutable } from "#benchmark/contracts";
 import {
@@ -43,6 +48,7 @@ import type { ReplayRecord } from "#benchmark/replay";
 import {
 	attemptStartedAt,
 	parseSessionAttemptRecord,
+	parseSessionAttemptState,
 } from "#benchmark/session-record";
 import { savedStateAssessment } from "./saved-state-assessment";
 import type { SavedStateAssessment } from "./saved-state-assessment";
@@ -64,10 +70,9 @@ import {
 	everyRecordStaleness,
 	frozenPipeline,
 } from "#benchmark/staleness-report";
-import type {
-	CorpusUnderTestReader,
-	RecordStaleness,
-} from "#benchmark/staleness-report";
+import type { CorpusUnderTestReader } from "#benchmark/staleness-report";
+import type { RowStaleness } from "./row-staleness";
+import { UNJUDGED_REASON } from "./row-staleness";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
@@ -117,9 +122,8 @@ export type { ContextLink, RunProgress } from "./run-status";
  * recorded. A record the report could not judge says why rather than reading
  * as clean.
  */
-export type RowStaleness = Reading<Omit<RecordStaleness, "id" | "readFiles">>;
-
-export const UNJUDGED_REASON = "nothing recorded to judge";
+export type { RowStaleness } from "./row-staleness";
+export { UNJUDGED_REASON } from "./row-staleness";
 
 /**
  * One pipeline run's row, in decision-5's code vocabulary (`run`, `caseId`,
@@ -452,7 +456,7 @@ async function stageLinks(
 	run: string,
 ): Promise<readonly ContextLink[]> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (!(await Bun.file(paths.manifestFile).exists())) {
+	if (!(await recordFileExists(paths.manifestFile))) {
 		return [];
 	}
 
@@ -485,7 +489,7 @@ async function replayableStages(
 	run: string,
 ): Promise<readonly string[]> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (!(await Bun.file(paths.manifestFile).exists())) {
+	if (!(await recordFileExists(paths.manifestFile))) {
 		return [];
 	}
 
@@ -585,6 +589,7 @@ async function runFigures(
 	runsDirectory: string,
 	run: string,
 	liveness: RunLiveness,
+	runEvents: RunEventStore,
 ): Promise<RunFigures> {
 	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
 	if (!(await Bun.file(manifestFile).exists())) {
@@ -592,7 +597,7 @@ async function runFigures(
 	}
 
 	try {
-		const record = await readRunRecord(runsDirectory, run, liveness);
+		const record = await readRunRecord(runsDirectory, run, liveness, runEvents);
 
 		return {
 			stageGrades: {
@@ -686,7 +691,7 @@ async function rowFor(
 	];
 	const checkpoints = await checkpointShortIds(runsDirectory, run, shortId);
 	const replayable = await replayableStages(runsDirectory, run);
-	const figures = await runFigures(runsDirectory, run, liveness);
+	const figures = await runFigures(runsDirectory, run, liveness, runEvents);
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	const launchId =
 		status === "RUNNING"
@@ -921,7 +926,7 @@ function repAttempts(
 	});
 }
 
-type GroupRep = ParsedConfirmationRepRecord | UnreadRep;
+type GroupRep = Immutable<ParsedConfirmationRepRecord> | UnreadRep;
 
 /**
  * Each rep the group lists, in its order: the record it wrote, or why that
@@ -1129,7 +1134,7 @@ async function readRepSavedState(
 				},
 			};
 		}
-		const attempt = parseSessionAttemptRecord(await file.text());
+		const attempt = parseSessionAttemptState(await file.text());
 		if (attempt.caseId !== group.caseId) {
 			throw new Error("The saved session attempt names a different case.");
 		}
@@ -1399,6 +1404,7 @@ async function registryEntries(runsDirectory: string): Promise<{
 }
 
 export interface Staleness {
+	readonly records: ReadonlyMap<string, RowStaleness>;
 	readonly of: (recordId: string) => RowStaleness;
 	/**
 	 * A run row's staleness: the judgment of the stage its judge stopped, which
@@ -1434,9 +1440,12 @@ export async function recordStaleness(
 		every.groups,
 	];
 	const judgedById = new Map<string, RowStaleness>();
-	for (const { id, readFiles: _read, ...judged } of reports.flatMap(
-		({ records }) => records,
-	)) {
+	for (const {
+		id,
+		readFiles: _read,
+		readManifest: _manifest,
+		...judged
+	} of reports.flatMap(({ records }) => records)) {
 		judgedById.set(id, { state: "available", ...judged });
 	}
 	const unreadableById = new Map<string, RowStaleness>();
@@ -1457,12 +1466,55 @@ export async function recordStaleness(
 		};
 
 	return {
+		records: new Map([...judgedById, ...unreadableById]),
 		of,
 		ofRun: (run, latestCheckpoint) =>
 			judgedById.get(formatRecordId({ kind: "run", run })) ??
 			unreadableById.get(formatRecordId({ kind: "run", run })) ??
 			of(latestCheckpoint),
 	};
+}
+
+/** Current judgments by run-list identity, without rebuilding the list's saved readings. */
+export async function runStalenessReport(
+	runsDirectory: string,
+	source: CorpusRoot,
+): Promise<{ readonly records: Readonly<Record<string, RowStaleness>> }> {
+	const staleness = await recordStaleness(runsDirectory, source);
+	const runs = await concurrentMap(
+		await recordedRunNames(runsDirectory),
+		async (run) => {
+			const id = formatRecordId({ kind: "run", run });
+			try {
+				const stage = await latestCheckpointStage(runsDirectory, run);
+				return [
+					id,
+					staleness.ofRun(
+						run,
+						formatRecordId({
+							kind: "checkpoint",
+							run,
+							stage: stage ?? INITIAL_CHECKPOINT_STAGE,
+						}),
+					),
+				] as const;
+			} catch (error) {
+				return [
+					id,
+					{
+						state: "unavailable",
+						reasons: [
+							redactAbsolutePaths(
+								error instanceof Error ? error.message : String(error),
+							),
+						],
+					},
+				] as const;
+			}
+		},
+	);
+
+	return { records: Object.fromEntries([...staleness.records, ...runs]) };
 }
 
 /**
@@ -1546,7 +1598,17 @@ function withStaleness(
  * path under the corpus root or the target repository, neither of which
  * lives under `CONTROL_DIR`.
  */
-export async function runListing(
+export function runListing(
+	runsDirectory: string,
+	liveness: RunLiveness,
+	only?: ReadonlySet<string>,
+): Promise<RunListing> {
+	return withRecordReadScope(() =>
+		readRunListing(runsDirectory, liveness, only),
+	);
+}
+
+async function readRunListing(
 	runsDirectory: string,
 	liveness: RunLiveness,
 	only?: ReadonlySet<string>,
@@ -1555,7 +1617,6 @@ export async function runListing(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
-		const rows: RunListingRow[] = [];
 		const unreadable: UnreadableRecord[] = [];
 		const registry = await registryEntries(runsDirectory);
 		unreadable.push(...registry.unreadable);
@@ -1570,7 +1631,12 @@ export async function runListing(
 		const launchByPid = new Map(
 			live.launches.map((launch) => [launch.pid, launch] as const),
 		);
-		const collect = async <Named>(
+		interface RowRead {
+			readonly kind: RunHistoryRow["kind"];
+			readonly id: string;
+			readonly read: () => Promise<RunListingRow | undefined>;
+		}
+		const tasks = <Named>(
 			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
 			idOf: (name: Named) => string,
@@ -1578,63 +1644,77 @@ export async function runListing(
 				name: Named,
 				shortId: string | undefined,
 			) => Promise<RunListingRow | undefined>,
-		): Promise<void> => {
-			for (const name of named.filter(
-				(candidate) => only?.has(idOf(candidate)) ?? true,
-			)) {
-				try {
-					const row = await read(name, shortIds.get(idOf(name)));
-					if (row !== undefined) {
-						rows.push(row);
-					}
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : String(error);
-					unreadable.push({
-						kind,
-						id: idOf(name),
-						reason: redactAbsolutePaths(message),
-					});
-				}
-			}
-		};
+		): readonly RowRead[] =>
+			named
+				.filter((candidate) => only?.has(idOf(candidate)) ?? true)
+				.map((name) => ({
+					kind,
+					id: idOf(name),
+					read: () => read(name, shortIds.get(idOf(name))),
+				}));
 
 		const runs = new Set([
 			...(await recordedRunNames(runsDirectory)),
 			...runEvents.runIds(),
 		]);
-		await collect(
-			"run",
-			[...runs],
-			(run) => formatRecordId({ kind: "run", run }),
-			(run, shortId) =>
-				rowFor(runsDirectory, run, shortId, runEvents, liveness, launchByPid),
+		const reads = [
+			...tasks(
+				"run",
+				[...runs],
+				(run) => formatRecordId({ kind: "run", run }),
+				(run, shortId) =>
+					rowFor(runsDirectory, run, shortId, runEvents, liveness, launchByPid),
+			),
+			...tasks(
+				"session-attempt",
+				await sessionAttemptIds(runsDirectory),
+				(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
+				(attempt, shortId) =>
+					sessionAttemptRow(runsDirectory, attempt, shortId),
+			),
+			...tasks(
+				"replay",
+				await replayAttemptIds(runsDirectory),
+				(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
+				(attempt, shortId) =>
+					replayRow(runsDirectory, attempt, shortId, shortIds, attempts),
+			),
+			...tasks(
+				"group",
+				await confirmationGroupIds(runsDirectory),
+				(groupId) => formatRecordId({ kind: "group", groupId }),
+				(groupId, shortId) =>
+					groupRow(
+						runsDirectory,
+						groupId,
+						shortId,
+						groupCheckpoints.get(groupId),
+						attempts,
+					),
+			),
+		];
+		const readings = await concurrentMap(reads, async ({ kind, id, read }) => {
+			try {
+				return { row: await read() };
+			} catch (error) {
+				return {
+					unreadable: {
+						kind,
+						id,
+						reason: redactAbsolutePaths(
+							error instanceof Error ? error.message : String(error),
+						),
+					},
+				};
+			}
+		});
+		const rows = readings.flatMap(({ row }) =>
+			row === undefined ? [] : [row],
 		);
-		await collect(
-			"session-attempt",
-			await sessionAttemptIds(runsDirectory),
-			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
-			(attempt, shortId) => sessionAttemptRow(runsDirectory, attempt, shortId),
-		);
-		await collect(
-			"replay",
-			await replayAttemptIds(runsDirectory),
-			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
-			(attempt, shortId) =>
-				replayRow(runsDirectory, attempt, shortId, shortIds, attempts),
-		);
-		await collect(
-			"group",
-			await confirmationGroupIds(runsDirectory),
-			(groupId) => formatRecordId({ kind: "group", groupId }),
-			(groupId, shortId) =>
-				groupRow(
-					runsDirectory,
-					groupId,
-					shortId,
-					groupCheckpoints.get(groupId),
-					attempts,
-				),
+		unreadable.push(
+			...readings.flatMap((reading) =>
+				reading.unreadable === undefined ? [] : [reading.unreadable],
+			),
 		);
 
 		return {

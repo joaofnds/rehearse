@@ -1,3 +1,5 @@
+import { parseRecord } from "#benchmark/record-parse-cache";
+import { recordFileText, recordFileExists } from "#benchmark/record-read-scope";
 import { basename } from "node:path";
 import { z } from "zod";
 import {
@@ -491,12 +493,12 @@ export async function readStageFile(
 	paths: Pick<BenchmarkRunPaths, "stageFile">,
 	stage: string,
 ): Promise<StageFile | undefined> {
-	const file = Bun.file(paths.stageFile(stage));
-	if (!(await file.exists())) {
+	const file = paths.stageFile(stage);
+	if (!(await recordFileExists(file))) {
 		return undefined;
 	}
 
-	return stageFileSchema.parse(JSON.parse(await file.text()));
+	return parseRecord(stageFileSchema, await recordFileText(file));
 }
 
 type Calls = Immutable<z.infer<typeof callsSchema>>;
@@ -996,12 +998,12 @@ export function artifactsIn(
 async function readArtifactSpend(
 	paths: BenchmarkRunPaths,
 ): Promise<ArtifactSpend | undefined> {
-	const artifactFile = Bun.file(paths.artifactFile);
-	if (!(await artifactFile.exists())) {
+	const { artifactFile } = paths;
+	if (!(await recordFileExists(artifactFile))) {
 		return undefined;
 	}
 
-	return artifactSpendSchema.parse(JSON.parse(await artifactFile.text()));
+	return parseRecord(artifactSpendSchema, await recordFileText(artifactFile));
 }
 
 function costPart(
@@ -1355,9 +1357,10 @@ export async function readRunRecord(
 	runsDirectory: string,
 	run: string,
 	liveness: RunLiveness,
+	eventStore?: RunEventStore,
 ): Promise<RunRecord> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (!(await Bun.file(paths.manifestFile).exists())) {
+	if (!(await recordFileExists(paths.manifestFile))) {
 		throw new RefusedPreconditionError(`No pipeline run ${run} is recorded`);
 	}
 	const manifest = await loadRunManifest(paths.manifestFile);
@@ -1382,9 +1385,9 @@ export async function readRunRecord(
 			?.file,
 	};
 	const shortId = await readRunShortId(runsDirectory, manifest.caseId, run);
-	const runEvents = await openRunEventStore(
-		runEventsDatabaseFile(runsDirectory),
-	);
+	const runEvents =
+		eventStore ??
+		(await openRunEventStore(runEventsDatabaseFile(runsDirectory)));
 	try {
 		const ending = await readEnding(runsDirectory, run, runEvents, liveness);
 		const outcome = await finalOutcome(runsDirectory, run, ending);
@@ -1459,7 +1462,9 @@ export async function readRunRecord(
 			finalOutcome: outcome,
 		};
 	} finally {
-		runEvents.close();
+		if (eventStore === undefined) {
+			runEvents.close();
+		}
 	}
 }
 

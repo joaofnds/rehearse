@@ -1,3 +1,4 @@
+import { scopedRecordReader, recordFileExists } from "./record-read-scope";
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -250,9 +251,9 @@ export function checkpointRecorded(
 	paths: Pick<BenchmarkRunPaths, "checkpointDirectory">,
 	stage: string,
 ): Promise<boolean> {
-	return Bun.file(
+	return recordFileExists(
 		checkpointRecordFile(paths.checkpointDirectory(stage)),
-	).exists();
+	);
 }
 
 export function comparisonReportPaths(
@@ -271,13 +272,15 @@ export function comparisonReportPaths(
  * under its lineage. A directory that was never written is nothing recorded,
  * not a failure: `list` over a fresh checkout prints no line and exits 0.
  */
-async function entries(directory: string): Promise<readonly Dirent[]> {
-	const found: Dirent[] = await readdir(directory, {
-		withFileTypes: true,
-	}).catch(() => []);
+const entries = scopedRecordReader(
+	async (directory): Promise<readonly Dirent[]> => {
+		const found: Dirent[] = await readdir(directory, {
+			withFileTypes: true,
+		}).catch(() => []);
 
-	return found.toSorted((left, right) => (left.name < right.name ? -1 : 1));
-}
+		return found.toSorted((left, right) => (left.name < right.name ? -1 : 1));
+	},
+);
 
 async function directoryNames(directory: string): Promise<readonly string[]> {
 	const found = await entries(directory);

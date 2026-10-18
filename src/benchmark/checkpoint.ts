@@ -1,3 +1,4 @@
+import { parseRecord } from "./record-parse-cache";
 import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
 import { cp, mkdir, readdir, rm, unlink } from "node:fs/promises";
@@ -1271,7 +1272,7 @@ export type CheckpointRecord = Immutable<
 >;
 
 export function parseCheckpointRecord(text: string): CheckpointRecord {
-	return checkpointRecordSchema.parse(JSON.parse(text));
+	return parseRecord(checkpointRecordSchema, text);
 }
 
 export interface CheckpointInputs {

@@ -49,6 +49,7 @@ import type {
 } from "./run-history";
 import {
 	recordStaleness,
+	runListing,
 	runHistoryReport,
 	UNJUDGED_REASON,
 } from "./run-history";
@@ -379,7 +380,6 @@ describe(runHistoryReport.name, () => {
 			changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 			onlyCorpusFiles: true,
 			distance: { kind: "measured", versions: 1 },
-			readManifest: [],
 		};
 		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toEqual(edited);
 		expect(rows.find((row) => row.kind === "replay")?.staleness).toEqual(
@@ -1872,6 +1872,40 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
+		it("reads a session group's saved state despite malformed unrelated context evidence", async () => {
+			const fixture = await writtenFixture();
+			const [rep] = await fixture.writeSessionGroup("state-without-context", 1);
+			const paths = confirmationGroupPaths(
+				fixture.runsDirectory,
+				"state-without-context",
+			);
+			const record = parseSessionAttemptRecord(
+				await Bun.file(paths.rep(rep).attemptFile).text(),
+			);
+			await Bun.write(
+				paths.rep(rep).attemptFile,
+				JSON.stringify({
+					...record,
+					schemaVersion: 3,
+					contextEvidence: "malformed unrelated evidence",
+					stateResults: [
+						{ name: "history", status: "PASS", detail: "kept history" },
+					],
+				}),
+			);
+
+			const { rows } = await runListing(fixture.runsDirectory, nothingRunning);
+
+			expect(
+				rows.find(
+					(row) =>
+						row.kind === "group" && row.groupId === "state-without-context",
+				),
+			).toMatchObject({
+				savedState: { total: 2, assessed: 1, passed: 1, unavailable: 1 },
+			});
+		});
+
 		it("keeps missing and malformed session-group attempts unavailable with redacted causes", async () => {
 			const fixture = await writtenFixture();
 			const [first, second] = await fixture.writeSessionGroup(
@@ -1889,7 +1923,15 @@ describe(runHistoryReport.name, () => {
 				paths.rep(first).attemptFile,
 				JSON.stringify({
 					...record,
-					"/Users/private/saved-state-secret": true,
+					schemaVersion: 3,
+					stateResults: [
+						{
+							name: "saved",
+							status: "PASS",
+							detail: "present",
+							"/Users/private/saved-state-secret": true,
+						},
+					],
 				}),
 			);
 			await rm(paths.rep(second).attemptFile);

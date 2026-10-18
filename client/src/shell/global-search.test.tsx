@@ -35,7 +35,11 @@ it("opens with the keyboard, searches existing collections, and closes with Esca
 							links: [],
 							corpusVersion: { kind: "version", digest: "abc" },
 							corpusChangedDuringRun: false,
-							progress: { state: "running" },
+							progress: {
+								state: "running",
+								spentUsd: 0,
+								spendScope: "this run",
+							},
 						},
 						{
 							...UNREAD_REPLAY_FIGURES,
@@ -173,8 +177,9 @@ it("keeps an exact case ahead of many run matches and previews their outcome and
 						recordId: `run:${String(index)}`,
 						run: `2026-10-02T09-00-${String(index).padStart(2, "0")}.000Z`,
 						caseId: "audit-log",
-						status: "COMPLETED",
-						progress: { state: "ended" },
+						status: "COMPLETE",
+						links: [],
+						progress: { state: "recorded" },
 						finalOutcome: {
 							state: "available",
 							status: "JUDGED",

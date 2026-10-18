@@ -17,7 +17,7 @@ import { withinCase } from "#client/within-case";
 import { clockReading, liveElapsedMs, spendReading } from "./run-progress";
 import { listedEntryCount } from "./run-history-query";
 import type { RunHistoryResponse } from "./run-history-query";
-import { polledRunHistoryQuery } from "./run-history-polling";
+import { useRunHistory } from "./use-run-history";
 import { useNow } from "./use-now";
 import { recordMoment } from "./record-moment";
 import { runStatusState } from "./run-status";
@@ -1902,6 +1902,13 @@ function LoadState({
 	return null;
 }
 
+function waitsForCorpusFilter(
+	pending: boolean,
+	corpus: RunDiscoverySearch["corpus"],
+): boolean {
+	return pending && corpus !== undefined && corpus !== "all";
+}
+
 export function RunHistoryPage({
 	invalidatedBy,
 	discovery,
@@ -1937,7 +1944,7 @@ export function RunHistoryPage({
 			);
 		},
 	};
-	const query = useQuery(polledRunHistoryQuery);
+	const query = useRunHistory();
 	const selection = useInvalidatedSelection(invalidatedBy, readOf(query));
 
 	const unreadable = query.data?.unreadable ?? [];
@@ -1952,8 +1959,14 @@ export function RunHistoryPage({
 		(launch) => launch.status !== "RUNNING",
 	);
 	const listable = listedEntryCount(history) > 0;
+	const waitingForFilter = waitsForCorpusFilter(
+		query.freshnessPending,
+		discovery.corpus,
+	);
 	const nothingListed =
-		query.isSuccess && saysNothingListed(selection, { rows, launches });
+		query.isSuccess &&
+		!waitingForFilter &&
+		saysNothingListed(selection, { rows, launches });
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
 	);
@@ -1985,7 +1998,9 @@ export function RunHistoryPage({
 
 			<FilterBar
 				discovery={discovery}
-				total={query.isSuccess ? listedEntryCount(query.data) : undefined}
+				total={
+					query.data === undefined ? undefined : listedEntryCount(query.data)
+				}
 				onChange={changeDiscovery}
 				invalidated={selection !== undefined}
 				onClear={() => {
@@ -1994,7 +2009,10 @@ export function RunHistoryPage({
 			/>
 
 			<div className="flex flex-col gap-5 page-gutter pt-6 pb-12">
-				<LoadState loading={query.isLoading} failed={query.isError} />
+				<LoadState
+					loading={query.isLoading || waitingForFilter}
+					failed={query.isError}
+				/>
 				{query.data === undefined ? null : (
 					<p
 						role="status"

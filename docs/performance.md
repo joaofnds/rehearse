@@ -1,11 +1,77 @@
 # Local loading performance
 
-Rehearse's initial data load was dominated by repeated filesystem work in the
-run-history staleness and corpus reports. Both now reuse file hashes, stage
-captures, layout walks and saved-version manifests within a report. Each subsequent report starts with an
-empty scope and checks the filesystem again.
+Runs now shows saved readings before calculating freshness. The initial list
+rereads local records, reuses validation for identical bytes and shares repeated
+reads within the request. Sidebar metadata starts after the list arrives.
 
-## Measurements
+## First-open result
+
+The first two report optimizations below still left the initial screen waiting
+about a second. A second investigation found repeated JSON/schema parsing,
+SQLite initialization once per pipeline row, and a full history-wide corpus
+invalidation report requested for the sidebar.
+
+A fresh-process comparison on the same Apple M5 Pro, Bun 1.4.0, 189 readable
+records and 137 corpus files alternated five baseline/candidate starts. The
+baseline is `a2fc339a`, including the earlier performance changes. Both arms read
+the same records, linked corpus and case definitions, including local cases.
+The OS filesystem cache was warm. No tests or builds ran during measurement.
+
+| Measurement                                     | Baseline median | Current median |
+| ----------------------------------------------- | --------------: | -------------: |
+| First list data after server readiness          |        893.2 ms |        85.5 ms |
+| Initial API batch, excluding deferred freshness |      1,202.2 ms |       162.4 ms |
+| Server process launch to accepting traffic      |         70.5 ms |       290.1 ms |
+| Process launch to first list data               |        963.5 ms |       375.6 ms |
+
+The current first list samples were 75.7–86.6 ms. The process-start cost includes
+reconciliation and a listing read that fills the parsed-record cache before the
+port opens. That initialization adds work before readiness; it is included in
+the process-launch comparison. These five samples establish a local improvement,
+not a latency guarantee or an OS-cold-disk result.
+
+In one first navigation after a server restart, all 189 rows were observed at
+211 ms, down from 870 ms in the earlier browser check. The list request took
+77.4 ms and finished at 135.8 ms after navigation; application startup and
+rendering account for the remaining visible delay. The observation waited two
+animation frames after rows appeared. Freshness arrived at 415.9 ms. The data
+request meets 100 ms in these readings; the complete visible screen does not.
+
+The sidebar now requests `/api/corpus-summary`, which hashes the current corpus
+and reads file edit times without computing history usage or invalidation. It
+and the comparison badge wait for the initial listing to settle. Runs first
+requests `/api/run-listing`, then `/api/run-staleness` for that listing read. Every
+successful listing refresh starts a new freshness query, so replacement records
+cannot inherit earlier judgments. Pending or failed freshness
+is unavailable, including during a refresh of an earlier clean judgment; Current
+corpus and Stale filters wait for a pending judgment. Full record and read-evidence
+routes retain detailed manifests, omitted from list judgments.
+
+Listing borrows one event store, reads independent rows with at most 16 workers,
+and shares filesystem reads for that report. Session-group saved-state summaries
+validate identity, version, outcome and saved-grade fields without parsing
+unrelated context evidence. Full session readers retain their full schemas.
+The server-owned parsed-record LRU keys successful results by schema identity and
+SHA-256 of the exact input bytes, with recursively frozen output. It retains at
+most 2,048 entries and 64 MiB of input text; that is not a bound on JavaScript heap
+size. Every request rereads files and discovers paths, so external additions,
+replacements and deletions remain visible. Freshness judgments are recomputed.
+
+Sequential reads on the populated current server had medians of 68.7 ms for
+listing, 26.9 ms for corpus summary, 183.4 ms for freshness, 236.5 ms for the full
+run report and 379.1 ms for the full corpus report. Full evidence reports still
+exceed 100 ms. They scan saved evidence and, for corpus invalidation, judge the
+previous version. Freshness is deferred rather than described as free.
+
+The [raw first-open measurements](performance/loading-2026-10-18-initial.json)
+retain every sample, response size, startup cost and browser observation. Listing,
+full run history, corpus and comparisons matched the baseline after omitting the
+intentional detailed `readManifest` projection from list judgments. Canonical
+response hashes are retained without private response bodies. Independent
+[review findings and dispositions](performance/loading-2026-10-18-initial-review.json)
+retain the correctness checks and their regression evidence.
+
+## Earlier report measurements
 
 Measured on 2026-10-18 on an Apple M5 Pro, arm64, with Bun 1.4.0, a built client,
 189 readable saved records and 137 corpus files. Both servers read the same local
@@ -38,8 +104,8 @@ In the browser, the original initial navigation loaded HTML and JavaScript in
 under 40 ms, then spent 2,660 ms on run history and 4,595 ms on corpus data.
 An optimized initial navigation spent 1,044 ms and 1,240 ms respectively, with the
 last initial API response arriving 1,287 ms after navigation. The browser's
-concurrent requests differ from isolated endpoint readings. The sidebar requests
-the corpus report on every destination, so this work also affects opening pages
+concurrent requests differ from isolated endpoint readings. At that point, the sidebar requested
+the corpus report on every destination, so this work also affected opening pages
 other than Runs or Corpus.
 
 A cached-navigation smoke check clicked Comparisons, Cases, Corpus, Settings and
@@ -54,7 +120,7 @@ These measurements cover opening the website against a running server. They do
 not measure OS-cold reads or provider execution. Server-process startup performs
 reconciliation before accepting traffic and is a separate path.
 
-## Cause and implementation
+## Earlier cause and implementation
 
 Staleness compares historical records with the corpus under test. Multiple runs
 can read the same skill and the same additional instruction files. Previously,
@@ -109,8 +175,14 @@ batches:
 mise exec -- bun tools/benchmark-loading.ts http://localhost:4173 5
 ```
 
-The command prints JSON with first, median, nearest-rank p95 and individual
-samples, plus response sizes and the initial concurrent batches. It makes GET
+The command first measures opening batches: listing and settings, followed by
+sidebar metadata and freshness after listing completes. `listReadyMs` measures
+the list; `ms` measures the initial batch excluding freshness; `freshness.readyMs`
+measures the full judgment from batch start. It then prints endpoint first,
+median, nearest-rank p95 and individual samples plus response sizes. An endpoint's
+`firstMs` follows the opening batches and is not its first request in the process.
+Restart the server before a one-repetition invocation to measure first requests;
+process readiness and visible rendering require separate observations. It makes GET
 requests and no provider calls. An API path returning the HTML fallback is an
 error, so an unavailable route cannot silently appear fast. Requests have a
 60-second deadline. This is an opt-in benchmark, not a timing assertion in the
@@ -128,7 +200,7 @@ Use the same records, corpus, built client and background workload for both
 comparison arms. Do not compare an empty fixture with a populated install. Keep
 private response bodies and transcripts out of published benchmark results.
 
-## Small follow-ups
+## Earlier follow-ups
 
 Run-history listing and staleness now start together, since neither needs the
 other's result. The report still waits for both before combining its rows. Saved
@@ -156,12 +228,12 @@ small samples establish a local improvement, not a tail-latency guarantee.
 ## Remaining cost
 
 Reports still scan saved evidence, and corpus invalidation still materializes and
-judges the previous version. Their cost grows with the history. The API requests
-for run history and corpus are independent and repeat some evidence work. The
-client still refreshes reports when their queries remount, and polling retains
-its existing cadence. No cross-request cache or client freshness delay was added.
+judges the previous version. Their cost grows with history. Polling retains its
+active two-second and idle ten-second cadence. Corpus-dependent filters can pause
+briefly during a freshness refresh. The parser cache avoids repeated validation,
+but does not retain report results or replace filesystem discovery.
 
-The initial JavaScript payload was about 932 KB in this build; its local transfer
-took about 4 ms in the original browser reading. Splitting that bundle was not
-needed to address the reproduced delay. Very large histories, individual long
-transcripts and every historical detail route were not exhaustively benchmarked.
+The initial JavaScript payload is about 936 KB. Browser startup and rendering
+still put the first visible list above 100 ms in the observed navigation. Very
+large histories, individual long transcripts and every historical detail route
+were not exhaustively benchmarked.

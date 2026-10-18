@@ -71,7 +71,9 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 >([
 	["/api/runs", NO_RUNS],
 	["/api/run-listing", NO_RUNS],
+	["/api/run-staleness", { records: {} }],
 	["/api/corpus", EMPTY_CORPUS],
+	["/api/corpus-summary", EMPTY_CORPUS],
 	["/api/comparisons", NO_COMPARISONS],
 	["/api/calibration", NO_GRADES],
 	["/api/settings", settingsReading(20)],

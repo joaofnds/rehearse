@@ -20,6 +20,11 @@ import {
 } from "#benchmark/run-reconciliation";
 import { createAppServer } from "./app";
 import { processLauncher } from "./process-launcher";
+import { runListing } from "./run-history";
+import {
+	RecordParseCache,
+	withRecordParseCache,
+} from "#benchmark/record-parse-cache";
 
 const DEFAULT_PORT = 4173;
 
@@ -58,13 +63,19 @@ async function main(): Promise<void> {
 
 	const runsDirectory = recordsDirectory();
 	await reconcileOnStartup(runsDirectory);
+	const liveness = liveRunLiveness();
+	const recordParseCache = new RecordParseCache();
+	await withRecordParseCache(recordParseCache, () =>
+		runListing(runsDirectory, liveness),
+	);
 
 	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
 	const app = createAppServer({
 		runsDirectory,
 		projectsDirectory: claudeProjectsDirectory(),
 		readCorpusSource: () => linkedCorpusSource(runsDirectory),
-		liveness: liveRunLiveness(),
+		liveness,
+		recordParseCache,
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
 		port,
 		casesRoot: casesRoot(),

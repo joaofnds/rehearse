@@ -1,3 +1,4 @@
+import { parseRecord } from "./record-parse-cache";
 import { z } from "zod";
 import { startedAtSchema } from "./recorded-time";
 import type { SessionCase } from "./case";
@@ -258,6 +259,54 @@ const stateGradeFields = {
 	stateGradingError: z.string().min(1).optional(),
 };
 
+/** The identity and saved outcomes a group summary reads, independent of context evidence. */
+const sessionAttemptStateSchema = z
+	.object({
+		schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+		caseId: z.string().min(1),
+		lineage: z.string().min(1),
+		outcome: z.enum([
+			"SUCCESSFUL",
+			"UNSUCCESSFUL",
+			"NO_REPLY",
+			"EXECUTION_FAILED",
+		]),
+		...stateGradeFields,
+	})
+	.superRefine((record, context) => {
+		if (
+			(record.schemaVersion === 2) !==
+			(record.outcome === "EXECUTION_FAILED")
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Execution failures use version 2",
+				path: ["outcome"],
+			});
+		}
+		if (
+			(record.stateResults !== undefined &&
+				record.stateGradingError !== undefined) ||
+			(record.schemaVersion !== 3 &&
+				(record.stateResults !== undefined ||
+					record.stateGradingError !== undefined))
+		) {
+			context.addIssue({
+				code: "custom",
+				message:
+					"Saved state outcomes require version 3 and cannot accompany a grading error",
+			});
+		}
+	});
+
+export type SessionAttemptState = z.infer<typeof sessionAttemptStateSchema>;
+
+export function parseSessionAttemptState(
+	text: string,
+): Immutable<SessionAttemptState> {
+	return parseRecord(sessionAttemptStateSchema, text);
+}
+
 export const legacyUntaggedSessionAttemptRecordSchema = z
 	.object({
 		schemaVersion: z.literal(1),
@@ -376,8 +425,10 @@ export type SessionAttemptRecordV3 = z.infer<
 >;
 export type SessionAttemptRecord = z.infer<typeof sessionAttemptRecordSchema>;
 
-export function parseSessionAttemptRecord(text: string): SessionAttemptRecord {
-	return sessionAttemptRecordSchema.parse(JSON.parse(text));
+export function parseSessionAttemptRecord(
+	text: string,
+): Immutable<SessionAttemptRecord> {
+	return parseRecord(sessionAttemptRecordSchema, text);
 }
 
 /** When the attempt started; undefined for a record written before attempts kept it. */

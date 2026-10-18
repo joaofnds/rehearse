@@ -1,3 +1,4 @@
+import { recordFileJson } from "./record-read-scope";
 import { z } from "zod";
 import { runStageFiles } from "./run-layout";
 
@@ -53,7 +54,7 @@ async function firstStageRecord<Record>(
 	schema: z.ZodType<Record>,
 ): Promise<Record | undefined> {
 	for (const file of await runStageFiles(runsDirectory, run)) {
-		const parsed = schema.safeParse(JSON.parse(await Bun.file(file).text()));
+		const parsed = schema.safeParse(await recordFileJson(file));
 		if (parsed.success) {
 			return parsed.data;
 		}

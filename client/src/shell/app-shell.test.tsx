@@ -134,7 +134,7 @@ function renderShellAt(
 			["/api/run-listing", runListing],
 			["/api/runs", runListing],
 			[
-				"/api/corpus",
+				"/api/corpus-summary",
 				{
 					root: "/corpus",
 					digest: `ffd58d${"0".repeat(58)}`,
@@ -326,7 +326,7 @@ describe("the navigation shell", () => {
 	);
 
 	it("says the corpus could not be read when its request fails", async () => {
-		stubFetchFailing("/api/corpus");
+		stubFetchFailing("/api/corpus-summary");
 		renderAppAt("/");
 
 		const card = await screen.findByRole("region", {
@@ -348,7 +348,7 @@ describe("the navigation shell", () => {
 			new Map<string, unknown>([
 				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 				[
-					"/api/corpus",
+					"/api/corpus-summary",
 					{
 						root: "/corpus",
 						files: [corpusFile("CLAUDE.md")],
@@ -602,7 +602,7 @@ describe("the navigation shell", () => {
 			new Map<string, unknown>([
 				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 				[
-					"/api/corpus",
+					"/api/corpus-summary",
 					{
 						root: "/corpus",
 						digest: "ffd58d",

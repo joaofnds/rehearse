@@ -1,3 +1,4 @@
+import type { Immutable } from "#benchmark/contracts";
 import { ZodError } from "zod";
 import { relative, dirname } from "node:path";
 import {
@@ -13,8 +14,8 @@ import { confirmationGroupPaths } from "#benchmark/run-layout";
 import { SessionHistoryReaderError } from "./session-history-reader";
 
 interface OwnedConfirmationRep {
-	readonly group: ParsedConfirmationGroupRecord;
-	readonly rep: ParsedConfirmationRepRecord;
+	readonly group: Immutable<ParsedConfirmationGroupRecord>;
+	readonly rep: Immutable<ParsedConfirmationRepRecord>;
 }
 function parseMetadata<Value>(
 	text: string,

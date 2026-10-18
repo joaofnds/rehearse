@@ -6,11 +6,16 @@ import { createCalibrationApp } from "./calibration";
 import type { LaunchDependencies } from "./launches";
 import { createLaunchApp } from "./launches";
 import { requestGuard } from "./request-guard";
+import {
+	RecordParseCache,
+	withRecordParseCache,
+} from "#benchmark/record-parse-cache";
 
 export interface AppServerDependencies
 	extends ApiDependencies, LaunchDependencies {
 	readonly clientDistDirectory: string;
 	readonly port: number;
+	readonly recordParseCache?: Readonly<Pick<RecordParseCache, "parse">>;
 }
 
 /**
@@ -22,8 +27,10 @@ export interface AppServerDependencies
  */
 export function createAppServer(dependencies: AppServerDependencies): Hono {
 	const app = new Hono();
+	const records = dependencies.recordParseCache ?? new RecordParseCache();
 
 	app.use("*", requestGuard(dependencies.port));
+	app.use("*", (_context, next) => withRecordParseCache(records, next));
 	app.route("/", createApiApp(dependencies));
 	app.route("/", createLaunchApp(dependencies));
 	app.route("/", createCalibrationApp(dependencies));

@@ -43,7 +43,7 @@ import {
 	readCorpusVersionFile,
 } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
-import { corpusReport } from "./corpus-report";
+import { corpusReport, corpusSummary } from "./corpus-report";
 import {
 	readListedCorpusFile,
 	UnlistedCorpusFileError,
@@ -54,7 +54,11 @@ import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
 import { readStageTimes } from "./stage-times";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { runHistoryReport, runListing } from "./run-history";
+import {
+	runHistoryReport,
+	runListing,
+	runStalenessReport,
+} from "./run-history";
 import { readStageAttempts } from "./stage-attempts";
 import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
 import { EvidenceSourceError, readEvidenceSource } from "./evidence-source";
@@ -308,6 +312,14 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 
 			return context.json(listing);
 		})
+		.get("/api/run-staleness", async (context) =>
+			context.json(
+				await runStalenessReport(
+					dependencies.runsDirectory,
+					await corpusSource(dependencies),
+				),
+			),
+		)
 		.get("/api/corpus", async (context) => {
 			const report = await corpusReport(
 				await corpusSource(dependencies),
@@ -316,6 +328,9 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 
 			return context.json(report);
 		})
+		.get("/api/corpus-summary", async (context) =>
+			context.json(await corpusSummary(await corpusSource(dependencies))),
+		)
 		.get("/api/corpus/file", async (context) => {
 			const path = context.req.query("path");
 			if (path === undefined) {

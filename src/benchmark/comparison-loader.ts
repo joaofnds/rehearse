@@ -898,7 +898,7 @@ async function loadSessionRep(
 		field: `${field}.attempt.path`,
 		path: attemptPath,
 	});
-	let attempt: SessionAttemptRecord;
+	let attempt: Immutable<SessionAttemptRecord>;
 	try {
 		attempt = parseSessionAttemptRecord(attemptSource.text);
 	} catch {
@@ -1015,7 +1015,7 @@ async function loadRepRecords(
 			field: `${field}.path`,
 			path,
 		});
-		let record: ParsedConfirmationRepRecord;
+		let record: Immutable<ParsedConfirmationRepRecord>;
 		try {
 			record = parseConfirmationRepRecord(source.text);
 		} catch {

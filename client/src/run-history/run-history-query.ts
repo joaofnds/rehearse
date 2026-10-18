@@ -61,6 +61,22 @@ export const runListingQuery = {
 	queryFn: fetchRunListing,
 } as const;
 
+async function fetchRunStaleness(): Promise<
+	InferResponseType<(typeof apiClient.api)["run-staleness"]["$get"]>
+> {
+	const response = await apiClient.api["run-staleness"].$get();
+	if (!response.ok) {
+		throw new Error("Could not check run freshness");
+	}
+
+	return response.json();
+}
+
+export const runStalenessQuery = {
+	queryKey: [...runHistoryQuery.queryKey, "staleness"],
+	queryFn: fetchRunStaleness,
+} as const;
+
 /**
  * How many entries the run history lists unfiltered, its record rows and its
  * launch rows together, as the table shows both. A stopped launch whose run

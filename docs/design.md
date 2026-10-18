@@ -243,10 +243,33 @@ Run-history staleness and corpus reports reuse corpus file hashes, stage capture
 layout walks and saved-version manifests within one asynchronous report scope. Nested reports share that
 scope, including invalidation against a stored version materialized at its own
 scratch root. Separate reports create separate scopes, so edits, removals and
-containment refusals are checked again on the next request. There is no cache
-lifetime or invalidation timer between requests. See [loading performance](performance.md)
-for measurements and the repeatable HTTP benchmark. Run-history listing and
-staleness reads start together and are combined after both complete.
+containment refusals are checked again on the next request.
+
+The Runs screen first reads `/api/run-listing`, then `/api/run-staleness` and joins
+judgments by record identity within one listing read. Each successful listing
+refresh starts a new freshness query; an earlier list's judgment is withheld. Saved readings appear while freshness is explicitly
+pending; Current corpus and Stale filters wait while a judgment is pending.
+Sidebar metadata and the comparison badge start after the initial listing settles.
+The sidebar reads `/api/corpus-summary` for corpus identity, files and edit times;
+the Corpus screen still reads the full invalidation report. `/api/runs` retains
+the combined report for readers that need it. List judgments omit detailed read
+manifests, which remain available from record and read-evidence routes.
+
+Listing reads independent rows with at most 16 workers, borrows its open event
+store for pipeline figures, and shares record reads within that report. A saved
+state summary validates identity, record version, outcome and saved-grade fields
+without parsing unrelated context evidence. Full record readers retain their
+full schemas.
+
+Each server also owns a bounded LRU of successful parsed records keyed by schema
+identity and the SHA-256 of the exact input bytes. Its budget is 64 MiB of input
+text across at most 2,048 entries; parsed JavaScript objects can occupy more
+memory. Every request rereads files and discovers paths. The cache reuses
+validation only, never liveness, path resolution, corpus hashes or freshness
+judgments. CLI reads outside the server retain ordinary parsing. Server startup
+reconciles interrupted runs, then reads the listing to populate this cache before
+accepting traffic. See [loading performance](performance.md) for startup and
+first-visit measurements and the repeatable HTTP benchmark.
 
 A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
