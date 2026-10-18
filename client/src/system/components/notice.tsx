@@ -1,18 +1,29 @@
 import type { ReactNode } from "react";
+import { Disclosure } from "./disclosure";
 
 export function Notice({
 	message,
 	items,
 	children,
+	collapsible = false,
 }: {
 	readonly message: string;
 	readonly items: readonly string[];
 	readonly children?: ReactNode;
+	readonly collapsible?: boolean;
 }): React.JSX.Element {
+	const details = (
+		<ul className="flex w-full min-w-0 flex-col gap-2 font-mono text-13 leading-transcript text-muted-foreground">
+			{items.map((item) => (
+				<li key={item}>{item}</li>
+			))}
+		</ul>
+	);
+
 	return (
 		<div
 			role="alert"
-			className="min-w-0 rounded-lg border border-attention/20 border-l-3 border-l-attention/60 bg-card px-3 py-2.5 wrap-anywhere text-secondary-foreground"
+			className="min-w-0 rounded-lg border border-attention/20 border-l-3 border-l-attention/60 bg-card px-4 py-3 text-14 wrap-anywhere text-secondary-foreground"
 		>
 			<p className="font-medium text-foreground">
 				<span aria-hidden="true" className="text-attention">
@@ -20,11 +31,22 @@ export function Notice({
 				</span>
 				{message}
 			</p>
-			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-14 text-muted-foreground">
-				{items.map((item) => (
-					<li key={item}>{item}</li>
-				))}
-			</ul>
+			{items.length > 0 ? (
+				<div className="mt-1.5 min-w-0">
+					{collapsible ? (
+						<Disclosure
+							collapsedLabel={`Show details (${items.length})`}
+							expandedLabel="Hide details"
+						>
+							<div className="w-full min-w-0 border-t border-divider pt-3">
+								{details}
+							</div>
+						</Disclosure>
+					) : (
+						details
+					)}
+				</div>
+			) : null}
 			{children}
 		</div>
 	);

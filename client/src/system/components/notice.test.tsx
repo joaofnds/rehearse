@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { Notice } from "./notice";
 
 describe(Notice.name, () => {
@@ -29,5 +29,34 @@ describe(Notice.name, () => {
 		expect(screen.getByRole("alert")).toHaveTextContent(
 			"run:a: no manifest recorded",
 		);
+	});
+	it("keeps optional diagnostics collapsed until requested and can hide them again", () => {
+		render(
+			<Notice
+				message="Some records could not be read"
+				items={["run:r1: missing manifest"]}
+				collapsible
+			/>,
+		);
+
+		const alert = screen.getByRole("alert");
+		const toggle = within(alert).getByRole("button", {
+			name: "Show details (1)",
+		});
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		expect(within(alert).queryByRole("list")).not.toBeInTheDocument();
+
+		fireEvent.click(toggle);
+
+		expect(within(alert).getByRole("listitem")).toHaveTextContent(
+			"run:r1: missing manifest",
+		);
+		expect(toggle).toHaveAccessibleName("Hide details");
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+		fireEvent.click(toggle);
+
+		expect(within(alert).queryByRole("list")).not.toBeInTheDocument();
+		expect(toggle).toHaveAccessibleName("Show details (1)");
 	});
 });

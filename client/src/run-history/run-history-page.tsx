@@ -5,6 +5,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 import { useId, useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
+import { Notice } from "#client/system/components/notice";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Status } from "#client/system/components/status";
@@ -118,27 +119,11 @@ function UnreadableRecords({
 	readonly records: readonly UnreadableRecord[];
 }): React.JSX.Element {
 	return (
-		<div
-			role="alert"
-			className="flex flex-wrap items-center gap-x-2 rounded-md border border-attention/20 border-l-3 border-l-attention/60 bg-card px-4 py-3 text-14 text-secondary-foreground"
-		>
-			<p>
-				<span aria-hidden="true" className="text-attention">
-					⚠{" "}
-				</span>
-				{`${unreadableSummary(records).join(", ")} could not be read, so the table leaves them out.`}
-			</p>
-			<Disclosure
-				collapsedLabel={`show ${records.length}`}
-				expandedLabel="hide"
-			>
-				<ul className="flex flex-col gap-1 font-mono text-14">
-					{records.map(({ id, reason }) => (
-						<li key={id}>{`${id}: ${reason}`}</li>
-					))}
-				</ul>
-			</Disclosure>
-		</div>
+		<Notice
+			message={`${unreadableSummary(records).join(", ")} could not be read, so the table leaves them out.`}
+			items={records.map(({ id, reason }) => `${id}: ${reason}`)}
+			collapsible
+		/>
 	);
 }
 

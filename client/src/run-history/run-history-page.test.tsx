@@ -1629,7 +1629,9 @@ describe(RunHistoryPage.name, () => {
 			renderPage();
 
 			const alert = await screen.findByRole("alert");
-			fireEvent.click(within(alert).getByRole("button", { name: "show 2" }));
+			fireEvent.click(
+				within(alert).getByRole("button", { name: "Show details (2)" }),
+			);
 
 			expect(alert).toHaveTextContent("run:2026-09-01T00-00-00.000Z");
 			expect(alert).toHaveTextContent("manifest.json is empty");

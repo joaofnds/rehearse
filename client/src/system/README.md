@@ -66,7 +66,12 @@ states. Keyboard focus stays explicit and input boundaries retain 3:1 where need
 Restraint comes from fewer competing treatments, not smaller text or lost focus.
 
 Warnings use a restrained border/leading accent, a readable neutral message and
-secondary detail. Reserve large saturated surfaces for a state that needs that
+secondary detail. Use `Notice collapsible` for optional diagnostic lists: the
+message stays above the disclosure, and expanded details fill the width below it
+with a divider and wrapping identifiers. Never place a message and its expandable
+diagnostics in a centered flex row; expansion must not turn them into side-by-side
+columns. The disclosure keeps its 44px target and explicit Show details / Hide
+details labels. Reserve large saturated surfaces for a state that needs that
 much attention. Collection identities lead in neutral heading text; inline evidence
 and prose links keep their blue underline. Closed record provenance uses spacing
 rather than an additional full-width divider; expanded detail keeps its boundary.
