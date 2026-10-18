@@ -105,7 +105,9 @@ describe("initial run history", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Current corpus" }));
 		await waitFor(() => {
-			expect(screen.queryByRole("table", { name: "Run history" })).toBeNull();
+			expect(
+				screen.queryByRole("table", { name: "Run history" }) === null,
+			).toBe(true);
 		});
 		expect(
 			screen.queryByText("No record matches this filter and search."),
@@ -170,7 +172,9 @@ describe("initial run history", () => {
 		expect(within(table).queryByText("clean")).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Current corpus" }));
 		await waitFor(() => {
-			expect(screen.queryByRole("table", { name: "Run history" })).toBeNull();
+			expect(
+				screen.queryByRole("table", { name: "Run history" }) === null,
+			).toBe(true);
 		});
 		expect(
 			screen.queryByText("No record matches this filter and search."),

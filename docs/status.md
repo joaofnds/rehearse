@@ -246,7 +246,9 @@ their grades and labels saved-session navigation; Cases and Settings mark only
 their selected section.
 The app frame stays anchored to the viewport; long evidence scrolls inside its
 workspace or dialog. Activity panes scroll independently, and route navigation
-resets or restores the workspace position.
+resets or restores the workspace position. Table titles stay above their scroll
+regions; overlay scrollbars start below sticky column headings without reserving
+a separate gutter.
 
 The desktop navigation has five destinations: Runs, Comparisons, Cases, Corpus,
 and Settings. A run opens one [workspace](run-workspace.md) with Results, Activity,

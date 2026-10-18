@@ -55,8 +55,11 @@ surface. Runs keeps its filters visible on desktop and provides an explicit
 Filters toggle with an active count at narrow widths. Navigation retains the
 corpus identity while compacting its chrome on narrow screens.
 
-`TableShell` supplies a named, keyboard-focusable scroll region bounded to 65vh,
-with column headings sticky within that region. Callers may set
+`TableShell` keeps its title outside a named, keyboard-focusable scroll region,
+with the whole frame bounded to 65vh and column headings sticky within the region.
+Radix overlay scrollbars occupy no layout gutter; the vertical track starts below
+the measured column headings, including when they wrap. Both axes retain native
+wheel, touch and keyboard scrolling, plus draggable thumbs. Callers may set
 `className` and `columnClasses` to balance fixed columns without clipping data;
 Runs and Corpus provide their own column geometry. Long source paths wrap within
 their cells. Final-outcome disclosures use a responsive grid, and an open reading
@@ -82,7 +85,7 @@ changes.
 [EmptyState](components/empty-state.tsx) remain the shared interaction pieces.
 `Switcher` is a labeled group of mutually exclusive pressed buttons. `FilterPill` is a
 pressed button for one filter; its feature owns how filters combine. `TableShell`
-supplies a named caption, column headings and aligned numeric columns over
+supplies a named table title, column headings and aligned numeric columns over
 caller-provided cell content. `SectionLabel` supplies the compact eyebrow treatment.
 `Grade` preserves the existing letter-grade display; a letter does not imply an
 independent final result. Feature-specific evidence and navigation stay with their
