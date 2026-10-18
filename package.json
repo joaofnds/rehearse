@@ -22,6 +22,7 @@
 		"rehearse": "$npm_execpath run rehearse.ts",
 		"dev:client": "vite --config client/vite.config.ts",
 		"build:client": "vite build --config client/vite.config.ts",
+		"benchmark:loading": "$npm_execpath tools/benchmark-loading.ts",
 		"serve": "bun run src/server/serve.ts"
 	},
 	"dependencies": {

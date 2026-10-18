@@ -1,3 +1,4 @@
+import { withRecordReadScope } from "#benchmark/record-read-scope";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -374,7 +375,14 @@ async function groupReps(runsDirectory: string): Promise<Found> {
  * they recorded one, session attempts before group reps. Stage replays rerun
  * one stage of a run, not a case, so none is read.
  */
-export async function readCaseRuns(
+export function readCaseRuns(
+	runsDirectory: string,
+	liveness: RunLiveness,
+): Promise<CaseRunsReading> {
+	return withRecordReadScope(() => readScopedCaseRuns(runsDirectory, liveness));
+}
+
+async function readScopedCaseRuns(
 	runsDirectory: string,
 	liveness: RunLiveness,
 ): Promise<CaseRunsReading> {

@@ -1,3 +1,4 @@
+import { scopedRecordReader } from "./record-read-scope";
 import { mkdir, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
@@ -234,28 +235,37 @@ async function readEntry(
 		: claim;
 }
 
+interface RegistryEntry {
+	readonly number: number;
+	readonly record: NamedRecord;
+}
+
+const readRegistry = scopedRecordReader(
+	async (directory): Promise<readonly RegistryEntry[]> => {
+		const names =
+			(await readdirIfPresent(join(directory, CLAIMS_DIRECTORY))) ?? [];
+		const entries: RegistryEntry[] = [];
+
+		for (const number of claimedNumbers(names)) {
+			const record = await readEntry(directory, number);
+			if (record !== undefined) {
+				entries.push({ number, record });
+			}
+		}
+
+		return entries;
+	},
+);
+
 export async function readShortIds(
 	runsDirectory: string,
 	caseId: string,
 ): Promise<readonly ShortIdEntry[]> {
-	const directory = registryDirectory(runsDirectory, caseId);
-	const names =
-		(await readdirIfPresent(join(directory, CLAIMS_DIRECTORY))) ?? [];
-	const entries: ShortIdEntry[] = [];
-
-	for (const number of claimedNumbers(names)) {
-		const record = await readEntry(directory, number);
-		if (record === undefined) {
-			continue;
-		}
-
-		entries.push({
-			shortId: formatShortId({ caseId, kind: shortIdKind(record), number }),
-			record,
-		});
-	}
-
-	return entries;
+	const entries = await readRegistry(registryDirectory(runsDirectory, caseId));
+	return entries.map(({ number, record }) => ({
+		shortId: formatShortId({ caseId, kind: shortIdKind(record), number }),
+		record,
+	}));
 }
 
 /**

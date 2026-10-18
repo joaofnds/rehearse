@@ -71,6 +71,42 @@ response hashes are retained without private response bodies. Independent
 [review findings and dispositions](performance/loading-2026-10-18-initial-review.json)
 retain the correctness checks and their regression evidence.
 
+## Registry read follow-up
+
+The listing already reads every short-ID registry, but each pipeline row also
+read its case's registry again. Each registry contains many small claim files.
+Reports now reuse that complete registry within their existing read scope.
+Cases also owns a read scope, so its run figures share those registry reads.
+A later report reads the registry again, including additions, replacements,
+removals and newly bound replays. No registry result survives between reports.
+
+On the same Apple M5 Pro and Bun 1.4.0, with 189 readable records and 137 corpus
+files, nine alternating HTTP pairs against `2a94fac3` gave these medians:
+
+| Read        | Baseline |  Current | Reduction |
+| ----------- | -------: | -------: | --------: |
+| Run listing |  88.7 ms |  77.5 ms |       13% |
+| Cases       | 210.4 ms | 115.6 ms |       45% |
+
+Every paired response had identical bytes. Both server processes and the OS
+filesystem cache were warm. Background machine load varied: a separate
+seven-sample benchmark measured listing at 92.1 → 61.6 ms and Cases at
+123.3 → 79.7 ms. These observations support the reduction, rather than a fixed
+latency guarantee. Builds and tests for this change ran outside measurement.
+
+Five alternating browser pairs used the same built JavaScript in both arms.
+All 189 rows were observed after two animation frames at a median 175.9 →
+168.2 ms; the list request took 91.7 → 80.0 ms. The complete visible screen
+still exceeds 100 ms. These measure navigation against running servers, not
+process launch or OS-cold storage.
+
+The [before](performance/loading-2026-10-18-registry-before.json),
+[after](performance/loading-2026-10-18-registry-after.json) and
+[paired HTTP/browser readings](performance/loading-2026-10-18-registry-pairs.json)
+retain the samples, response hashes and benchmark gate results. A local HTTP
+fixture also verified the gate's failure path: adding 200 ms to listing while
+keeping its JSON unchanged produced exit status 1.
+
 ## Earlier report measurements
 
 Measured on 2026-10-18 on an Apple M5 Pro, arm64, with Bun 1.4.0, a built client,
@@ -187,6 +223,26 @@ requests and no provider calls. An API path returning the HTML fallback is an
 error, so an unavailable route cannot silently appear fast. Requests have a
 60-second deadline. This is an opt-in benchmark, not a timing assertion in the
 ordinary test suite.
+
+`mise exec -- bun run benchmark:loading` runs the same tool. It now exits with
+status 1 when the median opening-list data request exceeds 100 ms. Override this
+budget explicitly with `--max-list-ms`; it does not cover visible rendering or
+server startup. Capture a baseline and compare a later run against the same
+quiescent records, corpus, endpoints and machine:
+
+```sh
+mise exec -- bun run benchmark:loading http://localhost:4173 7 > /tmp/loading-baseline.json
+mise exec -- bun run benchmark:loading http://localhost:4173 7 --baseline /tmp/loading-baseline.json
+```
+
+The comparison fails when any endpoint or opening-batch median exceeds its
+baseline by more than 20% plus 5 ms. `--max-regression-percent` and
+`--allowance-ms` set those limits. Both reports need at least five samples per
+metric. Comparison also refuses changed Bun versions, OS families, CPU
+architectures/models, endpoint sets and changed or unstable API response bytes.
+SHA-256 hashes retain no response bodies. An intentional data or API change
+requires a new baseline. Ordinary tests exercise the gate with fixed readings;
+the opt-in command supplies the actual timing check.
 
 To include a particular saved-record route, supply endpoint paths after the
 repetition count. These replace the sequential endpoint list; the initial API

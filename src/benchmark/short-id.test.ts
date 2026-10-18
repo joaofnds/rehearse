@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { failureOf } from "#cli/cli-test-support";
 import { RecordedRunsFixture } from "./run-records-test-support";
+import { withRecordReadScope } from "./record-read-scope";
 import {
 	bindReplay,
 	claimShortId,
@@ -11,6 +12,7 @@ import {
 	checkpointStageNumber,
 	formatShortId,
 	readShortIds,
+	readAllShortIds,
 	resolveShortId,
 } from "./short-id";
 
@@ -24,6 +26,128 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await rm(runsDirectory, { recursive: true, force: true });
+});
+
+describe("registry reads within a report", () => {
+	it("reuses the collected registry, then sees added, replaced and removed claims in later reports", async () => {
+		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
+		const first = await withRecordReadScope(async () => {
+			const all = await readAllShortIds(runsDirectory);
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "run",
+				run: "second",
+			});
+			await writeFile(
+				join(runsDirectory, "short-ids", CASE_ID, "claims", "1"),
+				JSON.stringify({ kind: "run", run: "replacement" }),
+			);
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual(all.entries);
+			return all.entries;
+		});
+		expect(first.map(({ record }) => record)).toEqual([
+			{ kind: "run", run: "first" },
+		]);
+		expect(
+			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
+		).toEqual([
+			{ shortId: "audit-log/r1", record: { kind: "run", run: "replacement" } },
+			{ shortId: "audit-log/r2", record: { kind: "run", run: "second" } },
+		]);
+		await rm(join(runsDirectory, "short-ids", CASE_ID, "claims", "1"));
+		expect(
+			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
+		).toEqual([
+			{ shortId: "audit-log/r2", record: { kind: "run", run: "second" } },
+		]);
+	});
+
+	it("keeps separate cases and records directories distinct", async () => {
+		const other = join(runsDirectory, "other-records");
+		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
+		await claimShortId(runsDirectory, "other-case", {
+			kind: "run",
+			run: "second",
+		});
+		await claimShortId(other, CASE_ID, { kind: "run", run: "third" });
+		await withRecordReadScope(async () => {
+			const first = await readShortIds(runsDirectory, CASE_ID);
+			const second = await readShortIds(runsDirectory, "other-case");
+			const third = await readShortIds(other, CASE_ID);
+			expect(first[0]?.record).toEqual({
+				kind: "run",
+				run: "first",
+			});
+			expect(second[0]?.record).toEqual({ kind: "run", run: "second" });
+			expect(third[0]?.record).toEqual({
+				kind: "run",
+				run: "third",
+			});
+		});
+	});
+
+	it("does not retain a missing registry outside the report", async () => {
+		await withRecordReadScope(async () => {
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
+			await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
+		});
+		expect(await readShortIds(runsDirectory, CASE_ID)).toHaveLength(1);
+		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "second" });
+		expect(await readShortIds(runsDirectory, CASE_ID)).toHaveLength(2);
+	});
+
+	it("isolates concurrent reports reading the same registry", async () => {
+		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
+		const read = Promise.withResolvers<undefined>();
+		const changed = Promise.withResolvers<undefined>();
+		const prior = withRecordReadScope(async () => {
+			const first = await readShortIds(runsDirectory, CASE_ID);
+			read.resolve(undefined);
+			await changed.promise;
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual(first);
+		});
+		await read.promise;
+		try {
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "run",
+				run: "second",
+			});
+			expect(
+				await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
+			).toHaveLength(2);
+		} finally {
+			changed.resolve(undefined);
+			await prior;
+		}
+	});
+
+	it("rereads a replay binding in the next report", async () => {
+		const claimed = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "replay",
+			run: "source",
+			stage: "build",
+		});
+		await withRecordReadScope(async () => {
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
+			await bindReplay(runsDirectory, claimed, {
+				lineage: "lineage-build",
+				timestamp: "attempt-time",
+			});
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
+		});
+		expect(
+			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
+		).toEqual([
+			{
+				shortId: "audit-log/r1",
+				record: {
+					kind: "attempt:stage",
+					lineage: "lineage-build",
+					timestamp: "attempt-time",
+				},
+			},
+		]);
+	});
 });
 
 async function claimInProcesses(

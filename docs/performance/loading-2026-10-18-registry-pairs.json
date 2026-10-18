@@ -1,0 +1,480 @@
+{
+	"baselineCommit": "2a94fac3",
+	"environment": {
+		"cpu": "Apple M5 Pro",
+		"memoryGiB": 48,
+		"platform": "macOS arm64",
+		"bun": "1.4.0"
+	},
+	"readableRecords": 189,
+	"corpusFiles": 137,
+	"pairs": [
+		{
+			"path": "/api/run-listing",
+			"pair": 1,
+			"baseline": {
+				"ms": 116.65,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"candidate": {
+				"ms": 90.24,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 2,
+			"candidate": {
+				"ms": 91.77,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"baseline": {
+				"ms": 103.95,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 3,
+			"baseline": {
+				"ms": 107.97,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"candidate": {
+				"ms": 77.47,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 4,
+			"candidate": {
+				"ms": 72.49,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"baseline": {
+				"ms": 86.69,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 5,
+			"baseline": {
+				"ms": 83.36,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"candidate": {
+				"ms": 71.87,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 6,
+			"candidate": {
+				"ms": 64.57,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"baseline": {
+				"ms": 79.42,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 7,
+			"baseline": {
+				"ms": 77.8,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"candidate": {
+				"ms": 76.11,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 8,
+			"candidate": {
+				"ms": 77.61,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"baseline": {
+				"ms": 88.68,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/run-listing",
+			"pair": 9,
+			"baseline": {
+				"ms": 204.23,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			},
+			"candidate": {
+				"ms": 91.82,
+				"bytes": 301985,
+				"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 1,
+			"baseline": {
+				"ms": 210.38,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"candidate": {
+				"ms": 92.76,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 2,
+			"candidate": {
+				"ms": 88.97,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"baseline": {
+				"ms": 182.37,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 3,
+			"baseline": {
+				"ms": 191.27,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"candidate": {
+				"ms": 115.6,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 4,
+			"candidate": {
+				"ms": 133.57,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"baseline": {
+				"ms": 169.44,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 5,
+			"baseline": {
+				"ms": 175.74,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"candidate": {
+				"ms": 138.04,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 6,
+			"candidate": {
+				"ms": 105.52,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"baseline": {
+				"ms": 216.29,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 7,
+			"baseline": {
+				"ms": 235.54,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"candidate": {
+				"ms": 174.31,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 8,
+			"candidate": {
+				"ms": 151.5,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"baseline": {
+				"ms": 235.97,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		},
+		{
+			"path": "/api/cases",
+			"pair": 9,
+			"baseline": {
+				"ms": 223.68,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			},
+			"candidate": {
+				"ms": 95.18,
+				"bytes": 173545,
+				"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332"
+			}
+		}
+	],
+	"browser": [
+		{
+			"arm": "baseline",
+			"pair": 1,
+			"visibleMs": 182,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 26.80000001192093,
+					"ms": 92.59999996423721,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 544.3000000119209
+		},
+		{
+			"arm": "candidate",
+			"pair": 1,
+			"visibleMs": 200.20000004768372,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 48.90000003576279,
+					"ms": 90.5,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 618.4000000357628
+		},
+		{
+			"arm": "candidate",
+			"pair": 2,
+			"visibleMs": 160.89999997615814,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 24.599999964237213,
+					"ms": 76.80000001192093,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 442
+		},
+		{
+			"arm": "baseline",
+			"pair": 2,
+			"visibleMs": 175.89999997615814,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 24.69999998807907,
+					"ms": 90.19999998807907,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 504.69999998807907
+		},
+		{
+			"arm": "baseline",
+			"pair": 3,
+			"visibleMs": 164.9000000357628,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 24.5,
+					"ms": 84.69999998807907,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 826.1000000238419
+		},
+		{
+			"arm": "candidate",
+			"pair": 3,
+			"visibleMs": 178,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 26.600000023841858,
+					"ms": 94.5,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 546.3000000119209
+		},
+		{
+			"arm": "candidate",
+			"pair": 4,
+			"visibleMs": 160.69999998807907,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 24.80000001192093,
+					"ms": 80,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 571.5
+		},
+		{
+			"arm": "baseline",
+			"pair": 4,
+			"visibleMs": 179.30000001192093,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 25.099999964237213,
+					"ms": 97.5,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 578
+		},
+		{
+			"arm": "baseline",
+			"pair": 5,
+			"visibleMs": 174.80000001192093,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 25.5,
+					"ms": 91.69999998807907,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 453.89999997615814
+		},
+		{
+			"arm": "candidate",
+			"pair": 5,
+			"visibleMs": 168.19999998807907,
+			"rows": 189,
+			"list": [
+				{
+					"startMs": 36.89999997615814,
+					"ms": 74.80000001192093,
+					"bytes": 301985
+				}
+			],
+			"script": [
+				{
+					"path": "/assets/index-DRbCS3xn.js",
+					"bytes": 953045
+				}
+			],
+			"freshnessReadyMs": 566
+		}
+	],
+	"method": "Nine alternating HTTP pairs per target endpoint; five alternating browser pairs, same built client in both arms, two animation frames after rows appear. Warm OS cache and server processes. Background machine load varied; these are local observations, not tail guarantees.",
+	"guardVerification": {
+		"fixture": "Identical JSON over local HTTP; only listing delayed by200ms in treatment",
+		"baselineExit": 0,
+		"delayedExit": 1,
+		"delayedFailures": [
+			"startup.listReadyMs budget: 201.4 ms exceeds 100.0 ms",
+			"/api/run-listing: 201.3 ms exceeds 5.1 ms",
+			"startup.listReadyMs: 201.4 ms exceeds 5.1 ms",
+			"startup.ms: 201.9 ms exceeds 5.2 ms",
+			"startup.freshness.readyMs: 201.9 ms exceeds 5.2 ms"
+		]
+	}
+}
