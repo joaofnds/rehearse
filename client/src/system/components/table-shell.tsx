@@ -81,7 +81,7 @@ export function TableShell({
 						aria-labelledby={captionId}
 						className={cn("w-full border-separate border-spacing-0", className)}
 					>
-						<thead ref={headings} className="sticky top-0 z-10 bg-raised">
+						<thead ref={headings} className="sticky top-0 z-10 bg-card">
 							<tr>
 								{columns.map((column, index) => (
 									<th

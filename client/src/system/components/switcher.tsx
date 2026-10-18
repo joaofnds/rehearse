@@ -22,7 +22,7 @@ export function Switcher<Option extends string>({
 				<button
 					key={option}
 					type="button"
-					className="rounded-md border border-transparent px-4 py-1.5 text-14 text-secondary-foreground transition-colors hover:bg-row-hover aria-pressed:border-accent-line aria-pressed:bg-selected aria-pressed:text-pale"
+					className="rounded-md border border-transparent px-4 py-1.5 text-14 text-secondary-foreground transition-colors hover:bg-row-hover aria-pressed:border-divider aria-pressed:bg-raised aria-pressed:text-foreground aria-pressed:font-medium aria-pressed:underline aria-pressed:decoration-primary aria-pressed:decoration-2 aria-pressed:underline-offset-8"
 					aria-pressed={option === selected}
 					onClick={() => {
 						onSelect(option);

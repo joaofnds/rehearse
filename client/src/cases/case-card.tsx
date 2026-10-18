@@ -194,7 +194,7 @@ export function CaseCard({
 					<Link
 						to="/cases"
 						search={{ caseId: listed.id }}
-						className="text-link hover:underline"
+						className="text-foreground no-underline hover:text-link hover:underline"
 					>
 						{listed.id}
 					</Link>

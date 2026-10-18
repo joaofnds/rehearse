@@ -120,10 +120,12 @@ function UnreadableRecords({
 	return (
 		<div
 			role="alert"
-			className="flex flex-wrap items-center gap-x-2 rounded-md border-l-3 border-attention bg-attention-surface px-4 py-3 text-14 text-attention"
+			className="flex flex-wrap items-center gap-x-2 rounded-md border border-attention/20 border-l-3 border-l-attention/60 bg-card px-4 py-3 text-14 text-secondary-foreground"
 		>
 			<p>
-				<span aria-hidden="true">⚠ </span>
+				<span aria-hidden="true" className="text-attention">
+					⚠{" "}
+				</span>
 				{`${unreadableSummary(records).join(", ")} could not be read, so the table leaves them out.`}
 			</p>
 			<Disclosure

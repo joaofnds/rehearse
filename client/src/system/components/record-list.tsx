@@ -37,7 +37,7 @@ export function RecordListItem({
 
 	return (
 		<li aria-labelledby={`${titleId} ${metaId}`} className="min-w-0">
-			<div className="grid min-w-0 gap-5 p-5 sm:grid-cols-2 lg:grid-cols-12 lg:items-start">
+			<div className="grid min-w-0 gap-5 px-6 pt-6 pb-2 sm:grid-cols-2 lg:grid-cols-12 lg:items-start">
 				<header className="flex min-w-0 flex-col gap-3 sm:row-start-1 lg:col-span-4">
 					<h2 id={titleId} className="text-16 font-semibold wrap-anywhere">
 						{title}
@@ -56,15 +56,15 @@ export function RecordListItem({
 					{action}
 				</div>
 			</div>
-			<details className="group min-w-0 border-t border-divider">
-				<summary className="flex min-h-touch-target cursor-pointer list-none items-center gap-2 px-5 py-2 text-12 text-muted-foreground hover:bg-row-hover hover:text-foreground">
+			<details className="group min-w-0">
+				<summary className="flex min-h-touch-target cursor-pointer list-none items-center gap-2 px-6 py-2 text-12 text-muted-foreground hover:bg-row-hover hover:text-foreground">
 					<ChevronRight
 						aria-hidden="true"
 						className="size-4 shrink-0 group-open:rotate-90"
 					/>
 					Setup &amp; record
 				</summary>
-				<div className="min-w-0 border-t border-divider p-5 text-14 wrap-anywhere">
+				<div className="min-w-0 border-t border-divider p-6 text-14 wrap-anywhere">
 					{details}
 				</div>
 			</details>

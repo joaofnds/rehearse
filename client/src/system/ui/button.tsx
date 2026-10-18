@@ -17,13 +17,13 @@ const buttonVariants = cva(
 				destructive:
 					"border-negative bg-negative-surface text-negative not-aria-disabled:hover:bg-negative-surface not-aria-disabled:active:bg-negative-surface",
 				default:
-					"border-strong bg-card text-foreground not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
+					"border-divider bg-card text-secondary-foreground not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
 				outline:
-					"border-strong text-foreground not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
+					"border-divider bg-card text-secondary-foreground not-aria-disabled:hover:border-strong not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
 				quiet:
 					"border-divider bg-muted text-secondary-foreground not-aria-disabled:hover:border-strong not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
 				strong:
-					"border-stronger text-bright not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
+					"border-strong text-foreground not-aria-disabled:hover:border-stronger not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
 				ghost: "border-transparent not-aria-disabled:hover:bg-accent",
 				link: "max-w-full border-transparent text-link text-left whitespace-normal underline underline-offset-4 not-aria-disabled:hover:underline",
 			},

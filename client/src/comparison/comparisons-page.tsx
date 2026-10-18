@@ -124,7 +124,7 @@ function ComparisonEntry({
 				<Link
 					to={address}
 					aria-label={`${comparison.caseIds.join(", ")} · ${comparison.digest.slice(0, 12)}`}
-					className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
+					className="text-foreground no-underline hover:text-link hover:underline"
 				>
 					{comparison.caseIds.join(", ")}
 				</Link>

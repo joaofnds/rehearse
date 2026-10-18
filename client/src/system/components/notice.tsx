@@ -12,13 +12,15 @@ export function Notice({
 	return (
 		<div
 			role="alert"
-			className="min-w-0 rounded-lg border border-attention/40 border-l-3 border-l-attention bg-attention-surface px-3 py-2.5 wrap-anywhere text-attention"
+			className="min-w-0 rounded-lg border border-attention/20 border-l-3 border-l-attention/60 bg-card px-3 py-2.5 wrap-anywhere text-secondary-foreground"
 		>
-			<p>
-				<span aria-hidden="true">⚠ </span>
+			<p className="font-medium text-foreground">
+				<span aria-hidden="true" className="text-attention">
+					⚠{" "}
+				</span>
 				{message}
 			</p>
-			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-14">
+			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-14 text-muted-foreground">
 				{items.map((item) => (
 					<li key={item}>{item}</li>
 				))}

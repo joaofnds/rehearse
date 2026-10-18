@@ -19,18 +19,20 @@ identifies code, provenance and tabular measurements. The HTML root stays 13px t
 preserve Tailwind's spacing scale, while the body reads at 14px. Use explicit type
 steps rather than relative `text-xs` or `text-sm`.
 
-Slate surfaces distinguish canvas, panels and raised controls. `bg-card`
+Neutral slate surfaces distinguish canvas, panels and raised controls. `bg-card`
 identifies a panel; `bg-raised` identifies a stronger surface; `border-divider`
-separates content quietly. Necessary control boundaries use `border-strong` or
-`border-input`. Tailwind's `border-border` maps to the structural
+separates content quietly. Input boundaries use `border-strong` or `border-input`; secondary buttons use
+`border-divider` and a subtle surface, so they do not compete with their labels. Tailwind's `border-border` maps to the structural
 `--color-border-2`, rather than the control border.
 
 Violet identifies a primary action or selected scope. `Button variant="primary"`
 is filled, while default/outline/quiet buttons remain secondary. Quiet actions have a subtle
 bordered surface; ghost buttons are reserved for controls whose surrounding
 context already establishes their hit area. Use one primary
-action within a decision area. Links use blue `text-link` with an underline and
-`hover:text-link-hover`; informational/live states use `text-info` and
+action within a decision area. Inline links use blue `text-link` with an underline and `hover:text-link-hover`.
+Collection heading links use `text-foreground no-underline` with link color and an
+underline on hover. Their keyboard focus remains explicit; comparison rows also
+provide the named Open comparison action. Informational/live states use `text-info` and
 `bg-info-surface`. Navigation selections stay violet, with a persistent edge or
 filled selected surface. Keyboard focus has an opaque 2px violet outline with a
 3px offset. Buttons and form controls retain 44px minimum targets. Use `Button wrap`
@@ -46,6 +48,29 @@ final FAIL; a letter grade alone does not establish either outcome. The
 [approved visual study](../../../prototypes/color-study/README.md) is a frozen
 synthetic reference for these roles, rather than an alternative production UI.
 
+## Visual hierarchy
+
+Keep the chrome quiet enough for the record to lead. Canvas (`#11151c`), panel
+(`#181e28`) and raised (`#202733`) surfaces establish groups without a bright blue
+band on every header. Structural dividers (`#303a49`) separate records; input
+boundaries (`#657389`) remain stronger where a field needs identification.
+Violet (`#b09ceb`) marks a primary decision or selected scope. Existing semantic
+outcome colors retain their words and symbols, with subdued surfaces and thin
+tinted badge edges.
+
+Use foreground for titles and primary readings, secondary for supporting content,
+muted for descriptions and labels, and dim for metadata. Keep these roles distinct;
+do not brighten every caption or put every value in an outlined badge. Small
+reading text retains at least 4.5:1 contrast on its actual surface, including hover
+states. Keyboard focus stays explicit and input boundaries retain 3:1 where needed.
+Restraint comes from fewer competing treatments, not smaller text or lost focus.
+
+Warnings use a restrained border/leading accent, a readable neutral message and
+secondary detail. Reserve large saturated surfaces for a state that needs that
+much attention. Collection identities lead in neutral heading text; inline evidence
+and prose links keep their blue underline. Closed record provenance uses spacing
+rather than an additional full-width divider; expanded detail keeps its boundary.
+
 ## Layout and spacing
 
 `page-gutter` aligns screen headings, section navigation, toolbars and content:
@@ -55,8 +80,11 @@ Tailwind spacing scale. Page sections use `gap-6` or `gap-8`; shared panels use
 Use the shared search control's geometry; callers supply layout.
 
 Keep secondary actions bounded and subordinate, with their hover surface and focus outline;
-reserve filled buttons for primary actions. `Switcher` groups choices on an inset
-surface. Runs keeps its filters visible on desktop and provides an explicit
+reserve filled buttons for primary actions. `Switcher` groups choices on an inset surface; its active choice uses a raised
+neutral surface and foreground text. Switcher choices and filter pills mark the
+selected label with medium weight and a 2px violet underline, so selection does
+not depend on a faint surface change. Navigation retains its violet edge and
+selected surface. Runs keeps its filters visible on desktop and provides an explicit
 Filters toggle with an active count at narrow widths. Navigation retains the
 corpus identity while compacting its chrome on narrow screens.
 
