@@ -11,6 +11,7 @@ import {
 } from "#client/run-history/run-progress";
 import { useNow } from "#client/run-history/use-now";
 import { LiveGlyph } from "#client/system/components/status";
+import { ActionGroup } from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
 import type { PipelineRow } from "./run-in-flight";
 import {
@@ -30,7 +31,7 @@ const NO_ROWS: readonly HistoryRow[] = [];
 
 function Separator(): React.JSX.Element {
 	return (
-		<span aria-hidden="true" className="text-strong">
+		<span aria-hidden="true" className="hidden text-strong lg:inline">
 			│
 		</span>
 	);
@@ -86,9 +87,9 @@ function StopControl({
 	const stop = useStop();
 
 	return (
-		<span className="inline-flex items-center gap-2">
+		<span className="inline-flex min-w-0 flex-wrap items-center gap-2">
 			{stop.error === null ? null : (
-				<span role="alert" className="text-attention">
+				<span role="alert" className="basis-full text-attention wrap-anywhere">
 					{stop.error.message}
 				</span>
 			)}
@@ -124,15 +125,24 @@ function RunReadings({
 	return (
 		<section
 			aria-label={`Run ${nameOf(row)} in flight`}
-			className="flex min-h-touch-target flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 py-2 text-12 whitespace-nowrap"
+			className="relative flex min-h-touch-target min-w-0 flex-none flex-wrap items-center gap-x-4.25 gap-y-2 border-t border-strong bg-raised px-4 py-3 text-12"
 		>
-			<span className="text-12">
-				<LiveGlyph />
+			<span className="flex min-w-0 w-full items-center gap-3 lg:w-auto lg:flex-1">
+				<span className="shrink-0">
+					<LiveGlyph />
+				</span>
+				<span className="shrink-0 font-mono text-pale">
+					{nameWithinCase(row)}
+				</span>
+				<span
+					className="min-w-0 truncate text-secondary-foreground"
+					title={row.caseId}
+				>
+					{row.caseId}
+				</span>
 			</span>
-			<span className="font-mono text-pale">{nameWithinCase(row)}</span>
-			<span className="text-secondary-foreground">{row.caseId}</span>
 			<Separator />
-			<span>
+			<span className="min-w-0 wrap-anywhere">
 				<span className="text-foreground">
 					{step === undefined
 						? stage
@@ -141,15 +151,17 @@ function RunReadings({
 				<span className="text-muted-foreground">{stageState}</span>
 			</span>
 			<Separator />
-			<SpendReading runSpentUsd={runSpentUsd} ceilingUsd={ceilingUsd} />
-			<Separator />
-			<span className="font-mono text-secondary-foreground">
-				{clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
+			<span className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+				<SpendReading runSpentUsd={runSpentUsd} ceilingUsd={ceilingUsd} />
+				<Separator />
+				<span className="font-mono text-secondary-foreground">
+					{clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
+				</span>
+				{grades.length === 0 ? null : (
+					<span className="text-dim">grades so far {grades.join(" ")}</span>
+				)}
 			</span>
-			{grades.length === 0 ? null : (
-				<span className="text-dim">grades so far {grades.join(" ")}</span>
-			)}
-			<span className="ml-auto inline-flex items-center gap-2.5">
+			<ActionGroup className="ml-auto">
 				<Button asChild size="compact">
 					<Link
 						to="/runs/$run"
@@ -160,7 +172,7 @@ function RunReadings({
 					</Link>
 				</Button>
 				<StopControl key={row.run} row={row} />
-			</span>
+			</ActionGroup>
 		</section>
 	);
 }

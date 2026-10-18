@@ -496,6 +496,47 @@ describe(CasesPage.name, () => {
 		);
 	});
 
+	it("guides an empty successful collection toward its first declaration", async () => {
+		renderCasesAt("/cases", []);
+
+		expect(
+			await screen.findByRole("heading", { name: "No cases yet" }),
+		).toBeVisible();
+		expect(
+			screen.getByText(
+				"Use Declare a case above to add a session or workflow case.",
+			),
+		).toBeVisible();
+		expect(
+			screen.getAllByRole("button", { name: "Declare a case" }),
+		).toHaveLength(1);
+	});
+
+	it("keeps a missing selected case distinct from an empty collection", async () => {
+		renderCasesAt("/cases?caseId=missing", []);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Case missing was not found among the readable declarations.",
+		);
+		expect(screen.queryByRole("heading", { name: "No cases yet" })).toBeNull();
+	});
+
+	it.each(["unreadable", "unreadableRecords"] as const)(
+		"does not call a collection empty when %s evidence is present",
+		async (field) => {
+			renderCasesAt("/cases", [], {
+				[field]: [{ id: "broken", reason: "not valid JSON" }],
+			});
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"broken: not valid JSON",
+			);
+			expect(
+				screen.queryByRole("heading", { name: "No cases yet" }),
+			).toBeNull();
+		},
+	);
+
 	describe("when a declaration or a run record cannot be read", () => {
 		it("names each beside the cases it could read", async () => {
 			renderCasesAt("/cases", [pipelineCase()], {
@@ -521,6 +562,9 @@ describe(CasesPage.name, () => {
 			expect(await screen.findByRole("alert")).toHaveTextContent(
 				"Could not load the cases.",
 			);
+			expect(
+				screen.queryByRole("heading", { name: "No cases yet" }),
+			).toBeNull();
 		});
 	});
 	describe("when a case is declared", () => {

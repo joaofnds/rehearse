@@ -55,7 +55,7 @@ export function CorpusCard({
 	return (
 		<section
 			aria-label="Corpus under test"
-			className="rounded-lg border border-divider bg-card px-4 py-3 md:p-4"
+			className="min-w-0 border-t border-divider pt-2 md:rounded-lg md:border md:bg-card md:p-4"
 		>
 			<h2 className="hidden md:block">
 				<SectionLabel>Corpus under test</SectionLabel>

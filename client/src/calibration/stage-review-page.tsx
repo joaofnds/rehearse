@@ -4,13 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StageLetterGrade } from "#benchmark/contracts";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import { PageContent } from "#client/system/components/page-content";
+import { RadioChoice } from "#client/system/components/radio-choice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { TableShell } from "#client/system/components/table-shell";
 import { StateBadge } from "#client/system/components/state-badge";
 import { RecordedText } from "#client/system/components/recorded-text";
 import { Button } from "#client/system/ui/button";
-import { stepLabel } from "./calibration-figures";
+import { withinCase } from "#client/within-case";
+import { runListingQuery } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 import { calibrationQuery } from "./calibration-query";
 import type { GradeRecorded, StageReview } from "./stage-review-query";
 import { recordGrade, stageReviewQuery } from "./stage-review-query";
@@ -207,30 +211,26 @@ function Choices<Value extends string>({
 				{id}
 			</p>
 			{description === undefined ? null : (
-				<p className="text-12 text-muted-foreground">{description}</p>
+				<p className="text-14 text-muted-foreground">{description}</p>
 			)}
 			{hints.map((hint) => (
-				<p key={hint} className="text-12 text-dim">
+				<p key={hint} className="text-14 text-muted-foreground">
 					{hint}
 				</p>
 			))}
 			<div role="radiogroup" aria-label={id} className="flex flex-wrap gap-3">
 				{values.map((value) => (
-					<label
+					<RadioChoice
 						key={value}
-						className="inline-flex min-h-touch-target items-center gap-1.5 font-mono text-14"
+						name={id}
+						value={value}
+						checked={chosen === value}
+						onChoose={() => {
+							onChoose(value);
+						}}
 					>
-						<input
-							type="radio"
-							name={id}
-							value={value}
-							checked={chosen === value}
-							onChange={() => {
-								onChoose(value);
-							}}
-						/>
 						{value}
-					</label>
+					</RadioChoice>
 				))}
 			</div>
 		</div>
@@ -371,6 +371,7 @@ function Comparison({
 	return (
 		<section className="flex flex-col gap-3">
 			<TableShell
+				columnClasses={["", "w-20 whitespace-nowrap", "w-20 whitespace-nowrap"]}
 				caption="Your grade against the judge's"
 				columns={[...COMPARISON_COLUMNS]}
 				rows={[
@@ -440,6 +441,109 @@ function reviewReturn(stage: GradedStageRef): ReviewReturn {
 	}
 }
 
+function reviewContext(
+	stage: GradedStageRef,
+	rows: RunListingResponse["rows"] | undefined,
+): string {
+	switch (stage.kind) {
+		case "run": {
+			const row = rows?.find(
+				(listed) => listed.kind === "run" && listed.run === stage.run,
+			);
+			if (row?.kind !== "run") {
+				return "Run";
+			}
+
+			return `${withinCase(row.shortId ?? "Run", row.caseId)} · ${row.caseId ?? "case unavailable"}`;
+		}
+		case "rep": {
+			const row = rows?.find(
+				(listed) => listed.kind === "group" && listed.groupId === stage.groupId,
+			);
+			if (row?.kind !== "group") {
+				return "Repetition";
+			}
+
+			return `${withinCase(row.shortId ?? "Group", row.caseId)} · ${row.caseId} · repetition`;
+		}
+		case "replay": {
+			const row = rows?.find(
+				(listed) =>
+					listed.kind === "replay" &&
+					listed.lineage === stage.lineage &&
+					listed.timestamp === stage.timestamp,
+			);
+			if (row?.kind !== "replay") {
+				return "Replay";
+			}
+
+			return `${withinCase(row.shortId ?? "Replay", row.caseId)} · ${row.caseId ?? "case unavailable"}${row.shortId === undefined ? "" : " · replay"}`;
+		}
+		default: {
+			return stage satisfies never;
+		}
+	}
+}
+
+function identityEntries(
+	stage: GradedStageRef,
+	stageName: string,
+): readonly (readonly [string, string])[] {
+	switch (stage.kind) {
+		case "run": {
+			return [
+				["Run", stage.run],
+				["Step", stage.stage],
+			];
+		}
+		case "rep": {
+			return [
+				["Group", stage.groupId],
+				["Repetition", stage.repId],
+				["Step", stage.stage],
+			];
+		}
+		case "replay": {
+			return [
+				["Lineage", stage.lineage],
+				["Timestamp", stage.timestamp],
+				["Step", stageName],
+			];
+		}
+		default: {
+			return stage satisfies never;
+		}
+	}
+}
+
+function RecordedStepIdentity({
+	stage,
+	stageName,
+}: {
+	readonly stage: GradedStageRef;
+	readonly stageName: string;
+}): React.JSX.Element {
+	return (
+		<details className="min-w-0 rounded-lg border border-divider bg-card">
+			<summary className="min-h-touch-target cursor-pointer px-4 py-3 text-14 text-muted-foreground">
+				Recorded step identity
+			</summary>
+			<dl className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
+				{[["Kind", stage.kind], ...identityEntries(stage, stageName)].map(
+					([term, value]) => (
+						<div key={term} className="min-w-0">
+							<dt className="text-12 text-muted-foreground">{term}</dt>
+							<dd className="mt-1 font-mono text-12 select-text wrap-anywhere">
+								{value}
+							</dd>
+						</div>
+					),
+				)}
+			</dl>
+		</details>
+	);
+}
+
 /**
  * A judged step graded blind: the form shows only what the Judge read and the
  * criteria, and the Judge's grade appears once the operator's is recorded.
@@ -450,6 +554,7 @@ export function StageReviewPage({
 	readonly stage: GradedStageRef;
 }): React.JSX.Element {
 	const query = useQuery(stageReviewQuery(stage));
+	const listing = useQuery(runListingQuery);
 	const review = query.data;
 	const recorded = review === undefined ? undefined : recordedGrade(review);
 	const back = reviewReturn(stage);
@@ -461,7 +566,7 @@ export function StageReviewPage({
 				subline={
 					review === undefined
 						? undefined
-						: `${stepLabel(stage, review.stageName)} · ${review.judgeModel ?? "Judge model not recorded"}`
+						: `${reviewContext(stage, listing.data?.rows)} · ${review.stageName} · ${review.judgeModel === undefined ? "Judge model not recorded" : `Judge ${review.judgeModel}`}`
 				}
 				aside={
 					<div className="flex flex-wrap items-center gap-2">
@@ -477,7 +582,7 @@ export function StageReviewPage({
 				}
 			/>
 
-			<div className="px-5 pt-3.5 pb-9">
+			<PageContent>
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
@@ -490,6 +595,7 @@ export function StageReviewPage({
 
 				{review === undefined ? null : (
 					<>
+						<RecordedStepIdentity stage={stage} stageName={review.stageName} />
 						<div className="mb-4 flex flex-wrap items-center gap-3">
 							<StateBadge
 								tone={recorded === undefined ? "attention" : "positive"}
@@ -514,7 +620,7 @@ export function StageReviewPage({
 						</div>
 					</>
 				)}
-			</div>
+			</PageContent>
 		</div>
 	);
 }

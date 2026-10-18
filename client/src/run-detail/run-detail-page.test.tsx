@@ -33,9 +33,74 @@ describe("/runs/$run", () => {
 		const header = heading.closest("header");
 
 		expect(heading).toHaveTextContent("r-0147");
-		expect(heading).toHaveTextContent("audit-log");
+		expect(
+			within(header ?? document.body).getByRole("link", { name: "audit-log" }),
+		).toHaveAttribute("href", "/cases?caseId=audit-log");
 		expect(header).toHaveTextContent("stopped at step 2 · below minimum B");
 		expect(header).toHaveTextContent("corpus@a41c7e");
+	});
+
+	it("labels header resources while keeping exact setup in its provenance disclosure", async () => {
+		const record = stoppedAtBuild();
+		renderRunDetail(
+			new Map([
+				[
+					`/api/runs/${RUN}`,
+					{
+						...record,
+						identity: {
+							...record.identity,
+							target: "/workspace/a-long-target-repository",
+							commit: "abcdef1234567890",
+							model: "recorded-model",
+							effort: "high",
+						},
+					},
+				],
+			]),
+		);
+
+		const heading = await screen.findByRole("heading", { level: 1 });
+		const header = heading.closest("header");
+
+		expect(header).toHaveTextContent(/Time /u);
+		expect(header).toHaveTextContent(/Cost /u);
+		expect(header).not.toHaveTextContent("/workspace/a-long-target-repository");
+		expect(header).not.toHaveTextContent("recorded-model");
+		fireEvent.click(screen.getByText("Run setup & provenance"));
+		const setup = screen.getByRole("region", {
+			name: "Run setup & provenance",
+		});
+		expect(setup).toHaveTextContent(
+			"/workspace/a-long-target-repository @ abcdef1234567890",
+		);
+		expect(setup).toHaveTextContent("recorded-model / high");
+	});
+
+	it("states execution, final result and pending human review independently without repeating the review state", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([{ ...stoppedRow(), status: "AWAITING_HUMAN_REVIEW" }]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					{
+						...stoppedAtBuild(),
+						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+					},
+				],
+			]),
+		);
+
+		const heading = await screen.findByRole("heading", { level: 1 });
+		const header = heading.closest("header");
+
+		expect(header).toHaveTextContent("Execution ended");
+		expect(header).toHaveTextContent("Final result: FAIL");
+		expect(header).toHaveTextContent("Human review: pending");
+		expect(header).not.toHaveTextContent("awaiting human review");
 	});
 
 	it("links the primary final-outcome action to its retained target when the assessment is unavailable", async () => {

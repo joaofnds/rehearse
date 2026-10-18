@@ -94,6 +94,8 @@ For an integrated browser check, run `mise exec -- bun run build:client`, then
 `mise exec -- bun run serve`. The `dev:client` script runs Vite alone; its current
 configuration has no API proxy. Use the built client with the server when
 checking real records.
+Use the [UI review matrix](docs/ui-quality.md) for screen states, viewport checks
+and the evidence behind a UI review's coverage claim.
 
 ## Working conventions
 

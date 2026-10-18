@@ -187,7 +187,10 @@ export function CaseCard({
 			className="rounded-lg border border-divider bg-card p-6"
 		>
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-				<h2 id={headingId} className="text-16 font-semibold">
+				<h2
+					id={headingId}
+					className="min-w-0 max-w-full text-16 font-semibold wrap-anywhere"
+				>
 					<Link
 						to="/cases"
 						search={{ caseId: listed.id }}
@@ -225,7 +228,9 @@ export function CaseCard({
 			{!showFigures || minimumGrade === undefined ? null : (
 				<p className="mt-1 text-12 text-dim">{minimumGrade}</p>
 			)}
-			<p className="mt-3 max-w-prose text-14 leading-reading">{listed.title}</p>
+			<p className="mt-3 max-w-prose text-14 leading-reading wrap-anywhere">
+				{listed.title}
+			</p>
 			<div className="mt-5 flex flex-wrap items-center gap-3 border-t border-subtle pt-4">
 				<Definition listed={listed} />
 				<span className="ml-auto flex flex-wrap items-center gap-2">

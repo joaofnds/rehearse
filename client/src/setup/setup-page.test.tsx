@@ -142,7 +142,7 @@ describe("first-run setup", () => {
 
 		expect(
 			screen.getByText(
-				/Rehearse needs two things before a case can be declared/u,
+				/Scan an instruction corpus to unlock case declaration/u,
 			),
 		).toBeInTheDocument();
 		expect(
@@ -292,7 +292,7 @@ describe("first-run setup", () => {
 			expect(steps[1]).toHaveTextContent("Required");
 		});
 
-		it("asks for a limit first while the limit is not a positive amount", async () => {
+		it("keeps the corpus required and available while the limit is not a positive amount", async () => {
 			serveFreshInstall();
 			renderAppAt("/");
 			const steps = await setupSteps();
@@ -302,7 +302,8 @@ describe("first-run setup", () => {
 				{ target: { value: "0" } },
 			);
 
-			expect(steps[1]).toHaveTextContent("Set a limit first");
+			expect(steps[1]).toHaveTextContent("Required");
+			expect(screen.getByRole("button", { name: "Scan" })).toBeEnabled();
 		});
 	});
 
@@ -552,7 +553,7 @@ describe("first-run setup", () => {
 	});
 
 	describe("Finish setup", () => {
-		const MISSING_HINT = "Set a limit, then scan a corpus directory.";
+		const MISSING_HINT = "Choose a spend limit and scan a corpus directory.";
 
 		function finish(): HTMLElement {
 			return screen.getByRole("button", { name: "Finish setup" });

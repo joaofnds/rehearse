@@ -103,7 +103,7 @@ export function SavedOutput({
 			className="min-w-0 rounded-lg border border-divider bg-card p-6"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2">
-				<h2 className="text-16 font-semibold">{title}</h2>
+				<h2 className="min-w-0 text-16 font-semibold wrap-anywhere">{title}</h2>
 				{text === undefined ? null : (
 					<Dialog open={open} onOpenChange={setOpen}>
 						<DialogTrigger asChild>
@@ -112,16 +112,21 @@ export function SavedOutput({
 							</Button>
 						</DialogTrigger>
 						<DialogContent width="wide">
-							<div className="p-4">
-								<DialogTitle>{title} · complete saved output</DialogTitle>
+							<div className="shrink-0 border-b border-divider p-4">
+								<DialogTitle>Complete saved output</DialogTitle>
 								<DialogDescription>
 									Complete output preserved by the saved record.
 								</DialogDescription>
 							</div>
-							<pre className="max-h-160 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
-								{text}
-							</pre>
-							<div className="p-4">
+							<div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+								<p className="mb-3 font-mono text-13 wrap-anywhere text-secondary-foreground">
+									{title}
+								</p>
+								<pre className="font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere">
+									{text}
+								</pre>
+							</div>
+							<div className="shrink-0 border-t border-divider p-4">
 								<DialogClose asChild>
 									<Button size="sm" variant="quiet">
 										Close

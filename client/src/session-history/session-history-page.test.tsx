@@ -790,6 +790,29 @@ describe(SessionHistoryPage.name, () => {
 		).toHaveTextContent("12 chars1 delivery · 0 repeats");
 	});
 
+	it("distinguishes a source search with no matches from unavailable evidence", async () => {
+		renderPage();
+		const sources = await screen.findByRole("navigation", {
+			name: "Loaded sources",
+		});
+		const search = screen.getByRole("searchbox", { name: "Search sources" });
+
+		fireEvent.change(search, { target: { value: "no-source-with-this-name" } });
+
+		expect(
+			within(sources).getByText("No sources match this search."),
+		).toBeVisible();
+		expect(
+			within(sources).queryByText(
+				"No sources are available in this saved evidence.",
+			),
+		).not.toBeInTheDocument();
+		fireEvent.change(search, { target: { value: "" } });
+		expect(
+			within(sources).getByRole("button", { name: /CLAUDE.md/u }),
+		).toBeVisible();
+	});
+
 	it("searches source names without changing the all-sources count or the investigation selection", async () => {
 		renderPage();
 		const sources = await screen.findByRole("navigation", {
@@ -1061,6 +1084,33 @@ describe(SessionHistoryPage.name, () => {
 			});
 			expect(scope).toHaveTextContent("Saved evidence · audit-log / build");
 			expect(scope).not.toHaveTextContent("/ attempt");
+		});
+
+		it("explains missing saved evidence without suggesting filter recovery", async () => {
+			renderNamed(
+				{
+					kind: "replay",
+					lineage: "lineage-1",
+					timestamp: "2026-09-07T00-00-00.000Z",
+				},
+				"/api/replays/lineage-1/2026-09-07T00-00-00.000Z/history",
+				stageAttempt,
+			);
+
+			expect(
+				await screen.findByText(
+					"No sources are available in this saved evidence.",
+				),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("listbox", { name: "Attempt events" }),
+			).toHaveTextContent("No events are available in this evidence scope.");
+			expect(
+				screen.queryByText("No sources match this search."),
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/Choose All records to include raw chronology/u),
+			).not.toBeInTheDocument();
 		});
 
 		it("names a stage's run and the checkpoint it recorded by short id", async () => {

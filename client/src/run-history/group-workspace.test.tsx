@@ -489,6 +489,42 @@ describe(GroupWorkspacePage.name, () => {
 		expect(screen.getByText(/record unreadable/u)).toBeInTheDocument();
 	});
 
+	it("names a keyboard-scrollable region for the group attempts table", async () => {
+		serve(group());
+
+		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));
+
+		const region = await screen.findByRole("region", {
+			name: "Group attempts Scrollable table",
+		});
+		expect(region).toHaveAttribute("tabindex", "0");
+		region.focus();
+		expect(region).toHaveFocus();
+		expect(
+			within(region).getByRole("table", { name: "Group attempts" }),
+		).toBeInTheDocument();
+	});
+
+	it("keeps exact repetition identity in collapsed inspectable provenance beside its result destination", async () => {
+		serve(group());
+
+		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));
+
+		const table = await screen.findByRole("table", { name: "Group attempts" });
+		const summary = within(table).getByText("Repetition ID");
+		const disclosure = summary.closest("details");
+		expect(disclosure).not.toHaveAttribute("open");
+		expect(disclosure).toHaveTextContent("rep-1");
+		fireEvent.click(summary);
+		expect(disclosure).toHaveAttribute("open");
+		expect(
+			within(table).getByRole("link", { name: "Results" }),
+		).toHaveAttribute(
+			"href",
+			`/groups/${GROUP}/reps/rep-1/attempt?view=results`,
+		);
+	});
+
 	it("links stage rep results even when session context is unavailable", async () => {
 		serve(group());
 		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));

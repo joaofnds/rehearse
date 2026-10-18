@@ -7,6 +7,8 @@ import { casesQuery } from "#client/cases/cases-query";
 import { LAUNCH_CASES_QUERY_KEY } from "#client/launch/launch-dialog";
 import { refusalReason } from "#client/refusal-reason";
 import { Button } from "#client/system/ui/button";
+import { FileInput } from "#client/system/ui/file-input";
+import { ActionGroup } from "#client/system/components/action-group";
 import {
 	Dialog,
 	DialogClose,
@@ -37,15 +39,17 @@ function DialogHeader({
 	readonly title: string;
 }): React.JSX.Element {
 	return (
-		<header className="flex shrink-0 items-center gap-3 border-b border-strong px-4 py-3">
-			<DialogTitle>{title}</DialogTitle>
-			<span className="ml-auto">
+		<header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-strong px-4 py-3">
+			<div className="min-w-0 flex-1 wrap-anywhere">
+				<DialogTitle>{title}</DialogTitle>
+			</div>
+			<ActionGroup className="ml-auto">
 				<DialogClose asChild>
 					<Button variant="outline" size="sm" aria-label="Close">
 						Esc
 					</Button>
 				</DialogClose>
-			</span>
+			</ActionGroup>
 		</header>
 	);
 }
@@ -91,24 +95,29 @@ export function ExportTaskDialog({
 							{declared.map(({ task, caseId }) => (
 								<li
 									key={caseId}
-									className="flex items-center gap-3 rounded-md border border-strong px-3 py-2"
+									className="flex min-w-0 flex-col items-start gap-3 rounded-md border border-strong px-3 py-3 sm:flex-row sm:items-center"
 								>
-									<span className="flex min-w-0 flex-col">
-										<span className="font-mono text-14">{caseId}</span>
-										<span className="truncate font-mono text-12 text-dim">
+									<div className="flex min-w-0 flex-1 flex-col gap-1 wrap-anywhere">
+										<span className="text-14 font-medium">{caseId}</span>
+										<span className="text-12 text-dim">
 											{task.stages.join(" → ")} · {task.stageJudges} step judges
 											+ {task.taskJudges} final judge
 										</span>
-									</span>
-									<Button variant="outline" size="sm" asChild>
-										<a
-											className="ml-auto"
-											href={bundleUrl(caseId)}
-											download={`${caseId}.task.json`}
-										>
-											Download {caseId}.task.json
-										</a>
-									</Button>
+										<span className="font-mono text-12 text-dim">
+											{caseId}.task.json
+										</span>
+									</div>
+									<ActionGroup className="sm:ml-auto">
+										<Button variant="outline" size="sm" asChild>
+											<a
+												aria-label={`Download ${caseId}.task.json`}
+												href={bundleUrl(caseId)}
+												download={`${caseId}.task.json`}
+											>
+												Download
+											</a>
+										</Button>
+									</ActionGroup>
 								</li>
 							))}
 						</ul>
@@ -222,7 +231,7 @@ function PreviewSummary({
 	return (
 		<section
 			aria-label="What the bundle holds"
-			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2 text-14"
+			className="flex min-w-0 flex-col gap-2 rounded-md border border-strong px-3 py-2 text-14 wrap-anywhere"
 		>
 			<p>
 				<span className="font-mono">{preview.caseId}</span> · {preview.title}
@@ -307,7 +316,7 @@ function ImportForm({
 
 	return (
 		<form
-			className="flex min-h-0 flex-col"
+			className="flex min-h-0 min-w-0 flex-col"
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (bundleText !== undefined) {
@@ -317,21 +326,15 @@ function ImportForm({
 		>
 			<DialogHeader title="Import workflow" />
 			<div className="relative flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain px-4 py-3.5">
-				<label htmlFor={fileId} className="flex flex-col gap-1 text-14">
+				<label htmlFor={fileId} className="flex min-w-0 flex-col gap-1 text-14">
 					<span className="text-muted-foreground">Workflow bundle</span>
-					<input
+					<FileInput
 						id={fileId}
-						type="file"
 						accept=".json,application/json"
-						onChange={(event) => {
-							const [file] = event.target.files ?? [];
-							if (file === undefined) {
-								return;
-							}
+						onChoose={(file) => {
 							imported.reset();
 							void readBundle(file);
 						}}
-						className="text-14"
 					/>
 				</label>
 
@@ -371,14 +374,14 @@ function ImportForm({
 				</DialogDescription>
 
 				{refusal === null ? null : (
-					<p role="alert" className="text-14 text-attention">
+					<p role="alert" className="text-14 text-attention wrap-anywhere">
 						<span aria-hidden="true">⚠ </span>
 						{refusal.message}
 					</p>
 				)}
 			</div>
-			<footer className="flex shrink-0 items-center gap-2.5 border-t border-strong px-4 py-3">
-				<span className="ml-auto flex gap-2">
+			<footer className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
+				<ActionGroup className="ml-auto">
 					<DialogClose asChild>
 						<Button type="button" variant="outline">
 							Cancel
@@ -386,11 +389,12 @@ function ImportForm({
 					</DialogClose>
 					<Button
 						type="submit"
+						variant="primary"
 						disabled={!preview.isSuccess || imported.isPending}
 					>
 						Import
 					</Button>
-				</span>
+				</ActionGroup>
 			</footer>
 		</form>
 	);

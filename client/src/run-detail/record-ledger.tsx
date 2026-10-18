@@ -99,7 +99,7 @@ function StatusWords({
 	readonly status: NodeStatus;
 }): React.JSX.Element {
 	return (
-		<span className="flex items-center gap-1.5 text-12 text-muted-foreground">
+		<span className="flex min-w-0 items-center gap-1.5 text-12 text-muted-foreground wrap-anywhere">
 			{status.state === "running" ? (
 				<LiveGlyph tone="surrounding" />
 			) : (
@@ -136,28 +136,31 @@ function JudgedColumns({
 	readonly judge: JudgedAnswer;
 }): React.JSX.Element {
 	return (
-		<div className="grid grid-cols-2 gap-4.5 px-3.5 py-2.75">
-			<div>
+		<div className="grid min-w-0 grid-cols-1 gap-6 px-3.5 py-2.75 lg:grid-cols-2">
+			<div className="min-w-0">
 				<Label>Blockers</Label>
 				<ul
 					aria-label="Hard blockers"
 					className="mt-1.5 flex flex-col gap-0.75"
 				>
 					{judge.hardBlockers.map(({ id, status }) => (
-						<li key={id} className="flex items-center gap-2">
+						<li
+							key={id}
+							className="flex min-w-0 flex-wrap items-center gap-2 py-1"
+						>
 							<BlockerLine row={{ id, state: blockerState(status) }} />
 						</li>
 					))}
 				</ul>
 			</div>
-			<div>
+			<div className="min-w-0">
 				<Label>Dimensions</Label>
 				<ul
 					aria-label="Quality dimensions"
 					className="mt-1.5 flex flex-col gap-0.75"
 				>
 					{judge.dimensions.map(({ id, grade }) => (
-						<li key={id} className="flex items-center gap-2.5">
+						<li key={id} className="flex min-w-0 items-center gap-2.5 py-1">
 							<DimensionLine row={{ id, grade }} />
 						</li>
 					))}
@@ -247,8 +250,8 @@ function CardFooter({
 
 	return (
 		<footer className="flex flex-wrap items-center gap-2.5 border-t border-border px-3.5 py-2.25">
-			<span className="flex items-center gap-1.5 font-mono text-12 text-secondary-foreground">
-				<CheckpointIcon aria-hidden="true" className="size-3" />
+			<span className="flex min-w-0 items-center gap-1.5 font-mono text-12 text-secondary-foreground wrap-anywhere">
+				<CheckpointIcon aria-hidden="true" className="size-3 shrink-0" />
 				{checkpointWords(stage)}
 			</span>
 			<span className="ml-auto">
@@ -352,9 +355,9 @@ function WideEvidence({
 				{items.map(({ owner, index, cited }) => (
 					<li
 						key={`${owner.section}:${owner.item}:${String(index)}`}
-						className="mt-2.5 grid grid-cols-ledger-evidence items-start gap-3"
+						className="mt-2.5 grid min-w-0 grid-cols-1 items-start gap-3 sm:grid-cols-ledger-evidence"
 					>
-						<div className="font-mono text-12 text-muted-foreground">
+						<div className="min-w-0 font-mono text-12 text-muted-foreground wrap-anywhere">
 							<SourceChip cited={cited} />
 							<div className="mt-1">
 								<EvidenceLink owner={owner} index={index} cited={cited} />
@@ -364,7 +367,7 @@ function WideEvidence({
 							</div>
 						</div>
 						{cited.quote === undefined ? null : (
-							<blockquote className="border-l-2 border-deeper bg-card px-2.5 py-1.75 font-mono text-13 leading-transcript whitespace-pre-wrap text-bright">
+							<blockquote className="min-w-0 border-l-2 border-deeper bg-card px-2.5 py-1.75 font-mono text-13 leading-transcript whitespace-pre-wrap wrap-anywhere text-bright">
 								{cited.quote}
 							</blockquote>
 						)}
@@ -404,9 +407,13 @@ function CardHeader({
 			<span aria-hidden="true" className="font-mono text-12 text-dim">
 				{String(number).padStart(2, "0")}
 			</span>
-			<h2 className="text-16">{stage.stage}</h2>
+			<h2 className="min-w-0 text-16 font-medium wrap-anywhere">
+				{stage.stage}
+			</h2>
 			<StatusWords status={status} />
-			<span className="font-mono text-12 text-dim">{meta}</span>
+			<span className="min-w-0 font-mono text-12 text-dim wrap-anywhere">
+				{meta}
+			</span>
 			<CorpusReading stage={stage} />
 			<span className="w-8 text-right">
 				<Grade
@@ -452,7 +459,7 @@ function LedgerCard({
 	return (
 		<article
 			aria-label={stepName({ stage, number })}
-			className={`overflow-hidden rounded-card border bg-card ${status.state === "stopped" ? "border-deeper" : "border-border"}`}
+			className={`min-w-0 overflow-hidden rounded-card border bg-card ${status.state === "stopped" ? "border-deeper" : "border-border"}`}
 		>
 			<CardHeader stage={stage} number={number} status={status} meta={meta} />
 			<CardBody judge={judgeRead} leftWaiting={leftWaiting} />
@@ -583,19 +590,21 @@ function UnreachedStage({
 		: undefined;
 	if (ended && stopped !== undefined && judgedStop(stopped.stage)) {
 		return (
-			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-12 text-pretty text-muted-foreground">
+			<li className="min-w-0 rounded-card border border-dashed border-strong px-3.5 py-3 text-12 text-pretty text-muted-foreground wrap-anywhere">
 				{neverRanWords(unreached, stopped, row, record)}
 			</li>
 		);
 	}
 	if (ending !== undefined) {
 		return (
-			<li className="px-3.5 py-1 text-12 text-muted-foreground">{ending}</li>
+			<li className="min-w-0 px-3.5 py-1 text-12 text-muted-foreground wrap-anywhere">
+				{ending}
+			</li>
 		);
 	}
 
 	return (
-		<li className="flex items-center gap-3 px-3.5 py-1 text-12">
+		<li className="flex min-w-0 flex-wrap items-center gap-3 px-3.5 py-1 text-12 wrap-anywhere">
 			{stepName(unreached)}
 			<StatusWords status={nodeStatus(unreached.stage, row, record)} />
 		</li>
@@ -621,9 +630,9 @@ export function RecordLedger({
 	return (
 		<section
 			aria-label="Record ledger"
-			className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-10"
+			className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pt-4 pb-10"
 		>
-			<div className="flex max-w-250 flex-col gap-3">
+			<div className="flex min-w-0 max-w-250 flex-col gap-3">
 				{record.stages.map((stage, index) =>
 					stage.status === "no-record" ? null : (
 						<LedgerCard

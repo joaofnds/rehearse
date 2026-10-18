@@ -49,7 +49,7 @@ function DialogTitle({
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
-			className="text-20 font-semibold"
+			className="min-w-0 text-20 font-semibold wrap-anywhere"
 		>
 			{children}
 		</DialogPrimitive.Title>

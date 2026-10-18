@@ -23,7 +23,7 @@ export function ScreenHeader({
 							{eyebrow}
 						</p>
 					)}
-					<h1 className="text-24 font-semibold tracking-tight leading-heading">
+					<h1 className="text-24 font-semibold tracking-tight leading-heading wrap-anywhere">
 						{title}
 					</h1>
 					{subline === undefined ? null : (

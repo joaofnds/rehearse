@@ -78,15 +78,16 @@ export function RequestAnalysisButton({
 	const refused = refusalOf(request, wait);
 
 	return (
-		<span className="flex flex-col gap-1.5">
+		<span className="flex min-w-0 max-w-full flex-col items-start gap-1.5">
 			{capUsd === null || refused !== null ? (
-				<Button variant="outline" size="compact" aria-disabled="true">
+				<Button variant="outline" size="compact" wrap aria-disabled="true">
 					{label}
 				</Button>
 			) : (
 				<Button
 					variant="outline"
 					size="compact"
+					wrap
 					disabled={mutation.isPending}
 					onClick={() => {
 						mutation.mutate({ kind: "analysis", run, statedUsd: capUsd });

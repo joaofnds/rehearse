@@ -1,4 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { ActionGroup } from "#client/system/components/action-group";
+import { focusWorkspaceTarget } from "#client/system/focus-workspace-target";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { RecordedText } from "#client/system/components/recorded-text";
 import { StateBadge } from "#client/system/components/state-badge";
@@ -12,13 +15,23 @@ export function CorpusFileViewer({
 	lines,
 	onEdit,
 	onClose,
+	viewRequest,
 }: {
 	readonly path: string;
 	readonly root: string;
 	readonly lines?: LineRange | undefined;
 	readonly onEdit?: (() => void) | undefined;
 	readonly onClose: () => void;
+	readonly viewRequest: number;
 }): React.JSX.Element {
+	const heading = useRef<HTMLHeadingElement>(null);
+	useEffect(() => {
+		if (viewRequest === 0 || heading.current === null) {
+			return;
+		}
+
+		focusWorkspaceTarget(heading.current);
+	}, [path, viewRequest]);
 	const file = useQuery({
 		queryKey: ["corpus-file-reading", root, path],
 		queryFn: () => fetchCorpusFileForReading(path),
@@ -32,8 +45,14 @@ export function CorpusFileViewer({
 			className="flex min-w-0 flex-col gap-3"
 		>
 			<header className="flex flex-wrap items-center justify-between gap-3">
-				<div className="flex flex-wrap items-center gap-3">
-					<h3 className="font-mono text-14">{path}</h3>
+				<div className="flex min-w-0 flex-wrap items-center gap-3">
+					<h3
+						ref={heading}
+						tabIndex={-1}
+						className="min-w-0 font-mono text-14 wrap-anywhere"
+					>
+						{path}
+					</h3>
 					<StateBadge tone="neutral">Read only</StateBadge>
 					{file.isSuccess ? (
 						<span className="font-mono text-12 text-muted-foreground">
@@ -41,7 +60,7 @@ export function CorpusFileViewer({
 						</span>
 					) : null}
 				</div>
-				<div className="flex items-center gap-2">
+				<ActionGroup>
 					{onEdit === undefined ? null : (
 						<Button variant="quiet" onClick={onEdit}>
 							Edit this file
@@ -50,7 +69,7 @@ export function CorpusFileViewer({
 					<Button variant="quiet" onClick={onClose}>
 						Close file
 					</Button>
-				</div>
+				</ActionGroup>
 			</header>
 			{lines === undefined ? null : (
 				<p className="text-12 text-muted-foreground">{`Linked lines ${lines.start}–${lines.end}. The text below is from the current linked corpus.`}</p>

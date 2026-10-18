@@ -5,6 +5,7 @@ import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import { SectionLabel } from "#client/system/components/section-label";
+import { focusWorkspaceTarget } from "#client/system/focus-workspace-target";
 import { Button } from "#client/system/ui/button";
 import type {
 	AppliedCorpusEdit,
@@ -283,10 +284,16 @@ export function AppliedEdit({
 	readonly evidence: SourceEvidence | undefined;
 }): React.JSX.Element {
 	const { rerun } = applied;
+	const confirmation = useRef<HTMLParagraphElement>(null);
+	useEffect(() => {
+		if (confirmation.current !== null) {
+			focusWorkspaceTarget(confirmation.current);
+		}
+	}, []);
 
 	return (
 		<div className="flex flex-col gap-2 text-14">
-			<p>
+			<p ref={confirmation} tabIndex={-1} className="font-medium wrap-anywhere">
 				{`Applied ${path}: `}
 				<Version digest={applied.previous} />
 				{" → "}

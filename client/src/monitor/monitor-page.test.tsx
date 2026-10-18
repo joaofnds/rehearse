@@ -202,11 +202,14 @@ describe("/monitor", () => {
 
 			expect(
 				within(shown).getByRole("heading", { level: 1 }),
-			).toHaveTextContent("r33audit-log");
+			).toHaveTextContent(/^r33$/u);
+			expect(
+				within(shown).getByRole("link", { name: "audit-log" }),
+			).toHaveAttribute("href", "/cases?caseId=audit-log");
 			expect(shown).toHaveTextContent("running step 2");
 		});
 
-		it("names the run, its case, corpus version, target, commit, model and effort", async () => {
+		it("names the run, case and corpus while keeping exact target and model in setup provenance", async () => {
 			renderMonitor(
 				runRow({
 					run: RUN,
@@ -218,12 +221,19 @@ describe("/monitor", () => {
 
 			expect(
 				within(shown).getByRole("heading", { level: 1 }),
-			).toHaveTextContent("r-0148audit-log");
+			).toHaveTextContent("r-0148");
 			expect(shown).toHaveTextContent("running step 2");
 			expect(shown).toHaveTextContent("audit-log");
 			expect(shown).toHaveTextContent("corpus@a41c7e");
-			expect(shown).toHaveTextContent("acme-api @ e91f2a");
-			expect(shown).toHaveTextContent("claude-opus-4 / high");
+			expect(shown).not.toHaveTextContent("acme-api @ e91f2a");
+			expect(shown).not.toHaveTextContent("claude-opus-4 / high");
+			fireEvent.click(screen.getByRole("button", { name: "Results" }));
+			fireEvent.click(await screen.findByText("Run setup & provenance"));
+			const setup = screen.getByRole("region", {
+				name: "Run setup & provenance",
+			});
+			expect(setup).toHaveTextContent("acme-api @ e91f2a");
+			expect(setup).toHaveTextContent("claude-opus-4 / high");
 		});
 
 		it("links back to the Runs list from the run workspace", async () => {
@@ -1214,20 +1224,14 @@ describe("/monitor judge pane", () => {
 		return screen.findByRole("region", { name: "Judge" });
 	}
 
-	async function rowCells(
-		list: string,
-	): Promise<readonly (readonly string[])[]> {
+	async function judgeRowReadings(list: string): Promise<readonly string[]> {
 		const rows = await within(await judgePane()).findByRole("list", {
 			name: list,
 		});
 
 		return within(rows)
 			.getAllByRole("listitem")
-			.map((row) =>
-				[...(row.firstElementChild?.children ?? [])].map(
-					(cell) => cell.textContent,
-				),
-			);
+			.map((row) => row.textContent ?? "");
 	}
 
 	async function qualityReadings(): Promise<readonly (string | null)[]> {
@@ -1299,10 +1303,10 @@ describe("/monitor judge pane", () => {
 		it("lists every hard blocker, each returned one fired or clear and the rest pending, under how many were evaluated", async () => {
 			renderJudge(RETURNING);
 
-			expect(await rowCells("Hard blockers")).toEqual([
-				["✕", "no-unrelated-refactors", "fired", "evidence pending"],
-				["✓", "tests-pass-before-handoff", "clear", "evidence pending"],
-				["◌", "no-secrets-in-diff", "pending", "evidence pending"],
+			expect(await judgeRowReadings("Hard blockers")).toEqual([
+				"✕no-unrelated-refactorsfiredevidence pending",
+				"✓tests-pass-before-handoffclearevidence pending",
+				"◌no-secrets-in-diffpendingevidence pending",
 			]);
 			expect(
 				within(await judgePane()).getByRole("heading", {
@@ -1330,7 +1334,7 @@ describe("/monitor judge pane", () => {
 		it("offers no evidence until the judge's record holds it", async () => {
 			renderJudge(RETURNING);
 
-			await rowCells("Hard blockers");
+			await judgeRowReadings("Hard blockers");
 			const toggles = within(await judgePane()).getAllByRole("button", {
 				name: "evidence pending",
 			});
@@ -1548,10 +1552,10 @@ describe("/monitor judge pane", () => {
 		it("lists every judged blocker and dimension with how much evidence each cites", async () => {
 			await renderJudged(ACCEPTED_C);
 
-			expect(await rowCells("Hard blockers")).toEqual([
-				["✕", "scope-declared-before-edit", "fired", "1 cited"],
-				["✓", "no-secrets-in-diff", "clear", "no evidence"],
-				["✕", "tests-pass-before-handoff", "fired", "no evidence"],
+			expect(await judgeRowReadings("Hard blockers")).toEqual([
+				"✕scope-declared-before-editfired1 cited",
+				"✓no-secrets-in-diffclearno evidence",
+				"✕tests-pass-before-handofffiredno evidence",
 			]);
 			expect(await qualityReadings()).toEqual([
 				"scope-discipline▮▮▮▯▯C1 cited",
@@ -2271,7 +2275,7 @@ describe("/monitor across runs", () => {
 
 		await waitFor(() => {
 			expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-				"r-0148audit-log",
+				"r-0148",
 			);
 			expect(
 				screen.getByRole("heading", { level: 1 }).closest("header"),

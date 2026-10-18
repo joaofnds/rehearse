@@ -12,7 +12,7 @@ export function Notice({
 	return (
 		<div
 			role="alert"
-			className="rounded-lg border border-attention/40 border-l-3 border-l-attention bg-attention-surface px-3 py-2.5 text-attention"
+			className="min-w-0 rounded-lg border border-attention/40 border-l-3 border-l-attention bg-attention-surface px-3 py-2.5 wrap-anywhere text-attention"
 		>
 			<p>
 				<span aria-hidden="true">⚠ </span>

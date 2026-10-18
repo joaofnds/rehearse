@@ -150,8 +150,9 @@ describe("the run workspace", () => {
 			name: /r44/u,
 		});
 		const header = heading.closest("header");
+		expect(header).toHaveTextContent("Execution ended");
 		expect(header).toHaveTextContent(
-			"Execution ended · Final result: FAIL · Human review: pending",
+			"Final result: FAIL · Human review: pending",
 		);
 		expect(header).toHaveTextContent("◌");
 		expect(header).not.toHaveTextContent("✓");

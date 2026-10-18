@@ -469,9 +469,9 @@ export function TaskGraph({
 			className="flex-none border-b border-divider bg-secondary"
 		>
 			<div className="flex flex-wrap items-center gap-x-3.75 gap-y-1 page-gutter pt-2.5">
-				<h2 className="text-16 font-semibold tracking-label text-dim uppercase">
-					Workflow · {record.caseId} · {String(record.stages.length)} steps, in
-					order
+				<h2 className="text-16 font-semibold text-dim wrap-anywhere">
+					<span className="tracking-label uppercase">Workflow</span> ·{" "}
+					{record.caseId} · {String(record.stages.length)} steps, in order
 				</h2>
 				<span className="text-12 text-muted-foreground">
 					select a step to explore its results, activity and context
@@ -497,7 +497,12 @@ export function TaskGraph({
 					</span>
 				) : null}
 			</div>
-			<div className="overflow-x-auto page-gutter pt-2.5 pb-3">
+			<div
+				role="region"
+				aria-label="Workflow steps"
+				tabIndex={0}
+				className="relative overflow-x-auto page-gutter pt-2.5 pb-3"
+			>
 				<ol className="flex min-w-max items-stretch">
 					{record.stages.map((stage, index) => (
 						<StageNode

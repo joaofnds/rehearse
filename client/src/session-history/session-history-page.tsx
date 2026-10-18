@@ -1,4 +1,5 @@
 import { NativeSelect } from "#client/system/ui/native-select";
+import { SearchInput } from "#client/system/ui/search-input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -847,7 +848,9 @@ function SourceList({
 			))}
 			{sources.length === 0 ? (
 				<p className="px-3 py-3 text-14 text-muted-foreground">
-					No sources match this search.
+					{total === 0
+						? "No sources are available in this saved evidence."
+						: "No sources match this search."}
 				</p>
 			) : null}
 		</nav>
@@ -856,10 +859,12 @@ function SourceList({
 
 function EventLedger({
 	events,
+	total,
 	selected,
 	onSelect,
 }: {
 	readonly events: readonly SessionHistoryEvent[];
+	readonly total: number;
 	readonly selected: string | undefined;
 	readonly onSelect: (id: string) => void;
 }): React.JSX.Element {
@@ -923,8 +928,9 @@ function EventLedger({
 			))}
 			{events.length === 0 ? (
 				<p className="px-3 py-2.5 text-14 text-muted-foreground">
-					No events match these filters. Choose All records to include raw
-					chronology.
+					{total === 0
+						? "No events are available in this evidence scope."
+						: "No events match these filters. Choose All records to include raw chronology."}
 				</p>
 			) : null}
 		</div>
@@ -1728,14 +1734,12 @@ function SessionHistoryWorkspace({
 									<div className="flex flex-col gap-2 border-b px-3 py-2.5">
 										<label className="flex flex-col gap-2 text-12 text-muted-foreground">
 											Search sources
-											<input
-												type="search"
+											<SearchInput
 												value={sourceQuery}
 												onChange={(event) => {
 													setSourceQuery(event.target.value);
 												}}
 												placeholder="File, skill, or tool"
-												className="w-full rounded-md border border-strong bg-background px-3 py-2 text-14 text-foreground"
 											/>
 										</label>
 										<span className="text-12 text-muted-foreground">
@@ -1783,17 +1787,15 @@ function SessionHistoryWorkspace({
 										<div className="flex flex-col gap-2 border-b px-3 py-3">
 											<label className="flex flex-col gap-1 text-12 text-muted-foreground">
 												Search events
-												<input
-													type="search"
+												<SearchInput
 													value={eventQuery}
 													onChange={(event) => {
 														setEventQuery(event.target.value);
 													}}
 													placeholder="Event, tool, or source"
-													className="w-full rounded-md border border-strong bg-background px-3 py-2 text-14 text-foreground"
 												/>
 											</label>
-											<label className="flex items-center justify-between gap-2 text-12 text-muted-foreground">
+											<label className="flex flex-col gap-1 text-12 text-muted-foreground">
 												Show events
 												<NativeSelect
 													value={eventFilter}
@@ -1817,6 +1819,11 @@ function SessionHistoryWorkspace({
 										<div className="max-h-80 overflow-y-auto">
 											<EventLedger
 												events={events}
+												total={
+													summary.data.boundary === "unknown"
+														? summary.data.boundaryUnknown.length
+														: summary.data.attemptEvents.length
+												}
 												selected={activeEventId}
 												onSelect={(id) => {
 													selectEvent(id);

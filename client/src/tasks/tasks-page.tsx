@@ -4,10 +4,55 @@ import { useEffect, useState } from "react";
 import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { Notice } from "#client/system/components/notice";
+import { ActionGroup } from "#client/system/components/action-group";
+import { EmptyState } from "#client/system/components/empty-state";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { Button } from "#client/system/ui/button";
 import { pipelinesQuery } from "./pipelines-query";
 import { ExportTaskDialog, ImportTaskDialog } from "./task-bundle-dialogs";
 import { TaskCard } from "./task-card";
+
+function WorkflowEmptyState({
+	loaded,
+	count,
+	caseId,
+	unreadable,
+}: {
+	readonly loaded: boolean;
+	readonly count: number;
+	readonly caseId: string | undefined;
+	readonly unreadable: number;
+}): React.JSX.Element | null {
+	if (!loaded || count > 0) {
+		return null;
+	}
+
+	if (caseId !== undefined) {
+		return (
+			<p className="text-14 text-muted-foreground">
+				No workflow definition is recorded for this case.
+			</p>
+		);
+	}
+
+	if (unreadable > 0) {
+		return null;
+	}
+
+	return (
+		<EmptyState heading="No workflows yet">
+			<p>
+				Workflow cases supply reusable steps and judges. Browse cases to declare
+				one, or import a workflow bundle above.
+			</p>
+			<Button asChild variant="outline">
+				<Link to="/cases" search={{}}>
+					Browse cases
+				</Link>
+			</Button>
+		</EmptyState>
+	);
+}
 
 /**
  * The tasks are read once, and a run started after that is on no card until
@@ -50,10 +95,10 @@ export function TasksPage({
 					title="Workflows"
 					subline="Reusable step definitions for workflow cases"
 					aside={
-						<span className="flex gap-2.5">
+						<ActionGroup>
 							<ImportTaskDialog onImported={setImportedPath} />
 							<ExportTaskDialog tasks={tasks} />
-						</span>
+						</ActionGroup>
 					}
 				/>
 			)}
@@ -61,7 +106,7 @@ export function TasksPage({
 			<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
 				{embedded ? (
 					<div className="flex flex-wrap items-center justify-between gap-3">
-						<div>
+						<div className="min-w-0 wrap-anywhere">
 							<h2 className="text-16 font-semibold">Workflow definitions</h2>
 							{caseId === undefined ? null : (
 								<p className="text-12 text-muted-foreground">
@@ -78,10 +123,10 @@ export function TasksPage({
 								</p>
 							)}
 						</div>
-						<span className="flex gap-2.5">
+						<ActionGroup>
 							<ImportTaskDialog onImported={setImportedPath} />
 							<ExportTaskDialog tasks={visibleTasks} />
-						</span>
+						</ActionGroup>
 					</div>
 				) : null}
 				<p className="max-w-prose text-14 text-muted-foreground">
@@ -112,13 +157,12 @@ export function TasksPage({
 						items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
 					/>
 				) : null}
-				{caseId !== undefined &&
-				query.isSuccess &&
-				visibleTasks.length === 0 ? (
-					<p className="text-12 text-muted-foreground">
-						No workflow definition is recorded for this case.
-					</p>
-				) : null}
+				<WorkflowEmptyState
+					loaded={query.isSuccess}
+					count={visibleTasks.length}
+					caseId={caseId}
+					unreadable={unreadable.length}
+				/>
 
 				{visibleTasks.map((task) => (
 					<TaskCard

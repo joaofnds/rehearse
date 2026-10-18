@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { TableShell } from "#client/system/components/table-shell";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { Immutable } from "#benchmark/contracts";
 import { groupAttemptsQuery } from "#client/session-history/group-attempts-query";
@@ -404,7 +406,7 @@ function SessionRepState({
 			: undefined;
 	if (record?.stateResults === undefined || record.stateResults.length === 0) {
 		return (
-			<p className="mt-1 text-12 text-dim">
+			<p className="mt-1 text-14 text-muted-foreground">
 				{evidence.isLoading
 					? "Reading state checks…"
 					: "Saved state checks unavailable"}
@@ -505,21 +507,24 @@ function RepOutcomes({
 		</>
 	);
 }
-function AttemptRow({
-	row,
-	repId,
-	ordinal,
-	step,
-	comparison,
-}: {
-	readonly row: GroupRow;
+interface AttemptRef {
 	readonly repId: string;
 	readonly ordinal?: number | undefined;
-	readonly step?: string | undefined;
-	readonly comparison?: string | undefined;
-}): React.JSX.Element {
-	const result = useQuery(confirmationRepQuery(row.groupId, repId));
-	const rep = result.data;
+}
+
+interface AttemptReading {
+	readonly ref: AttemptRef;
+	readonly result: Immutable<RepResult> | undefined;
+	readonly loading: boolean;
+}
+
+function attemptCells(
+	row: GroupRow,
+	reading: AttemptReading,
+	search: { readonly step?: string; readonly comparison?: string },
+): readonly ReactNode[] {
+	const { repId, ordinal } = reading.ref;
+	const rep = reading.result;
 	const total = rep?.metrics.calls.reduce(
 		(sum, call) => sum + call.metrics.costUsd,
 		0,
@@ -530,68 +535,72 @@ function AttemptRow({
 		(link) => link.state === "available" && link.href === contextPath,
 	);
 	const contextAvailable = contextLink?.state === "available";
-	const search = {
-		...(step !== undefined && { step }),
-		...(comparison !== undefined && { comparison }),
-	};
-	return (
-		<tr className="border-t border-subtle align-top text-12">
-			<td className="py-3 pr-4">
+
+	return [
+		<div key="attempt" className="flex min-w-0 flex-col">
+			<div className="flex flex-wrap items-center gap-x-2">
 				<p className="font-medium">
 					{ordinal === undefined
 						? "Saved repetition"
 						: `Repetition ${String(ordinal)}`}
 				</p>
-				<code className="text-12 text-dim">{repId}</code>
-			</td>
-			<td className="py-3 pr-4">
-				<RepOutcomes rep={rep} loading={result.isLoading} mode={row.mode} />
-				{row.mode === "session" ? (
-					<SessionRepState groupId={row.groupId} repId={repId} />
-				) : null}
-			</td>
-			<td className="py-3 pr-4 font-mono">
-				{rep === undefined || rep.metrics.calls.length === 0
-					? "Cost unavailable"
-					: `${spendReading(total ?? 0)}${rep.metrics.status === "MISSING" ? " recorded; incomplete" : ""}`}
-				<p className="mt-1 text-dim">
-					{rep === undefined ? "Time unavailable" : clockReading(rep.elapsedMs)}
-				</p>
-			</td>
-			<td className="py-3 pr-4">
-				{corpusMeasurementReading(row.corpusVersion)}
-				<p className="mt-1 text-dim">{repCoverage(rep)}</p>
-			</td>
-			<td className="py-3">
-				<div className="flex flex-wrap gap-3">
+				<Button asChild variant="link" size="inline">
 					<Link
 						to="/groups/$groupId/reps/$repId/attempt"
 						params={params}
 						search={{ view: "results", ...search }}
-						className="text-link underline"
 					>
 						Results
 					</Link>
-					{contextAvailable ? (
-						<Link
-							to="/groups/$groupId/reps/$repId/attempt"
-							params={params}
-							search={{ view: "context", ...search }}
-							className="text-link underline"
-						>
-							Context & cost
-						</Link>
-					) : (
-						<span className="text-dim">
-							{row.mode === "session"
-								? "Context unavailable"
-								: "No session context"}
-						</span>
-					)}
-				</div>
-			</td>
-		</tr>
-	);
+				</Button>
+			</div>
+			<details>
+				<summary className="min-h-touch-target cursor-pointer content-center text-14 text-muted-foreground">
+					Repetition ID
+				</summary>
+				<code className="block font-mono text-12 text-dim select-text wrap-anywhere">
+					{repId}
+				</code>
+			</details>
+		</div>,
+		<div key="outcomes" className="flex flex-col gap-2">
+			<RepOutcomes rep={rep} loading={reading.loading} mode={row.mode} />
+			{row.mode === "session" ? (
+				<SessionRepState groupId={row.groupId} repId={repId} />
+			) : null}
+		</div>,
+		<div key="resources" className="font-mono">
+			{rep === undefined || rep.metrics.calls.length === 0
+				? "Cost unavailable"
+				: `${spendReading(total ?? 0)}${rep.metrics.status === "MISSING" ? " recorded; incomplete" : ""}`}
+			<p className="mt-2 text-secondary-foreground">
+				{rep === undefined ? "Time unavailable" : clockReading(rep.elapsedMs)}
+			</p>
+		</div>,
+		<div key="coverage">
+			{corpusMeasurementReading(row.corpusVersion)}
+			<p className="mt-2 text-secondary-foreground">{repCoverage(rep)}</p>
+		</div>,
+		<div key="evidence" className="flex flex-wrap items-center gap-2">
+			{contextAvailable ? (
+				<Button asChild variant="link" size="inline">
+					<Link
+						to="/groups/$groupId/reps/$repId/attempt"
+						params={params}
+						search={{ view: "context", ...search }}
+					>
+						Context & cost
+					</Link>
+				</Button>
+			) : (
+				<span className="text-muted-foreground">
+					{row.mode === "session"
+						? "Context unavailable"
+						: "No session context"}
+				</span>
+			)}
+		</div>,
+	];
 }
 
 function Attempts({
@@ -604,59 +613,70 @@ function Attempts({
 	readonly comparison?: string | undefined;
 }): React.JSX.Element {
 	const group = useQuery(groupAttemptsQuery(row.groupId));
-	let refs: readonly {
-		readonly repId: string;
-		readonly ordinal?: number | undefined;
-	}[] = row.repAttempts.map(({ repId }) => ({ repId }));
+	let refs: readonly AttemptRef[] = row.repAttempts.map(({ repId }) => ({
+		repId,
+	}));
 	if (group.data !== undefined) {
 		refs = group.data.repRecords;
 	}
+	const results = useQueries({
+		queries: refs.map(({ repId }) => confirmationRepQuery(row.groupId, repId)),
+	});
+	const search = {
+		...(step !== undefined && { step }),
+		...(comparison !== undefined && { comparison }),
+	};
+
 	return (
-		<section className="rounded-lg border border-divider bg-card p-4">
-			<h2>
-				<SectionLabel>Attempts</SectionLabel>
-			</h2>
-			<p className="mt-2 text-12 text-dim">
+		<section className="flex min-w-0 flex-col gap-4">
+			<p className="max-w-prose text-14 text-muted-foreground">
 				Each repetition keeps its outcome, recorded cost and evidence together.
 				Detailed output and checks depend on what that record retained.
 			</p>
-			<div className="mt-3 overflow-x-auto">
-				<table aria-label="Group attempts" className="w-full text-left">
-					<thead className="text-12 text-dim">
-						<tr>
-							<th className="pr-4 pb-2">Attempt</th>
-							<th className="pr-4 pb-2">Outcome & steps</th>
-							<th className="pr-4 pb-2">Cost & time</th>
-							<th className="pr-4 pb-2">Corpus & coverage</th>
-							<th className="pb-2">Evidence</th>
-						</tr>
-					</thead>
-					<tbody>
-						{refs.map((rep) => (
-							<AttemptRow
-								key={rep.repId}
-								row={row}
-								repId={rep.repId}
-								ordinal={rep.ordinal}
-								step={step}
-								comparison={comparison}
-							/>
-						))}
-					</tbody>
-				</table>
-			</div>
+			<TableShell
+				caption="Group attempts"
+				columns={[
+					"Attempt",
+					"Outcome & steps",
+					"Cost & time",
+					"Corpus & coverage",
+					"Evidence",
+				]}
+				numeric={["Cost & time"]}
+				className="min-w-320 table-fixed text-14"
+				columnClasses={["w-56", "w-88", "w-48", "w-72", "w-56"]}
+				rows={refs.map((ref, index) =>
+					attemptCells(
+						row,
+						{
+							ref,
+							result: results[index]?.data,
+							loading: results[index]?.isLoading ?? false,
+						},
+						search,
+					),
+				)}
+			/>
 			{refs.length === 0 ? (
-				<p className="mt-3 text-14 text-dim">No rep results were recorded.</p>
+				<p className="text-14 text-muted-foreground">
+					No rep results were recorded.
+				</p>
 			) : null}
 			{row.links
 				.filter((link) => link.state === "unavailable")
 				.map((link) => (
-					<p key={link.label} className="mt-2 text-12 text-dim">
+					<p
+						key={link.label}
+						className="text-14 text-muted-foreground wrap-anywhere"
+					>
 						{link.label} · {link.reason}
 					</p>
 				))}
 			{row.unreadReps.map((rep) => (
-				<p key={rep.repId} className="mt-2 text-12 text-dim">
+				<p
+					key={rep.repId}
+					className="text-14 text-muted-foreground wrap-anywhere"
+				>
 					{rep.repId}: {rep.reason}
 				</p>
 			))}
@@ -769,7 +789,7 @@ export function GroupWorkspacePage({
 					</button>
 				))}
 			</nav>
-			<div className="flex max-w-7xl flex-col gap-4 page-gutter pt-8 pb-12">
+			<div className="flex min-w-0 flex-col gap-4 page-gutter pt-8 pb-12">
 				<details className="rounded-lg border border-divider bg-card p-4 text-12">
 					<summary className="cursor-pointer">Setup &amp; provenance</summary>
 					<p className="mt-2">

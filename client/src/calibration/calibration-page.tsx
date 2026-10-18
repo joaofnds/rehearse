@@ -81,7 +81,7 @@ function rowFor(row: AgreementRow): readonly React.ReactNode[] {
 	const agreement = agreementReading(row.stepsApart);
 
 	return [
-		<span key="step" className="font-mono text-12 text-secondary-foreground">
+		<span key="step" className="font-mono text-13 text-secondary-foreground">
 			{stepLabel(row.stage, row.stageName)}
 		</span>,
 		<span key="judge" className="font-mono font-bold">
@@ -92,12 +92,12 @@ function rowFor(row: AgreementRow): readonly React.ReactNode[] {
 		</span>,
 		<span
 			key="agreement"
-			className={`inline-flex items-center gap-1.5 text-12 ${AGREEMENT_COLOURS[agreement.glyph]}`}
+			className={`inline-flex items-center gap-1.5 text-14 ${AGREEMENT_COLOURS[agreement.glyph]}`}
 		>
 			<span aria-hidden="true">{agreement.glyph}</span>
 			{agreement.label}
 		</span>,
-		<span key="differed" className="text-12 text-muted-foreground">
+		<span key="differed" className="text-14 text-muted-foreground">
 			{whereTheyDiffered(row)}
 		</span>,
 	];
@@ -137,8 +137,10 @@ function DriftList({
 
 				return (
 					<li key={dimension}>
-						<div className="flex items-baseline gap-2">
-							<span className="flex-1 text-12">{dimension}</span>
+						<div className="flex min-w-0 flex-wrap items-baseline gap-2">
+							<span className="min-w-0 flex-1 text-14 wrap-anywhere">
+								{dimension}
+							</span>
 							<span className="font-mono text-12 text-secondary-foreground">
 								{reading.value}
 							</span>
@@ -201,13 +203,11 @@ function DriftAside({
 			) : null}
 			{shown === undefined ? null : (
 				<section className="mt-2">
-					{groups.length > 1 ? null : (
-						<p className="text-12 text-dim">{groupLine(shown)}</p>
-					)}
+					<p className="text-12 text-dim wrap-anywhere">{groupLine(shown)}</p>
 					<DriftList group={shown} />
 				</section>
 			)}
-			<p className="mt-3 text-12 text-pretty text-muted-foreground">
+			<p className="mt-3 text-14 text-pretty text-muted-foreground">
 				Calibration does not change a grade. It tells you how much to trust one.
 			</p>
 		</aside>
@@ -297,9 +297,11 @@ function CalibrationReport({
 		);
 	}
 	return (
-		<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-main-aside">
-			<div className="min-w-0 self-start overflow-x-auto">
+		<div className="grid min-w-0 grid-cols-1 gap-4.5 lg:grid-cols-main-aside">
+			<div className="min-w-0 self-start">
 				<TableShell
+					className="min-w-200 table-fixed"
+					columnClasses={["w-56", "w-16", "w-16", "w-32", ""]}
 					caption="Your grade against the judge's, same evidence"
 					columns={[...COLUMNS]}
 					rows={report.rows.map((row) => rowFor(row))}

@@ -152,6 +152,27 @@ function workflowRep(mode: "stage" | "pipeline"): ParsedConfirmationRepRecord {
 }
 
 describe(AttemptWorkspacePage.name, () => {
+	it("names the case once when the saved attempt ID already includes it", async () => {
+		renderAppWithStub(
+			"/attempts/session/case-a/attempt-a",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					{
+						rows: [{ ...standaloneRow(), shortId: "case-a/r2" }],
+						launches: [],
+						unreadable: [],
+					},
+				],
+			]),
+		);
+
+		await screen.findByText("Attempt 1 of 1");
+		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+			"r2 · case-a",
+		);
+	});
+
 	it("advances standalone attempts from older to newer saved executions", async () => {
 		const older = standaloneRow();
 		const newer = {

@@ -8,6 +8,9 @@ const buttonVariants = cva(
 	"inline-flex shrink-0 items-center justify-center gap-3 rounded-lg border min-h-touch-target min-w-touch-target text-14 no-underline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-3 disabled:pointer-events-none disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
+			wrap: {
+				true: "max-w-full whitespace-normal",
+			},
 			variant: {
 				primary:
 					"border-primary bg-primary text-primary-foreground font-semibold [&_kbd]:text-current not-aria-disabled:hover:bg-primary-hover not-aria-disabled:active:bg-primary",
@@ -51,6 +54,7 @@ function Button({
 	className,
 	variant = "default",
 	size = "default",
+	wrap = false,
 	asChild = false,
 	...props
 }: ButtonProps): React.JSX.Element {
@@ -61,7 +65,7 @@ function Button({
 			data-slot="button"
 			data-variant={variant}
 			data-size={size}
-			className={cn(buttonVariants({ variant, size, className }))}
+			className={cn(buttonVariants({ variant, size, wrap, className }))}
 			{...props}
 		/>
 	);

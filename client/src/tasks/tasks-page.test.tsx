@@ -165,12 +165,18 @@ describe(TasksPage.name, () => {
 				within(dialog)
 					.getAllByRole("link")
 					.map((link) => link.textContent),
-			).toEqual(["Download audit-log.task.json"]);
+			).toEqual(["Download"]);
 			expect(
 				within(dialog).getByRole("link", {
 					name: "Download audit-log.task.json",
 				}),
 			).toHaveAttribute("href", "/api/cases/audit-log/bundle");
+			expect(within(dialog).getByText("audit-log.task.json")).toBeVisible();
+			expect(
+				within(dialog).getByRole("link", {
+					name: "Download audit-log.task.json",
+				}),
+			).toHaveAttribute("download", "audit-log.task.json");
 		});
 
 		it("says there is nothing to export when no case declares a task", async () => {
@@ -687,7 +693,50 @@ describe(TasksPage.name, () => {
 			expect(await screen.findByRole("alert")).toHaveTextContent(
 				"Could not load the workflows.",
 			);
+			expect(
+				screen.queryByRole("heading", { name: "No workflows yet" }),
+			).toBeNull();
 		});
+	});
+
+	it("explains how to add the first workflow after an empty successful read", async () => {
+		renderTasksAt("/cases?view=workflows", []);
+
+		expect(
+			await screen.findByRole("heading", { name: "No workflows yet" }),
+		).toBeVisible();
+		expect(screen.getByRole("link", { name: "Browse cases" })).toHaveAttribute(
+			"href",
+			"/cases",
+		);
+	});
+
+	it("keeps unreadable workflows distinct from an empty collection", async () => {
+		renderTasksAt(
+			"/tasks",
+			[],
+			[{ id: OLDER_RUN, reason: "JSON Parse error" }],
+		);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"JSON Parse error",
+		);
+		expect(
+			screen.queryByRole("heading", { name: "No workflows yet" }),
+		).toBeNull();
+	});
+
+	it("explains a missing case workflow without claiming the whole collection is empty", async () => {
+		renderTasksAt("/cases?view=workflows&caseId=missing", [declaredTask()]);
+
+		expect(
+			await screen.findByText(
+				"No workflow definition is recorded for this case.",
+			),
+		).toBeVisible();
+		expect(
+			screen.queryByRole("heading", { name: "No workflows yet" }),
+		).toBeNull();
 	});
 
 	describe("when a record cannot be read", () => {

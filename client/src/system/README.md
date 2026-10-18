@@ -5,6 +5,8 @@ The client uses [tokens.css](tokens.css) for palette and type values,
 styles. Shared UI lives in `ui/`; shared product components live in `components/`.
 The [design handoff](../../../docs/design-handoff/README.md) and
 [run workspace](../../../docs/run-workspace.md) describe the product structure.
+Use the [UI review matrix](../../../docs/ui-quality.md) to record route, state,
+viewport and evidence coverage when reviewing screens.
 
 ## Type and surfaces
 
@@ -31,7 +33,10 @@ action within a decision area. Links use blue `text-link` with an underline and
 `hover:text-link-hover`; informational/live states use `text-info` and
 `bg-info-surface`. Navigation selections stay violet, with a persistent edge or
 filled selected surface. Keyboard focus has an opaque 2px violet outline with a
-3px offset. Buttons and form controls retain 44px minimum targets.
+3px offset. Buttons and form controls retain 44px minimum targets. Use `Button wrap`
+with a content-sized button such as `size="compact"` when its required label can
+exceed the available width. It preserves the full action and spending disclosure
+inside the button boundary as the label wraps.
 
 Teal `positive`, rose `negative`, and amber `attention` have matching subtle
 surfaces. Use `Button variant="destructive"` for a destructive action. Color
@@ -93,6 +98,9 @@ Keep `TableShell` for genuinely tabular collections such as Runs and Corpus.
 | Component                                    | Contract and current use                                                                                                                                         |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [ScreenHeader](components/screen-header.tsx) | Page title, optional eyebrow and subline, with `lead` and `aside` content slots. Used across the five destinations and saved attempt/group pages.                |
+| [ActionGroup](components/action-group.tsx)   | Bounded, wrapping action layout with shared spacing; callers supply actions and optional layout classes.                                                         |
+| [AmountInput](components/amount-input.tsx)   | One USD field boundary, amount reading and focus treatment. Used by Setup, Settings and launch review.                                                           |
+| [RadioChoice](components/radio-choice.tsx)   | Native radio inside a labeled 44px target with selected and focus treatments. Used by calibration criteria.                                                      |
 | [SummaryPanel](components/summary-panel.tsx) | Named section with an `h2`, optional description, actions and anchor `id`. Used for final outcomes, session assessments, case details and comparison summaries.  |
 | [Metric](components/metric.tsx)              | Label, value and optional basis or coverage hint. Its parent supplies a `dl`. Used by session/group results, case details, comparisons and request measurements. |
 | [StateBadge](components/state-badge.tsx)     | Caller supplies words and a neutral, positive, negative or attention tone. Used for independent outcomes, saved state checks, review state and case kinds.       |
@@ -153,6 +161,16 @@ IDs, lineage, file paths and exact timestamps belong in inspectable provenance,
 with selectable text for copying. Navigation retains the selected step and the
 source or comparison return context.
 
+Keep the header's main reading on identity and the state needed to choose an
+action. Place supporting configuration in inspectable provenance. Apply uppercase
+styling to labels alone; paths, IDs,
+model names and saved values retain their recorded casing. Bound long identities
+and paths with `min-w-0` and `wrap-anywhere`, retaining their full text.
+
+`EmptyState` presents a successful empty collection and a next step. Its caller
+distinguishes load failure, unreadable records, a missing selected record and no
+filter matches before choosing that presentation.
+
 ## Control and evidence details
 
 `SearchInput` gives search fields one 44px boundary and an inset search icon;
@@ -162,6 +180,41 @@ field geometry and a reserved trailing chevron area. Runs uses its prefix slot t
 group Sort with the selected order. Labels remain visible or associated by id.
 `KeyHint` presents shortcuts as keycaps; hints inside actions are decorative while
 the shortcut reference in Settings remains readable to assistive technology.
+
+`FileInput` retains the native file chooser and filename within one bounded field,
+with a visible Choose file action and focus outline. Associate its `id` with a
+visible label. Its caller supplies `accept` and handles `onChoose`; reading,
+validation and saving remain feature behavior. Import workflow uses this control.
+
+Keep dialog headings concise. Put a long recorded filename or path in the
+scrolling body so it cannot grow the header beyond a short viewport and hide
+the close action. Complete saved output retains its full identity above the
+unchanged output text in that body.
+
+`ActionGroup` supplies `min-w-0`, a maximum width, wrapping and the shared gap.
+Callers keep each action's content bounded and its label concise. Put a long
+filename in wrapping context while retaining it in a download's accessible name
+and attribute. A disabled reason belongs outside the group as reading text, linked
+to the action with `aria-describedby`.
+
+`AmountInput` takes the raw amount string, `onChange` and an `accessibleName`; an
+optional `id` connects a visible label. Its prefix is `USD` or `USD per run` and
+is decorative to assistive technology. The caller owns parsing, validation and
+saving. Keep its input inside the shared boundary so the field and its prefix
+share the 44px target and focus outline.
+
+`RadioChoice` takes `name`, `value`, `checked`, `onChoose` and visible children.
+Use a shared name for mutually exclusive choices, unique names between groups,
+and a labeled parent group. The native input retains keyboard selection; the
+label owns the target, selected surface and focus outline. Its caller owns the
+assessment meaning and any required-choice validation.
+
+Corpus View explicitly focuses and reveals its reader heading within the
+workspace, including when the same file is selected again. Close returns focus
+to the originating file action while connected. File refetches preserve current
+focus; editor autofocus and selected-line behavior remain separate interactions.
+Successful Apply focuses and reveals the confirmation that replaces the editor.
+Both explicit reveals use `focusWorkspaceTarget`, which moves only the workspace.
 
 `CurrentLink` lets the selected product view own `aria-current`, including links
 whose URL path is shared and only search parameters differ. Narrow section

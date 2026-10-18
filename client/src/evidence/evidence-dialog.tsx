@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { Button } from "#client/system/ui/button";
+import { ActionGroup } from "#client/system/components/action-group";
 import {
 	Dialog,
 	DialogClose,
@@ -84,11 +85,11 @@ export function EvidenceDialogLink({
 			</DialogTrigger>
 			<DialogContent width="wide">
 				<div className="flex flex-none flex-wrap items-start justify-between gap-3 border-b border-divider px-6 py-4">
-					<div>
+					<div className="min-w-0 wrap-anywhere">
 						<DialogTitle>Cited source</DialogTitle>
 						<DialogDescription>{label}</DialogDescription>
 					</div>
-					<div className="flex gap-2">
+					<ActionGroup>
 						<Button asChild variant="quiet" size="compact">
 							<Link to={href}>Open full page</Link>
 						</Button>
@@ -97,7 +98,7 @@ export function EvidenceDialogLink({
 								Close
 							</Button>
 						</DialogClose>
-					</div>
+					</ActionGroup>
 				</div>
 				<EvidenceSourcePage identity={identity} embedded />
 			</DialogContent>

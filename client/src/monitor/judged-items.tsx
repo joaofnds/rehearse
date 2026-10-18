@@ -251,7 +251,7 @@ export function BlockerLine({
 			<span aria-hidden="true" className={`font-mono text-12 ${tone.text}`}>
 				{STATUS_VOCABULARY[row.state].glyph}
 			</span>
-			<span className="min-w-0 flex-1 font-mono text-12 wrap-anywhere">
+			<span className="min-w-0 flex-1 font-mono text-13 wrap-anywhere">
 				{row.id}
 			</span>
 			<span className={`text-12 tracking-label uppercase ${tone.text}`}>
@@ -318,13 +318,15 @@ export function BlockerRows({
 						key={row.id}
 						owner={{ run, stage, section: "hardBlockers", item: row.id }}
 						evidence={row.evidence}
-						rowClassName={`flex min-w-0 flex-wrap items-center gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
+						rowClassName={`flex min-w-0 flex-col items-start gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
 						panelClassName="mb-1.25"
 						label="Cited evidence"
 						// Below the label, each citation keeps its distance from the one above.
 						spacing="mt-2.5"
 					>
-						<BlockerLine row={row} />
+						<span className="flex min-w-0 w-full items-center gap-2.75">
+							<BlockerLine row={row} />
+						</span>
 					</ItemWithEvidence>
 				);
 			})}

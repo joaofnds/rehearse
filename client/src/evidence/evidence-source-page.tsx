@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { SectionLabel } from "#client/system/components/section-label";
+import { PageContent } from "#client/system/components/page-content";
 import type {
 	EvidenceSourceIdentity,
 	EvidenceSourceResponse,
@@ -37,16 +37,16 @@ function RecordedText({
 	const { text, span } = view;
 
 	return (
-		<section className="flex flex-col gap-2">
-			<h2>
-				<SectionLabel>{view.label}</SectionLabel>
+		<section className="flex min-w-0 flex-col gap-2">
+			<h2 className="font-mono text-13 font-medium wrap-anywhere text-secondary-foreground">
+				{view.label}
 			</h2>
 			{span === undefined ? (
 				<Explanation>
 					The quote is not in the recorded text, so no span is marked.
 				</Explanation>
 			) : null}
-			<pre className="overflow-auto rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap">
+			<pre className="min-w-0 overflow-auto rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere">
 				{span === undefined ? (
 					text
 				) : (
@@ -77,7 +77,7 @@ function HarnessResult({
 		return (
 			<section className="flex flex-col gap-2">
 				<h2>{`Harness result ${view.result}`}</h2>
-				<pre className="rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap">
+				<pre className="min-w-0 rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere">
 					{view.value}
 				</pre>
 			</section>
@@ -152,7 +152,7 @@ export function EvidenceSourcePage({
 			? `/runs/${encodeURIComponent(identity.run)}?view=results&step=${encodeURIComponent(identity.stage)}`
 			: `/runs/${encodeURIComponent(identity.run)}?view=results`;
 	const reading = (
-		<div className="flex max-w-7xl flex-col gap-4 page-gutter pt-8 pb-12">
+		<PageContent className="max-w-7xl gap-4 wrap-anywhere">
 			{embedded && query.isSuccess ? (
 				<p className="text-14 text-dim">
 					From <span className="font-mono">{query.data.record}</span>
@@ -179,7 +179,7 @@ export function EvidenceSourcePage({
 					<SourceBody view={query.data.view} />
 				</>
 			) : null}
-		</div>
+		</PageContent>
 	);
 	if (embedded) {
 		return <div className="min-h-0 overflow-y-auto">{reading}</div>;
@@ -197,18 +197,20 @@ export function EvidenceSourcePage({
 						← Back to run Results
 					</Link>
 				}
-				eyebrow={
-					identity.kind === "stage"
-						? `${identity.stage} judge · ${identity.item}`
-						: `final judge · ${identity.item}`
-				}
+				eyebrow={identity.kind === "stage" ? "Step judge" : "Final judge"}
 				subline={
-					query.isSuccess ? (
-						<>
-							{"From "}
-							<span className="font-mono">{query.data.record}</span>
-						</>
-					) : undefined
+					<>
+						<span className="block font-mono">
+							{identity.kind === "stage" ? `${identity.stage} · ` : ""}
+							{identity.item}
+						</span>
+						{query.isSuccess ? (
+							<span className="block">
+								{"From "}
+								<span className="font-mono">{query.data.record}</span>
+							</span>
+						) : null}
+					</>
 				}
 			/>
 			{reading}

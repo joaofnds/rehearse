@@ -19,12 +19,14 @@ import {
 import { plural } from "#client/plural";
 import { DeclareCaseDialog } from "#client/cases/declare-case-dialog";
 import { cn } from "#client/system/cn";
+import { AmountInput } from "#client/system/components/amount-input";
+import { ActionGroup } from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
 import { linkSetupCorpus } from "./setup-requests";
 
 const LIMIT_PRESETS = ["5.00", "20.00", "50.00"] as const;
 
-const NOTHING_HINT = "Set a limit, then scan a corpus directory.";
+const NOTHING_HINT = "Choose a spend limit and scan a corpus directory.";
 
 const NO_LIMIT_HINT = "Set a spend limit.";
 
@@ -53,26 +55,30 @@ function SetupStep({
 	return (
 		<li
 			className={cn(
-				"rounded-card border px-5.5 py-5",
+				"min-w-0 rounded-card border p-5 sm:p-6",
 				look === "open" && "border-strong bg-raised",
 				look === "dimmed" && "border-divider bg-raised",
 				locked && "border-dashed border-strong",
 			)}
 		>
-			<div className="flex items-center gap-2.5">
-				<span
-					aria-hidden="true"
-					className={cn(
-						"grid size-6 flex-none place-items-center rounded-full border font-mono text-12",
-						locked
-							? "border-stronger text-muted-foreground"
-							: "border-deeper text-pale",
-					)}
-				>
-					{number}
-				</span>
-				<h2 className="text-16">{title}</h2>
-				<span className="ml-auto text-12 tracking-label text-dim uppercase">
+			<div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-6 sm:items-center">
+				<div className="flex min-w-0 items-center gap-2.5 sm:col-span-4">
+					<span
+						aria-hidden="true"
+						className={cn(
+							"grid size-6 flex-none place-items-center rounded-full border font-mono text-12",
+							locked
+								? "border-stronger text-muted-foreground"
+								: "border-deeper text-pale",
+						)}
+					>
+						{number}
+					</span>
+					<h2 className="min-w-0 text-16 font-semibold wrap-anywhere">
+						{title}
+					</h2>
+				</div>
+				<span className="text-12 tracking-label text-dim uppercase sm:col-span-2 sm:text-right">
 					{state}
 				</span>
 			</div>
@@ -107,7 +113,7 @@ function LimitPreset({
 			type="button"
 			aria-pressed={pressed}
 			onClick={onPress}
-			className="rounded-md border border-strong px-2.5 py-1.5 font-mono text-14 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:text-pale"
+			className="min-h-touch-target min-w-touch-target rounded-md border border-strong px-2.5 py-1.5 font-mono text-14 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:text-pale"
 		>
 			{`$${preset}`}
 		</button>
@@ -123,18 +129,11 @@ function SpendLimitControls({
 }): React.JSX.Element {
 	return (
 		<div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-			<label className="flex items-center gap-2 rounded-md border border-strong bg-background px-2.5 py-2">
-				<span className="text-12 text-muted-foreground">USD</span>
-				<input
-					value={limit}
-					inputMode="decimal"
-					aria-label="Spend limit in US dollars"
-					onChange={(event) => {
-						onLimit(event.target.value);
-					}}
-					className="w-22 bg-transparent font-mono text-14"
-				/>
-			</label>
+			<AmountInput
+				value={limit}
+				accessibleName="Spend limit in US dollars"
+				onChange={onLimit}
+			/>
 			{LIMIT_PRESETS.map((preset) => (
 				<LimitPreset
 					key={preset}
@@ -174,11 +173,13 @@ function ScannedFiles({
 				{report.files.map((file) => (
 					<li
 						key={file.path}
-						className="flex gap-3 border-t border-subtle px-3 py-1.5 font-mono text-12"
+						className="flex min-w-0 flex-col gap-1 border-t border-subtle px-3 py-2 font-mono text-12 sm:flex-row sm:gap-3"
 					>
-						<span className="flex-1 break-all">{file.path}</span>
-						<span className="text-dim">{`sha ${corpusVersionHash(file.sha256)}`}</span>
-						<span className="w-17 text-right text-dim">{`${String(file.lines)} ln`}</span>
+						<span className="min-w-0 flex-1 wrap-anywhere">{file.path}</span>
+						<span className="flex flex-wrap gap-x-3 gap-y-1">
+							<span className="text-dim">{`sha ${corpusVersionHash(file.sha256)}`}</span>
+							<span className="text-dim">{`${String(file.lines)} ln`}</span>
+						</span>
 					</li>
 				))}
 			</ul>
@@ -219,21 +220,24 @@ function CorpusControls({
 					onChange={(event) => {
 						onDirectory(event.target.value);
 					}}
-					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-3 font-mono text-14"
+					className="min-h-touch-target min-w-0 flex-1 rounded-md border border-strong bg-background px-3 font-mono text-14"
 				/>
 				<Button variant="primary" type="submit" disabled={scanning}>
 					Scan
 				</Button>
 			</form>
 			{refusal === undefined ? null : (
-				<p role="alert" className="mt-2 text-12 text-attention">
+				<p role="alert" className="mt-2 text-12 text-attention wrap-anywhere">
 					<span aria-hidden="true">⚠ </span>
 					{refusal}
 				</p>
 			)}
 			{report === undefined ? null : <ScannedFiles report={report} />}
 			{report?.refusals.map((reason) => (
-				<p key={reason} className="mt-2 text-12 text-secondary-foreground">
+				<p
+					key={reason}
+					className="mt-2 text-12 text-secondary-foreground wrap-anywhere"
+				>
 					<span aria-hidden="true">⚠ </span>
 					{reason}
 				</p>
@@ -251,18 +255,14 @@ function finishHint(limitEntered: boolean, linked: boolean): string {
 	return linked ? READY_HINT : NO_CORPUS_HINT;
 }
 
-function corpusState(linked: boolean, limitEntered: boolean): string {
+function corpusState(linked: boolean): string {
 	if (linked) {
 		return "Linked";
 	}
 
-	return limitEntered ? "Required" : "Set a limit first";
+	return "Required";
 }
 
-/**
- * What a fresh install shows on every screen: a spend limit, then a corpus,
- * then the case they make possible (SPEC.md section 11).
- */
 export function SetupPage(): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
 	const queryClient = useQueryClient();
@@ -302,16 +302,15 @@ export function SetupPage(): React.JSX.Element {
 	const linked = isSatisfied(scanned);
 
 	return (
-		<div className="flex justify-center px-10 py-17">
-			<div className="w-full max-w-191">
+		<div className="flex min-w-0 justify-center page-gutter py-8 sm:py-17">
+			<div className="min-w-0 w-full max-w-191">
 				<h1 className="text-24 tracking-tight leading-heading">
 					Nothing is measured yet
 				</h1>
 				<p className="mt-2.5 max-w-intro text-muted-foreground">
-					Rehearse needs two things before a case can be declared: a hard
-					ceiling on what a run may spend, and the instruction corpus whose
-					effect it is measuring. A case is meaningless without a corpus to
-					attribute results to.
+					Scan an instruction corpus to unlock case declaration. Choose a spend
+					limit before starting runs. Finish setup stores that limit once the
+					corpus is linked.
 				</p>
 
 				<ol aria-label="Setup steps" className="mt-8.5 flex flex-col gap-3.5">
@@ -330,7 +329,7 @@ export function SetupPage(): React.JSX.Element {
 					<SetupStep
 						number={2}
 						title="Point at an instruction corpus"
-						state={corpusState(linked, limitEntered)}
+						state={corpusState(linked)}
 						look={linked || limitEntered ? "open" : "dimmed"}
 					>
 						<StepProse>
@@ -365,7 +364,10 @@ export function SetupPage(): React.JSX.Element {
 							<div className="mt-3 flex flex-col items-start gap-2">
 								<DeclareCaseDialog onDeclared={setDeclaredPath} />
 								{declaredPath === undefined ? null : (
-									<p role="status" className="text-12 text-muted-foreground">
+									<p
+										role="status"
+										className="text-12 text-muted-foreground wrap-anywhere"
+									>
 										{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
 									</p>
 								)}
@@ -374,8 +376,9 @@ export function SetupPage(): React.JSX.Element {
 					</SetupStep>
 				</ol>
 
-				<div className="mt-5 flex items-center gap-3">
+				<ActionGroup className="mt-5">
 					<Button
+						variant="primary"
 						disabled={!limitEntered || !linked || finish.isPending}
 						onClick={() => {
 							if (usd !== undefined) {
@@ -388,15 +391,15 @@ export function SetupPage(): React.JSX.Element {
 					<span className="text-12 text-dim">
 						{finishHint(limitEntered, linked)}
 					</span>
-				</div>
+				</ActionGroup>
 				{finish.isError ? (
-					<p role="alert" className="mt-2 text-12 text-attention">
+					<p role="alert" className="mt-2 text-12 text-attention wrap-anywhere">
 						<span aria-hidden="true">⚠ </span>
 						{`The spend limit was not stored: ${finish.error.message}`}
 					</p>
 				) : null}
 				{settings.isError ? (
-					<p role="alert" className="mt-2 text-12 text-attention">
+					<p role="alert" className="mt-2 text-12 text-attention wrap-anywhere">
 						<span aria-hidden="true">⚠ </span>
 						{`Could not read the stored settings: ${settings.error.message}`}
 					</p>

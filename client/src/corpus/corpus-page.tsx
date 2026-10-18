@@ -3,7 +3,7 @@ import { RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { CorpusFileViewer } from "./corpus-file-viewer";
 import { StateBadge } from "#client/system/components/state-badge";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import { plural } from "#client/plural";
@@ -61,7 +61,7 @@ function rowFor(
 	file: CorpusFile,
 	lastEdit: CorpusResponse["lastEdit"],
 	onEdit: ((path: string) => void) | undefined,
-	onView: (path: string) => void,
+	onView: (path: string, returnFocus: () => void) => void,
 ): readonly React.ReactNode[] {
 	return [
 		<Button
@@ -69,8 +69,13 @@ function rowFor(
 			variant="link"
 			size="inline"
 			aria-label={`View ${file.path}`}
-			onClick={() => {
-				onView(file.path);
+			onClick={(event) => {
+				const origin = event.currentTarget;
+				onView(file.path, () => {
+					if (origin.isConnected) {
+						origin.focus();
+					}
+				});
 			}}
 		>
 			<span className="min-w-0 font-mono break-all">{file.path}</span>
@@ -132,11 +137,15 @@ function EditSection({
 	onEdit,
 	source,
 	evidence,
+	viewRequest,
+	onCloseReader,
 }: {
 	readonly edit: EditState;
 	readonly onEdit: (edit: EditState) => void;
 	readonly source: CorpusExperimentSource | undefined;
 	readonly evidence: SourceEvidence | undefined;
+	readonly viewRequest: number;
+	readonly onCloseReader: () => void;
 }): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
 
@@ -185,9 +194,8 @@ function EditSection({
 								root={settings.data.linkedCorpus.root}
 								path={edit.path}
 								lines={edit.lines}
-								onClose={() => {
-									onEdit({ kind: "idle" });
-								}}
+								viewRequest={viewRequest}
+								onClose={onCloseReader}
 							/>
 						) : null}
 					</div>
@@ -200,6 +208,8 @@ function EditSection({
 						onEdit={onEdit}
 						source={source}
 						evidence={evidence}
+						viewRequest={viewRequest}
+						onCloseReader={onCloseReader}
 					/>
 				) : null}
 			</div>
@@ -213,12 +223,16 @@ function EditBody({
 	onEdit,
 	source,
 	evidence,
+	viewRequest,
+	onCloseReader,
 }: {
 	readonly edit: EditState;
 	readonly root: string;
 	readonly onEdit: (edit: EditState) => void;
 	readonly source: CorpusExperimentSource | undefined;
 	readonly evidence: SourceEvidence | undefined;
+	readonly viewRequest: number;
+	readonly onCloseReader: () => void;
 }): React.JSX.Element {
 	switch (edit.kind) {
 		case "idle": {
@@ -236,9 +250,8 @@ function EditBody({
 					root={root}
 					path={edit.path}
 					lines={edit.lines}
-					onClose={() => {
-						onEdit({ kind: "idle" });
-					}}
+					viewRequest={viewRequest}
+					onClose={onCloseReader}
 					onEdit={() => {
 						onEdit({ kind: "editing", path: edit.path, lines: edit.lines });
 					}}
@@ -292,7 +305,7 @@ function CorpusInventory({
 	readonly isLoading: boolean;
 	readonly isError: boolean;
 	readonly onEdit: ((path: string) => void) | undefined;
-	readonly onView: (path: string) => void;
+	readonly onView: (path: string, returnFocus: () => void) => void;
 }): React.JSX.Element {
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
@@ -419,6 +432,8 @@ export function CorpusPage({
 }): React.JSX.Element {
 	const query = useQuery(corpusQuery);
 	const settings = useQuery(launchSettingsQuery);
+	const [viewRequest, setViewRequest] = useState(0);
+	const returnToFile = useRef<(() => void) | undefined>(undefined);
 	const [edit, setEdit] = useState<EditState>(
 		opened === undefined
 			? { kind: "idle" }
@@ -496,6 +511,11 @@ export function CorpusPage({
 					onEdit={setEdit}
 					source={activeSource}
 					evidence={visibleEvidence}
+					viewRequest={viewRequest}
+					onCloseReader={() => {
+						setEdit({ kind: "idle" });
+						returnToFile.current?.();
+					}}
 				/>
 				<CorpusInventory
 					sourcePath={sourcePath}
@@ -503,7 +523,9 @@ export function CorpusPage({
 					isLoading={query.isLoading}
 					isError={query.isError}
 					onEdit={onEdit}
-					onView={(path) => {
+					onView={(path, returnFocus) => {
+						returnToFile.current = returnFocus;
+						setViewRequest((request) => request + 1);
 						selectedFile(path);
 						if (
 							(edit.kind === "viewing" || edit.kind === "editing") &&

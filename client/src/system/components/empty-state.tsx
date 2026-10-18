@@ -8,7 +8,7 @@ export function EmptyState({
 	readonly children: ReactNode;
 }): React.JSX.Element {
 	return (
-		<div className="grid place-items-center py-16">
+		<div className="grid place-items-center py-8 sm:py-16">
 			<div className="max-w-sm">
 				<h2 className="text-16 font-semibold">{heading}</h2>
 				<div className="mt-2 flex flex-col items-start gap-4 text-14 text-muted-foreground">

@@ -111,14 +111,14 @@ export function CorpusSettingsCard(): React.JSX.Element {
 				</p>
 			) : null}
 			{settings.data === undefined ? null : (
-				<div className="mt-2 flex items-center gap-2.5 font-mono text-12">
-					<span className="flex-1 break-all">
+				<div className="mt-2 flex min-w-0 flex-col gap-2 font-mono text-13 sm:flex-row sm:items-start sm:gap-3">
+					<span className="min-w-0 flex-1 wrap-anywhere">
 						{settings.data.linkedCorpus.root}
 					</span>
 					<VersionLabel root={settings.data.linkedCorpus.root} />
 				</div>
 			)}
-			<div className="mt-2 flex gap-2">
+			<div className="mt-3 flex min-w-0 flex-wrap gap-2">
 				<Button
 					variant="outline"
 					size="sm"
@@ -156,7 +156,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 					onChange={(event) => {
 						setDirectory(event.target.value);
 					}}
-					className="h-8 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-14"
+					className="min-h-touch-target min-w-0 flex-1 rounded-md border border-strong bg-background px-3 py-2 font-mono text-14"
 				/>
 				<Button
 					type="submit"

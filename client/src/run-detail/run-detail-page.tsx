@@ -33,10 +33,9 @@ import { CorpusPill } from "#client/system/components/corpus-pill";
 import { EmptyState } from "#client/system/components/empty-state";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Switcher } from "#client/system/components/switcher";
-import {
-	HeaderControls,
-	shortCommit,
-} from "#client/monitor/run-identity-header";
+import { HeaderControls } from "#client/monitor/run-identity-header";
+import { ActionGroup } from "#client/system/components/action-group";
+import { ScreenHeader } from "#client/system/components/screen-header";
 import { SpendBand } from "#client/monitor/spend-band";
 import { TaskGraph } from "#client/monitor/task-graph";
 import { StagePanes } from "#client/monitor/stage-panes";
@@ -165,20 +164,23 @@ function defaultEndedStage(
 	return record.stages.findLast((each) => each.status !== "no-record");
 }
 
-function metaLine(row: PipelineRow, record: RunRecordResponse): string {
-	const { identity } = record;
-
+function metaLine(row: PipelineRow): string {
 	return [
-		startedAt(row.run),
-		row.wallTime.state === "available"
-			? minutesAndSeconds(row.wallTime.ms)
-			: NOT_RECORDED,
-		row.cost.state === "available" ? spendReading(row.cost.usd) : NOT_RECORDED,
-		`${identity.target} @ ${shortCommit(identity.commit)}`,
-		identity.effort === undefined
-			? identity.model
-			: `${identity.model} / ${identity.effort}`,
+		`Started ${startedAt(row.run)}`,
+		`Time ${row.wallTime.state === "available" ? minutesAndSeconds(row.wallTime.ms) : NOT_RECORDED}`,
+		`Cost ${row.cost.state === "available" ? spendReading(row.cost.usd) : NOT_RECORDED}`,
 	].join(" · ");
+}
+
+function executionReading(row: PipelineRow, record: RunRecordResponse): string {
+	if (row.progress.state === "running") {
+		return endingWords(row, record);
+	}
+	if (row.status === "AWAITING_HUMAN_REVIEW") {
+		return "Execution ended";
+	}
+
+	return `Execution ended · ${endingWords(row, record)}`;
 }
 
 function humanReviewReading(
@@ -203,54 +205,57 @@ function RunDetailHeader({
 	const returnSearch = useRunsReturnSearch();
 
 	return (
-		<header className="flex flex-none flex-wrap items-center gap-4 border-b border-divider page-gutter py-6">
-			<Button asChild variant="quiet" size="compact">
-				<Link to="/" search={returnSearch}>
-					<span aria-hidden="true">←</span> Runs
-				</Link>
-			</Button>
-			<div>
-				<h1 className="flex min-w-0 flex-wrap items-center gap-2.75 text-24 leading-heading">
-					<span className="font-mono">
-						{withinCase(row.shortId ?? row.run, row.caseId)}
-					</span>
+		<ScreenHeader
+			title={withinCase(row.shortId ?? row.run, row.caseId)}
+			lead={
+				<Button asChild variant="quiet" size="compact">
+					<Link to="/" search={returnSearch}>
+						<span aria-hidden="true">←</span> Runs
+					</Link>
+				</Button>
+			}
+			subline={
+				<span className="flex min-w-0 flex-col gap-2">
 					<Link
 						to="/cases"
 						search={{ caseId: record.caseId }}
-						className="text-14 text-link hover:text-link-hover"
+						className="w-fit max-w-full text-14 text-link underline wrap-anywhere hover:text-link-hover"
 					>
 						{record.caseId}
 					</Link>
-				</h1>
-				<p className="mt-1 flex flex-wrap items-center gap-2.5 text-12 text-dim">
-					<span aria-hidden="true">
-						{STATUS_VOCABULARY[runStatusState(row.status)].glyph}
+					<span className="flex min-w-0 items-baseline gap-2">
+						<span aria-hidden="true">
+							{STATUS_VOCABULARY[runStatusState(row.status)].glyph}
+						</span>
+						<span>{executionReading(row, record)}</span>
 					</span>
-					<span>{endingWords(row, record)}</span>
-					<span>·</span>
-					<span className="font-mono">{metaLine(row, record)}</span>
-				</p>
-				{row.progress.state === "running" ? null : (
-					<p className="mt-1 text-12 text-muted-foreground">
-						Execution ended · Final result:{" "}
-						{record.finalOutcome.status === "JUDGED"
-							? record.finalOutcome.verdict
-							: "unavailable"}{" "}
-						· Human review: {humanState}
-					</p>
-				)}
-			</div>
-			<div className="ml-auto flex flex-wrap items-center gap-2.5">
-				{corpusVersion?.kind === "version" ? (
-					<CorpusPill hash={corpusVersion.digest} />
-				) : (
-					<span className="text-12 text-muted-foreground">
-						{corpusMeasurementReading(corpusVersion)}
-					</span>
-				)}
-				{row.progress.state === "running" ? <HeaderControls row={row} /> : null}
-			</div>
-		</header>
+					{row.progress.state === "running" ? null : (
+						<span>
+							Final result:{" "}
+							{record.finalOutcome.status === "JUDGED"
+								? record.finalOutcome.verdict
+								: "unavailable"}
+							{" · "}Human review: {humanState}
+						</span>
+					)}
+					<span className="font-mono">{metaLine(row)}</span>
+				</span>
+			}
+			aside={
+				<ActionGroup>
+					{corpusVersion?.kind === "version" ? (
+						<CorpusPill hash={corpusVersion.digest} />
+					) : (
+						<span className="text-14 text-muted-foreground wrap-anywhere">
+							{corpusMeasurementReading(corpusVersion)}
+						</span>
+					)}
+					{row.progress.state === "running" ? (
+						<HeaderControls row={row} />
+					) : null}
+				</ActionGroup>
+			}
+		/>
 	);
 }
 

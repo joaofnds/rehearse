@@ -385,11 +385,15 @@ describe("saved attempt evidence", () => {
 	});
 	it("opens the complete saved output as literal text and closes it", async () => {
 		const text = `<script>bad()</script>\n${"saved line\n".repeat(100)}`;
-		render(<SavedOutput title="Reply" text={text} />);
+		const title = `artifact-${"SavedDelivery".repeat(12)}.md`;
+		render(<SavedOutput title={title} text={text} />);
 		fireEvent.click(
 			screen.getByRole("button", { name: "Open complete output" }),
 		);
-		const dialog = await screen.findByRole("dialog");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Complete saved output",
+		});
+		expect(within(dialog).getByText(title)).toBeInTheDocument();
 		expect(dialog.querySelector("pre")?.textContent).toBe(text);
 		expect(dialog.querySelector("script")).toBeNull();
 		fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));

@@ -5,14 +5,8 @@ import {
 	useStop,
 } from "#client/run-history/run-controls";
 import type { PipelineRow } from "#client/shell/run-in-flight";
+import { ActionGroup } from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
-
-/** As many of the commit's characters as the design shows. */
-const COMMIT_SHOWN = 6;
-
-export function shortCommit(commit: string): string {
-	return commit.slice(0, COMMIT_SHOWN);
-}
 
 export function HeaderControls({
 	row,
@@ -23,8 +17,8 @@ export function HeaderControls({
 	const stop = useStop();
 
 	return (
-		<span className="ml-auto flex flex-col items-end gap-1.5">
-			<span className="flex gap-2.5">
+		<div className="flex min-w-0 max-w-full flex-col items-start gap-2 sm:items-end">
+			<ActionGroup>
 				<Button
 					variant="quiet"
 					disabled={pause.isPending || pause.isSuccess}
@@ -43,12 +37,12 @@ export function HeaderControls({
 				>
 					Stop &amp; restore repo
 				</Button>
-			</span>
+			</ActionGroup>
 			<ControlRequests
 				pauseRequested={pause.isSuccess}
 				stopRequested={stop.isSuccess}
 				refusal={(stop.error ?? pause.error)?.message}
 			/>
-		</span>
+		</div>
 	);
 }

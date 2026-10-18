@@ -208,7 +208,7 @@ describe("Record ledger", () => {
 		).toHaveTextContent(/^02build◼stopped— · /u);
 	});
 
-	it("lays the stage's hard blockers on the left and its dimensions on the right", async () => {
+	it("preserves the stage's hard blockers and dimensions in rubric order", async () => {
 		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
 
 		const stoppedStep = await ledgerCard("Step 2 · build");
@@ -229,7 +229,6 @@ describe("Record ledger", () => {
 				.getAllByRole("listitem")
 				.map((item) => item.textContent),
 		).toEqual(["scope-discipline▮▮▮▯▯C", "test-quality▮▮▮▮▯B"]);
-		expect(blockers.parentElement?.parentElement).toHaveClass("grid-cols-2");
 		expect(blockers.parentElement?.nextElementSibling).toContainElement(
 			dimensions,
 		);
@@ -322,7 +321,7 @@ describe("Record ledger", () => {
 			return within(card).getByRole("region", { name: "Cited evidence" });
 		}
 
-		it("lays each item out with its source, locator and what it supports beside its quote", async () => {
+		it("preserves each item's source, locator, supported criterion and quote", async () => {
 			const evidence = await openEvidence(closedSession(1284));
 
 			const items = within(evidence).getAllByRole("listitem");
@@ -331,7 +330,6 @@ describe("Record ledger", () => {
 				"transcriptexchange 3 message, characters 0-25supports scope-declared-before-editI'll take the small scope",
 				"diffsrc/a.tssupports scope-discipline",
 			]);
-			expect(items[0]).toHaveClass("grid-cols-ledger-evidence");
 			expect(
 				within(evidence).getByRole("link", {
 					name: "exchange 3 message, characters 0-25",

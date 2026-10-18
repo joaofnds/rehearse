@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
+import { UNREAD_REPLAY_FIGURES } from "#client/test-support/run-figures";
 import { LiveReply } from "#client/test-support/live-reply";
 import type { CalibrationResponse } from "./calibration-query";
 import type { Reply } from "#client/test-support/fetch-stub";
@@ -133,6 +135,123 @@ describe(StageReviewPage.name, () => {
 		expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
 		expect(screen.getByText("Awaiting your review")).toBeInTheDocument();
 	});
+	it("leads replay review with its exact listed short identity and keeps canonical identity in inspectable provenance", async () => {
+		const lineage = "a".repeat(64);
+		const timestamp = RUN;
+		const path = `/api/calibration/replays/${lineage}/${timestamp}`;
+		const replay = {
+			...UNREAD_REPLAY_FIGURES,
+			kind: "replay",
+			recordId: `attempt:stage:${lineage}/${timestamp}`,
+			lineage,
+			timestamp,
+			shortId: "audit-log/r2",
+			checkpointShortId: "audit-log/r1/s1",
+			attempt: undefined,
+			caseId: "audit-log",
+			stage: "shape",
+			grade: "B",
+			status: "CONTINUE",
+			corpusVersion: undefined,
+			links: [],
+		} satisfies RunListingResponse["rows"][number];
+		const siblingTimestamp = "2026-10-01T09-00-00.000Z";
+		const listing: RunListingResponse = {
+			rows: [
+				{
+					...replay,
+					recordId: `attempt:stage:${lineage}/${siblingTimestamp}`,
+					timestamp: siblingTimestamp,
+					shortId: "audit-log/r1",
+				},
+				replay,
+			],
+			launches: [],
+			unreadable: [],
+		};
+		const server = new FakeServer(
+			new Map<string, Reply>([
+				...[...SHELL_BASELINE].map(([url, body]): [string, Reply] => [
+					`GET ${url}`,
+					{ status: 200, body },
+				]),
+				["GET /api/run-listing", { status: 200, body: listing }],
+				[
+					`GET ${path}`,
+					{
+						status: 200,
+						body: {
+							...BLIND_REVIEW,
+							stage: { kind: "replay", lineage, timestamp },
+						},
+					},
+				],
+			]),
+		);
+		server.install();
+		renderAppAt(`/calibration/replays/${lineage}/${timestamp}`);
+
+		const heading = await screen.findByRole("heading", {
+			level: 1,
+			name: "Review step",
+		});
+		const header = heading.closest("header");
+		await waitFor(() => {
+			expect(header).toHaveTextContent(
+				"r2 · audit-log · replay · shape · Judge opus",
+			);
+		});
+
+		expect(header).not.toHaveTextContent(lineage);
+		const summary = screen.getByText("Recorded step identity");
+		const disclosure = summary.closest("details");
+		expect(disclosure).not.toHaveAttribute("open");
+		fireEvent.click(summary);
+		expect(disclosure).toHaveAttribute("open");
+		expect(screen.getByText(lineage)).toBeVisible();
+		expect(disclosure).toHaveTextContent(timestamp);
+		expect(screen.queryByText(JUDGE_SUMMARY)).not.toBeInTheDocument();
+	});
+
+	it("keeps a readable replay fallback and canonical identity when the listing is unavailable", async () => {
+		const lineage = "b".repeat(64);
+		const timestamp = RUN;
+		const path = `/api/calibration/replays/${lineage}/${timestamp}`;
+		const server = new FakeServer(
+			new Map<string, Reply>([
+				...[...SHELL_BASELINE].map(([url, body]): [string, Reply] => [
+					`GET ${url}`,
+					{ status: 200, body },
+				]),
+				[
+					"GET /api/run-listing",
+					{ status: 404, body: { error: "Listing unavailable" } },
+				],
+				[
+					`GET ${path}`,
+					{
+						status: 200,
+						body: {
+							...BLIND_REVIEW,
+							stage: { kind: "replay", lineage, timestamp },
+						},
+					},
+				],
+			]),
+		);
+		server.install();
+		renderAppAt(`/calibration/replays/${lineage}/${timestamp}`);
+
+		await screen.findByRole("region", { name: "What the judge read" });
+		const header = screen.getByRole("heading", { level: 1 }).closest("header");
+
+		expect(header).toHaveTextContent("Replay · shape · Judge opus");
+		expect(header).not.toHaveTextContent(lineage);
+		fireEvent.click(screen.getByText("Recorded step identity"));
+		expect(screen.getByText(lineage)).toBeVisible();
+		expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
+	});
+
 	it("returns to Judge calibration from a contextual step review", async () => {
 		serving(BLIND_REVIEW);
 		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);

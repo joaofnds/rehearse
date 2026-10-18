@@ -13,6 +13,8 @@ import { corpusQuery } from "#client/corpus/corpus-query";
 import { runRecordQuery } from "#client/monitor/run-record-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
+import { AmountInput } from "#client/system/components/amount-input";
+import { ActionGroup } from "#client/system/components/action-group";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Notice } from "#client/system/components/notice";
 import { Button } from "#client/system/ui/button";
@@ -248,20 +250,12 @@ function SpendCeilingField({
 					}
 				}}
 			>
-				<span className="flex h-9 items-center gap-1.5 rounded-md border border-strong bg-background px-2">
-					<span aria-hidden="true" className="text-12 text-muted-foreground">
-						USD
-					</span>
-					<input
-						id="launch-spend-ceiling"
-						value={entered}
-						inputMode="decimal"
-						onChange={(event) => {
-							onDraft(event.target.value);
-						}}
-						className="w-20 bg-transparent font-mono text-14"
-					/>
-				</span>
+				<AmountInput
+					id="launch-spend-ceiling"
+					value={entered}
+					accessibleName="Default ceiling per attempt"
+					onChange={onDraft}
+				/>
 				<Button
 					type="submit"
 					variant="outline"
@@ -467,7 +461,7 @@ function TargetRows({
 					<dt className="text-muted-foreground">
 						<label htmlFor="launch-case">Case</label>
 					</dt>
-					<dd className="col-span-3 min-w-0">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						<CasePicker
 							cases={cases}
 							selected={caseId}
@@ -475,7 +469,7 @@ function TargetRows({
 						/>
 					</dd>
 					<dt className="text-muted-foreground">Corpus</dt>
-					<dd className="col-span-3">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						<CorpusLine />
 					</dd>
 				</>
@@ -485,11 +479,15 @@ function TargetRows({
 			return (
 				<>
 					<dt className="text-muted-foreground">Run</dt>
-					<dd className="col-span-3 font-mono">{target.run}</dd>
+					<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
+						{target.run}
+					</dd>
 					<dt className="text-muted-foreground">Stage</dt>
-					<dd className="col-span-3 font-mono">{target.stage}</dd>
+					<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
+						{target.stage}
+					</dd>
 					<dt className="text-muted-foreground">Corpus</dt>
-					<dd className="col-span-3">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						<CorpusLine />
 					</dd>
 				</>
@@ -499,19 +497,23 @@ function TargetRows({
 			return (
 				<>
 					<dt className="text-muted-foreground">Baseline (before)</dt>
-					<dd className="col-span-3 min-w-0 font-mono break-all">
+					<dd className="sm:col-span-3 min-w-0 font-mono break-all">
 						{target.armA}
 					</dd>
 					<dt className="text-muted-foreground">Candidate (after)</dt>
-					<dd className="col-span-3 min-w-0 font-mono break-all">
+					<dd className="sm:col-span-3 min-w-0 font-mono break-all">
 						{target.armB}
 					</dd>
 					<dt className="text-muted-foreground">Run</dt>
-					<dd className="col-span-3 font-mono">{target.run}</dd>
+					<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
+						{target.run}
+					</dd>
 					<dt className="text-muted-foreground">Stage</dt>
-					<dd className="col-span-3 font-mono">{target.stage}</dd>
+					<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
+						{target.stage}
+					</dd>
 					<dt className="text-muted-foreground">Control corpus</dt>
-					<dd className="col-span-3">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						baseline&apos;s corpus without the one skill that differs
 					</dd>
 				</>
@@ -521,13 +523,15 @@ function TargetRows({
 			return (
 				<>
 					<dt className="text-muted-foreground">Comparison</dt>
-					<dd className="col-span-3 min-w-0 font-mono break-all">
+					<dd className="sm:col-span-3 min-w-0 font-mono break-all">
 						{target.comparison}
 					</dd>
 					<dt className="text-muted-foreground">Per arm</dt>
-					<dd className="col-span-3">{plural(target.attempts, "attempt")}</dd>
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
+						{plural(target.attempts, "attempt")}
+					</dd>
 					<dt className="text-muted-foreground">Cost</dt>
-					<dd className="col-span-3">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						{`about $${target.usd.toFixed(2)}, at each arm's mean recorded cost per attempt`}
 					</dd>
 				</>
@@ -609,7 +613,7 @@ function ReplayChoiceRows({
 			<dt className="text-muted-foreground">
 				<label htmlFor="launch-replay-run">Run</label>
 			</dt>
-			<dd className="col-span-3 min-w-0">
+			<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 				<NativeSelect
 					id="launch-replay-run"
 					value={chosen.run}
@@ -630,7 +634,7 @@ function ReplayChoiceRows({
 			<dt className="text-muted-foreground">
 				<label htmlFor="launch-replay-stage">Step</label>
 			</dt>
-			<dd className="col-span-3 min-w-0">
+			<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 				<NativeSelect
 					id="launch-replay-stage"
 					value={chosen.stage}
@@ -646,7 +650,7 @@ function ReplayChoiceRows({
 				</NativeSelect>
 			</dd>
 			<dt className="text-muted-foreground">Corpus</dt>
-			<dd className="col-span-3">
+			<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 				<CorpusLine />
 			</dd>
 		</>
@@ -673,11 +677,11 @@ function CaseConditions({
 			<h3 className="text-14 font-medium">{listed.title}</h3>
 			<dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 				<dt className="text-muted-foreground">Workflow model</dt>
-				<dd className="sm:col-span-3 font-mono">
+				<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
 					{listed.model ?? "No model declared"}
 				</dd>
 				<dt className="text-muted-foreground">Input</dt>
-				<dd className="sm:col-span-3">
+				<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 					{listed.kind === "session"
 						? "Declared session prompt, fixture and transcript prefix, when provided."
 						: "Declared task and product brief; the pipeline runs against its target repository."}
@@ -685,7 +689,7 @@ function CaseConditions({
 				{listed.kind === "pipeline" ? (
 					<>
 						<dt className="text-muted-foreground">Target</dt>
-						<dd className="sm:col-span-3 font-mono wrap-anywhere">
+						<dd className="sm:col-span-3 font-mono wrap-anywhere min-w-0">
 							{listed.target ?? "Target details unavailable"}
 						</dd>
 					</>
@@ -726,17 +730,17 @@ function ReplayConditions({
 			<h3 className="text-14 font-medium">Frozen input · current corpus</h3>
 			<dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 				<dt className="text-muted-foreground">Case</dt>
-				<dd className="sm:col-span-3">
+				<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 					{source.data?.caseId ?? pending ?? "Source case unavailable"}
 				</dd>
 				<dt className="text-muted-foreground">Workflow model</dt>
-				<dd className="sm:col-span-3 font-mono">
+				<dd className="sm:col-span-3 font-mono min-w-0 wrap-anywhere">
 					{source.data?.identity.model ??
 						pending ??
 						"Source run's model; value unavailable"}
 				</dd>
 				<dt className="text-muted-foreground">Frozen input</dt>
-				<dd className="sm:col-span-3">{input}</dd>
+				<dd className="sm:col-span-3 min-w-0 wrap-anywhere">{input}</dd>
 			</dl>
 			<p className="mt-2 text-12 text-secondary-foreground">
 				Recorded source effort:{" "}
@@ -845,8 +849,8 @@ function LaunchForm({
 				</span>
 			</header>
 
-			<div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 py-5">
-				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
+			<div className="flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto px-6 py-5">
+				<dl className="grid grid-cols-1 items-center gap-x-3 gap-y-2 text-14 sm:grid-cols-4">
 					{targetRows ?? (
 						<TargetRows
 							target={target}
@@ -856,7 +860,7 @@ function LaunchForm({
 						/>
 					)}
 					<dt className="text-muted-foreground">Launch ceiling</dt>
-					<dd className="col-span-3">
+					<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
 						{launchBudgetReading(ceilingUsd, settings.isPending)}
 					</dd>
 					{target.kind === "comparison" ||
@@ -866,19 +870,21 @@ function LaunchForm({
 							<dd
 								role="group"
 								aria-label="Attempts"
-								className="col-span-3 flex gap-1.5"
+								className="min-w-0 sm:col-span-3"
 							>
-								{LAUNCH_ATTEMPTS.map((count) => (
-									<FilterPill
-										key={count}
-										pressed={count === attempts}
-										onPress={() => {
-											setAttempts(count);
-										}}
-									>
-										{`×${String(count)}`}
-									</FilterPill>
-								))}
+								<ActionGroup>
+									{LAUNCH_ATTEMPTS.map((count) => (
+										<FilterPill
+											key={count}
+											pressed={count === attempts}
+											onPress={() => {
+												setAttempts(count);
+											}}
+										>
+											{`×${String(count)}`}
+										</FilterPill>
+									))}
+								</ActionGroup>
 							</dd>
 						</>
 					)}
@@ -927,7 +933,7 @@ function LaunchForm({
 						{ceilingReading(ceilingUsd, started)}
 					</span>
 				)}
-				<span className="ml-auto flex gap-2">
+				<ActionGroup className="ml-auto justify-end">
 					<DialogClose asChild>
 						<Button variant="outline">Cancel</Button>
 					</DialogClose>
@@ -942,7 +948,7 @@ function LaunchForm({
 					>
 						{`Start · ${attemptsLabel(started.groups * started.attempts)}`}
 					</Button>
-				</span>
+				</ActionGroup>
 			</footer>
 		</>
 	);

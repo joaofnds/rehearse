@@ -271,6 +271,8 @@ export function AttemptPairs({
 	return (
 		<div className="flex max-w-283 flex-col gap-2">
 			<TableShell
+				className="min-w-240 table-fixed"
+				columnClasses={["w-28", "", "", ""]}
 				caption={
 					<>
 						{"Attempt pairs · "}

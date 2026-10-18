@@ -6,6 +6,7 @@ import {
 	putSpendCeiling,
 	storedCeilingEntry,
 } from "#client/launch/spend-ceiling-entry";
+import { AmountInput } from "#client/system/components/amount-input";
 import { Button } from "#client/system/ui/button";
 import { SettingsCard } from "./settings-card";
 
@@ -50,18 +51,12 @@ export function SpendLimitCard(): React.JSX.Element {
 					}
 				}}
 			>
-				<label className="flex items-center gap-1.5 rounded-md border border-strong bg-background px-3">
-					<span className="text-12 text-muted-foreground">USD per run</span>
-					<input
-						value={entered}
-						inputMode="decimal"
-						aria-label="Spend limit per run"
-						onChange={(event) => {
-							setDraft(event.target.value);
-						}}
-						className="w-22 bg-transparent font-mono text-14"
-					/>
-				</label>
+				<AmountInput
+					value={entered}
+					prefix="USD per run"
+					accessibleName="Spend limit per run"
+					onChange={setDraft}
+				/>
 				<Button
 					type="submit"
 					variant="outline"

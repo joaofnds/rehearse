@@ -1,4 +1,5 @@
 import { CurrentLink } from "#client/system/components/current-link";
+import { withinCase } from "#client/within-case";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { attemptEvidenceQuery } from "./attempt-evidence-query";
@@ -879,8 +880,9 @@ function confirmationTitle(
 		(row) => row.kind === "group" && row.groupId === identity.groupId,
 	);
 	const rep = group?.repRecords.find((row) => row.repId === identity.repId);
+	const caseId = group?.caseId ?? groupRow?.caseId;
 
-	return `${groupRow?.shortId ?? "Group"} · ${group?.caseId ?? groupRow?.caseId ?? "case unavailable"} · attempt ${rep === undefined ? "ordinal unavailable" : String(rep.ordinal)}`;
+	return `${withinCase(groupRow?.shortId ?? "Group", caseId)} · ${caseId ?? "case unavailable"} · attempt ${rep === undefined ? "ordinal unavailable" : String(rep.ordinal)}`;
 }
 
 function useAttemptTitle(identity: SessionHistoryIdentity): string {
@@ -896,11 +898,11 @@ function useAttemptTitle(identity: SessionHistoryIdentity): string {
 
 	switch (identity.kind) {
 		case "standalone": {
-			return `${selectedRow?.shortId ?? "Session"} · ${identity.caseId}`;
+			return `${withinCase(selectedRow?.shortId ?? "Session", identity.caseId)} · ${identity.caseId}`;
 		}
 		case "replay": {
 			return selectedRow?.kind === "replay"
-				? `${selectedRow.shortId ?? "Replay"} · ${selectedRow.caseId ?? "case unavailable"} · ${selectedRow.stage} · replay`
+				? `${withinCase(selectedRow.shortId ?? "Replay", selectedRow.caseId)} · ${selectedRow.caseId ?? "case unavailable"} · ${selectedRow.stage} · replay`
 				: "Replay · saved attempt";
 		}
 		case "confirmation": {

@@ -169,6 +169,9 @@ describe(CorpusPage.name, () => {
 			overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
 			linked?: OpenedCorpusFile,
 			source?: { readonly run: string; readonly stage: string },
+			client = new QueryClient({
+				defaultOptions: { queries: { retry: false } },
+			}),
 		): FakeServer {
 			const server = new FakeServer(
 				new Map([
@@ -197,9 +200,6 @@ describe(CorpusPage.name, () => {
 				]),
 			);
 			server.install();
-			const client = new QueryClient({
-				defaultOptions: { queries: { retry: false } },
-			});
 			const router = createRouter({
 				routeTree: createRootRoute({
 					component: () => <CorpusPage opened={linked} source={source} />,
@@ -298,6 +298,90 @@ describe(CorpusPage.name, () => {
 				await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
 			).toHaveValue("instructions\nkeep\n");
 			expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+		});
+
+		it.each(["live", "directory"] as const)(
+			"focuses the %s reader and returns to the exact file action on close",
+			async (kind) => {
+				const corpus = corpusResponseBody();
+				const [first] = corpus.files;
+				if (first === undefined) {
+					throw new Error("Corpus fixture needs a file");
+				}
+				serving(
+					new Map([
+						["GET /api/settings", { status: 200, body: settingsReading(kind) }],
+						[
+							"GET /api/corpus",
+							{
+								status: 200,
+								body: {
+									...corpus,
+									files: [
+										...corpus.files,
+										{ ...first, path: "skills/build/SKILL.md" },
+									],
+								},
+							},
+						],
+					]),
+				);
+				const origin = await screen.findByRole("button", {
+					name: "View skills/build/SKILL.md",
+				});
+
+				origin.focus();
+				fireEvent.click(origin);
+
+				const heading = await screen.findByRole("heading", {
+					name: "skills/build/SKILL.md",
+				});
+				await waitFor(() => {
+					expect(document.activeElement === heading).toBe(true);
+				});
+				fireEvent.click(screen.getByRole("button", { name: "Close file" }));
+				await waitFor(() => {
+					expect(document.activeElement === origin).toBe(true);
+				});
+				expect(
+					screen.queryByRole("region", {
+						name: "Instruction text · skills/build/SKILL.md",
+					}),
+				).toBeNull();
+			},
+		);
+
+		it("keeps the reader from taking focus again when its file refetches", async () => {
+			const client = new QueryClient({
+				defaultOptions: { queries: { retry: false } },
+			});
+			let reading = opened(new TextEncoder().encode("instructions\nkeep\n"));
+			serving(
+				new Map([["GET /api/corpus/file", new LiveReply(() => reading)]]),
+				undefined,
+				undefined,
+				client,
+			);
+			fireEvent.click(
+				await screen.findByRole("button", { name: "View CLAUDE.md" }),
+			);
+			const viewer = await screen.findByRole("region", {
+				name: "Instruction text · CLAUDE.md",
+			});
+			await within(viewer).findByText(/instructions/u);
+			const search = screen.getByRole("searchbox", {
+				name: "Search corpus files",
+			});
+			search.focus();
+			reading = {
+				...opened(new TextEncoder().encode("updated instructions\nkeep\n")),
+				headers: { [CORPUS_VERSION_HEADER]: NEW_VERSION },
+			};
+
+			await client.invalidateQueries({ queryKey: ["corpus-file-reading"] });
+			await within(viewer).findByText(/updated instructions/u);
+
+			expect(document.activeElement === search).toBe(true);
 		});
 
 		it("moves focus to the selected file’s text", async () => {
@@ -835,6 +919,10 @@ describe(CorpusPage.name, () => {
 			const server = serving();
 
 			await appliedEdit();
+			const confirmation = screen.getByText(/^Applied CLAUDE\.md:/u);
+			await waitFor(() => {
+				expect(document.activeElement === confirmation).toBe(true);
+			});
 
 			expect(
 				JSON.parse(server.posted("/api/corpus/edits/apply")[0]?.body ?? ""),
