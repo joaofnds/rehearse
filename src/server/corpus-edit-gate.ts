@@ -1,4 +1,6 @@
-import { CorpusEditBusyError } from "./corpus-edit-busy-error";
+import CorpusEditBusyError from "./corpus-edit-busy-error";
+
+const NO_STARTING_LAUNCHES = 0;
 
 /**
  * Keeps an instruction edit and a launch start in this server from
@@ -6,10 +8,10 @@ import { CorpusEditBusyError } from "./corpus-edit-busy-error";
  * between a launch's start and its record. Each side is refused while the
  * other runs rather than queued, so launches still start alongside each other.
  */
-export class CorpusEditGate {
+class CorpusEditGate {
 	#applying = false;
 
-	#starting = 0;
+	#starting = NO_STARTING_LAUNCHES;
 
 	public async starting<T>(start: () => Promise<T>): Promise<T> {
 		if (this.#applying) {
@@ -33,7 +35,7 @@ export class CorpusEditGate {
 			);
 		}
 
-		if (this.#starting > 0) {
+		if (this.#starting > NO_STARTING_LAUNCHES) {
 			throw new CorpusEditBusyError(
 				"A launch is starting; apply the edit again once it has started",
 			);
@@ -47,3 +49,5 @@ export class CorpusEditGate {
 		}
 	}
 }
+
+export { CorpusEditGate as default };

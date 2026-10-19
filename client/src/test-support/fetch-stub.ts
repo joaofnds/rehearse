@@ -1,6 +1,8 @@
 import type { InferResponseType } from "hono/client";
+
 import type { apiClient } from "#client/api-client";
-import { LiveReply } from "./live-reply";
+
+import LiveReply from "./live-reply";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
 
@@ -10,16 +12,18 @@ type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
  * stub function has by default). Callers restore `globalThis.fetch`
  * themselves, typically in `afterEach`.
  */
-export function stubFetch(body: RunHistoryResponseBody): void {
-	const stub = (request: string | URL | Request): Promise<Response> => {
+function stubFetch(body: RunHistoryResponseBody): void {
+	const stub = async (request: string | URL | Request): Promise<Response> => {
 		const { pathname } = new URL(
 			request instanceof Request ? request.url : request,
 			"http://localhost",
 		);
 		if (pathname === "/api/confirmation-archives") {
-			return Promise.resolve(Response.json({ archived: [], unreadable: [] }));
+			return await Promise.resolve(
+				Response.json({ archived: [], unreadable: [] }),
+			);
 		}
-		return Promise.resolve(
+		return await Promise.resolve(
 			Response.json(
 				pathname === "/api/run-staleness" ? stalenessBody(body) : body,
 			),
@@ -30,7 +34,7 @@ export function stubFetch(body: RunHistoryResponseBody): void {
 }
 
 /** The separate list and freshness routes projected from one typed history fixture. */
-export function runHistoryReplies(
+function runHistoryReplies(
 	history: RunHistoryResponseBody,
 ): ReadonlyMap<string, unknown> {
 	return new Map<string, unknown>([
@@ -45,9 +49,7 @@ type RunStalenessBody = InferResponseType<
 	(typeof apiClient.api)["run-staleness"]["$get"]
 >;
 
-export function stalenessBody(
-	history: RunHistoryResponseBody,
-): RunStalenessBody {
+function stalenessBody(history: RunHistoryResponseBody): RunStalenessBody {
 	return {
 		records: Object.fromEntries(
 			history.rows.map((row) => [row.recordId, row.staleness]),
@@ -65,26 +67,26 @@ export function stalenessBody(
  * because a page that tells a failed load apart from an empty record can only
  * be observed against a response that is not ok.
  */
-export function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
-	const stub = (request: string | URL | Request): Promise<Response> => {
+function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
+	const stub = async (request: string | URL | Request): Promise<Response> => {
 		const { pathname } = new URL(
 			request instanceof Request ? request.url : request,
 			"http://localhost",
 		);
 		const body = byPath.get(pathname);
 		if (body === undefined) {
-			return Promise.resolve(
+			return await Promise.resolve(
 				Response.json({ error: "not found" }, { status: 404 }),
 			);
 		}
 
-		return Promise.resolve(Response.json(body));
+		return await Promise.resolve(Response.json(body));
 	};
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;
 }
 
-export interface SentRequest {
+interface SentRequest {
 	readonly method: string;
 	readonly pathname: string;
 	/** The query string, with its leading `?`, or empty. */
@@ -93,7 +95,7 @@ export interface SentRequest {
 	body: string;
 }
 
-export interface Reply {
+interface Reply {
 	readonly status: number;
 	readonly body: unknown;
 	readonly headers?: Readonly<Record<string, string>>;
@@ -102,9 +104,8 @@ export interface Reply {
 const READ_METHODS = new Set(["GET", "HEAD"]);
 
 function isJson(contentType: string | null): boolean {
-	return (
-		contentType?.split(";")[0]?.trim().toLowerCase() === "application/json"
-	);
+	const [mediaType] = contentType?.split(";") ?? [];
+	return mediaType?.trim().toLowerCase() === "application/json";
 }
 
 /**
@@ -116,7 +117,7 @@ function isJson(contentType: string | null): boolean {
  * the server's request guard's 403, so a request the guard would refuse
  * fails here too.
  */
-export class FakeServer {
+class FakeServer {
 	public readonly sent: SentRequest[] = [];
 
 	public constructor(
@@ -137,11 +138,11 @@ export class FakeServer {
 				// Kept before the first await, so a request is in `sent` the
 				// moment the page makes it; its body is filled in once read.
 				const sent = {
+					body: "",
+					contentType: request.headers.get("content-type"),
 					method: request.method,
 					pathname: url.pathname,
 					search: url.search,
-					contentType: request.headers.get("content-type"),
-					body: "",
 				};
 				this.sent.push(sent);
 				sent.body = await request.text();
@@ -151,16 +152,12 @@ export class FakeServer {
 					});
 				}
 				const route = this.routes.get(`${request.method} ${url.pathname}`) ?? {
-					status: 404,
 					body: { error: "not found" },
+					status: 404,
 				};
 				const reply = route instanceof LiveReply ? route.current() : route;
 
-				const options = { status: reply.status, headers: reply.headers ?? {} };
-
-				return reply.body instanceof Uint8Array
-					? new Response(Uint8Array.from(reply.body), options)
-					: Response.json(reply.body, options);
+				return replyResponse(reply);
 			},
 			{ preconnect: fetch.preconnect },
 		);
@@ -173,3 +170,20 @@ export class FakeServer {
 		);
 	}
 }
+
+function replyResponse(reply: Reply): Response {
+	const options = { headers: reply.headers ?? {}, status: reply.status };
+
+	return reply.body instanceof Uint8Array
+		? new Response(Uint8Array.from(reply.body), options)
+		: Response.json(reply.body, options);
+}
+
+export {
+	FakeServer,
+	runHistoryReplies,
+	stalenessBody,
+	stubFetch,
+	stubFetchByPath,
+};
+export type { Reply, SentRequest };

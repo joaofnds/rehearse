@@ -1,50 +1,72 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import type { z } from "zod";
+
 const scope = new AsyncLocalStorage<object>();
 
+function currentReadCache<Value>(
+	caches: WeakMap<object, Map<string, Promise<Value>>>,
+): Map<string, Promise<Value>> | undefined {
+	const current = scope.getStore();
+	if (current === undefined) {
+		return undefined;
+	}
+
+	let cache = caches.get(current);
+	if (cache === undefined) {
+		cache = new Map();
+		caches.set(current, cache);
+	}
+	return cache;
+}
+
 /** A reader's typed cache belongs to the current report and is released with it. */
-export function scopedRecordReader<Value>(
+function scopedRecordReader<Value>(
 	read: (path: string) => Promise<Value>,
 ): (path: string) => Promise<Value> {
 	const caches = new WeakMap<object, Map<string, Promise<Value>>>();
 
-	return (path) => {
-		const current = scope.getStore();
-		if (current === undefined) {
-			return read(path);
+	return async (path) => {
+		const cache = currentReadCache(caches);
+		if (cache === undefined) {
+			return await read(path);
 		}
 
-		let cache = caches.get(current);
-		if (cache === undefined) {
-			cache = new Map();
-			caches.set(current, cache);
-		}
 		let pending = cache.get(path);
 		if (pending === undefined) {
 			pending = read(path);
 			cache.set(path, pending);
 		}
 
-		return pending;
+		return await pending;
 	};
 }
 
-export function withRecordReadScope<Value>(
+async function withRecordReadScope<Value>(
 	read: () => Promise<Value>,
 ): Promise<Value> {
-	return scope.getStore() === undefined ? scope.run({}, read) : read();
+	return await (scope.getStore() === undefined ? scope.run({}, read) : read());
 }
 
-export const recordFileExists = scopedRecordReader((path) =>
-	Bun.file(path).exists(),
+const recordFileExists = scopedRecordReader(
+	async (path) => await Bun.file(path).exists(),
 );
-export const recordFileText = scopedRecordReader((path) =>
-	Bun.file(path).text(),
+const recordFileText = scopedRecordReader(
+	async (path) => await Bun.file(path).text(),
 );
-export const recordFileJson = scopedRecordReader(
-	// oxlint-disable-next-line anti-slop/no-unknown-returns -- callers immediately validate their own record schema
-	async (path): Promise<unknown> => {
-		const value: unknown = JSON.parse(await recordFileText(path));
-		return value;
-	},
-);
+/** Validate each report's file against the reader's own record contract. */
+function scopedRecordParser<Value>(
+	schema: z.ZodType<Value>,
+): (path: string) => Promise<z.ZodSafeParseResult<Value>> {
+	return scopedRecordReader(async (path) =>
+		schema.safeParse(JSON.parse(await recordFileText(path))),
+	);
+}
+
+export {
+	scopedRecordReader,
+	withRecordReadScope,
+	recordFileExists,
+	recordFileText,
+	scopedRecordParser,
+};

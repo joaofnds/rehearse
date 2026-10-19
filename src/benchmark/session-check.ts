@@ -1,7 +1,7 @@
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
 import { unhandled } from "./contracts";
-import type { ToolUse } from "./transcript";
 import {
 	evaluateFilesRead,
 	filesReadCheckSchema,
@@ -23,11 +23,11 @@ import {
 	evaluateWordBand,
 	wordBandCheckSchema,
 } from "./session-check-word-band";
+import type { ToolUse } from "./transcript";
 
-export type { CheckResult } from "./session-check-result";
-export { checkResultSchema } from "./session-check-result";
+const EMPTY_COLLECTION_LENGTH = 0;
 
-export const checkSchema = z.union([
+const checkSchema = z.union([
 	wordBandCheckSchema,
 	forbiddenTextCheckSchema,
 	forbiddenPatternCheckSchema,
@@ -35,9 +35,9 @@ export const checkSchema = z.union([
 	filesReadCheckSchema,
 ]);
 
-export type Check = z.infer<typeof checkSchema>;
+type Check = z.infer<typeof checkSchema>;
 
-export interface CheckEvidence {
+interface CheckEvidence {
 	readonly reply: string;
 	readonly toolUses: readonly ToolUse[];
 }
@@ -68,13 +68,13 @@ function evaluateCheck(
 	}
 }
 
-export interface CheckListResult {
+interface CheckListResult {
 	readonly outcome: "SUCCESSFUL" | "UNSUCCESSFUL";
 	readonly results: readonly CheckResult[];
 	readonly failed: readonly CheckResult[];
 }
 
-export function evaluateChecks(
+function evaluateChecks(
 	checks: Immutable<readonly Check[]>,
 	evidence: Immutable<CheckEvidence>,
 ): CheckListResult {
@@ -82,8 +82,14 @@ export function evaluateChecks(
 	const failed = results.filter(({ status }) => status === "FAIL");
 
 	return {
-		outcome: failed.length === 0 ? "SUCCESSFUL" : "UNSUCCESSFUL",
-		results,
 		failed,
+		outcome:
+			failed.length === EMPTY_COLLECTION_LENGTH ? "SUCCESSFUL" : "UNSUCCESSFUL",
+		results,
 	};
 }
+
+export { checkSchema, evaluateChecks };
+export type { Check, CheckEvidence, CheckListResult };
+export { checkResultSchema } from "./session-check-result";
+export type { CheckResult } from "./session-check-result";

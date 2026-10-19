@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { HashedFile } from "./checkpoint";
 import { hashedFileSchema } from "./checkpoint";
 import type { Effort } from "./config";
@@ -6,11 +7,13 @@ import { effortSchema } from "./config";
 import type { StageScorecard } from "./contracts";
 import { gradedHardBlockersSchema, stageLetterGradeSchema } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import { corpusMeasurementSchema } from "./corpus-measurement";
+import corpusMeasurementSchema from "./corpus-measurement";
 import type { ReadManifestEntry } from "./read-manifest";
 import { readManifestSchema } from "./read-manifest";
 
-export interface ReplayRecord {
+const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
+
+interface ReplayRecord {
 	readonly replay: true;
 	readonly timestamp: string;
 	readonly runName: string;
@@ -50,71 +53,74 @@ export interface ReplayRecord {
 	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
 }
 
+const replayStalenessSchema = z
+	.object({
+		causes: z.array(z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS)),
+		stage: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	})
+	.strict();
+
+const replayGradeSchema = z
+	.object({
+		grade: stageLetterGradeSchema,
+		hardBlockers: gradedHardBlockersSchema.optional(),
+		verdict: z.enum(["CONTINUE", "STOP"]),
+	})
+	.loose();
+
 /**
  * The replay-specific envelope is strict; the scorecard inside it stays open
  * because its shape belongs to stage grading and is validated there.
  */
-export const replayRecordSchema = z
+const replayRecordSchema = z
 	.object({
-		replay: z.literal(true),
-		timestamp: z.string().min(1),
-		runName: z.string().min(1),
-		stage: z.string().min(1),
+		baseSha: z.string().nonempty(),
 		consumed: z
 			.object({
-				stage: z.string().min(1),
-				lineage: z.string().min(1),
-				targetSha: z.string().min(1),
+				lineage: z.string().nonempty(),
+				stage: z.string().nonempty(),
+				targetSha: z.string().nonempty(),
 			})
 			.strict(),
-		baseSha: z.string().min(1),
-		lineage: z.string().min(1),
+		controlSha: z.string().nonempty(),
 		corpusFiles: z.array(hashedFileSchema),
 		corpusVersion: corpusMeasurementSchema.optional(),
-		settingsFile: hashedFileSchema.optional(),
-		model: z.string().min(1),
 		effort: effortSchema.optional(),
-		judgeModel: z.string().min(1),
-		judgeEffort: effortSchema.optional(),
-		sessionBudgetUsd: z.number().positive(),
-		spendCeilingUsd: z.number().positive().optional(),
-		controlSha: z.string().min(1),
-		stageCostUsd: z.number().nonnegative(),
-		productOwnerCostUsd: z.number().nonnegative(),
-		judgeCostUsd: z.number().nonnegative(),
-		resultSha: z.string().min(1).optional(),
-		stale: z.boolean().optional(),
-		staleness: z
-			.array(
-				z
-					.object({
-						stage: z.string().min(1),
-						causes: z.array(z.string().min(1)),
-					})
-					.strict(),
-			)
-			.optional(),
-		scorecard: z
-			.object({
-				stage: z.string().min(1),
-				costUsd: z.number(),
-				grade: z
-					.object({
-						grade: stageLetterGradeSchema,
-						verdict: z.enum(["CONTINUE", "STOP"]),
-						hardBlockers: gradedHardBlockersSchema.optional(),
-					})
-					.loose(),
-			})
-			.loose(),
 		/** From the stage session's start to its judge's grade; older records lack it. */
 		elapsedMs: z.number().nonnegative().optional(),
+		judgeCostUsd: z.number().nonnegative(),
+		judgeEffort: effortSchema.optional(),
+		judgeModel: z.string().nonempty(),
+		lineage: z.string().nonempty(),
+		model: z.string().nonempty(),
+		productOwnerCostUsd: z.number().nonnegative(),
 		readManifest: readManifestSchema.optional(),
+		replay: z.literal(true),
+		resultSha: z.string().nonempty().optional(),
+		runName: z.string().nonempty(),
+		scorecard: z
+			.object({
+				costUsd: z.number(),
+				grade: replayGradeSchema,
+				stage: z.string().nonempty(),
+			})
+			.loose(),
+		sessionBudgetUsd: z.number().positive(),
+		settingsFile: hashedFileSchema.optional(),
+		spendCeilingUsd: z.number().positive().optional(),
+		stage: z.string().nonempty(),
+		stageCostUsd: z.number().nonnegative(),
+		stale: z.boolean().optional(),
+		staleness: z.array(replayStalenessSchema).optional(),
+		timestamp: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
 	})
 	.strict();
 
-export async function readReplayRecord(
-	path: string,
-): Promise<z.infer<typeof replayRecordSchema>> {
+type ParsedReplayRecord = z.infer<typeof replayRecordSchema>;
+
+async function readReplayRecord(path: string): Promise<ParsedReplayRecord> {
 	return replayRecordSchema.parse(JSON.parse(await Bun.file(path).text()));
 }
+
+export { replayRecordSchema, readReplayRecord };
+export type { ReplayRecord, ParsedReplayRecord };

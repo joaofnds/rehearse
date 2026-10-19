@@ -1,22 +1,30 @@
 import { z } from "zod";
+
 import type { BenchmarkRunPaths, ConfirmationGroupPaths } from "./run-layout";
 import { OPERATOR_STOPPED } from "./stopped-status";
+import orderedValidationIssues from "./validation-issue-order";
+
+const RECORD_JSON_INDENT_SPACES = 2;
 
 const operatorStopRecordSchema = z.object({
+	signal: z.string().nonempty(),
 	status: z.literal(OPERATOR_STOPPED),
-	signal: z.string().min(1),
 });
 
 /** The record a signal's stop leaves, for a run or a confirmation group. */
-export function operatorStopRecord(signal: NodeJS.Signals): string {
-	return `${JSON.stringify({ status: OPERATOR_STOPPED, signal }, null, 2)}\n`;
+function operatorStopRecord(signal: NodeJS.Signals): string {
+	const record = Object.fromEntries([
+		["status", OPERATOR_STOPPED],
+		["signal", signal],
+	]);
+	return `${JSON.stringify(record, null, RECORD_JSON_INDENT_SPACES)}\n`;
 }
 
 /**
  * Whether a signal ended the run or group, which `run-abort.ts` and the
  * group executors record on disk.
  */
-export async function operatorStopped(
+async function operatorStopped(
 	paths: Readonly<Pick<BenchmarkRunPaths, "operatorStopFile">>,
 ): Promise<boolean> {
 	const file = Bun.file(paths.operatorStopFile);
@@ -24,7 +32,16 @@ export async function operatorStopped(
 		return false;
 	}
 
-	operatorStopRecordSchema.parse(JSON.parse(await file.text()));
+	const parsed = operatorStopRecordSchema.safeParse(
+		JSON.parse(await file.text()),
+	);
+	if (!parsed.success) {
+		const issues = orderedValidationIssues({
+			error: parsed.error,
+			order: { fields: ["status", "signal"] },
+		});
+		throw new z.ZodError([...issues]);
+	}
 
 	return true;
 }
@@ -34,7 +51,7 @@ export async function operatorStopped(
  * group writes none by design, so readers leave it out rather than report it
  * unreadable.
  */
-export async function stoppedBeforeGroupRecord(
+async function stoppedBeforeGroupRecord(
 	paths: Readonly<
 		Pick<ConfirmationGroupPaths, "groupFile" | "operatorStopFile">
 	>,
@@ -44,3 +61,5 @@ export async function stoppedBeforeGroupRecord(
 		(await operatorStopped(paths))
 	);
 }
+
+export { operatorStopRecord, operatorStopped, stoppedBeforeGroupRecord };

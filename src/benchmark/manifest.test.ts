@@ -2,65 +2,68 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { RunManifest } from "./manifest";
 import { loadRunManifest, writeRunManifest } from "./manifest";
 import { benchmarkRunPaths } from "./run-layout";
 import { TEST_TARGET, TestResources } from "./test-support";
 
+const FIXTURE_JSON_INDENT_SPACES = 2;
+
+function manifestFixture(): RunManifest {
+	return {
+		baselineChecks: {
+			evidence: [
+				{
+					claim: "All baseline checks exited successfully",
+					path: "bun --version",
+					source: "local-checks",
+				},
+			],
+			status: "PASS",
+		},
+		caseId: "audit-log",
+		controlSha: "control-sha",
+		effort: "high",
+		judgeEffort: "high",
+		judgeModel: "opus",
+		model: "sonnet",
+		pipeline: {
+			stages: [
+				{
+					artifact: "spec",
+					kind: "planning",
+					name: "discuss",
+					requiresAcceptanceCriteria: false,
+					rubric: "rubrics/discuss.json",
+					skill: "discuss",
+				},
+				{
+					kind: "delivery",
+					name: "build",
+					rubric: "rubrics/build.json",
+					skill: "build",
+				},
+			],
+			statuses: ["To Do", "Done"],
+			target: TEST_TARGET,
+		},
+		pipelinePath: "pipelines/default.json",
+		productBrief: "Brief text",
+		sessionBudgetUsd: 5,
+		sourceRoot: "/tmp/target",
+		sourceSha: "source-sha",
+		task: "Task text",
+		taskId: "TASK-1",
+		taskSha: "task-sha",
+		timestamp: "2026-08-30T00:00:00.000Z",
+	};
+}
+
 const testResources = TestResources.forEachTest();
 
-describe(loadRunManifest.name, () => {
-	function manifestFixture(): RunManifest {
-		return {
-			caseId: "audit-log",
-			timestamp: "2026-08-30T00:00:00.000Z",
-			controlSha: "control-sha",
-			sourceRoot: "/tmp/target",
-			sourceSha: "source-sha",
-			taskId: "TASK-1",
-			taskSha: "task-sha",
-			task: "Task text",
-			productBrief: "Brief text",
-			model: "sonnet",
-			effort: "high",
-			judgeModel: "opus",
-			judgeEffort: "high",
-			sessionBudgetUsd: 5,
-			pipeline: {
-				statuses: ["To Do", "Done"],
-				target: TEST_TARGET,
-				stages: [
-					{
-						name: "discuss",
-						kind: "planning",
-						skill: "discuss",
-						artifact: "spec",
-						rubric: "rubrics/discuss.json",
-						requiresAcceptanceCriteria: false,
-					},
-					{
-						name: "build",
-						kind: "delivery",
-						skill: "build",
-						rubric: "rubrics/build.json",
-					},
-				],
-			},
-			pipelinePath: "pipelines/default.json",
-			baselineChecks: {
-				status: "PASS",
-				evidence: [
-					{
-						source: "local-checks",
-						path: "bun --version",
-						claim: "All baseline checks exited successfully",
-					},
-				],
-			},
-		};
-	}
-
-	it("round-trips the manifest a run wrote", async () => {
+const loadRunManifestRoundtripsTheManifestARunWrote =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
@@ -71,9 +74,10 @@ describe(loadRunManifest.name, () => {
 
 		expect(await loadRunManifest(paths.manifestFile)).toEqual(manifest);
 		expect(manifestStats.isFile()).toBe(true);
-	});
+	};
 
-	it("reads a manifest recorded before baseline checks were captured", async () => {
+const loadRunManifestReadsAManifestRecordedBeforeBaselineChecksWereCaptured =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
@@ -83,9 +87,10 @@ describe(loadRunManifest.name, () => {
 		const loaded = await loadRunManifest(paths.manifestFile);
 
 		expect(loaded.baselineChecks).toBeUndefined();
-	});
+	};
 
-	it("reads a manifest without a caseId as the audit-log case", async () => {
+const loadRunManifestReadsAManifestWithoutACaseIdAsTheAuditlogCase =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
@@ -96,9 +101,10 @@ describe(loadRunManifest.name, () => {
 		const loaded = await loadRunManifest(paths.manifestFile);
 
 		expect(loaded.caseId).toBe("audit-log");
-	});
+	};
 
-	it("loads a pre-target manifest with the former target configuration", async () => {
+const loadRunManifestLoadsAPretargetManifestWithTheFormerTargetConfiguration =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
@@ -106,7 +112,7 @@ describe(loadRunManifest.name, () => {
 		const { target: _target, ...legacyPipeline } = manifest.pipeline;
 		await Bun.write(
 			paths.manifestFile,
-			`${JSON.stringify({ ...manifest, pipeline: legacyPipeline }, null, 2)}\n`,
+			`${JSON.stringify({ ...manifest, pipeline: legacyPipeline }, null, FIXTURE_JSON_INDENT_SPACES)}\n`,
 		);
 
 		const loaded = await loadRunManifest(paths.manifestFile);
@@ -128,9 +134,10 @@ describe(loadRunManifest.name, () => {
 			],
 			integrityFiles: ["package.json", "tsconfig.json", "biome.json"],
 		});
-	});
+	};
 
-	it("names the missing manifest when the run predates manifests", async () => {
+const loadRunManifestNamesTheMissingManifestWhenTheRunPredatesManifests =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
@@ -138,18 +145,50 @@ describe(loadRunManifest.name, () => {
 		expect(loadRunManifest(paths.manifestFile)).rejects.toThrow(
 			"runs recorded before manifests cannot be replayed",
 		);
-	});
+	};
 
-	it("rejects a manifest that lost a field it later needs", async () => {
+const loadRunManifestRejectsAManifestThatLostAFieldItLaterNeeds =
+	async (): Promise<void> => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-manifest-"));
 		testResources.track(directory);
 		const paths = benchmarkRunPaths(directory, "run");
 		const { taskSha: _taskSha, ...truncated } = manifestFixture();
 		await Bun.write(
 			paths.manifestFile,
-			`${JSON.stringify(truncated, null, 2)}\n`,
+			`${JSON.stringify(truncated, null, FIXTURE_JSON_INDENT_SPACES)}\n`,
 		);
 
 		expect(loadRunManifest(paths.manifestFile)).rejects.toThrow();
-	});
+	};
+
+describe(loadRunManifest.name, () => {
+	it(
+		"round-trips the manifest a run wrote",
+		loadRunManifestRoundtripsTheManifestARunWrote,
+	);
+
+	it(
+		"reads a manifest recorded before baseline checks were captured",
+		loadRunManifestReadsAManifestRecordedBeforeBaselineChecksWereCaptured,
+	);
+
+	it(
+		"reads a manifest without a caseId as the audit-log case",
+		loadRunManifestReadsAManifestWithoutACaseIdAsTheAuditlogCase,
+	);
+
+	it(
+		"loads a pre-target manifest with the former target configuration",
+		loadRunManifestLoadsAPretargetManifestWithTheFormerTargetConfiguration,
+	);
+
+	it(
+		"names the missing manifest when the run predates manifests",
+		loadRunManifestNamesTheMissingManifestWhenTheRunPredatesManifests,
+	);
+
+	it(
+		"rejects a manifest that lost a field it later needs",
+		loadRunManifestRejectsAManifestThatLostAFieldItLaterNeeds,
+	);
 });

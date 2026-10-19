@@ -1,33 +1,42 @@
 import { join } from "node:path";
+
 import type { LoadedCase, SessionCase } from "#benchmark/case";
 import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { pathExists } from "#benchmark/file-presence";
 import type { Confinement } from "#cli/commands";
-import { sandboxFor } from "#cli/sandbox";
+import sandboxFor from "#cli/sandbox";
 
-export const CONFINED_VARIABLE = "REHEARSE_CONFINED";
+const ENVIRONMENT_VALUE_ENTRY_INDEX = 1;
+const RUNTIME_EXECUTABLE_ARGUMENT_COUNT = 1;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const CONFINED_VARIABLE = "REHEARSE_CONFINED";
 
 /**
  * Which Claude Code tools run commands could not be established, and hooks
  * run commands whatever the tools are, so any tool, any declared hook, or
  * project settings the fixture brings in count.
  */
-export function sessionCanRunCommands(
+async function sessionCanRunCommands(
 	sessionCase: SessionCase,
 ): Promise<boolean> {
 	const { fixturePath, settings, tools } = sessionCase;
-	if (tools.length > 0 || settings?.["hooks"] !== undefined) {
-		return Promise.resolve(true);
+	if (
+		tools.length > EMPTY_COLLECTION_LENGTH ||
+		settings?.["hooks"] !== undefined
+	) {
+		return true;
 	}
 	if (fixturePath === undefined) {
-		return Promise.resolve(false);
+		return false;
 	}
 
-	return pathExists(join(fixturePath, ".claude"));
+	return await pathExists(join(fixturePath, ".claude"));
 }
 
-export async function confinesItself(
+async function confinesItself(
 	confinement: Confinement,
 	loadRunCase: () => Promise<LoadedCase>,
 ): Promise<boolean> {
@@ -51,12 +60,12 @@ export async function confinesItself(
 	}
 }
 
-export interface ProcessImage {
+interface ProcessImage {
 	readonly path: string;
 	readonly args: readonly string[];
 }
 
-export type Confined =
+type Confined =
 	| { readonly kind: "confined"; readonly image: ProcessImage }
 	| { readonly kind: "refused"; readonly reason: string };
 
@@ -64,11 +73,11 @@ export type Confined =
  * One operating system's way to hold a process, and every process it starts,
  * so that none of them can signal a process outside it.
  */
-export interface Sandbox {
+interface Sandbox {
 	readonly confine: (argv: readonly string[]) => Promise<Confined>;
 }
 
-export interface ConfinementHost {
+interface ConfinementHost {
 	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly argv: readonly string[];
 	readonly sandbox: Sandbox;
@@ -89,7 +98,7 @@ function isConfined(
  * marker, Stop, Ctrl-C and SIGHUP all reach the confined run with no wrapper
  * process to forward them.
  */
-export async function enterConfinement(host: ConfinementHost): Promise<void> {
+async function enterConfinement(host: ConfinementHost): Promise<void> {
 	const confined = await host.sandbox.confine(host.argv);
 	if (confined.kind === "refused") {
 		throw new RefusedPreconditionError(confined.reason);
@@ -97,7 +106,8 @@ export async function enterConfinement(host: ConfinementHost): Promise<void> {
 
 	const env = Object.fromEntries(
 		Object.entries(host.env).filter(
-			(entry): entry is [string, string] => entry[1] !== undefined,
+			(entry): entry is [string, string] =>
+				entry[ENVIRONMENT_VALUE_ENTRY_INDEX] !== undefined,
 		),
 	);
 
@@ -111,7 +121,7 @@ export async function enterConfinement(host: ConfinementHost): Promise<void> {
  * Confines the process when its command's sessions can run commands and the
  * sandbox does not already hold it.
  */
-export async function confineIfNeeded(
+async function confineIfNeeded(
 	confinement: Confinement,
 	loadRunCase: () => Promise<LoadedCase>,
 	host: ConfinementHost,
@@ -126,11 +136,14 @@ export async function confineIfNeeded(
 	await enterConfinement(host);
 }
 
-export function liveConfinementHost(): ConfinementHost {
+function liveConfinementHost(): ConfinementHost {
 	return {
+		argv: [
+			process.execPath,
+			...process.execArgv,
+			...process.argv.slice(RUNTIME_EXECUTABLE_ARGUMENT_COUNT),
+		],
 		env: Bun.env,
-		argv: [process.execPath, ...process.execArgv, ...process.argv.slice(1)],
-		sandbox: sandboxFor(process.platform, pathExists),
 		replaceProcess: (image, env) => {
 			if (process.execve === undefined) {
 				throw new RefusedPreconditionError(
@@ -139,5 +152,16 @@ export function liveConfinementHost(): ConfinementHost {
 			}
 			process.execve(image.path, image.args, env);
 		},
+		sandbox: sandboxFor(process.platform, pathExists),
 	};
 }
+
+export {
+	CONFINED_VARIABLE,
+	confineIfNeeded,
+	confinesItself,
+	enterConfinement,
+	liveConfinementHost,
+	sessionCanRunCommands,
+};
+export type { Confined, ConfinementHost, ProcessImage, Sandbox };

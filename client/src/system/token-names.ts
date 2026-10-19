@@ -1,4 +1,4 @@
-export const COLOR_TOKENS = [
+const COLOR_TOKENS = [
 	"--color-canvas",
 	"--color-surface",
 	"--color-surface-2",
@@ -43,9 +43,10 @@ export const COLOR_TOKENS = [
 	"--color-diff-add",
 	"--color-diff-remove",
 	"--color-accent-border",
+	"--color-scrollbar-thumb",
 ] as const;
 
-export const RADIUS_TOKENS = [
+const RADIUS_TOKENS = [
 	"--radius-focus",
 	"--radius-chip",
 	"--radius-small-element",
@@ -54,3 +55,5 @@ export const RADIUS_TOKENS = [
 	"--radius-section",
 	"--radius-dialog",
 ] as const;
+
+export { COLOR_TOKENS, RADIUS_TOKENS };

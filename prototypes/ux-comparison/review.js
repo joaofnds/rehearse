@@ -1,4 +1,7 @@
-import { required } from "./dom.js";
+import required from "./dom.js";
+
+const NEXT_SCENE_STEP = 1;
+const PREVIOUS_SCENE_STEP = -1;
 
 const scenes = [...document.querySelectorAll(".scene")].filter(
 	(item) => item instanceof HTMLElement,
@@ -104,7 +107,9 @@ document.addEventListener("keydown", (event) => {
 		const index = choices.findIndex((item) => item.dataset["choose"] === scene);
 		scene =
 			choices[
-				(index + (event.key === "ArrowRight" ? 1 : -1) + choices.length) %
+				(index +
+					(event.key === "ArrowRight" ? NEXT_SCENE_STEP : PREVIOUS_SCENE_STEP) +
+					choices.length) %
 					choices.length
 			]?.dataset["choose"] ?? "results";
 		render();

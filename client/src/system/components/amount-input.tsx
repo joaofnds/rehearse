@@ -1,16 +1,18 @@
-export function AmountInput({
-	value,
-	onChange,
-	accessibleName,
-	id,
-	prefix = "USD",
-}: {
+interface AmountInputProps {
 	readonly value: string;
 	readonly onChange: (value: string) => void;
 	readonly accessibleName: string;
 	readonly id?: string;
 	readonly prefix?: "USD" | "USD per run";
-}): React.JSX.Element {
+}
+
+function AmountInput({
+	value,
+	onChange,
+	accessibleName,
+	id,
+	prefix = "USD",
+}: AmountInputProps): React.JSX.Element {
 	return (
 		<label className="inline-flex h-touch-target min-w-0 max-w-full items-center gap-2 rounded-md border border-strong bg-background px-3 focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-3">
 			<span
@@ -32,3 +34,5 @@ export function AmountInput({
 		</label>
 	);
 }
+
+export { AmountInput as default };

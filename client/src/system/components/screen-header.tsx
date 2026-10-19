@@ -1,18 +1,20 @@
 import type { ReactNode } from "react";
 
-export function ScreenHeader({
-	title,
-	eyebrow,
-	subline,
-	lead,
-	aside,
-}: {
+interface ScreenHeaderProps {
 	readonly title: string;
 	readonly eyebrow?: string;
 	readonly subline?: ReactNode;
 	readonly lead?: ReactNode;
 	readonly aside?: ReactNode;
-}): React.JSX.Element {
+}
+
+function ScreenHeader({
+	title,
+	eyebrow,
+	subline,
+	lead,
+	aside,
+}: ScreenHeaderProps): React.JSX.Element {
 	return (
 		<header className="page-gutter border-b border-divider py-7 sm:py-8">
 			{lead === undefined ? null : <div className="mb-3">{lead}</div>}
@@ -41,3 +43,5 @@ export function ScreenHeader({
 		</header>
 	);
 }
+
+export { ScreenHeader as default };

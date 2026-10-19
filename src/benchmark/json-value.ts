@@ -6,7 +6,7 @@ import { z } from "zod";
  * as JSON rather than as a dictionary of unknowns keeps the contract honest —
  * the value is re-serialized verbatim and nothing here reaches into it.
  */
-export type JsonValue =
+type JsonValue =
 	| string
 	| number
 	| boolean
@@ -14,7 +14,7 @@ export type JsonValue =
 	| readonly JsonValue[]
 	| { readonly [key: string]: JsonValue };
 
-export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 	z.union([
 		z.string(),
 		z.number(),
@@ -25,8 +25,11 @@ export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 	]),
 );
 
-export const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
+const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
 
-export const jsonArraySchema = z.array(jsonValueSchema);
+const jsonArraySchema = z.array(jsonValueSchema);
 
-export type JsonObject = z.infer<typeof jsonObjectSchema>;
+type JsonObject = z.infer<typeof jsonObjectSchema>;
+
+export { jsonValueSchema, jsonObjectSchema, jsonArraySchema };
+export type { JsonValue, JsonObject };

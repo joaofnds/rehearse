@@ -1,20 +1,33 @@
 import { Link } from "@tanstack/react-router";
+
 import type { ComparisonArm } from "#benchmark/comparison-record";
+import { spendReading } from "#client/run-history/run-progress";
+
 import type { ComparisonResponse } from "./comparison-response";
-import { corpusVersionText, DESIGN_ARMS } from "./design-arms";
+import { DESIGN_ARMS, corpusVersionText } from "./design-arms";
+
+const ORDINAL_BASE = 1;
+
+const SINGLE_ITEM_COUNT = 1;
 
 type CaseArmFigures = ComparisonResponse["armFigures"][string];
+
 type ArmFigures = CaseArmFigures[ComparisonArm];
+
 type MeasureFigure = ArmFigures["measures"][string];
+
 type ArmCorpusVersions = ComparisonResponse["corpusVersions"][string];
+
 type ArmCorpusVersion = ArmCorpusVersions[ComparisonArm];
+
 type BaselineArm = ComparisonResponse["baselineArm"];
+
 type CaseHistories = ComparisonResponse["attemptHistories"][string];
 
 const BORDERS = {
-	control: "border-border",
 	baseline: "border-strong",
 	candidate: "border-deeper",
+	control: "border-border",
 } as const satisfies Readonly<Record<ComparisonArm, string>>;
 
 function baselineDescription(baselineArm: BaselineArm): string {
@@ -54,15 +67,17 @@ function armDescription(arm: ComparisonArm, baselineArm: BaselineArm): string {
 	}
 }
 
+interface MeasureReadingProps {
+	readonly name: string;
+	readonly figure: MeasureFigure;
+	readonly named: boolean;
+}
+
 function MeasureReading({
 	name,
 	figure,
 	named,
-}: {
-	readonly name: string;
-	readonly figure: MeasureFigure;
-	readonly named: boolean;
-}): React.JSX.Element {
+}: MeasureReadingProps): React.JSX.Element {
 	let label = named ? `${name} · ` : "";
 	if (name === "checks") {
 		label = "recorded check outcome · ";
@@ -104,7 +119,7 @@ function MeasureReading({
 function costAndWords(figures: ArmFigures): string {
 	const cost =
 		figures.cost.state === "available"
-			? `$${figures.cost.totalUsd.toFixed(2)}`
+			? spendReading(figures.cost.totalUsd)
 			: `cost not recorded: ${figures.cost.reasons.join("; ")}`;
 	const words =
 		figures.words.state === "available"
@@ -126,6 +141,16 @@ function groupDestinations(
 	return [...new Set(groups)];
 }
 
+interface ArmCardProps {
+	readonly digest: string;
+	readonly groups: readonly string[];
+	readonly role: string;
+	readonly border: string;
+	readonly version: ArmCorpusVersion;
+	readonly description: string;
+	readonly figures: ArmFigures;
+}
+
 function ArmCard({
 	digest,
 	groups,
@@ -134,15 +159,7 @@ function ArmCard({
 	version,
 	description,
 	figures,
-}: {
-	readonly digest: string;
-	readonly groups: readonly string[];
-	readonly role: string;
-	readonly border: string;
-	readonly version: ArmCorpusVersion;
-	readonly description: string;
-	readonly figures: ArmFigures;
-}): React.JSX.Element {
+}: ArmCardProps): React.JSX.Element {
 	const measures = Object.entries(figures.measures);
 
 	return (
@@ -164,39 +181,19 @@ function ArmCard({
 					key={name}
 					name={name}
 					figure={figure}
-					named={measures.length > 1}
+					named={measures.length > SINGLE_ITEM_COUNT}
 				/>
 			))}
 			<div className="mt-1 font-mono text-12 text-muted-foreground">
 				{costAndWords(figures)}
 			</div>
-			<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-				{groups.map((group, index) => (
-					<Link
-						key={group}
-						to="/groups/$groupId"
-						params={{ groupId: group }}
-						search={{ view: "attempts", comparison: digest }}
-						className="text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
-					>
-						{groups.length === 1 ? "Open group" : `Open group ${index + 1}`}
-					</Link>
-				))}
-			</div>
+			<ArmGroupLinks groups={groups} digest={digest} />
 		</article>
 	);
 }
 
 /** Each arm's corpus and recorded figures, beside its source groups. */
-export function ArmCardsBand({
-	digest,
-	histories,
-	caseId,
-	showCase,
-	figures,
-	corpusVersions,
-	baselineArm,
-}: {
+interface ArmCardsBandProps {
 	readonly digest: string;
 	readonly histories: CaseHistories | undefined;
 	readonly caseId: string;
@@ -204,7 +201,17 @@ export function ArmCardsBand({
 	readonly figures: CaseArmFigures;
 	readonly corpusVersions: ArmCorpusVersions;
 	readonly baselineArm: BaselineArm;
-}): React.JSX.Element {
+}
+
+function ArmCardsBand({
+	digest,
+	histories,
+	caseId,
+	showCase,
+	figures,
+	corpusVersions,
+	baselineArm,
+}: ArmCardsBandProps): React.JSX.Element {
 	return (
 		<section
 			aria-label={`Arms · ${caseId}`}
@@ -234,3 +241,33 @@ export function ArmCardsBand({
 		</section>
 	);
 }
+
+interface ArmGroupLinksProps {
+	readonly groups: readonly string[];
+	readonly digest: string;
+}
+
+function ArmGroupLinks({
+	groups,
+	digest,
+}: ArmGroupLinksProps): React.JSX.Element {
+	return (
+		<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+			{groups.map((group, index) => (
+				<Link
+					key={group}
+					to="/groups/$groupId"
+					params={{ groupId: group }}
+					search={{ comparison: digest, view: "attempts" }}
+					className="text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
+				>
+					{groups.length === SINGLE_ITEM_COUNT
+						? "Open group"
+						: `Open group ${index + ORDINAL_BASE}`}
+				</Link>
+			))}
+		</div>
+	);
+}
+
+export { ArmCardsBand as default };

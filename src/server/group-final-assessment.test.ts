@@ -2,17 +2,25 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
+
 import { confirmationGroupPaths } from "#benchmark/run-layout";
-import { expectHistoryError } from "./evidence-test-support";
-import { readGroupFinalAssessment } from "./group-final-assessment";
+import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
+
+import expectHistoryError from "./evidence-test-support";
+import readGroupFinalAssessment from "./group-final-assessment";
+
+const RESOURCE_DRAIN_START_INDEX = 0;
 
 const roots: string[] = [];
+
 afterEach(async () => {
 	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
+		roots.splice(RESOURCE_DRAIN_START_INDEX).map(async (root) => {
+			await rm(root, { force: true, recursive: true });
+		}),
 	);
 });
+
 async function fixture(recordsName?: string): Promise<{
 	readonly runsDirectory: string;
 	readonly groupId: string;
@@ -26,118 +34,167 @@ async function fixture(recordsName?: string): Promise<{
 	await mkdir(runsDirectory, { recursive: true });
 	const records = new RecordedRunsFixture(runsDirectory);
 	const groupId = "group-final";
-	await records.writePipelineGroup(groupId, [
-		{ discussion: "pass", build: "pass", final: "fail" },
-		{ discussion: "pass", build: "pass", final: "pass" },
+	await records.confirmations.records.writePipelineGroup(groupId, [
+		{ build: "pass", discussion: "pass", final: "fail" },
+		{ build: "pass", discussion: "pass", final: "pass" },
 	]);
 	const repId = `${groupId}-rep-1`;
 	return {
-		runsDirectory,
-		groupId,
-		repId,
 		finalFile: confirmationGroupPaths(runsDirectory, groupId).rep(repId)
 			.finalFile,
+		groupId,
+		repId,
+		runsDirectory,
 	};
 }
+
 const finalRecord = {
 	grade: {
-		verdict: "FAIL",
-		summary: "The response omitted hasMore.",
 		requirements: [
 			{
-				id: "response-contract",
-				status: "FAIL",
 				evidence: [
 					{
-						source: "diff",
-						path: "src/a.ts",
 						claim: "hasMore is absent.",
-						quote: "return {items: []}",
 						locator: {
-							kind: "lines",
-							file: "src/a.ts",
-							startLine: 12,
 							endLine: 12,
+							file: "src/a.ts",
+							kind: "lines",
 							occurrences: 1,
+							startLine: 12,
 						},
+						path: "src/a.ts",
+						quote: "return {items: []}",
+						source: "diff",
 					},
 				],
+				id: "response-contract",
+				status: "FAIL",
 			},
 		],
+		summary: "The response omitted hasMore.",
+		verdict: "FAIL",
 	},
 };
+
 describe(readGroupFinalAssessment.name, () => {
-	it("reads independently judged requirements with retained quotes and source locations", async () => {
-		const saved = await fixture();
-		await Bun.write(saved.finalFile, JSON.stringify(finalRecord));
-		const result = await readGroupFinalAssessment(saved);
-		expect(result).toEqual({
-			state: "available",
-			summary: finalRecord.grade.summary,
-			requirements: [
-				{
-					id: "response-contract",
-					status: "FAIL",
-					evidence: [
-						{
-							source: "diff",
-							path: "src/a.ts",
-							claim: "hasMore is absent.",
-							quote: "return {items: []}",
-							place: "src/a.ts:12",
-						},
-					],
-				},
-			],
-		});
-	});
-	it("labels older verdict-only records as missing evidence", async () => {
-		const saved = await fixture();
-		const result = await readGroupFinalAssessment(saved);
-		expect(result.state).toBe("unavailable");
-		if (result.state === "unavailable") {
-			expect(result.reason).toContain("final verdict only");
-		}
-	});
-	it("does not borrow an assessment with a different verdict", async () => {
-		const saved = await fixture();
-		await Bun.write(
-			saved.finalFile,
-			JSON.stringify({
-				...finalRecord,
-				grade: { ...finalRecord.grade, verdict: "PASS" },
-			}),
-		);
-		expect(await readGroupFinalAssessment(saved)).toMatchObject({
-			state: "unavailable",
-		});
-	});
-	it("handles malformed final JSON without substituting a failed grade", async () => {
-		const saved = await fixture();
-		await Bun.write(saved.finalFile, "{broken");
-		const result = await readGroupFinalAssessment(saved);
-		expect(result.state).toBe("unavailable");
-		if (result.state === "unavailable") {
-			expect(result.reason).toContain("not readable JSON");
-		}
-	});
-	it("refuses an evidence symlink even inside the records directory", async () => {
-		const saved = await fixture();
-		const other = join(saved.runsDirectory, "other.json");
-		await Bun.write(other, JSON.stringify(finalRecord));
-		await symlink(other, saved.finalFile);
-		await expectHistoryError(readGroupFinalAssessment(saved), "refused");
-		await unlink(saved.finalFile);
-	});
-	it("reads an owned final assessment under a records directory named confirmations", async () => {
-		const saved = await fixture("confirmations");
-		await Bun.write(saved.finalFile, JSON.stringify(finalRecord));
+	it(
+		"reads independently judged requirements with retained quotes and source locations",
+		verifyReadGroupFinalAssessmentNameReadsIndependentlyJudgedRequirementsWithRetainedQuotesAndSourceLocations,
+	);
 
-		const result = await readGroupFinalAssessment(saved);
+	it(
+		"labels older verdict-only records as missing evidence",
+		verifyReadGroupFinalAssessmentNameLabelsOlderVerdictOnlyRecordsAsMissingEvidence,
+	);
 
-		expect(result).toMatchObject({
-			state: "available",
-			summary: finalRecord.grade.summary,
-		});
-	});
+	it(
+		"does not borrow an assessment with a different verdict",
+		verifyReadGroupFinalAssessmentNameDoesNotBorrowAnAssessmentWithADifferentVerdict,
+	);
+
+	it(
+		"handles malformed final JSON without substituting a failed grade",
+		verifyReadGroupFinalAssessmentNameHandlesMalformedFinalJSONWithoutSubstitutingAFailedGrade,
+	);
+
+	it(
+		"refuses an evidence symlink even inside the records directory",
+		verifyReadGroupFinalAssessmentNameRefusesAnEvidenceSymlinkEvenInsideTheRecordsDirectory,
+	);
+
+	it(
+		"reads an owned final assessment under a records directory named confirmations",
+		verifyReadGroupFinalAssessmentNameReadsAnOwnedFinalAssessmentUnderARecordsDirectoryNamedConfirmations,
+	);
 });
+
+async function verifyReadGroupFinalAssessmentNameReadsIndependentlyJudgedRequirementsWithRetainedQuotesAndSourceLocations(): Promise<void> {
+	const saved = await fixture();
+	await Bun.write(saved.finalFile, JSON.stringify(finalRecord));
+
+	const result = await readGroupFinalAssessment(saved);
+
+	expect(result).toEqual({
+		requirements: [
+			{
+				evidence: [
+					{
+						claim: "hasMore is absent.",
+						path: "src/a.ts",
+						place: "src/a.ts:12",
+						quote: "return {items: []}",
+						source: "diff",
+					},
+				],
+				id: "response-contract",
+				status: "FAIL",
+			},
+		],
+		state: "available",
+		summary: finalRecord.grade.summary,
+	});
+}
+
+async function verifyReadGroupFinalAssessmentNameLabelsOlderVerdictOnlyRecordsAsMissingEvidence(): Promise<void> {
+	const saved = await fixture();
+
+	const result = await readGroupFinalAssessment(saved);
+
+	expect(result).toEqual({
+		reason:
+			"This older repetition retains the final verdict only; detailed rationale was not saved.",
+		state: "unavailable",
+	});
+}
+
+async function verifyReadGroupFinalAssessmentNameDoesNotBorrowAnAssessmentWithADifferentVerdict(): Promise<void> {
+	const saved = await fixture();
+	await Bun.write(
+		saved.finalFile,
+		JSON.stringify({
+			...finalRecord,
+			grade: { ...finalRecord.grade, verdict: "PASS" },
+		}),
+	);
+
+	const result = await readGroupFinalAssessment(saved);
+
+	expect(result).toMatchObject({
+		state: "unavailable",
+	});
+}
+
+async function verifyReadGroupFinalAssessmentNameHandlesMalformedFinalJSONWithoutSubstitutingAFailedGrade(): Promise<void> {
+	const saved = await fixture();
+	await Bun.write(saved.finalFile, "{broken");
+
+	const result = await readGroupFinalAssessment(saved);
+
+	expect(result).toEqual({
+		reason: "The saved final assessment is not readable JSON.",
+		state: "unavailable",
+	});
+}
+
+async function verifyReadGroupFinalAssessmentNameRefusesAnEvidenceSymlinkEvenInsideTheRecordsDirectory(): Promise<void> {
+	const saved = await fixture();
+	const other = join(saved.runsDirectory, "other.json");
+	await Bun.write(other, JSON.stringify(finalRecord));
+	await symlink(other, saved.finalFile);
+
+	await expectHistoryError(readGroupFinalAssessment(saved), "refused");
+
+	await unlink(saved.finalFile);
+}
+
+async function verifyReadGroupFinalAssessmentNameReadsAnOwnedFinalAssessmentUnderARecordsDirectoryNamedConfirmations(): Promise<void> {
+	const saved = await fixture("confirmations");
+	await Bun.write(saved.finalFile, JSON.stringify(finalRecord));
+
+	const result = await readGroupFinalAssessment(saved);
+
+	expect(result).toMatchObject({
+		state: "available",
+		summary: finalRecord.grade.summary,
+	});
+}

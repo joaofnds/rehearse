@@ -1,27 +1,25 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+
 import type { HashedFile } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
-import { hashCorpusLayout } from "./corpus-layout";
-import { corpusVersionLabel } from "./corpus-version-label";
+import hashCorpusLayout from "./corpus-layout";
+import type { RowReading } from "./corpus-row-readings";
+import {
+	freshAgainst,
+	rowReadings,
+	rowsJudgedAgainst,
+} from "./corpus-row-readings";
 import {
 	CorpusVersionError,
 	readCorpusUnderTest,
 	readCorpusVersion,
-	readCorpusVersionFile,
 } from "./corpus-version";
-import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
-import { loadRunManifest } from "./manifest";
-import { benchmarkRunPaths, checkpointStageNames } from "./run-layout";
-import type { RecordStaleness } from "./staleness-report";
-import { everyRecordStaleness } from "./staleness-report";
-
+import { corpusVersionLabel } from "./corpus-version-label";
 /**
  * The run-history rows the last edit invalidated: those fresh against the
  * log entry before the corpus under test and stale against it now.
  */
-export type LastEdit =
+type LastEdit =
 	| {
 			readonly kind: "measured";
 			/** The version the last edit started from. */
@@ -34,115 +32,18 @@ export type LastEdit =
 	| { readonly kind: "not-recorded"; readonly reason: string };
 
 /** Counts of distinct run-history rows, by corpus layout path. */
-export interface CorpusInvalidation {
+interface CorpusInvalidation {
 	readonly readBy: ReadonlyMap<string, number>;
 	readonly invalidated: ReadonlyMap<string, number>;
 	readonly lastEdit: LastEdit;
 }
 
-interface RowReading extends Pick<RecordStaleness, "id" | "readFiles"> {
-	/** Undefined when no judgment answers for the row the history shows. */
-	readonly stale: boolean | undefined;
-}
-
-/**
- * A run's row reads what any of its stages read, and is judged as the run
- * history judges it: by the stage its judge stopped, which stands under the
- * run's own id, or else by its latest checkpoint directory in pipeline order,
- * the initial one when it recorded no stage. Either carries every upstream
- * cause. A directory holding no judged record has no judgment, and neither
- * does a run whose stopped stage cannot be read, since its checkpoint would
- * read clean for a stage that may be stale.
- */
-async function runRow(
-	runsDirectory: string,
-	run: string,
-	records: readonly RecordStaleness[],
-	stopUnreadable: boolean,
-): Promise<RowReading> {
-	const manifest = await loadRunManifest(
-		benchmarkRunPaths(runsDirectory, run).manifestFile,
-	);
-	const recorded = new Set(await checkpointStageNames(runsDirectory, run));
-	const latest =
-		manifest.pipeline.stages
-			.map(({ name }) => name)
-			.findLast((name) => recorded.has(name)) ?? INITIAL_CHECKPOINT_STAGE;
-	const judged = stopUnreadable
-		? undefined
-		: (records.find(({ id }) => id === `run:${run}`) ??
-			records.find(({ id }) => id === `checkpoint:${run}/${latest}`));
-
-	return {
-		id: `run:${run}`,
-		stale: judged?.stale,
-		readFiles: records.flatMap(({ readFiles }) => readFiles),
+interface CorpusEditImpact {
+	readonly layoutPaths: readonly string[];
+	readonly edit: {
+		readonly path: string;
+		readonly bytes: Readonly<Uint8Array>;
 	};
-}
-
-async function rowReadings(
-	runsDirectory: string,
-	source: CorpusRoot,
-): Promise<readonly RowReading[]> {
-	const every = await everyRecordStaleness(runsDirectory, source);
-	const { byRun, unreadable } = every.checkpoints;
-	const unreadableIds = new Set(unreadable.map(({ id }) => id));
-	const reports = [every.sessionAttempts, every.replayAttempts, every.groups];
-	const runs = await Promise.all(
-		[...byRun.entries()].map(([run, records]) =>
-			runRow(runsDirectory, run, records, unreadableIds.has(`run:${run}`)),
-		),
-	);
-
-	return [...runs, ...reports.flatMap(({ records }) => records)];
-}
-
-/** One file of a corpus written to a scratch directory, read when it is written. */
-interface ScratchFile {
-	readonly path: string;
-	readonly bytes: () => Promise<Readonly<Uint8Array>>;
-}
-
-/**
- * The rows judged against a corpus that exists only as files, judged as
- * `stale` judges the live corpus: the files are written to a scratch
- * directory and judged as a corpus source.
- */
-async function rowsJudgedAgainst(
-	runsDirectory: string,
-	files: readonly ScratchFile[],
-): Promise<readonly RowReading[]> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-corpus-version-"));
-	try {
-		for (const { path, bytes } of files) {
-			const file = join(root, path);
-			await mkdir(dirname(file), { recursive: true });
-			await Bun.write(file, await bytes());
-		}
-
-		return await rowReadings(runsDirectory, { kind: "directory", root });
-	} finally {
-		await rm(root, { recursive: true, force: true });
-	}
-}
-
-/** The ids of the rows judged fresh against a stored version. */
-async function freshAgainst(
-	runsDirectory: string,
-	version: string,
-): Promise<ReadonlySet<string>> {
-	const files = await readCorpusVersion(runsDirectory, version);
-	const rows = await rowsJudgedAgainst(
-		runsDirectory,
-		files.map(({ path }) => ({
-			path,
-			bytes: () => readCorpusVersionFile(runsDirectory, version, path),
-		})),
-	);
-
-	return new Set(
-		rows.filter(({ stale }) => stale === false).map(({ id }) => id),
-	);
 }
 
 /**
@@ -150,21 +51,20 @@ async function freshAgainst(
  * once it is applied: fresh against the corpus under test, and stale against
  * the same files with the edited one holding its new bytes.
  */
-export async function rowsAnEditInvalidates(
+async function rowsAnEditInvalidates(
 	runsDirectory: string,
 	source: CorpusRoot,
-	layoutPaths: readonly string[],
-	edit: { readonly path: string; readonly bytes: Readonly<Uint8Array> },
+	{ layoutPaths, edit }: CorpusEditImpact,
 ): Promise<readonly string[]> {
 	const before = await rowReadings(runsDirectory, source);
 	const after = await rowsJudgedAgainst(
 		runsDirectory,
 		layoutPaths.map((path) => ({
-			path,
-			bytes: () =>
-				path === edit.path
+			bytes: async () =>
+				await (path === edit.path
 					? Promise.resolve(edit.bytes)
-					: Bun.file(join(source.root, path)).bytes(),
+					: Bun.file(join(source.root, path)).bytes()),
+			path,
 		})),
 	);
 	const staleAfter = new Set(
@@ -181,20 +81,30 @@ export async function rowsAnEditInvalidates(
  * The previous version's hashes and the rows fresh against it, undefined
  * when the store no longer holds its manifest or one of its files.
  */
+interface HistoricalCorpusJudgment {
+	readonly previous: ReadonlyMap<string, string>;
+	readonly freshBefore: ReadonlySet<string>;
+}
+
+interface MeasuredInvalidationRequest {
+	readonly currentVersion: string;
+	readonly previousVersion: string;
+	readonly judgment: HistoricalCorpusJudgment;
+}
+
 async function judgedAgainst(
 	runsDirectory: string,
 	version: string,
-): Promise<
-	| {
-			readonly previous: ReadonlyMap<string, string>;
-			readonly freshBefore: ReadonlySet<string>;
-	  }
-	| undefined
-> {
+): Promise<HistoricalCorpusJudgment | undefined> {
 	try {
+		const previous = hashesByPath(
+			await readCorpusVersion(runsDirectory, version),
+		);
+		const freshBefore = await freshAgainst(runsDirectory, version);
+
 		return {
-			previous: hashesByPath(await readCorpusVersion(runsDirectory, version)),
-			freshBefore: await freshAgainst(runsDirectory, version),
+			freshBefore,
+			previous,
 		};
 	} catch (error) {
 		if (
@@ -218,7 +128,105 @@ function hashesByPath(
  * Judged against the corpus under test, as `stale` is. Unreadable records
  * are left out, since no judgment of them exists to count.
  */
-export async function corpusInvalidation(
+class CorpusRowsInvalidation {
+	readonly #rows: readonly RowReading[];
+	readonly #current: ReadonlyMap<string, string>;
+	readonly #paths: ReadonlySet<string>;
+	readonly #readBy: ReadonlyMap<string, number>;
+	public constructor(
+		rows: readonly RowReading[],
+		current: ReadonlyMap<string, string>,
+	) {
+		this.#rows = rows;
+		this.#current = current;
+		this.#paths = new Set(
+			rows.flatMap(({ readFiles }) => readFiles.map(({ path }) => path)),
+		);
+		this.#readBy = new Map(
+			[...this.#paths].map((path) => [
+				path,
+				rows.filter((row) => row.readFiles.some((file) => file.path === path))
+					.length,
+			]),
+		);
+	}
+	public async measure(
+		runsDirectory: string,
+		underTest: Awaited<ReturnType<typeof readCorpusUnderTest>>,
+	): Promise<CorpusInvalidation> {
+		if (underTest.version === undefined) {
+			return this.notRecorded(
+				"the corpus under test refused hashing, so it has no place in its log",
+			);
+		}
+
+		if (underTest.previousVersion === undefined) {
+			return this.notRecorded(
+				"the corpus under test has no earlier version in its log to compare against",
+			);
+		}
+
+		const judgedBefore = await judgedAgainst(
+			runsDirectory,
+			underTest.previousVersion,
+		);
+		if (judgedBefore === undefined) {
+			return this.notRecorded(
+				`the previous version ${corpusVersionLabel(underTest.previousVersion)} cannot be read from the store`,
+			);
+		}
+
+		return this.measured({
+			currentVersion: underTest.version,
+			judgment: judgedBefore,
+			previousVersion: underTest.previousVersion,
+		});
+	}
+	private notRecorded(reason: string): CorpusInvalidation {
+		return {
+			invalidated: new Map(),
+			lastEdit: { kind: "not-recorded", reason },
+			readBy: this.#readBy,
+		};
+	}
+	private measured({
+		currentVersion,
+		previousVersion,
+		judgment,
+	}: MeasuredInvalidationRequest): CorpusInvalidation {
+		const { previous, freshBefore } = judgment;
+		const invalidatedRows = this.#rows
+			.filter(({ id, stale }) => stale === true && freshBefore.has(id))
+			.map(({ id }) => id)
+			.toSorted();
+		const invalidated = new Map(
+			[...this.#paths].map((path) => [
+				path,
+				this.#rows.filter((row) =>
+					row.readFiles.some(
+						(file) =>
+							file.path === path &&
+							file.sha256 === previous.get(path) &&
+							file.sha256 !== this.#current.get(path),
+					),
+				).length,
+			]),
+		);
+
+		return {
+			invalidated,
+			lastEdit: {
+				count: invalidatedRows.length,
+				current: currentVersion,
+				kind: "measured",
+				previous: previousVersion,
+				rows: invalidatedRows,
+			},
+			readBy: this.#readBy,
+		};
+	}
+}
+async function corpusInvalidation(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<CorpusInvalidation> {
@@ -226,83 +234,10 @@ export async function corpusInvalidation(
 	const layout = await hashCorpusLayout(source);
 	const current = hashesByPath(layout.files);
 	const rows = await rowReadings(runsDirectory, source);
-	const paths = new Set(
-		rows.flatMap(({ readFiles }) => readFiles.map(({ path }) => path)),
-	);
-	const readBy = new Map(
-		[...paths].map((path) => [
-			path,
-			rows.filter((row) => row.readFiles.some((file) => file.path === path))
-				.length,
-		]),
-	);
 
-	if (underTest.version === undefined) {
-		return {
-			readBy,
-			invalidated: new Map(),
-			lastEdit: {
-				kind: "not-recorded",
-				reason:
-					"the corpus under test refused hashing, so it has no place in its log",
-			},
-		};
-	}
-	if (underTest.previousVersion === undefined) {
-		return {
-			readBy,
-			invalidated: new Map(),
-			lastEdit: {
-				kind: "not-recorded",
-				reason:
-					"the corpus under test has no earlier version in its log to compare against",
-			},
-		};
-	}
+	const invalidation = new CorpusRowsInvalidation(rows, current);
 
-	const judgedBefore = await judgedAgainst(
-		runsDirectory,
-		underTest.previousVersion,
-	);
-	if (judgedBefore === undefined) {
-		return {
-			readBy,
-			invalidated: new Map(),
-			lastEdit: {
-				kind: "not-recorded",
-				reason: `the previous version ${corpusVersionLabel(underTest.previousVersion)} cannot be read from the store`,
-			},
-		};
-	}
-
-	const { previous, freshBefore } = judgedBefore;
-	const invalidatedRows = rows
-		.filter(({ id, stale }) => stale === true && freshBefore.has(id))
-		.map(({ id }) => id)
-		.toSorted();
-	const invalidated = new Map(
-		[...paths].map((path) => [
-			path,
-			rows.filter((row) =>
-				row.readFiles.some(
-					(file) =>
-						file.path === path &&
-						file.sha256 === previous.get(path) &&
-						file.sha256 !== current.get(path),
-				),
-			).length,
-		]),
-	);
-
-	return {
-		readBy,
-		invalidated,
-		lastEdit: {
-			kind: "measured",
-			previous: underTest.previousVersion,
-			current: underTest.version,
-			count: invalidatedRows.length,
-			rows: invalidatedRows,
-		},
-	};
+	return await invalidation.measure(runsDirectory, underTest);
 }
+export { rowsAnEditInvalidates, corpusInvalidation };
+export type { LastEdit, CorpusInvalidation };

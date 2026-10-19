@@ -1,29 +1,24 @@
-import { useId, useState } from "react";
-import { gradeStep, STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
-import { EvidenceDialogLink } from "#client/evidence/evidence-dialog";
-import { useKeyShortcut } from "#client/shell/use-key-shortcut";
+import { STAGE_LETTER_GRADES, gradeStep } from "#benchmark/stage-letter-grades";
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
+
+import type { RowEvidence } from "./judge-evidence";
+import ItemWithEvidence from "./judge-evidence";
 import type { StageJudgeResponse } from "./stage-judge-query";
 
-export type JudgedAnswer = Extract<
-	StageJudgeResponse,
-	{ readonly state: "judged" }
->;
-export type Evidence = JudgedAnswer["hardBlockers"][number]["evidence"][number];
+const NO_EVALUATED_BAR_CELLS = 0;
 
-/** A row's evidence: what the record cites, or pending until the record exists. */
-export type RowEvidence = readonly Evidence[] | "pending";
+type JudgedAnswer = Extract<StageJudgeResponse, { readonly state: "judged" }>;
 
 type BlockerState = "fired" | "clear" | "pending";
 
-export interface BlockerRow {
+interface BlockerRow {
 	readonly id: string;
 	readonly state: BlockerState;
 	readonly evidence: RowEvidence;
 }
 
-export interface DimensionRow {
+interface DimensionRow {
 	readonly id: string;
 	readonly grade: string | undefined;
 	readonly evidence: RowEvidence;
@@ -32,11 +27,11 @@ export interface DimensionRow {
 }
 
 const BLOCKER_TONES = {
+	clear: { row: "border-border", text: "text-muted-foreground" },
 	fired: {
 		row: "border-deeper bg-fired",
 		text: "text-bright",
 	},
-	clear: { row: "border-border", text: "text-muted-foreground" },
 	pending: { row: "border-border", text: "text-dim" },
 } as const satisfies Record<
 	BlockerState,
@@ -48,14 +43,12 @@ const BAR_CELLS = STAGE_LETTER_GRADES.length;
 /** The dimension's five-cell bar: an A fills every cell, each step down one fewer. */
 function gradeBar(grade: string | undefined): string {
 	const step = grade === undefined ? undefined : gradeStep(grade);
-	const filled = step === undefined ? 0 : BAR_CELLS - step;
+	const filled = step === undefined ? NO_EVALUATED_BAR_CELLS : BAR_CELLS - step;
 
 	return "▮".repeat(filled) + "▯".repeat(BAR_CELLS - filled);
 }
 
-export function blockerState(
-	status: "PASS" | "FAIL" | undefined,
-): BlockerState {
+function blockerState(status: "PASS" | "FAIL" | undefined): BlockerState {
 	if (status === undefined) {
 		return "pending";
 	}
@@ -63,187 +56,12 @@ export function blockerState(
 	return status === "FAIL" ? "fired" : "clear";
 }
 
-/** The pane label the design sets in small capitals. */
-export function Label({
-	children,
-}: {
-	readonly children: React.ReactNode;
-}): React.JSX.Element {
-	return (
-		<div className="text-12 tracking-label text-dim uppercase">{children}</div>
-	);
-}
-
-/** What a closed toggle says of the evidence it would open. */
-function closedToggleWords(evidence: RowEvidence): string {
-	if (evidence === "pending") {
-		return "evidence pending";
-	}
-
-	return evidence.length === 0
-		? "no evidence"
-		: `${String(evidence.length)} cited`;
-}
-
-function hasEvidence(evidence: RowEvidence): boolean {
-	return evidence !== "pending" && evidence.length > 0;
-}
-
-export function EvidenceToggle({
-	evidence,
-	shown,
-	onToggle,
-}: {
-	readonly evidence: RowEvidence;
-	readonly shown: string | undefined;
-	readonly onToggle: () => void;
-}): React.JSX.Element {
-	const disabled = !hasEvidence(evidence);
-
-	return (
-		<button
-			type="button"
-			aria-expanded={shown !== undefined}
-			aria-controls={shown}
-			aria-disabled={disabled || undefined}
-			onClick={disabled ? undefined : onToggle}
-			className="flex-none rounded-tight border border-strong px-2.25 py-0.5 text-14 text-muted-foreground"
-		>
-			{shown === undefined ? closedToggleWords(evidence) : "hide evidence"}
-		</button>
-	);
-}
-
-export interface EvidenceOwner {
-	readonly run: string;
-	readonly stage: string;
-	readonly section: "hardBlockers" | "dimensions";
-	readonly item: string;
-}
-
-export function SourceChip({
-	cited,
-}: {
-	readonly cited: Evidence;
-}): React.JSX.Element {
-	return (
-		<span className="rounded-sm border border-strong px-1.5 py-0.25">
-			{cited.source}
-		</span>
-	);
-}
-
-/** The cited item's locator, or else its path, opening the evidence page. */
-export function EvidenceLink({
-	owner,
-	index,
-	cited,
-}: {
-	readonly owner: EvidenceOwner;
-	readonly index: number;
-	readonly cited: Evidence;
-}): React.JSX.Element {
-	return (
-		<EvidenceDialogLink
-			identity={{ kind: "stage", ...owner, index: String(index) }}
-		>
-			{cited.place ?? cited.path}
-		</EvidenceDialogLink>
-	);
-}
-
-function CitedEvidence({
-	owner,
-	evidence,
-	spacing,
-}: {
-	readonly owner: EvidenceOwner;
-	readonly evidence: readonly Evidence[];
-	readonly spacing: string;
-}): React.JSX.Element {
-	return (
-		<>
-			{evidence.map((cited, index) => (
-				<div
-					// The record keeps an item's evidence in the order it was cited.
-					key={String(index)}
-					className={spacing}
-				>
-					<div className="flex min-w-0 flex-wrap items-center gap-2.5 font-mono text-12 wrap-anywhere text-muted-foreground">
-						<SourceChip cited={cited} />
-						<EvidenceLink owner={owner} index={index} cited={cited} />
-					</div>
-					{cited.quote === undefined ? null : (
-						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-13 leading-transcript whitespace-pre-wrap wrap-anywhere text-bright">
-							{cited.quote}
-						</blockquote>
-					)}
-				</div>
-			))}
-		</>
-	);
-}
-
-/**
- * One rubric item: its row, and beneath it inside the same list item the
- * evidence its toggle opens once the record holds it. The `e` shortcut opens
- * it with every other item on screen (SPEC.md:356).
- */
-function ItemWithEvidence({
-	owner,
-	evidence,
-	rowClassName,
-	panelClassName,
-	label,
-	spacing,
-	children,
-}: {
-	readonly owner: EvidenceOwner;
-	readonly evidence: RowEvidence;
-	readonly rowClassName: string;
-	readonly panelClassName: string;
-	readonly label?: string;
-	readonly spacing: string;
-	readonly children: React.ReactNode;
-}): React.JSX.Element {
-	const [toggled, setToggled] = useState(false);
-	const evidenceId = useId();
-	const cited = toggled && evidence !== "pending" ? evidence : undefined;
-	useKeyShortcut(hasEvidence(evidence) ? "e" : undefined, () => {
-		setToggled(true);
-	});
-
-	return (
-		<li>
-			<div className={rowClassName}>
-				{children}
-				<EvidenceToggle
-					evidence={evidence}
-					shown={cited === undefined ? undefined : evidenceId}
-					onToggle={() => {
-						setToggled((shown) => !shown);
-					}}
-				/>
-			</div>
-			{cited === undefined ? null : (
-				<div
-					id={evidenceId}
-					className={`mt-0.5 border-l-2 border-deeper bg-background px-3.5 py-2.75 ${panelClassName}`}
-				>
-					{label === undefined ? null : <Label>{label}</Label>}
-					<CitedEvidence owner={owner} evidence={cited} spacing={spacing} />
-				</div>
-			)}
-		</li>
-	);
-}
-
 /** A hard blocker's glyph, id and state word, as each list of blockers draws it. */
-export function BlockerLine({
-	row,
-}: {
+interface BlockerLineProps {
 	readonly row: Omit<BlockerRow, "evidence">;
-}): React.JSX.Element {
+}
+
+function BlockerLine({ row }: BlockerLineProps): React.JSX.Element {
 	const tone = BLOCKER_TONES[row.state];
 
 	return (
@@ -262,11 +80,11 @@ export function BlockerLine({
 }
 
 /** A quality dimension's name, note where shown, bar and grade. */
-export function DimensionLine({
-	row,
-}: {
+interface DimensionLineProps {
 	readonly row: Omit<DimensionRow, "evidence">;
-}): React.JSX.Element {
+}
+
+function DimensionLine({ row }: DimensionLineProps): React.JSX.Element {
 	return (
 		<span className="flex min-w-0 w-full flex-col gap-2">
 			<span className="flex min-w-0 flex-wrap items-center gap-3">
@@ -297,17 +115,19 @@ export function DimensionLine({
 	);
 }
 
-export function BlockerRows({
-	run,
-	stage,
-	rows,
-	label = "Hard blockers",
-}: {
+interface BlockerRowsProps {
 	readonly run: string;
 	readonly stage: string;
 	readonly rows: readonly BlockerRow[];
 	readonly label?: string;
-}): React.JSX.Element {
+}
+
+function BlockerRows({
+	run,
+	stage,
+	rows,
+	label = "Hard blockers",
+}: BlockerRowsProps): React.JSX.Element {
 	return (
 		<ul aria-label={label} className="mt-2.5 flex flex-col gap-px">
 			{rows.map((row) => {
@@ -316,7 +136,7 @@ export function BlockerRows({
 				return (
 					<ItemWithEvidence
 						key={row.id}
-						owner={{ run, stage, section: "hardBlockers", item: row.id }}
+						owner={{ item: row.id, run, section: "hardBlockers", stage }}
 						evidence={row.evidence}
 						rowClassName={`flex min-w-0 flex-col items-start gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
 						panelClassName="mb-1.25"
@@ -334,21 +154,23 @@ export function BlockerRows({
 	);
 }
 
-export function DimensionRows({
-	run,
-	stage,
-	rows,
-}: {
+interface DimensionRowsProps {
 	readonly run: string;
 	readonly stage: string;
 	readonly rows: readonly DimensionRow[];
-}): React.JSX.Element {
+}
+
+function DimensionRows({
+	run,
+	stage,
+	rows,
+}: DimensionRowsProps): React.JSX.Element {
 	return (
 		<ul aria-label="Quality dimensions" className="mt-2.5 flex flex-col gap-px">
 			{rows.map((row) => (
 				<ItemWithEvidence
 					key={row.id}
-					owner={{ run, stage, section: "dimensions", item: row.id }}
+					owner={{ item: row.id, run, section: "dimensions", stage }}
 					evidence={row.evidence}
 					rowClassName="flex min-w-0 flex-col items-start gap-3 border-b border-subtle px-3 py-4"
 					panelClassName="mb-1.75"
@@ -360,3 +182,13 @@ export function DimensionRows({
 		</ul>
 	);
 }
+
+export {
+	EvidenceLink,
+	EvidenceToggle,
+	Label,
+	SourceChip,
+} from "./judge-evidence";
+export type { Evidence, EvidenceOwner, RowEvidence } from "./judge-evidence";
+export { BlockerLine, BlockerRows, DimensionLine, DimensionRows, blockerState };
+export type { BlockerRow, DimensionRow, JudgedAnswer };

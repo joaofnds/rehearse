@@ -7,20 +7,26 @@ import type {
 	StartedContainer,
 } from "./target-services";
 
+const INITIAL_CONTAINER_START_COUNT = 0;
+
+const FIRST_READINESS_CHECK_ORDINAL = 1;
+
 const FIRST_HOST_PORT = 49_152;
 
 /** A database a target's setup, checks and sessions reach through DATABASE_URL. */
-export const POSTGRES: TargetService = {
-	name: "postgres",
+const POSTGRES: TargetService = {
+	exports: { DATABASE_URL: "postgres://127.0.0.1:{port}/app" },
 	image: "postgres:18-alpine",
+	name: "postgres",
 	port: 5432,
 	ready: ["pg_isready", "-h", "127.0.0.1"],
-	exports: { DATABASE_URL: "postgres://127.0.0.1:{port}/app" },
 };
 
-export const READY_AT_ONCE: ServiceReadiness = {
+const READY_AT_ONCE: ServiceReadiness = {
 	checks: 1,
-	wait: () => Promise.resolve(),
+	wait: async () => {
+		await Promise.resolve();
+	},
 };
 
 interface FakeContainer {
@@ -33,7 +39,7 @@ interface FakeContainer {
  * Containers that start at once on ports counted up from the first dynamic
  * port, and pass their readiness command on the check a test seeds.
  */
-export class FakeContainerRuntime implements ContainerRuntime {
+class FakeContainerRuntime implements ContainerRuntime {
 	readonly #containers = new Map<string, FakeContainer>();
 
 	readonly #readyOnCheck = new Map<string, number>();
@@ -50,47 +56,70 @@ export class FakeContainerRuntime implements ContainerRuntime {
 
 	readonly #startCalls = new Set<string>();
 
-	readonly #startWaiters = new Map<string, PromiseWithResolvers<undefined>>();
+	readonly #startWaiters = new Map<
+		string,
+		ReturnType<typeof Promise.withResolvers<undefined>>
+	>();
 
-	#started = 0;
+	#started = INITIAL_CONTAINER_START_COUNT;
 
-	public start(
+	public async start(
 		service: TargetService,
 		owner: ContainerOwner,
 	): Promise<StartedContainer> {
-		this.#startCalls.add(service.name);
-		this.#startWaiters.get(service.name)?.resolve(undefined);
+		this.recordStartRequest(service.name);
 		if (this.#unstartable.has(service.name)) {
-			return Promise.reject(new Error(`${service.name} image is missing`));
+			return await Promise.reject(
+				new Error(`${service.name} image is missing`),
+			);
 		}
 
+		const started = this.allocate(service, owner);
+		if (this.#hangsOnStart.has(service.name)) {
+			return await Promise.withResolvers<StartedContainer>().promise;
+		}
+
+		return await Promise.resolve(started);
+	}
+
+	private recordStartRequest(name: string): void {
+		this.#startCalls.add(name);
+		this.#startWaiters.get(name)?.resolve();
+	}
+	private allocate(
+		service: TargetService,
+		owner: ContainerOwner,
+	): StartedContainer {
 		const id = `container-${this.#started}`;
 		const hostPort = FIRST_HOST_PORT + this.#started;
 		this.#started += 1;
-		this.#containers.set(id, { id, service: service.name, owner });
-		if (this.#hangsOnStart.has(service.name)) {
-			return Promise.withResolvers<StartedContainer>().promise;
-		}
+		this.#containers.set(id, { id, owner, service: service.name });
 
-		return Promise.resolve({ id, hostPort });
+		return { hostPort, id };
 	}
 
-	public succeeds(id: string, command: readonly string[]): Promise<boolean> {
+	public async succeeds(
+		id: string,
+		command: readonly string[],
+	): Promise<boolean> {
 		const name = this.#containers.get(id)?.service ?? id;
 		const commands = this.#readinessCommands.get(name) ?? [];
 		commands.push(command);
 		this.#readinessCommands.set(name, commands);
 		if (this.#stopsBeforeReady.has(name)) {
-			return Promise.reject(new Error(`${name} exited`));
+			return await Promise.reject(new Error(`${name} exited`));
 		}
 
-		return Promise.resolve(
-			commands.length >= (this.#readyOnCheck.get(name) ?? 1),
+		return await Promise.resolve(
+			commands.length >=
+				(this.#readyOnCheck.get(name) ?? FIRST_READINESS_CHECK_ORDINAL),
 		);
 	}
 
-	public owned(owner: ContainerOwner): Promise<readonly OwnedContainer[]> {
-		return Promise.resolve(
+	public async owned(
+		owner: ContainerOwner,
+	): Promise<readonly OwnedContainer[]> {
+		return await Promise.resolve(
 			[...this.#containers.values()]
 				.filter(
 					(container) =>
@@ -101,15 +130,15 @@ export class FakeContainerRuntime implements ContainerRuntime {
 		);
 	}
 
-	public remove(id: string): Promise<void> {
+	public async remove(id: string): Promise<void> {
 		const name = this.#containers.get(id)?.service ?? id;
 		if (this.#unremovable.has(name)) {
-			return Promise.reject(new Error(`${name} is stuck`));
+			await Promise.reject(new Error(`${name} is stuck`));
 		}
 
 		this.#containers.delete(id);
 
-		return Promise.resolve();
+		await Promise.resolve();
 	}
 
 	/** The services whose containers are still running, in start order. */
@@ -123,15 +152,16 @@ export class FakeContainerRuntime implements ContainerRuntime {
 	}
 
 	/** Resolves once this service's start has been asked for. */
-	public startRequested(name: string): Promise<undefined> {
+	public async startRequested(name: string): Promise<undefined> {
 		if (this.#startCalls.has(name)) {
-			return Promise.resolve(undefined);
+			await Promise.try((): undefined => undefined);
+			return;
 		}
 
 		const requested = Promise.withResolvers<undefined>();
 		this.#startWaiters.set(name, requested);
 
-		return requested.promise;
+		await requested.promise;
 	}
 
 	/** Passes this service's readiness command from its nth check on. */
@@ -167,6 +197,8 @@ export class FakeContainerRuntime implements ContainerRuntime {
 		this.#hangsOnStart.clear();
 		this.#startCalls.clear();
 		this.#startWaiters.clear();
-		this.#started = 0;
+		this.#started = INITIAL_CONTAINER_START_COUNT;
 	}
 }
+
+export { POSTGRES, READY_AT_ONCE, FakeContainerRuntime };

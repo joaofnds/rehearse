@@ -1,16 +1,26 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
+
 import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
-import { plural } from "#client/plural";
+import plural from "#client/plural";
+import ActionGroup from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
-import { ActionGroup } from "#client/system/components/action-group";
-import { EditStepsDialog } from "./edit-steps-dialog";
+
+import EditStepsDialog from "./edit-steps-dialog";
 import type { PipelinesResponse } from "./pipelines-query";
 
-export type ListedTask = PipelinesResponse["pipelines"][number];
+const NO_RECORDED_RESULTS = 0;
+
+const NO_TASK_JUDGES = 0;
+
+const NO_EXCLUDED_RECORDS = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+type ListedTask = PipelinesResponse["pipelines"][number];
 
 function runsLine({ figures }: ListedTask): string {
-	if (figures.counted + figures.leftOut === 0) {
+	if (figures.counted + figures.leftOut === NO_RECORDED_RESULTS) {
 		return NO_RUNS;
 	}
 
@@ -22,7 +32,7 @@ function targetOf({ declaredBy, targets }: ListedTask): string {
 		return declaredBy.target;
 	}
 
-	if (targets.length === 0) {
+	if (targets.length === EMPTY_COLLECTION_LENGTH) {
 		return "No declared case names its target";
 	}
 
@@ -30,7 +40,8 @@ function targetOf({ declaredBy, targets }: ListedTask): string {
 }
 
 function figuresLine(task: ListedTask): string {
-	const taskJudge = task.taskJudges === 0 ? "no final judge" : "1 final judge";
+	const taskJudge =
+		task.taskJudges === NO_TASK_JUDGES ? "no final judge" : "1 final judge";
 	const judges = `${plural(task.stageJudges, "step judge")} + ${taskJudge}`;
 
 	return [runsLine(task), plural(task.cases.length, "case"), judges].join(
@@ -41,13 +52,15 @@ function figuresLine(task: ListedTask): string {
 const OVERRIDE_DESCRIPTION =
 	"A run chose this workflow over its case's default. No case declares it, so it has no final judge of its own.";
 
+interface OpenGraphProps {
+	readonly runInFlight: string | undefined;
+	readonly reasonId: string;
+}
+
 function OpenGraph({
 	runInFlight,
 	reasonId,
-}: {
-	readonly runInFlight: string | undefined;
-	readonly reasonId: string;
-}): React.JSX.Element {
+}: OpenGraphProps): React.JSX.Element {
 	if (runInFlight !== undefined) {
 		return (
 			<Button asChild variant="quiet">
@@ -70,13 +83,12 @@ function OpenGraph({
  * bare monitor would show whichever run is newest, which may belong to
  * another task, so with none of this task's runs in flight it is disabled.
  */
-export function TaskCard({
-	task,
-	runInFlight,
-}: {
+interface TaskCardProps {
 	readonly task: ListedTask;
 	readonly runInFlight: string | undefined;
-}): React.JSX.Element {
+}
+
+function TaskCard({ task, runInFlight }: TaskCardProps): React.JSX.Element {
 	const headingId = useId();
 	const reasonId = useId();
 
@@ -85,22 +97,7 @@ export function TaskCard({
 			aria-labelledby={headingId}
 			className="flex min-w-0 flex-col gap-5 rounded-lg border border-divider bg-card p-6"
 		>
-			<header className="flex min-w-0 flex-col gap-2">
-				<h2 id={headingId} className="text-16 font-semibold wrap-anywhere">
-					{task.declaredBy?.title ?? `${task.stages.join(" → ")} workflow`}
-				</h2>
-				<p className="text-14 text-muted-foreground wrap-anywhere">
-					{targetOf(task)}
-				</p>
-				<p className="text-12 leading-reading text-dim wrap-anywhere">
-					{figuresLine(task)}
-				</p>
-				{task.figures.leftOut > 0 ? (
-					<p className="text-12 text-dim">
-						{runsLeftOut(task.figures.leftOut)}
-					</p>
-				) : null}
-			</header>
+			<TaskCardReading task={task} headingId={headingId} />
 			{task.declaredBy === null ? (
 				<p className="max-w-prose text-14 leading-reading">
 					{OVERRIDE_DESCRIPTION}
@@ -108,7 +105,7 @@ export function TaskCard({
 			) : null}
 			<div className="flex min-w-0 flex-col gap-2">
 				<p className="font-mono text-12 text-dim wrap-anywhere">{task.path}</p>
-				{task.cases.length === 0 ? null : (
+				{task.cases.length === EMPTY_COLLECTION_LENGTH ? null : (
 					<p className="text-12 text-dim wrap-anywhere">
 						Used by: {task.cases.join(", ")}
 					</p>
@@ -137,3 +134,33 @@ export function TaskCard({
 		</article>
 	);
 }
+
+interface TaskCardReadingProps {
+	readonly task: ListedTask;
+	readonly headingId: string;
+}
+
+function TaskCardReading({
+	task,
+	headingId,
+}: TaskCardReadingProps): React.JSX.Element {
+	return (
+		<header className="flex min-w-0 flex-col gap-2">
+			<h2 id={headingId} className="text-16 font-semibold wrap-anywhere">
+				{task.declaredBy?.title ?? `${task.stages.join(" → ")} workflow`}
+			</h2>
+			<p className="text-14 text-muted-foreground wrap-anywhere">
+				{targetOf(task)}
+			</p>
+			<p className="text-12 leading-reading text-dim wrap-anywhere">
+				{figuresLine(task)}
+			</p>
+			{task.figures.leftOut > NO_EXCLUDED_RECORDS ? (
+				<p className="text-12 text-dim">{runsLeftOut(task.figures.leftOut)}</p>
+			) : null}
+		</header>
+	);
+}
+
+export { TaskCard as default };
+export type { ListedTask };

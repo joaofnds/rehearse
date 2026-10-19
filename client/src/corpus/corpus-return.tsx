@@ -1,26 +1,29 @@
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+
 import type { CorpusSearch } from "./corpus-search";
 import type { CorpusExperimentSource } from "./experiment-source";
 import type { LineRange } from "./line-range";
 
 const returnEditQuery = queryOptions({
-	queryKey: ["corpus-edit-return"],
-	queryFn: (): CorpusSearch | null => null,
-	initialData: null,
 	enabled: false,
 	gcTime: Infinity,
+	initialData: null,
+	queryFn: (): CorpusSearch | null => null,
+	queryKey: ["corpus-edit-return"],
 });
 
-export function CorpusSettingsLink({
-	path,
-	lines,
-	source,
-}: {
+interface CorpusSettingsLinkProps {
 	readonly path: string | undefined;
 	readonly lines: LineRange | undefined;
 	readonly source: CorpusExperimentSource | undefined;
-}): React.JSX.Element {
+}
+
+function CorpusSettingsLink({
+	path,
+	lines,
+	source,
+}: CorpusSettingsLinkProps): React.JSX.Element {
 	const client = useQueryClient();
 
 	return (
@@ -28,11 +31,11 @@ export function CorpusSettingsLink({
 			to="/settings"
 			onClick={() => {
 				client.setQueryData(returnEditQuery.queryKey, (): CorpusSearch => ({
+					end: lines?.end,
 					file: path,
 					sourceRun: source?.run,
 					sourceStep: source?.stage,
 					start: lines?.start,
-					end: lines?.end,
 				}));
 			}}
 			className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
@@ -42,7 +45,7 @@ export function CorpusSettingsLink({
 	);
 }
 
-export function CorpusReturnLink(): React.JSX.Element | null {
+function CorpusReturnLink(): React.JSX.Element | null {
 	const client = useQueryClient();
 	const cached = useQuery(returnEditQuery);
 
@@ -59,3 +62,5 @@ export function CorpusReturnLink(): React.JSX.Element | null {
 		</Link>
 	);
 }
+
+export { CorpusReturnLink, CorpusSettingsLink };

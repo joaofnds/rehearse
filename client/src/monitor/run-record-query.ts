@@ -1,21 +1,29 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
+
+const INITIAL_RECORDED_STAGE_INDEX = 0;
+
+const FIRST_STAGE_INDEX = 0;
+
+const PREVIOUS_ELEMENT_OFFSET = 1;
 
 const runRecordRoute = apiClient.api.runs[":run"];
 
-export type RunRecordResponse = InferResponseType<
+type RunRecordResponse = InferResponseType<
 	typeof runRecordRoute.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
-export type MonitoredStage = RunRecordResponse["stages"][number];
+type MonitoredStage = RunRecordResponse["stages"][number];
 
 /** A stage whose record is written: graded, or the one that stopped the run. */
-export type EndedStage = MonitoredStage & {
+type EndedStage = MonitoredStage & {
 	readonly status: "graded" | "stopped";
 };
 
-export function hasEnded(stage: MonitoredStage): stage is EndedStage {
+function hasEnded(stage: MonitoredStage): stage is EndedStage {
 	return stage.status === "graded" || stage.status === "stopped";
 }
 
@@ -23,14 +31,14 @@ export function hasEnded(stage: MonitoredStage): stage is EndedStage {
  * How an ended stage ended: stopped by its record, or by a letter below the
  * run's minimum whatever its judge's verdict, else accepted.
  */
-export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
+function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 	return stage.status === "stopped" ||
 		(stage.grade.state === "available" && !stage.grade.reachesMinimum)
 		? "stopped"
 		: "accepted";
 }
 
-export function continuationReading(
+function continuationReading(
 	minimum: RunRecordResponse["minimumGrade"] | undefined,
 ): string {
 	return minimum?.state === "available"
@@ -39,7 +47,7 @@ export function continuationReading(
 }
 
 /** Whether a stage's judge will never return: the run ended while it awaited judgment. */
-export function judgeLeftWaiting(
+function judgeLeftWaiting(
 	record: RunRecordResponse,
 	stage: MonitoredStage,
 ): boolean {
@@ -50,7 +58,7 @@ export function judgeLeftWaiting(
 }
 
 /** The run's minimum letter that a stage's letter fell below, where both are known. */
-export function missedMinimum(
+function missedMinimum(
 	record: RunRecordResponse,
 	stage: MonitoredStage,
 ): string | undefined {
@@ -68,16 +76,19 @@ export function missedMinimum(
  * whose predecessor saved none has nothing to replay from. The first stage
  * starts from the run's initial checkpoint, which the launch checks.
  */
-export function consumedCheckpointMissing(
+function consumedCheckpointMissing(
 	record: RunRecordResponse,
 	stage: string,
 ): boolean {
 	const index = record.stages.findIndex((each) => each.stage === stage);
 
-	return index > 0 && record.stages[index - 1]?.checkpoint === "missing";
+	return (
+		index > FIRST_STAGE_INDEX &&
+		record.stages[index - PREVIOUS_ELEMENT_OFFSET]?.checkpoint === "missing"
+	);
 }
 
-export function stageReplayRefusal(
+function stageReplayRefusal(
 	record: RunRecordResponse,
 	name: string,
 ): string | undefined {
@@ -92,7 +103,7 @@ export function stageReplayRefusal(
 		return `${name} has no checkpoint to replay from`;
 	}
 	if (
-		record.stages[0]?.stage === name &&
+		record.stages[INITIAL_RECORDED_STAGE_INDEX]?.stage === name &&
 		!stage.artifactsIn.entries.some(
 			(entry) =>
 				entry.from === "upstream checkpoint" && entry.upstream === "initial",
@@ -110,18 +121,30 @@ async function fetchRunRecord(run: string): Promise<RunRecordResponse> {
 		throw new Error(`Could not read run ${run}`);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export interface RunRecordQuery {
+interface RunRecordQuery {
 	readonly queryKey: readonly ["run-record", string];
 	readonly queryFn: () => Promise<RunRecordResponse>;
 }
 
 /** One pipeline run's record: its stages in pipeline order, with each one's figures. */
-export function runRecordQuery(run: string): RunRecordQuery {
+function runRecordQuery(run: string): RunRecordQuery {
 	return {
+		queryFn: async () => await fetchRunRecord(run),
 		queryKey: ["run-record", run],
-		queryFn: () => fetchRunRecord(run),
 	};
 }
+
+export {
+	consumedCheckpointMissing,
+	continuationReading,
+	endedStatus,
+	hasEnded,
+	judgeLeftWaiting,
+	missedMinimum,
+	runRecordQuery,
+	stageReplayRefusal,
+};
+export type { EndedStage, MonitoredStage, RunRecordQuery, RunRecordResponse };

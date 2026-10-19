@@ -1,14 +1,17 @@
-import { ResourceReadings } from "./resource-readings";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
+import minutesAndSeconds from "#client/monitor/minutes-and-seconds";
 import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
-import type { PipelineRow } from "#client/shell/run-in-flight";
 import { spendReading } from "#client/run-history/run-progress";
+import type { PipelineRow } from "#client/shell/run-in-flight";
+
+import ResourceReadings from "./resource-readings";
+import stageCostReading from "./step-readings";
 import { wallTimeReading } from "./step-report";
-import { stageCostReading } from "./step-readings";
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 function startingCheckpoint(stage: MonitoredStage): string {
 	const input = stage.artifactsIn.entries.find(
@@ -26,15 +29,38 @@ function startingCheckpoint(stage: MonitoredStage): string {
 	return `${input.upstream} checkpoint`;
 }
 
-export function RunSetup({
-	row,
-	record,
-	selected,
-}: {
+interface RunSetupProps {
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
 	readonly selected: MonitoredStage;
-}): React.JSX.Element {
+}
+
+function RunSetup({ row, record, selected }: RunSetupProps): React.JSX.Element {
+	const entries = setupReadings({ record, row, selected });
+	return (
+		<section aria-label="Run setup & provenance" className="px-6 py-4">
+			<dl className="grid gap-x-6 gap-y-3 md:grid-cols-3 xl:grid-cols-4">
+				{entries.map(([term, value]) => (
+					<div key={term} className="min-w-0">
+						<dt className="text-12 tracking-label text-dim uppercase">
+							{term}
+						</dt>
+						<dd className="mt-1 font-mono text-12 wrap-anywhere text-secondary-foreground">
+							{value}
+						</dd>
+					</div>
+				))}
+			</dl>
+			<ResourceReadings record={record} stage={selected} />
+		</section>
+	);
+}
+
+function setupReadings({
+	row,
+	record,
+	selected,
+}: RunSetupProps): readonly (readonly [string, string])[] {
 	const input = startingCheckpoint(selected);
 	const entries = [
 		["Case", record.caseId],
@@ -60,7 +86,7 @@ export function RunSetup({
 		[
 			"Run cost",
 			record.totals.cost.state === "available"
-				? `${spendReading(record.totals.cost.usd)}${record.totals.cost.missing.length === 0 ? "" : " · partial"}`
+				? `${spendReading(record.totals.cost.usd)}${record.totals.cost.missing.length === EMPTY_COLLECTION_LENGTH ? "" : " · partial"}`
 				: record.totals.cost.reasons.join("; "),
 		],
 		[
@@ -71,21 +97,7 @@ export function RunSetup({
 		],
 	] as const;
 
-	return (
-		<section aria-label="Run setup & provenance" className="px-6 py-4">
-			<dl className="grid gap-x-6 gap-y-3 md:grid-cols-3 xl:grid-cols-4">
-				{entries.map(([term, value]) => (
-					<div key={term} className="min-w-0">
-						<dt className="text-12 tracking-label text-dim uppercase">
-							{term}
-						</dt>
-						<dd className="mt-1 font-mono text-12 wrap-anywhere text-secondary-foreground">
-							{value}
-						</dd>
-					</div>
-				))}
-			</dl>
-			<ResourceReadings record={record} stage={selected} />
-		</section>
-	);
+	return entries;
 }
+
+export { RunSetup as default };

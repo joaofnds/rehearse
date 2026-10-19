@@ -1,9 +1,10 @@
 import { cp, lstat, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { runCommand } from "./command";
-import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 
-export const STATE_EVIDENCE_DIRECTORY = "state";
+import { runCommand } from "./command";
+import STORED_GIT_DIRECTORY from "./git-directory-name";
+
+const STATE_EVIDENCE_DIRECTORY = "state";
 
 /**
  * The corpus overlay is an input the record already carries as per-file
@@ -40,14 +41,13 @@ const NO_HOOKS_DIRECTORY = ".rehearse-no-hooks";
  * test is not a case author who can be asked to fix its tree, and one link must
  * not discard the evidence for everything else the session did.
  */
-export async function preserveStateEvidence(
+async function preserveStateEvidence(
 	attemptDirectory: string,
 	recordDirectory: string,
 ): Promise<string> {
 	const destination = join(recordDirectory, STATE_EVIDENCE_DIRECTORY);
 
 	await cp(attemptDirectory, destination, {
-		recursive: true,
 		filter: async (source) => {
 			if (source === join(attemptDirectory, CORPUS_OVERLAY_DIRECTORY)) {
 				return false;
@@ -57,6 +57,7 @@ export async function preserveStateEvidence(
 
 			return !entry.isSymbolicLink();
 		},
+		recursive: true,
 	});
 
 	const gitDirectory = join(destination, ".git");
@@ -77,7 +78,7 @@ export async function preserveStateEvidence(
  * record through a commit did not, and without them git resolves the
  * repository to whatever encloses the restore directory.
  */
-export async function restoreStateEvidence(
+async function restoreStateEvidence(
 	evidenceDirectory: string,
 	destination: string,
 ): Promise<string> {
@@ -114,19 +115,26 @@ export async function restoreStateEvidence(
  * Every command that touches restored evidence goes through here, so the guard
  * cannot be left off one call site.
  */
-export function runAgainstStateEvidence(
+async function runAgainstStateEvidence(
 	command: readonly string[],
 	restoreDirectory: string,
 	options: { readonly timeoutMs?: number | undefined } = {},
 ): Promise<string> {
-	return runCommand(command, restoreDirectory, {
+	return await runCommand(command, restoreDirectory, {
 		env: {
 			GIT_CONFIG_COUNT: "2",
 			GIT_CONFIG_KEY_0: "core.hooksPath",
-			GIT_CONFIG_VALUE_0: join(restoreDirectory, NO_HOOKS_DIRECTORY),
 			GIT_CONFIG_KEY_1: "core.fsmonitor",
+			GIT_CONFIG_VALUE_0: join(restoreDirectory, NO_HOOKS_DIRECTORY),
 			GIT_CONFIG_VALUE_1: "",
 		},
 		timeoutMs: options.timeoutMs,
 	});
 }
+
+export {
+	STATE_EVIDENCE_DIRECTORY,
+	preserveStateEvidence,
+	restoreStateEvidence,
+	runAgainstStateEvidence,
+};

@@ -1,20 +1,26 @@
-import { STAGE_LETTER_GRADES } from "#benchmark/config";
-import type { StageLetterGrade } from "#benchmark/config";
 import type {
 	ComparisonArm,
 	ComparisonReport,
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
+import { STAGE_LETTER_GRADES } from "#benchmark/config";
+import type { StageLetterGrade } from "#benchmark/config";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
 import { missingCostReasons } from "#benchmark/more-attempts-cost";
 import type { OutputWords } from "#benchmark/output-words";
+
 import type { QualityScale } from "./comparison-quality-reading";
 import {
-	letterRange,
 	NO_GRADED_REP_REASON,
+	letterRange,
 } from "./confirmation-group-summary";
 import type { LetterRange } from "./confirmation-group-summary";
 import type { Reading } from "./run-record";
+
+const EMPTY_OBSERVATION_TOTAL = 0;
+const EMPTY_COUNT_TOTAL = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
 type ReportArm = AnyComparisonReport["cases"][number]["arms"][ComparisonArm];
@@ -25,7 +31,7 @@ type ReportArm = AnyComparisonReport["cases"][number]["arms"][ComparisonArm];
  * `graded` counts the attempts the median is taken over, which leaves out
  * an attempt that never reached the measure.
  */
-export type MeasureFigure =
+type MeasureFigure =
 	| {
 			readonly scale: "letters";
 			readonly grades: Reading<LetterRange & { readonly graded: number }>;
@@ -36,7 +42,7 @@ export type MeasureFigure =
 			readonly attempts: number;
 	  };
 
-export type ArmCost = Reading<{
+type ArmCost = Reading<{
 	readonly totalUsd: number;
 	readonly perAttemptUsd: number;
 }>;
@@ -46,19 +52,19 @@ export type ArmCost = Reading<{
  * session or a diff-only stage, leaves the average over fewer attempts than
  * the arm holds.
  */
-export type ArmWords = Reading<{
+type ArmWords = Reading<{
 	readonly averageWords: number;
 	readonly counted: number;
 	readonly attempts: number;
 }>;
 
-export interface ArmFigures {
+interface ArmFigures {
 	readonly measures: Readonly<Record<string, MeasureFigure>>;
 	readonly cost: ArmCost;
 	readonly words: ArmWords;
 }
 
-export const NO_RECORDED_WORDS_REASON =
+const NO_RECORDED_WORDS_REASON =
 	"this report records no word count for its attempts";
 
 function isLetter(grade: string): grade is StageLetterGrade {
@@ -77,9 +83,9 @@ function measureFigure(
 ): MeasureFigure {
 	if (scale === "successRate") {
 		return {
+			attempts: summary.requested,
 			scale,
 			successful: summary.successful,
-			attempts: summary.requested,
 		};
 	}
 
@@ -87,25 +93,28 @@ function measureFigure(
 	const range = letterRange(grades);
 
 	return {
-		scale,
 		grades:
 			range === undefined
-				? { state: "unavailable", reasons: [NO_GRADED_REP_REASON] }
+				? { reasons: [NO_GRADED_REP_REASON], state: "unavailable" }
 				: { state: "available", ...range, graded: grades.length },
+		scale,
 	};
 }
 
 function armCost(resources: ReportArm["resources"]): ArmCost {
 	if (resources.status === "UNAVAILABLE") {
-		return { state: "unavailable", reasons: missingCostReasons(resources) };
+		return { reasons: missingCostReasons(resources), state: "unavailable" };
 	}
 
 	const { values, mean } = resources.total.costUsd;
 
 	return {
-		state: "available",
-		totalUsd: values.reduce((sum, value) => sum + value, 0),
 		perAttemptUsd: mean,
+		state: "available",
+		totalUsd: values.reduce(
+			(sum, value) => sum + value,
+			EMPTY_OBSERVATION_TOTAL,
+		),
 	};
 }
 
@@ -121,44 +130,56 @@ function armWords(reps: readonly ReportRep[]): ArmWords {
 
 		return words === undefined ? [] : [{ repId: rep.repId, words }];
 	});
-	if (recorded.length === 0) {
-		return { state: "unavailable", reasons: [NO_RECORDED_WORDS_REASON] };
+	if (recorded.length === EMPTY_COLLECTION_LENGTH) {
+		return { reasons: [NO_RECORDED_WORDS_REASON], state: "unavailable" };
 	}
 
 	const counts = recorded.flatMap(({ words }) =>
 		words.state === "available" ? [words.words] : [],
 	);
-	if (counts.length === 0) {
+	if (counts.length === EMPTY_COLLECTION_LENGTH) {
 		return {
-			state: "unavailable",
 			reasons: recorded.flatMap(({ repId, words }) =>
 				words.state === "unavailable" ? [`${repId}: ${words.reason}`] : [],
 			),
+			state: "unavailable",
 		};
 	}
 
 	return {
-		state: "available",
-		averageWords: counts.reduce((sum, count) => sum + count, 0) / counts.length,
-		counted: counts.length,
 		attempts: reps.length,
+		averageWords:
+			counts.reduce((sum, count) => sum + count, EMPTY_COUNT_TOTAL) /
+			counts.length,
+		counted: counts.length,
+		state: "available",
 	};
 }
 
-export type CaseArmFigures = Readonly<Record<ComparisonArm, ArmFigures>>;
+type CaseArmFigures = Readonly<Record<ComparisonArm, ArmFigures>>;
 
-export function armFigures(
+function armFigures(
 	arm: Pick<ReportArm, "quality" | "source" | "resources">,
 	scaleFor: (measure: string) => QualityScale,
 ): ArmFigures {
 	return {
+		cost: armCost(arm.resources),
 		measures: Object.fromEntries(
 			arm.quality.map((summary) => [
 				summary.name,
 				measureFigure(summary, scaleFor(summary.name)),
 			]),
 		),
-		cost: armCost(arm.resources),
 		words: armWords(arm.source.reps),
 	};
 }
+
+export { NO_RECORDED_WORDS_REASON, armFigures };
+export type {
+	ReportArm,
+	MeasureFigure,
+	ArmCost,
+	ArmWords,
+	ArmFigures,
+	CaseArmFigures,
+};

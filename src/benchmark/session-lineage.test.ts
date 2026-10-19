@@ -1,51 +1,25 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+
 import type { SessionCase } from "#benchmark/case";
-import type { SessionSettings } from "#benchmark/claude";
 import type { ResolvedCorpusFile } from "#benchmark/corpus-file";
-import { hashDirectory } from "#benchmark/checkpoint";
-import { sessionLineage } from "#benchmark/session-lineage";
-import { historyFixture, TestResources } from "#benchmark/test-support";
+import { jsonObjectSchema } from "#benchmark/json-value";
+import {
+	sessionLineage,
+	sessionUpstreamDigest,
+} from "#benchmark/session-lineage";
+import { TestResources } from "#benchmark/test-support";
+
+import {
+	SessionLineageCaseBuilder,
+	settings,
+} from "./session-lineage-case-test-builder";
+
+const SHA256_HEX_CHARACTERS = 64;
 
 const testResources = TestResources.forEachTest();
-
-const settings: SessionSettings = {
-	model: "haiku",
-	effort: "low",
-	budgetUsd: 0.2,
-};
-
-function sessionCase(
-	fixturePath?: string,
-	stateCheck?: SessionCase["stateCheck"],
-): SessionCase {
-	return {
-		kind: "session",
-		declaration: {
-			id: "probe",
-			kind: "session",
-			title: "Probe",
-			prompt: "Reply with the single word OK.",
-			tools: [],
-			corpusFiles: ["output-styles/brief.md"],
-			projectFiles: [],
-			checks: [{ kind: "word-band", max: 1 }],
-			stateCheck,
-		},
-		fixturePath,
-		transcriptPath: undefined,
-		prompt: "Reply with the single word OK.",
-		tools: [],
-		settings: undefined,
-		agents: undefined,
-		corpusFiles: ["output-styles/brief.md"],
-		projectFiles: [],
-		checks: [{ kind: "word-band", max: 1 }],
-		stateCheck,
-	};
-}
 
 function corpus(sha256: string): readonly ResolvedCorpusFile[] {
 	return [
@@ -53,8 +27,9 @@ function corpus(sha256: string): readonly ResolvedCorpusFile[] {
 	];
 }
 
-const ORIGINAL = "a".repeat(64);
-const EDITED = "b".repeat(64);
+const ORIGINAL = "a".repeat(SHA256_HEX_CHARACTERS);
+
+const EDITED = "b".repeat(SHA256_HEX_CHARACTERS);
 
 async function digestOf(path: string): Promise<string> {
 	return new Bun.CryptoHasher("sha256")
@@ -62,15 +37,19 @@ async function digestOf(path: string): Promise<string> {
 		.digest("hex");
 }
 
-describe(sessionLineage.name, () => {
-	/**
-	 * A settings block written in another key order is the same settings, so two
-	 * arms that differ only that way must stay comparable. The recorded
-	 * `settingsDigest` already reads them as one; a lineage that disagreed would
-	 * refuse the comparison while every named input read equal.
-	 */
-	it("is unchanged when declared settings differ only in key order", async () => {
-		const declared = sessionCase();
+const sessionUpstreamDigestKeepsTheDigestRecordedForTheOrderedSessionInputs =
+	async (): Promise<void> => {
+		expect(
+			await sessionUpstreamDigest(new SessionLineageCaseBuilder({}).build()),
+		).toBe("e4a86356bbb7e2ac779f16edccfa927690a8dfbb4db6e731315fa661fcd890f1");
+	};
+
+const sessionLineageIsUnchangedWhenDeclaredSettingsDifferOnlyInKeyOrder =
+	async (): Promise<void> => {
+		const declared = new SessionLineageCaseBuilder({}).build();
+		const reversedSettings = jsonObjectSchema.parse(
+			JSON.parse('{"beta":2,"alpha":1}'),
+		);
 		const [before, after] = await Promise.all([
 			sessionLineage(
 				{ ...declared, settings: { alpha: 1, beta: 2 } },
@@ -78,31 +57,38 @@ describe(sessionLineage.name, () => {
 				settings,
 			),
 			sessionLineage(
-				{ ...declared, settings: { beta: 2, alpha: 1 } },
+				{
+					...declared,
+					settings: reversedSettings,
+				},
 				corpus(ORIGINAL),
 				settings,
 			),
 		]);
 
 		expect(after).toBe(before);
-	});
+	};
 
-	it("changes when a declared corpus file's bytes change", async () => {
+const sessionLineageChangesWhenADeclaredCorpusFilesBytesChange =
+	async (): Promise<void> => {
 		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),
-			sessionLineage(sessionCase(), corpus(EDITED), settings),
+			sessionLineage(
+				new SessionLineageCaseBuilder({}).build(),
+				corpus(ORIGINAL),
+				settings,
+			),
+			sessionLineage(
+				new SessionLineageCaseBuilder({}).build(),
+				corpus(EDITED),
+				settings,
+			),
 		]);
 
 		expect(after).not.toBe(before);
-	});
+	};
 
-	/**
-	 * AC 21's second half: an undeclared file beside a declared corpus file must
-	 * not reach the key. The corpus arm resolves and hashes the declared file
-	 * for real, so writing a neighbour into the same directory would change the
-	 * key if the lineage read the directory rather than the declaration.
-	 */
-	it("is unchanged when an undeclared file beside a declared corpus file changes", async () => {
+const sessionLineageIsUnchangedWhenAnUndeclaredFileBesideADeclaredCorpusFileChanges =
+	async (): Promise<void> => {
 		const installed = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
 		testResources.track(installed);
 		const declared = join(installed, "declared.md");
@@ -116,300 +102,133 @@ describe(sessionLineage.name, () => {
 		];
 
 		const before = await sessionLineage(
-			sessionCase(),
+			new SessionLineageCaseBuilder({}).build(),
 			declaredCorpus,
 			settings,
 		);
 		await writeFile(join(installed, "undeclared.md"), "undeclared\n");
-		const after = await sessionLineage(sessionCase(), declaredCorpus, settings);
-
-		expect(after).toBe(before);
-	});
-
-	it("is unchanged when a file beside the fixture tree changes", async () => {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-lineage-"));
-		testResources.track(root);
-		const fixture = join(root, "fixture");
-		await mkdir(fixture, { recursive: true });
-		await writeFile(join(fixture, "declared.md"), "declared\n");
-
-		const before = await sessionLineage(
-			sessionCase(fixture),
-			corpus(ORIGINAL),
-			settings,
-		);
-		await writeFile(join(root, "beside.md"), "beside\n");
 		const after = await sessionLineage(
-			sessionCase(fixture),
-			corpus(ORIGINAL),
+			new SessionLineageCaseBuilder({}).build(),
+			declaredCorpus,
 			settings,
 		);
 
 		expect(after).toBe(before);
-	});
+	};
 
-	it("changes when the fixture tree's bytes change", async () => {
-		const fixture = await mkdtemp(join(tmpdir(), "rehearse-lineage-"));
-		testResources.track(fixture);
-		await writeFile(join(fixture, "seed.md"), "one\n");
-		const before = await sessionLineage(
-			sessionCase(fixture),
+const sessionLineageChangesWhenThePromptChanges = async (): Promise<void> => {
+	const other: SessionCase = {
+		...new SessionLineageCaseBuilder({}).build(),
+		prompt: "Say something else.",
+	};
+
+	const [before, after] = await Promise.all([
+		sessionLineage(
+			new SessionLineageCaseBuilder({}).build(),
 			corpus(ORIGINAL),
 			settings,
-		);
+		),
+		sessionLineage(other, corpus(ORIGINAL), settings),
+	]);
 
-		await writeFile(join(fixture, "seed.md"), "two\n");
-		const after = await sessionLineage(
-			sessionCase(fixture),
-			corpus(ORIGINAL),
-			settings,
-		);
+	expect(after).not.toBe(before);
+};
 
-		expect(after).not.toBe(before);
-	});
-
-	it("is unchanged across two readings of one fixture's committed history", async () => {
-		const fixture = await historyFixture(["first", "second"]);
-		testResources.track(fixture.path);
-
-		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(fixture.path), corpus(ORIGINAL), settings),
-			sessionLineage(sessionCase(fixture.path), corpus(ORIGINAL), settings),
-		]);
-
-		expect(after).toBe(before);
-	});
-
-	/**
-	 * Every route to a second commit also changes a file outside `dot-git`, so
-	 * comparing whole-fixture digests before and after one cannot say the
-	 * history was the cause. Changing a history byte and nothing else can:
-	 * this asserts the digest reads the commits, which is what makes two arms
-	 * starting from different history incomparable.
-	 */
-	it("changes when only the fixture's committed history changes", async () => {
-		const fixture = await historyFixture(["first"]);
-		testResources.track(fixture.path);
-		const before = await sessionLineage(
-			sessionCase(fixture.path),
-			corpus(ORIGINAL),
-			settings,
-		);
-
-		await writeFile(
-			join(fixture.path, "dot-git", "refs", "heads", "main"),
-			`${"0".repeat(40)}\n`,
-		);
-
-		const after = await sessionLineage(
-			sessionCase(fixture.path),
-			corpus(ORIGINAL),
-			settings,
-		);
-		expect(after).not.toBe(before);
-	});
-
-	it("hashes every file the fixture's committed history holds", async () => {
-		const fixture = await historyFixture(["first"]);
-		testResources.track(fixture.path);
-
-		const hashed = await hashDirectory(fixture.path, "", {
-			rootMayBeALink: false,
-		});
-
-		const history = hashed
-			.map((file) => file.path)
-			.filter((path) => path.startsWith("dot-git/"));
-		expect(history.length).toBeGreaterThan(0);
-		const onDisk = await readdir(join(fixture.path, "dot-git"), {
-			recursive: true,
-			withFileTypes: true,
-		});
-		expect(new Set(history)).toEqual(
-			new Set(
-				onDisk
-					.filter((entry) => entry.isFile())
-					.map((entry) =>
-						join(
-							"dot-git",
-							relative(join(fixture.path, "dot-git"), entry.parentPath),
-							entry.name,
-						),
-					),
-			),
-		);
-	});
-
-	it("changes when the prompt changes", async () => {
+const sessionLineageChangesWhenTheSettingsOverlayChanges =
+	async (): Promise<void> => {
 		const other: SessionCase = {
-			...sessionCase(),
-			prompt: "Say something else.",
-		};
-
-		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),
-			sessionLineage(other, corpus(ORIGINAL), settings),
-		]);
-
-		expect(after).not.toBe(before);
-	});
-
-	it("changes when the settings overlay changes", async () => {
-		const other: SessionCase = {
-			...sessionCase(),
+			...new SessionLineageCaseBuilder({}).build(),
 			settings: { outputStyle: "brief" },
 		};
 
 		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),
+			sessionLineage(
+				new SessionLineageCaseBuilder({}).build(),
+				corpus(ORIGINAL),
+				settings,
+			),
 			sessionLineage(other, corpus(ORIGINAL), settings),
 		]);
 
 		expect(after).not.toBe(before);
-	});
+	};
 
-	it("changes when the declared project files list changes", async () => {
+const sessionLineageChangesWhenTheDeclaredProjectFilesListChanges =
+	async (): Promise<void> => {
 		const other: SessionCase = {
-			...sessionCase(),
+			...new SessionLineageCaseBuilder({}).build(),
 			projectFiles: ["NOTES.md"],
 		};
 
 		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),
+			sessionLineage(
+				new SessionLineageCaseBuilder({}).build(),
+				corpus(ORIGINAL),
+				settings,
+			),
 			sessionLineage(other, corpus(ORIGINAL), settings),
 		]);
 
 		expect(after).not.toBe(before);
-	});
+	};
 
-	it("changes when the transcript digest changes", async () => {
+const sessionLineageChangesWhenTheTranscriptDigestChanges =
+	async (): Promise<void> => {
 		const withTranscript: SessionCase = {
-			...sessionCase(),
+			...new SessionLineageCaseBuilder({}).build(),
 			declaration: {
-				...sessionCase().declaration,
+				...new SessionLineageCaseBuilder({}).build().declaration,
 				transcript: {
+					cut: 3,
 					file: "p.jsonl",
 					sha256: EDITED,
 					sourceSession: "s",
-					cut: 3,
 				},
 			},
 		};
 
 		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),
+			sessionLineage(
+				new SessionLineageCaseBuilder({}).build(),
+				corpus(ORIGINAL),
+				settings,
+			),
 			sessionLineage(withTranscript, corpus(ORIGINAL), settings),
 		]);
 
 		expect(after).not.toBe(before);
-	});
-});
-
-describe("the lineage a declared state check produces", () => {
-	/**
-	 * Attempts recorded while seeding handed the session its scorer could
-	 * learn how they were graded, so they must not compare as the same
-	 * experiment as attempts that could not. The pinned digest is the lineage
-	 * this case had then.
-	 */
-	it("differs from the lineage recorded while the session could read its scorer", async () => {
-		const fixture = await mkdtemp(join(tmpdir(), "rehearse-lineage-"));
-		testResources.track(fixture);
-		await writeFile(join(fixture, "score.sh"), "exit 0\n");
-		await writeFile(join(fixture, "LEDGER.md"), "ledger\n");
-
-		const lineage = await sessionLineage(
-			sessionCase(fixture, {
-				command: ["sh", "score.sh"],
-				outcomes: ["tree-clean"],
-			}),
-			corpus("a".repeat(64)),
-			settings,
-		);
-
-		expect(lineage).not.toBe(
-			"954e19887a90bc818c750f588f6693c34631c790d653ee026ee89661e79e7ea5",
-		);
-	});
-
-	/**
-	 * A scorer outside the fixture was never in the session's tree, so those
-	 * sessions saw what they always saw and keep the lineage they recorded.
-	 */
-	it("is unchanged when the scorer it names lies outside the fixture", async () => {
-		const lineage = await sessionLineage(
-			sessionCase(undefined, {
-				command: ["sh", "score.sh"],
-				outcomes: ["tree-clean"],
-			}),
-			corpus("a".repeat(64)),
-			settings,
-		);
-
-		expect(lineage).toBe(
-			"9a215f3a87ef26c1b897bbcb177d15d817f1280973cff6dfb9bbba8b85612ef4",
-		);
-	});
-
-	it("differs from the lineage of the same case declaring no state check", async () => {
-		const [without, with_] = await Promise.all([
-			sessionLineage(sessionCase(), corpus("a".repeat(64)), settings),
-			sessionLineage(
-				sessionCase(undefined, {
-					command: ["sh", "score.sh"],
-					outcomes: ["tree-clean"],
-				}),
-				corpus("a".repeat(64)),
-				settings,
-			),
-		]);
-
-		expect(with_).not.toBe(without);
-	});
-
-	it("differs between two cases whose scorer commands differ", async () => {
-		const [first, second] = await Promise.all([
-			sessionLineage(
-				sessionCase(undefined, {
-					command: ["sh", "score.sh"],
-					outcomes: ["tree-clean"],
-				}),
-				corpus("a".repeat(64)),
-				settings,
-			),
-			sessionLineage(
-				sessionCase(undefined, {
-					command: ["sh", "edited-score.sh"],
-					outcomes: ["tree-clean"],
-				}),
-				corpus("a".repeat(64)),
-				settings,
-			),
-		]);
-
-		expect(second).not.toBe(first);
-	});
-
-	it("differs between two cases whose declared outcomes differ", async () => {
-		const [first, second] = await Promise.all([
-			sessionLineage(
-				sessionCase(undefined, {
-					command: ["sh", "score.sh"],
-					outcomes: ["tree-clean"],
-				}),
-				corpus("a".repeat(64)),
-				settings,
-			),
-			sessionLineage(
-				sessionCase(undefined, {
-					command: ["sh", "score.sh"],
-					outcomes: ["tree-clean", "cards-archived"],
-				}),
-				corpus("a".repeat(64)),
-				settings,
-			),
-		]);
-
-		expect(second).not.toBe(first);
-	});
+	};
+describe("session declared input lineage", () => {
+	it(
+		"keeps the digest recorded for the ordered session inputs",
+		sessionUpstreamDigestKeepsTheDigestRecordedForTheOrderedSessionInputs,
+	);
+	it(
+		"is unchanged when declared settings differ only in key order",
+		sessionLineageIsUnchangedWhenDeclaredSettingsDifferOnlyInKeyOrder,
+	);
+	it(
+		"changes when a declared corpus file's bytes change",
+		sessionLineageChangesWhenADeclaredCorpusFilesBytesChange,
+	);
+	it(
+		"is unchanged when an undeclared file beside a declared corpus file changes",
+		sessionLineageIsUnchangedWhenAnUndeclaredFileBesideADeclaredCorpusFileChanges,
+	);
+	it(
+		"changes when the prompt changes",
+		sessionLineageChangesWhenThePromptChanges,
+	);
+	it(
+		"changes when the settings overlay changes",
+		sessionLineageChangesWhenTheSettingsOverlayChanges,
+	);
+	it(
+		"changes when the declared project files list changes",
+		sessionLineageChangesWhenTheDeclaredProjectFilesListChanges,
+	);
+	it(
+		"changes when the transcript digest changes",
+		sessionLineageChangesWhenTheTranscriptDigestChanges,
+	);
 });

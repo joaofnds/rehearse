@@ -1,4 +1,4 @@
-export function focusWorkspaceTarget(
+function focusWorkspaceTarget(
 	target: Readonly<
 		Pick<HTMLElement, "focus" | "closest" | "getBoundingClientRect">
 	>,
@@ -15,3 +15,5 @@ export function focusWorkspaceTarget(
 			workspace.getBoundingClientRect().top;
 	}
 }
+
+export { focusWorkspaceTarget as default };

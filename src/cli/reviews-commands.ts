@@ -1,0 +1,94 @@
+import { EXIT_CODES } from "#benchmark/exit-codes";
+import calibrateCommandEntry from "#cli/calibrate-command-entry";
+import { requireCase } from "#cli/case-command";
+import type { CommandEntry, CommandInvocation } from "#cli/command-contract";
+import { flagValue, jsonFlag, repeatedFlagValues } from "#cli/command-flags";
+import { processOutput } from "#cli/output";
+import runRegrade from "#cli/regrade-command";
+import runReview from "#cli/review-command";
+
+async function executeReview({
+	commandLine,
+	runsDirectory,
+}: CommandInvocation): Promise<number> {
+	await runReview(
+		{
+			file: flagValue(commandLine.flags, "--file"),
+			findings: repeatedFlagValues(commandLine.flags, "--finding"),
+			id: commandLine.argument,
+			json: commandLine.json,
+			runsDirectory,
+			summary: flagValue(commandLine.flags, "--summary"),
+			verdict: flagValue(commandLine.flags, "--verdict"),
+		},
+		processOutput,
+	);
+
+	return EXIT_CODES.completed;
+}
+async function executeRegrade({
+	commandLine,
+	runsDirectory,
+}: CommandInvocation): Promise<number> {
+	await runRegrade(
+		{
+			id: commandLine.argument,
+			json: commandLine.json,
+			runsDirectory,
+		},
+		{
+			now: () => new Date().toISOString(),
+			output: processOutput,
+			requireCase,
+		},
+	);
+
+	return EXIT_CODES.completed;
+}
+const reviewsCommands: readonly CommandEntry[] = [
+	{
+		definition: {
+			argument: "run",
+			confinement: "never",
+			flags: [
+				{
+					help: "Path to a review JSON file, instead of describing one with the flags below",
+					kind: "value",
+					name: "--file",
+				},
+				{
+					help: "ACCEPT or REJECT",
+					kind: "value",
+					name: "--verdict",
+				},
+				{
+					help: "One-line summary of the review",
+					kind: "value",
+					name: "--summary",
+				},
+				{
+					help: "One finding as a JSON object; repeat the flag for each finding, in order",
+					kind: "value",
+					name: "--finding",
+				},
+				jsonFlag,
+			],
+			name: "review",
+			summary: "Record the human or agent review of a run's Judge result",
+		},
+		execute: executeReview,
+	},
+	{
+		definition: {
+			argument: "record-id",
+			confinement: "never",
+			flags: [jsonFlag],
+			name: "regrade",
+			summary:
+				"Re-evaluate a saved attempt's evidence against its case as it stands now; runs no session",
+		},
+		execute: executeRegrade,
+	},
+	calibrateCommandEntry,
+];
+export { reviewsCommands as default };

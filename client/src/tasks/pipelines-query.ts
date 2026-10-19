@@ -1,7 +1,8 @@
 import type { InferResponseType } from "hono/client";
+
 import { launchClient } from "#client/api-client";
 
-export type PipelinesResponse = InferResponseType<
+type PipelinesResponse = InferResponseType<
 	typeof launchClient.api.pipelines.$get
 >;
 
@@ -11,10 +12,13 @@ async function fetchPipelines(): Promise<PipelinesResponse> {
 		throw new Error("Could not load the tasks");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export const pipelinesQuery = {
-	queryKey: ["pipelines"],
+const pipelinesQuery = {
 	queryFn: fetchPipelines,
+	queryKey: ["pipelines"],
 } as const;
+
+export { pipelinesQuery as default };
+export type { PipelinesResponse };

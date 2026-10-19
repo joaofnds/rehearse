@@ -1,31 +1,35 @@
 import { join } from "node:path";
+
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
-import { HeldLaunch } from "./held-launch-test-support";
+
+import HeldLaunch from "./held-launch-test-support";
 import type { Launcher } from "./launches";
 
-export const FAKE_LAUNCH_PID = 4242;
+const FAKE_LAUNCH_TIME = "2026-10-01T00:00:00.000Z";
+
+const FAKE_LAUNCH_PID = 4242;
 
 /**
  * A live install under a test's own directory, so a server under test never
  * reaches the operator's real one.
  */
-export function directoryLiveCorpus(directory: string): LiveCorpusRoot {
+function directoryLiveCorpus(directory: string): LiveCorpusRoot {
 	return {
+		backingRoot: join(directory, "live", ".agents"),
 		kind: "live",
 		root: join(directory, "live", ".claude"),
-		backingRoot: join(directory, "live", ".agents"),
 	};
 }
 
-export const FAKE_LAUNCH_STARTED_AT = "Tue Sep 29 10:00:00 2026";
+const FAKE_LAUNCH_STARTED_AT = "Tue Sep 29 10:00:00 2026";
 
-export interface Launch {
+interface Launch {
 	readonly argv: readonly string[];
 	readonly logFile: string;
 }
 
 /** Captures each launch instead of starting a process. */
-export class FakeLauncher implements Launcher {
+class FakeLauncher implements Launcher {
 	public readonly launches: Launch[] = [];
 
 	#held: HeldLaunch | undefined;
@@ -76,11 +80,20 @@ export class FakeLauncher implements Launcher {
 	/** Each pid signalled to stop, in order. */
 	public readonly stopped: number[] = [];
 
-	public startedAt(pid: number): Promise<string | undefined> {
-		return Promise.resolve(this.processes.get(pid));
+	public async startedAt(pid: number): Promise<string | undefined> {
+		return await Promise.resolve(this.processes.get(pid));
 	}
 
 	public stop(pid: number): void {
 		this.stopped.push(pid);
 	}
 }
+
+export {
+	FAKE_LAUNCH_TIME,
+	FAKE_LAUNCH_PID,
+	directoryLiveCorpus,
+	FAKE_LAUNCH_STARTED_AT,
+	FakeLauncher,
+};
+export type { Launch };

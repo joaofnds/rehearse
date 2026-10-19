@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import { sandboxFor } from "#cli/sandbox";
+
+import sandboxFor from "#cli/sandbox";
 
 const argv = ["/opt/bun", "/repo/rehearse.ts", "run", "--case", "smoke"];
 
 function hostWith(
 	...programs: readonly string[]
 ): (path: string) => Promise<boolean> {
-	return (path) => Promise.resolve(programs.includes(path));
+	return async (path) => await Promise.resolve(programs.includes(path));
 }
 
 describe(sandboxFor.name, () => {
@@ -16,16 +17,16 @@ describe(sandboxFor.name, () => {
 		const confined = await sandbox.confine(argv);
 
 		expect(confined).toEqual({
-			kind: "confined",
 			image: {
-				path: "/usr/bin/sandbox-exec",
 				args: [
 					"sandbox-exec",
 					"-p",
 					"(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))",
 					...argv,
 				],
+				path: "/usr/bin/sandbox-exec",
 			},
+			kind: "confined",
 		});
 	});
 

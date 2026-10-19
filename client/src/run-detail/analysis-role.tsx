@@ -1,28 +1,27 @@
 import type { AnalysisRole } from "./analysis-query";
 
 /** SPEC.md 4c item 3: the glyph each role an analysis gives a step carries. */
-export const ROLE_GLYPHS = {
-	"not a factor": "·",
+const ROLE_GLYPHS = {
 	"contributing factor": "~",
-	"root cause": "✕",
 	"never ran": "○",
+	"not a factor": "·",
+	"root cause": "✕",
 } as const satisfies Record<AnalysisRole, string>;
 
 const ROLE_COLOURS = {
-	"not a factor": "text-dim",
 	"contributing factor": "text-secondary-foreground",
-	"root cause": "text-bright",
 	"never ran": "text-subdued",
+	"not a factor": "text-dim",
+	"root cause": "text-bright",
 } as const satisfies Record<AnalysisRole, string>;
 
 /** A role as its glyph, with its words for a screen reader or shown beside it. */
-export function RoleMark({
-	role,
-	words,
-}: {
+interface RoleMarkProps {
 	readonly role: AnalysisRole;
 	readonly words: "shown" | "spoken";
-}): React.JSX.Element {
+}
+
+function RoleMark({ role, words }: RoleMarkProps): React.JSX.Element {
 	return (
 		<span className={ROLE_COLOURS[role]}>
 			<span aria-hidden="true">{ROLE_GLYPHS[role]}</span>
@@ -31,3 +30,5 @@ export function RoleMark({
 		</span>
 	);
 }
+
+export { ROLE_GLYPHS, RoleMark };

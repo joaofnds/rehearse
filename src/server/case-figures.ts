@@ -1,12 +1,21 @@
-import { atLatestCorpusVersion } from "./latest-corpus-version";
-import type { SavedStateAssessment } from "./saved-state-assessment";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
+
+import atLatestCorpusVersion from "./latest-corpus-version";
+import type { SavedStateAssessment } from "./saved-state-assessment";
+
+const MEDIAN_PARTITION_DIVISOR = 2;
+
+const NO_JUDGED_RESULTS = 0;
+
+const NO_SPEND_USD = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 /**
  * One run of a case as its figures read it: a pipeline run, a session
  * attempt, or one rep of a pipeline or session confirmation group.
  */
-export interface CaseRun {
+interface CaseRun {
 	readonly corpusDigest: string | undefined;
 	/**
 	 * The final Judge's PASS for a pipeline run, the checks passing for a
@@ -20,7 +29,7 @@ export interface CaseRun {
 	readonly replyChecks?: { readonly passed: number; readonly total: number };
 }
 
-export interface CostPerRun {
+interface CostPerRun {
 	readonly meanUsd: number | null;
 	readonly costed: number;
 	readonly lacking: number;
@@ -30,7 +39,7 @@ export interface CostPerRun {
  * A case's figures over the runs at the latest corpus version it ran under,
  * naming that version and counting the runs left out (SPEC.md product rule 2).
  */
-export type CaseFigures =
+type CaseFigures =
 	| { readonly state: "no-runs" }
 	| {
 			readonly state: "measured";
@@ -46,18 +55,19 @@ function costPerRun(runs: readonly CaseRun[]): CostPerRun {
 	const costs = runs.flatMap(({ costUsd }) =>
 		costUsd === undefined ? [] : [costUsd],
 	);
-	const total = costs.reduce((sum, usd) => sum + usd, 0);
+	const total = costs.reduce((sum, usd) => sum + usd, NO_SPEND_USD);
 
 	return {
-		meanUsd: costs.length === 0 ? null : total / costs.length,
 		costed: costs.length,
 		lacking: runs.length - costs.length,
+		meanUsd:
+			costs.length === EMPTY_COLLECTION_LENGTH ? null : total / costs.length,
 	};
 }
 
 /** `runs` is newest first. */
-export function caseFigures(runs: readonly CaseRun[]): CaseFigures {
-	if (runs.length === 0) {
+function caseFigures(runs: readonly CaseRun[]): CaseFigures {
+	if (runs.length === EMPTY_COLLECTION_LENGTH) {
 		return { state: "no-runs" };
 	}
 
@@ -68,13 +78,13 @@ export function caseFigures(runs: readonly CaseRun[]): CaseFigures {
 	const judged = counted.filter(({ passed }) => passed !== undefined);
 
 	return {
-		state: "measured",
 		corpusVersion,
-		counted: counted.length,
-		leftOut,
-		judged: judged.length,
-		passed: judged.filter(({ passed }) => passed === true).length,
 		costPerRun: costPerRun(counted),
+		counted: counted.length,
+		judged: judged.length,
+		leftOut,
+		passed: judged.filter(({ passed }) => passed === true).length,
+		state: "measured",
 	};
 }
 
@@ -83,16 +93,21 @@ export function caseFigures(runs: readonly CaseRun[]): CaseFigures {
  * even count it is the lower of the two middle verdicts, as a group's median
  * grade is, so it is always a verdict some run received.
  */
-export function medianVerdict({
+function medianVerdict({
 	passed,
 	judged,
 }: {
 	readonly passed: number;
 	readonly judged: number;
 }): "PASS" | "FAIL" | null {
-	if (judged === 0) {
+	if (judged === NO_JUDGED_RESULTS) {
 		return null;
 	}
 
-	return passed > Math.floor(judged / 2) ? "PASS" : "FAIL";
+	return passed > Math.floor(judged / MEDIAN_PARTITION_DIVISOR)
+		? "PASS"
+		: "FAIL";
 }
+
+export { caseFigures, medianVerdict };
+export type { CaseRun, CostPerRun, CaseFigures };

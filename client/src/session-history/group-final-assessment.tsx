@@ -1,11 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "#client/api-client";
 import type { InferResponseType } from "hono/client";
+
 import type { Immutable } from "#benchmark/contracts";
+import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const finalRoute =
 	apiClient.api.groups[":groupId"].reps[":repId"].attempt.final;
-type FinalAssessment = InferResponseType<typeof finalRoute.$get, 200>;
+
+type FinalAssessment = InferResponseType<
+	typeof finalRoute.$get,
+	typeof HTTP_STATUS.ok
+>;
 
 async function readFinal(
 	groupId: string,
@@ -20,13 +26,14 @@ async function readFinal(
 	if (!response.ok) {
 		throw new Error("Saved final Judge assessment unavailable");
 	}
-	return response.json();
+	return await response.json();
 }
-function FinalContent({
-	result,
-}: {
+
+interface FinalContentProps {
 	readonly result: Immutable<FinalAssessment> | undefined;
-}): React.JSX.Element {
+}
+
+function FinalContent({ result }: FinalContentProps): React.JSX.Element {
 	if (result?.state !== "available") {
 		return (
 			<p className="mt-3 text-attention">
@@ -72,16 +79,19 @@ function FinalContent({
 		</div>
 	);
 }
-export function GroupFinalAssessment({
-	groupId,
-	repId,
-}: {
+
+interface GroupFinalAssessmentProps {
 	readonly groupId: string;
 	readonly repId: string;
-}): React.JSX.Element {
+}
+
+function GroupFinalAssessment({
+	groupId,
+	repId,
+}: GroupFinalAssessmentProps): React.JSX.Element {
 	const query = useQuery({
+		queryFn: async () => await readFinal(groupId, repId),
 		queryKey: ["group-final-assessment", groupId, repId],
-		queryFn: () => readFinal(groupId, repId),
 	});
 	return (
 		<details className="rounded-lg border border-divider bg-card p-4 text-14">
@@ -96,3 +106,5 @@ export function GroupFinalAssessment({
 		</details>
 	);
 }
+
+export { GroupFinalAssessment as default };

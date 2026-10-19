@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { FilterPill } from "./filter-pill";
+
+import FilterPill from "./filter-pill";
 
 function noop(): void {
 	return undefined;

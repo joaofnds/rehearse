@@ -1,8 +1,10 @@
-import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { expect, it } from "bun:test";
+
+import LoadingApiResources from "./loading-api-test-support";
 import { loadingBenchmarkSchema } from "./loading-performance";
+
+const FAILED_BENCHMARK_EXIT_CODE = 1;
+const REPORT_INDENT_SPACES = 2;
 
 async function benchmark(
 	base: string,
@@ -26,8 +28,8 @@ async function benchmark(
 		],
 		{
 			env: { ...Bun.env },
-			stdout: "pipe",
 			stderr: "pipe",
+			stdout: "pipe",
 		},
 	);
 	const [code, stdout, stderr] = await Promise.all([
@@ -36,105 +38,87 @@ async function benchmark(
 		new Response(child.stderr).text(),
 	]);
 
-	return { code, stdout, stderr };
+	return { code, stderr, stdout };
 }
 
-describe("loading benchmark command", () => {
-	const customEndpoints = [
-		{ label: "relative", path: (_base: string): string => "api/cases" },
-		{
-			label: "absolute",
-			path: (base: string): string => new URL("/api/cases", base).href,
-		},
-	];
-	for (const { label, path } of customEndpoints) {
-		it(`compares changed data for ${label} custom API endpoints`, async () => {
-			const directory = await mkdtemp(
-				join(tmpdir(), "rehearse-loading-custom-"),
-			);
-			let caseVersion = 1;
-			const server = Bun.serve({
-				hostname: "127.0.0.1",
-				port: 0,
-				fetch: (request) => {
-					const { pathname } = new URL(request.url);
-					return Response.json({
-						path: pathname,
-						version: pathname === "/api/cases" ? caseVersion : 1,
-					});
-				},
-			});
-			try {
-				const endpoint = path(server.url.href);
-				const baseline = await benchmark(server.url.href, [], endpoint);
-				expect(baseline.code).toBe(0);
-				const file = join(directory, "baseline.json");
-				await writeFile(file, baseline.stdout);
-				caseVersion = 2;
-				const changed = await benchmark(
-					server.url.href,
-					["--baseline", file],
-					endpoint,
-				);
-				expect(changed.code).toBe(1);
-				expect(changed.stderr).toContain(
-					`${endpoint}: API data changed or was unstable`,
-				);
-			} finally {
-				await server.stop(true);
-				await rm(directory, { recursive: true, force: true });
-			}
-		});
-	}
+const resources = LoadingApiResources.forEachTest();
+const customEndpoints = [
+	{ label: "relative", path: (_base: string): string => "api/cases" },
+	{
+		label: "absolute",
+		path: (base: string): string => new URL("/api/cases", base).href,
+	},
+];
 
-	it("returns success for a baseline and failure when the API data changes", async () => {
-		const directory = await mkdtemp(
-			join(tmpdir(), "rehearse-loading-benchmark-"),
+it.each(customEndpoints)(
+	"compares changed data for $label custom API endpoints",
+	async ({ path }) => {
+		const expectedCode = 0;
+
+		const api = await resources.create("/api/cases");
+		const endpoint = path(api.base);
+		const baseline = await benchmark(api.base, [], endpoint);
+		expect(baseline.code).toBe(expectedCode);
+		const file = await api.saveBaseline(baseline.stdout);
+		api.changeData();
+		const changed = await benchmark(api.base, ["--baseline", file], endpoint);
+		expect(changed.code).toBe(FAILED_BENCHMARK_EXIT_CODE);
+		expect(changed.stderr).toContain(
+			`${endpoint}: API data changed or was unstable`,
 		);
-		let version = 1;
-		const server = Bun.serve({
-			hostname: "127.0.0.1",
-			port: 0,
-			fetch: (request) =>
-				Response.json({ path: new URL(request.url).pathname, version }),
-		});
-		try {
-			const baseline = await benchmark(server.url.href);
-			expect(baseline.code).toBe(0);
-			const report = loadingBenchmarkSchema.parse(JSON.parse(baseline.stdout));
-			expect(report.startup).toHaveLength(5);
-			expect(report.endpoints.map(({ path }) => path)).toEqual([
-				"/api/run-listing",
-			]);
-			const file = join(directory, "baseline.json");
-			await writeFile(file, baseline.stdout);
-			version = 2;
-			const changed = await benchmark(server.url.href, ["--baseline", file]);
-			expect(changed.code).toBe(1);
-			expect(changed.stderr).toContain("API data changed or was unstable");
-		} finally {
-			await server.stop(true);
-			await rm(directory, { recursive: true, force: true });
-		}
-	});
+	},
+);
 
-	it("rejects an API path answered by the HTML fallback", async () => {
-		const server = Bun.serve({
-			hostname: "127.0.0.1",
-			port: 0,
-			fetch: () =>
-				new Response("<html>not an API</html>", {
-					headers: { "Content-Type": "text/html" },
-				}),
-		});
-		try {
-			const result = await benchmark(server.url.href);
-			expect(result.code).toBe(1);
-			expect(result.stderr).toContain(
-				"expected JSON; check that the API route exists",
-			);
-		} finally {
-			await server.stop(true);
-		}
+it("returns a complete formatted benchmark on stdout and success without a baseline", async () => {
+	const expectedCode = 0;
+	const expectedStartupCount = 5;
+
+	const api = await resources.create();
+	const baseline = await benchmark(api.base);
+	expect(baseline.code).toBe(expectedCode);
+	expect(baseline.stderr).toBe("");
+	expect(baseline.stdout).toBe(
+		`${JSON.stringify(JSON.parse(baseline.stdout), undefined, REPORT_INDENT_SPACES)}\n`,
+	);
+	const report = loadingBenchmarkSchema.parse(JSON.parse(baseline.stdout));
+	expect(report.startup).toHaveLength(expectedStartupCount);
+	expect(report.endpoints.map(({ path }) => path)).toEqual([
+		"/api/run-listing",
+	]);
+});
+
+it("returns failure and each API diagnostic when baseline data changes", async () => {
+	const expectedCode = 1;
+
+	const api = await resources.create();
+	const baseline = await benchmark(api.base);
+	const file = await api.saveBaseline(baseline.stdout);
+	api.changeData();
+	const changed = await benchmark(api.base, ["--baseline", file]);
+	expect(changed.code).toBe(expectedCode);
+	expect(changed.stderr).toBe(
+		"/api/run-listing: API data changed or was unstable; use the same quiescent records and corpus\n/api/settings: API data changed or was unstable; use the same quiescent records and corpus\n/api/corpus-summary: API data changed or was unstable; use the same quiescent records and corpus\n/api/comparisons: API data changed or was unstable; use the same quiescent records and corpus\n/api/run-staleness: API data changed or was unstable; use the same quiescent records and corpus\n",
+	);
+});
+
+it("rejects an API path answered by the HTML fallback", async () => {
+	const server = Bun.serve({
+		fetch: () =>
+			new Response("<html>not an API</html>", {
+				headers: { "Content-Type": "text/html" },
+			}),
+		hostname: "127.0.0.1",
+		port: 0,
 	});
+	try {
+		const expectedCode = 1;
+
+		const result = await benchmark(server.url.href);
+		expect(result.code).toBe(expectedCode);
+		expect(result.stderr).toContain(
+			"expected JSON; check that the API route exists",
+		);
+	} finally {
+		await server.stop(true);
+	}
 });

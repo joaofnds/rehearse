@@ -1,17 +1,20 @@
+import { ZodError } from "zod";
+
+import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
 import type {
 	ComparisonReport,
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
-import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
+import concurrentMap from "#benchmark/concurrent-map";
 import { comparisonReportPaths } from "#benchmark/run-layout";
-import { ZodError } from "zod";
-import { redactAbsolutePaths } from "./redact-path";
-import { comparisonAttribution } from "./comparison-attribution";
-import { comparisonProvenance } from "./comparison-provenance";
-import type { ComparisonProvenance } from "./comparison-provenance";
 
-export interface ComparisonIndexEntry {
+import { comparisonAttribution } from "./comparison-attribution";
+import comparisonProvenance from "./comparison-provenance";
+import type { ComparisonProvenance } from "./comparison-provenance";
+import { redactAbsolutePaths } from "./redact-path";
+
+interface ComparisonIndexEntry {
 	readonly digest: string;
 	readonly mode: (ComparisonReport | LegacyComparisonReport)["mode"];
 	readonly caseIds: readonly string[];
@@ -23,12 +26,12 @@ export interface ComparisonIndexEntry {
 	}[];
 }
 
-export interface UnreadableComparison {
+interface UnreadableComparison {
 	readonly id: string;
 	readonly reason: string;
 }
 
-export interface ComparisonIndex {
+interface ComparisonIndex {
 	readonly comparisons: readonly ComparisonIndexEntry[];
 	readonly unreadable: readonly UnreadableComparison[];
 }
@@ -42,10 +45,7 @@ async function indexEntry(
 	const provenance = await comparisonProvenance(report, runsDirectory);
 
 	return {
-		digest,
-		mode: report.mode,
 		caseIds: report.cases.map(({ caseId }) => caseId),
-		reps: report.reps,
 		details: report.cases.map((benchmarkCase) => {
 			const attribution = comparisonAttribution(
 				benchmarkCase.arms.candidate.executedCorpus,
@@ -57,15 +57,18 @@ async function indexEntry(
 				changedPaths:
 					attribution.claim === "identical" ? [] : attribution.differingPaths,
 				corpusVersions: provenance.corpusVersions[benchmarkCase.caseId] ?? {
-					baseline: { state: "unavailable", reasons: ["Version not recorded"] },
+					baseline: { reasons: ["Version not recorded"], state: "unavailable" },
 					candidate: {
-						state: "unavailable",
 						reasons: ["Version not recorded"],
+						state: "unavailable",
 					},
-					control: { state: "unavailable", reasons: ["Version not recorded"] },
+					control: { reasons: ["Version not recorded"], state: "unavailable" },
 				},
 			};
 		}),
+		digest,
+		mode: report.mode,
+		reps: report.reps,
 	};
 }
 
@@ -79,26 +82,40 @@ const UNRECOGNIZED_REPORT = "report.json matches no known comparison report";
  * report.json fails with the file's absolute path in its message, so every
  * reason is redacted before it reaches a browser.
  */
-export async function comparisonIndex(
+async function comparisonIndex(
 	runsDirectory: string,
 ): Promise<ComparisonIndex> {
+	const readings = await concurrentMap(
+		await listedComparisonDigests(runsDirectory),
+		async (digest) => {
+			try {
+				return { entry: await indexEntry(runsDirectory, digest) };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					failure: {
+						id: digest,
+						reason:
+							error instanceof ZodError
+								? UNRECOGNIZED_REPORT
+								: redactAbsolutePaths(message),
+					},
+				};
+			}
+		},
+	);
 	const comparisons: ComparisonIndexEntry[] = [];
 	const unreadable: UnreadableComparison[] = [];
-
-	for (const digest of await listedComparisonDigests(runsDirectory)) {
-		try {
-			comparisons.push(await indexEntry(runsDirectory, digest));
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({
-				id: digest,
-				reason:
-					error instanceof ZodError
-						? UNRECOGNIZED_REPORT
-						: redactAbsolutePaths(message),
-			});
+	for (const reading of readings) {
+		if (reading.entry === undefined) {
+			unreadable.push(reading.failure);
+		} else {
+			comparisons.push(reading.entry);
 		}
 	}
 
 	return { comparisons, unreadable };
 }
+
+export { comparisonIndex as default };
+export type { ComparisonIndexEntry, UnreadableComparison, ComparisonIndex };

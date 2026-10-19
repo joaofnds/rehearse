@@ -1,15 +1,22 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const route = apiClient.api["attempt-evidence"][":id"];
-export type AttemptEvidenceResponse = InferResponseType<typeof route.$get, 200>;
+
+type AttemptEvidenceResponse = InferResponseType<
+	typeof route.$get,
+	typeof HTTP_STATUS.ok
+>;
+
 interface AttemptEvidenceQuery {
 	readonly queryKey: readonly ["attempt-evidence", string];
 	readonly queryFn: () => Promise<AttemptEvidenceResponse>;
 }
-export function attemptEvidenceQuery(id: string): AttemptEvidenceQuery {
+
+function attemptEvidenceQuery(id: string): AttemptEvidenceQuery {
 	return {
-		queryKey: ["attempt-evidence", id],
 		queryFn: async () => {
 			const response = await route.$get({
 				param: { id: encodeURIComponent(id) },
@@ -17,7 +24,11 @@ export function attemptEvidenceQuery(id: string): AttemptEvidenceQuery {
 			if (!response.ok) {
 				throw new Error("Saved attempt evidence unavailable");
 			}
-			return response.json();
+			return await response.json();
 		},
+		queryKey: ["attempt-evidence", id],
 	};
 }
+
+export { attemptEvidenceQuery as default };
+export type { AttemptEvidenceResponse };

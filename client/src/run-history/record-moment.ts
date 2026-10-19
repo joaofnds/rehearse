@@ -1,8 +1,21 @@
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MIDNIGHT_HOUR = 0;
+
+const MIDNIGHT_MILLISECOND = 0;
+
+const MIDNIGHT_MINUTE = 0;
+
+const MIDNIGHT_SECOND = 0;
+
+const DAY_MS = 86_400_000;
 
 function startOfDay(epochMs: number): number {
 	const day = new Date(epochMs);
-	day.setHours(0, 0, 0, 0);
+	day.setHours(
+		MIDNIGHT_HOUR,
+		MIDNIGHT_MINUTE,
+		MIDNIGHT_SECOND,
+		MIDNIGHT_MILLISECOND,
+	);
 
 	return day.getTime();
 }
@@ -15,7 +28,7 @@ function clockTime(epochMs: number): string {
 }
 
 /** When a record started, as the design's run history reads it: `today 10:04`, `yest 18:52`. */
-export function recordMoment(epochMs: number, nowMs: number): string {
+function recordMoment(epochMs: number, nowMs: number): string {
 	const today = startOfDay(nowMs);
 
 	if (epochMs >= today) {
@@ -26,9 +39,11 @@ export function recordMoment(epochMs: number, nowMs: number): string {
 	}
 
 	const day = new Date(epochMs).toLocaleDateString("en-US", {
-		month: "short",
 		day: "numeric",
+		month: "short",
 	});
 
 	return `${day} ${clockTime(epochMs)}`;
 }
+
+export { recordMoment as default };

@@ -13,4 +13,6 @@ function CurrentAnchor({
 	return <a {...anchor} aria-current={marksCurrent ? "page" : undefined} />;
 }
 
-export const CurrentLink = createLink(CurrentAnchor);
+const CurrentLink = createLink(CurrentAnchor);
+
+export { CurrentLink as default };

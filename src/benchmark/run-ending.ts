@@ -6,14 +6,17 @@ import type {
 	RunEventStore,
 } from "./run-events";
 import { isTerminalRunEventKind } from "./run-events";
+import type { RunLocation } from "./run-layout";
 import { benchmarkRunPaths } from "./run-layout";
 import type { RunLiveness } from "./run-liveness";
 import { claimingRun, runClaim } from "./run-liveness";
 import { awaitingJudgeStage, stoppedStage } from "./run-outcome";
 import { pausedStage } from "./run-pause";
 
+const INITIAL_RUN_EVENT_CURSOR = 0;
+
 /** An event of a kind that does not end a run's event stream. */
-export type NonTerminalRunEvent = RunEvent & {
+type NonTerminalRunEvent = RunEvent & {
 	readonly kind: NonTerminalRunEventKind;
 };
 
@@ -26,7 +29,7 @@ function isNonTerminal(event: RunEvent): event is NonTerminalRunEvent {
  * names a run's ending maps this through an exhaustive switch, so an ending
  * added here is one each of them must handle.
  */
-export type RunEnding =
+type RunEnding =
 	| { readonly kind: "main-artifact" }
 	| { readonly kind: "stopped"; readonly stage: string; readonly error: string }
 	| { readonly kind: "paused"; readonly stage: string }
@@ -49,25 +52,55 @@ function failedStage(
 	run: string,
 ): string | undefined {
 	return runEvents
-		.eventsSince(run, 0)
+		.eventsSince(run, INITIAL_RUN_EVENT_CURSOR)
 		.map(({ stage }) => stage)
 		.findLast((stage) => stage !== "");
 }
 
-export async function runEnding(
-	runsDirectory: string,
-	run: string,
+interface RunEndingReading {
+	readonly runsDirectory: string;
+	readonly run: string;
+	readonly paths: ReturnType<typeof benchmarkRunPaths>;
+	readonly runEvents: RunEventStore;
+	readonly liveness: RunLiveness;
+}
+async function runEnding(
+	{ runsDirectory, run }: RunLocation,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 ): Promise<RunEnding> {
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (await Bun.file(paths.artifactFile).exists()) {
+	const reading: RunEndingReading = {
+		liveness,
+		paths: benchmarkRunPaths(runsDirectory, run),
+		run,
+		runEvents,
+		runsDirectory,
+	};
+	if (await Bun.file(reading.paths.artifactFile).exists()) {
 		return { kind: "main-artifact" };
 	}
 
+	const recorded = await recordedEnding(reading);
+	if (recorded !== undefined) {
+		return recorded;
+	}
+
+	const latest = runEvents.latestEvent(run);
+	if (latest === undefined) {
+		return await withoutEvents(runsDirectory, run);
+	}
+
+	return await eventEnding(reading, latest);
+}
+async function recordedEnding({
+	runsDirectory,
+	run,
+	paths,
+	runEvents,
+}: RunEndingReading): Promise<RunEnding | undefined> {
 	const stopped = await stoppedStage(runsDirectory, run);
 	if (stopped !== undefined) {
-		return { kind: "stopped", stage: stopped.stage, error: stopped.error };
+		return { error: stopped.error, kind: "stopped", stage: stopped.stage };
 	}
 
 	const paused = await pausedStage(paths);
@@ -79,16 +112,13 @@ export async function runEnding(
 		return { kind: "operator-stopped", stage: failedStage(runEvents, run) };
 	}
 
-	const latest = runEvents.latestEvent(run);
-	if (latest === undefined) {
-		return withoutEvents(runsDirectory, run);
-	}
-
-	/**
-	 * A kill -9 leaves no artifact and no STAGE_JUDGE_FAILED file: nothing
-	 * runs to write one. The reconciliation pass is the only thing that ever
-	 * marks such a run, in the event stream rather than on disk.
-	 */
+	return undefined;
+}
+async function eventEnding(
+	reading: RunEndingReading,
+	latest: RunEvent,
+): Promise<RunEnding> {
+	const { runEvents, run } = reading;
 	if (latest.kind === "run-interrupted") {
 		return { kind: "interrupted", stage: latest.stage };
 	}
@@ -97,15 +127,16 @@ export async function runEnding(
 		return { kind: "failed", stage: failedStage(runEvents, run) };
 	}
 
-	/**
-	 * A terminal kind here is not a run in flight even with a live marker on
-	 * its target, and the one left is `run-completed` without the artifact
-	 * that should have followed it.
-	 */
 	if (!isNonTerminal(latest)) {
 		return { kind: "completed-without-artifact", stage: latest.stage };
 	}
 
+	return await claimedEnding(reading, latest);
+}
+async function claimedEnding(
+	{ runEvents, paths, liveness, run }: RunEndingReading,
+	latest: NonTerminalRunEvent,
+): Promise<RunEnding> {
 	const claim = await runClaim(
 		paths.manifestFile,
 		liveness,
@@ -156,3 +187,6 @@ async function withoutEvents(
 
 	return { kind: "awaiting-judgment", stage: awaiting };
 }
+
+export { runEnding as default };
+export type { NonTerminalRunEvent, RunEnding };

@@ -1,4 +1,5 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
 
 /**
@@ -7,12 +8,10 @@ import { apiClient } from "#client/api-client";
  * repeating what `src/server/run-history.ts`'s `RunHistoryRow` already
  * states (decision-3's stated reason for choosing Hono).
  */
-export type RunHistoryResponse = InferResponseType<
-	typeof apiClient.api.runs.$get
->;
+type RunHistoryResponse = InferResponseType<typeof apiClient.api.runs.$get>;
 
 /** A pipeline run's row as the full report answers it, staleness included. */
-export type PipelineRowWithStaleness = Extract<
+type PipelineRowWithStaleness = Extract<
 	RunHistoryResponse["rows"][number],
 	{ readonly kind: "run" }
 >;
@@ -23,7 +22,7 @@ async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
 		throw new Error("Could not load run history");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /**
@@ -32,13 +31,13 @@ async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
  * are the same records and launches, so it agrees with the list it links to
  * (SPEC.md:78) once both readings settle.
  */
-export const runHistoryQuery = {
-	queryKey: ["run-history"],
+const runHistoryQuery = {
 	queryFn: fetchRunHistoryReport,
+	queryKey: ["run-history"],
 } as const;
 
 /** The run history's rows without their staleness judgment. */
-export type RunListingResponse = InferResponseType<
+type RunListingResponse = InferResponseType<
 	(typeof apiClient.api)["run-listing"]["$get"]
 >;
 
@@ -48,7 +47,7 @@ async function fetchRunListing(): Promise<RunListingResponse> {
 		throw new Error("Could not load run history");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /**
@@ -56,9 +55,9 @@ async function fetchRunListing(): Promise<RunListingResponse> {
  * of the full report. Its key sits under `runHistoryQuery`'s, so every
  * invalidation of the run history refreshes it too.
  */
-export const runListingQuery = {
-	queryKey: [...runHistoryQuery.queryKey, "listing"],
+const runListingQuery = {
 	queryFn: fetchRunListing,
+	queryKey: [...runHistoryQuery.queryKey, "listing"],
 } as const;
 
 async function fetchRunStaleness(): Promise<
@@ -69,12 +68,12 @@ async function fetchRunStaleness(): Promise<
 		throw new Error("Could not check run freshness");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export const runStalenessQuery = {
-	queryKey: [...runHistoryQuery.queryKey, "staleness"],
+const runStalenessQuery = {
 	queryFn: fetchRunStaleness,
+	queryKey: [...runHistoryQuery.queryKey, "staleness"],
 } as const;
 
 /**
@@ -82,9 +81,23 @@ export const runStalenessQuery = {
  * launch rows together, as the table shows both. A stopped launch whose run
  * also recorded counts twice, since the table lists it twice.
  */
-export function listedEntryCount(history: {
+interface ListedEntryCountProps {
 	readonly rows: readonly unknown[];
 	readonly launches: readonly unknown[];
-}): number {
+}
+
+function listedEntryCount(history: ListedEntryCountProps): number {
 	return history.rows.length + history.launches.length;
 }
+
+export {
+	listedEntryCount,
+	runHistoryQuery,
+	runListingQuery,
+	runStalenessQuery,
+};
+export type {
+	PipelineRowWithStaleness,
+	RunHistoryResponse,
+	RunListingResponse,
+};

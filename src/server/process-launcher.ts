@@ -1,7 +1,11 @@
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
+
 import { CONTROL_DIR } from "#benchmark/config";
+
 import type { Launcher } from "./launches";
+
+const SUCCESSFUL_PROCESS_EXIT = 0;
 
 /**
  * The knobs a case declares, each of which the CLI takes from the environment
@@ -21,6 +25,14 @@ const DECLARED_KNOB_VARIABLES = new Set([
 	"BENCHMARK_TARGET_DIR",
 ]);
 
+function declaredEnvironment(
+	env: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+	return Object.fromEntries(
+		Object.entries(env).filter(([name]) => !DECLARED_KNOB_VARIABLES.has(name)),
+	);
+}
+
 /**
  * Starts `command` followed by a launch's arguments as a detached child: its
  * own session, so stopping or restarting the server signals nothing it
@@ -29,7 +41,7 @@ const DECLARED_KNOB_VARIABLES = new Set([
  * because the launch record holds its pid. The child gets `env` without the
  * declared knobs.
  */
-export function processLauncher(
+function processLauncher(
 	command: readonly string[],
 	env: Readonly<Record<string, string | undefined>>,
 ): Launcher {
@@ -40,12 +52,8 @@ export function processLauncher(
 			try {
 				const child = Bun.spawn([...command, ...argv], {
 					cwd: CONTROL_DIR,
-					env: Object.fromEntries(
-						Object.entries(env).filter(
-							([name]) => !DECLARED_KNOB_VARIABLES.has(name),
-						),
-					),
 					detached: true,
+					env: declaredEnvironment(env),
 					stdio: ["ignore", log.fd, log.fd],
 				});
 				child.unref();
@@ -59,11 +67,13 @@ export function processLauncher(
 			// Read in one timezone and locale, so a server restarted from another
 			// shell compares the same text the launch recorded.
 			const table = await Bun.$`ps -o lstart= -p ${pid}`
-				.env({ ...Bun.env, TZ: "UTC", LC_ALL: "C" })
+				.env({ ...Bun.env, LC_ALL: "C", TZ: "UTC" })
 				.quiet()
 				.nothrow();
 
-			return table.exitCode === 0 ? table.text().trim() : undefined;
+			return table.exitCode === SUCCESSFUL_PROCESS_EXIT
+				? table.text().trim()
+				: undefined;
 		},
 		stop: (pid) => {
 			try {
@@ -80,3 +90,5 @@ export function processLauncher(
 		},
 	};
 }
+
+export { processLauncher as default };

@@ -1,3 +1,4 @@
+import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import {
 	keepPreviousData,
 	useMutation,
@@ -5,14 +6,22 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
-import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
+
 import { confirmationArchiveClient } from "#client/api-client";
-import { refusalReason } from "#client/refusal-reason";
+import refusalReason from "#client/refusal-reason";
+
 import { runHistoryQuery, runListingQuery } from "./run-history-query";
+
+const SUCCESS_STATUS = 200;
+
+const INITIAL_READING_COUNT = 0;
 
 const routes = confirmationArchiveClient.api["confirmation-archives"];
 
-export type ArchiveReport = InferResponseType<typeof routes.$get, 200>;
+type ArchiveReport = InferResponseType<
+	typeof routes.$get,
+	typeof SUCCESS_STATUS
+>;
 
 async function fetchArchives(): Promise<ArchiveReport> {
 	const response = await routes.$get();
@@ -20,34 +29,35 @@ async function fetchArchives(): Promise<ArchiveReport> {
 		throw new Error("Could not load archived incomplete runs.");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export const confirmationArchivesQuery = {
-	queryKey: [...runHistoryQuery.queryKey, "confirmation-archives"],
+const confirmationArchivesQuery = {
 	queryFn: fetchArchives,
+	queryKey: [...runHistoryQuery.queryKey, "confirmation-archives"],
 } as const;
 
 /** Archive decisions follow every successful history reading, including another writer's changes. */
-export function useConfirmationArchives(): UseQueryResult<ArchiveReport> {
+function useConfirmationArchives(): UseQueryResult<ArchiveReport> {
 	const client = useQueryClient();
 	const listing = useQuery({
 		...runListingQuery,
 		refetchOnMount: false,
-		refetchOnWindowFocus: false,
 		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
 	});
 	const reading =
-		client.getQueryState(runListingQuery.queryKey)?.dataUpdateCount ?? 0;
+		client.getQueryState(runListingQuery.queryKey)?.dataUpdateCount ??
+		INITIAL_READING_COUNT;
 
 	return useQuery({
 		...confirmationArchivesQuery,
-		queryKey: [...confirmationArchivesQuery.queryKey, reading],
+		enabled: listing.isSuccess && !listing.isFetching,
 		gcTime: 0,
 		placeholderData: keepPreviousData,
-		enabled: listing.isSuccess && !listing.isFetching,
-		refetchOnWindowFocus: false,
+		queryKey: [...confirmationArchivesQuery.queryKey, reading],
 		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
 	});
 }
 
@@ -68,7 +78,7 @@ async function changeArchive(request: ArchiveAction): Promise<void> {
 	}
 }
 
-export function useConfirmationArchive(): UseMutationResult<
+function useConfirmationArchive(): UseMutationResult<
 	void,
 	Error,
 	ArchiveAction
@@ -82,3 +92,10 @@ export function useConfirmationArchive(): UseMutationResult<
 		},
 	});
 }
+
+export {
+	confirmationArchivesQuery,
+	useConfirmationArchive,
+	useConfirmationArchives,
+};
+export type { ArchiveReport };

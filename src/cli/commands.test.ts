@@ -1,252 +1,231 @@
 import { describe, expect, it } from "bun:test";
+
 import type { CommandDefinition } from "#cli/commands";
 import {
-	asUsageError,
 	COMMANDS,
+	UsageError,
+	asUsageError,
 	commandHelp,
 	findCommand,
 	parseCommandLine,
-	topLevelHelp,
-	UsageError,
 } from "#cli/commands";
 
+const FIRST_COMMAND_DEFINITION_INDEX = 0;
+
 const exampleCommand: CommandDefinition = {
-	name: "example",
-	summary: "Demonstrate the flag table",
 	confinement: "never",
 	flags: [
 		{
-			name: "--model",
-			kind: "value",
-			envVar: "BENCHMARK_MODEL",
 			defaultValue: "sonnet",
+			envVar: "BENCHMARK_MODEL",
 			help: "Model every workflow session uses",
+			kind: "value",
+			name: "--model",
 		},
 		{
-			name: "--yes",
-			kind: "switch",
 			help: "Approve the projected cost without a prompt",
+			kind: "switch",
+			name: "--yes",
 		},
 	],
+	name: "example",
+	summary: "Demonstrate the flag table",
 };
 
-describe(commandHelp.name, () => {
-	it("names every declared flag with its default and environment variable", () => {
-		const help = commandHelp(exampleCommand);
-
-		expect(help).toContain("--model");
-		expect(help).toContain("BENCHMARK_MODEL");
-		expect(help).toContain("sonnet");
-		expect(help).toContain("Model every workflow session uses");
-		expect(help).toContain("--yes");
-		expect(help).toContain("Approve the projected cost without a prompt");
+function matchesAOneWordCommandAndLeavesTheRest(): void {
+	expect(findCommand(["run", "--json"])).toEqual({
+		args: ["--json"],
+		command: COMMANDS[FIRST_COMMAND_DEFINITION_INDEX] ?? exampleCommand,
 	});
-});
+}
 
-describe(topLevelHelp.name, () => {
-	it("lists every command with its summary and the exit-code meanings", () => {
-		const help = topLevelHelp();
+function prefersTheTwoWordNameOverAOneWord(): void {
+	const found = findCommand(["case", "show", "audit-log"]);
 
-		for (const command of COMMANDS) {
-			expect(help).toContain(command.name);
-			expect(help).toContain(command.summary);
-		}
-		expect(help).toContain("0  the command completed and wrote its record");
-		expect(help).toContain("1  execution failure");
-		expect(help).toContain("2  usage error");
-		expect(help).toContain("3  refused precondition");
+	expect(found.command.name).toBe("case show");
+	expect(found.args).toEqual(["audit-log"]);
+}
+
+function namesTheUnknownCommandItRefuses(): void {
+	expect(() => findCommand(["bogus"])).toThrow("Unknown command bogus");
+}
+
+function namesBothTokensWhenTheSubVerbIsUnknown(): void {
+	expect(() => findCommand(["case", "bogus"])).toThrow(
+		"Unknown command case bogus",
+	);
+}
+
+function namesTheUnknownFlagItRefuses(): void {
+	expect(() => parseCommandLine(exampleCommand, ["--bogus"])).toThrow(
+		"Unknown flag --bogus for rehearse example",
+	);
+}
+
+function refusesADeclaredFlagStandingWhereAValueBelongs(): void {
+	expect(() => parseCommandLine(exampleCommand, ["--model", "--yes"])).toThrow(
+		"Flag --model needs a value for rehearse example",
+	);
+}
+
+function refusesATokenThatIsNotAFlag(): void {
+	expect(() => parseCommandLine(exampleCommand, ["oops"])).toThrow(
+		"Unexpected argument oops for rehearse example",
+	);
+}
+
+function refusesAShortFlagAsAUsageErrorRather(): void {
+	const compare = COMMANDS.find((command) => command.name === "compare");
+
+	expect(() => parseCommandLine(compare ?? exampleCommand, ["-h"])).toThrow(
+		"Unknown flag -h for rehearse compare",
+	);
+}
+
+function refusesASecondPositionalArgument(): void {
+	const compare = COMMANDS.find((command) => command.name === "compare");
+
+	expect(() =>
+		parseCommandLine(compare ?? exampleCommand, ["one.json", "two.json"]),
+	).toThrow("Unexpected argument two.json for rehearse compare");
+}
+
+function reportsTheHelpRequestTheArgumentAndTheRemaining(): void {
+	const compare = COMMANDS.find((command) => command.name === "compare");
+
+	expect(
+		parseCommandLine(compare ?? exampleCommand, ["manifest.json", "--json"]),
+	).toEqual({
+		argument: "manifest.json",
+		flags: [],
+		helpRequested: false,
+		json: true,
 	});
-});
+}
 
-describe("declared commands", () => {
-	it("declares run, replay, compare, diagnose, the record readers, and the case verbs", () => {
-		expect(COMMANDS.map((command) => command.name)).toEqual([
-			"run",
-			"replay",
-			"review",
-			"diagnose",
-			"calibrate",
-			"compare",
-			"compare attempts",
-			"compare extend",
-			"list",
-			"show",
-			"regrade",
-			"stale",
-			"corpus versions",
-			"corpus invalidation",
-			"corpus show",
-			"settings",
-			"case list",
-			"case show",
-			"case capture",
-		]);
+function reportsAHelpRequestBeforeAnyOtherFlagIs(): void {
+	expect(parseCommandLine(exampleCommand, ["--help", "--bogus"])).toEqual({
+		argument: undefined,
+		flags: ["--help", "--bogus"],
+		helpRequested: true,
+		json: false,
 	});
+}
 
-	it.each(COMMANDS.map((command) => command.name))(
-		"names every flag %s declares in its own help",
-		(name) => {
-			const command = COMMANDS.find((candidate) => candidate.name === name);
-			const help = commandHelp(command ?? exampleCommand);
+function passesDeclaredFlagsThroughInOrderForTheConfiguration(): void {
+	expect(
+		parseCommandLine(exampleCommand, ["--model", "opus", "--yes"]),
+	).toEqual({
+		argument: undefined,
+		flags: ["--model", "opus", "--yes"],
+		helpRequested: false,
+		json: false,
+	});
+}
 
-			expect(help).toContain(`rehearse ${name}`);
-			for (const flag of command?.flags ?? []) {
-				expect(help).toContain(flag.name);
-				expect(help).toContain(flag.help);
-				if (flag.envVar !== undefined) {
-					expect(help).toContain(flag.envVar);
-				}
-				if (flag.defaultValue !== undefined) {
-					expect(help).toContain(flag.defaultValue);
-				}
-			}
-		},
+function reRaisesAConfigurationRejectionAsAUsageError(): void {
+	expect(() =>
+		asUsageError(() => {
+			throw new Error("Provide --target or BENCHMARK_TARGET_DIR");
+		}),
+	).toThrow(new UsageError("Provide --target or BENCHMARK_TARGET_DIR"));
+}
+
+function returnsTheParsedConfigurationWhenParsingSucceeds(): void {
+	expect(asUsageError(() => "parsed")).toBe("parsed");
+}
+
+function declaresCorpusOnceAsOneSharedDefinition(): void {
+	const lowerBoundForDeclarationsCount = 1;
+	const expectedSize = 1;
+
+	const declarations = COMMANDS.flatMap((command) =>
+		command.flags.filter((flag) => flag.name === "--corpus"),
 	);
 
-	it("omits the flags heading for a command that declares none", () => {
-		const help = commandHelp({
-			name: "list",
-			summary: "List the records",
-			confinement: "never",
-			argument: "kind",
-			flags: [],
-		});
+	expect(declarations.length).toBeGreaterThan(lowerBoundForDeclarationsCount);
+	expect(new Set(declarations).size).toBe(expectedSize);
+}
 
-		expect(help).not.toContain("Flags:");
-		expect(help).toBe("Usage: rehearse list <kind>\n\nList the records\n");
+function confinesTheCommandsWhoseSessionsRunCommandsAndRun(): void {
+	const declared = Object.fromEntries(
+		COMMANDS.map((command) => [command.name, command.confinement]),
+	);
+
+	expect(declared).toEqual({
+		calibrate: "never",
+		"case capture": "never",
+		"case list": "never",
+		"case show": "never",
+		compare: "never",
+		"compare attempts": "always",
+		"compare extend": "always",
+		"corpus invalidation": "never",
+		"corpus show": "never",
+		"corpus versions": "never",
+		diagnose: "never",
+		list: "never",
+		regrade: "never",
+		replay: "always",
+		review: "never",
+		run: "by case",
+		settings: "never",
+		show: "never",
+		stale: "never",
 	});
-
-	it("declares the run flags the card names", () => {
-		const run = COMMANDS.find((command) => command.name === "run");
-
-		expect(run?.flags.map((flag) => flag.name)).toEqual([
-			"--case",
-			"--target",
-			"--model",
-			"--effort",
-			"--judge-model",
-			"--judge-effort",
-			"--session-budget-usd",
-			"--minimum-grade",
-			"--corpus",
-			"--pipeline",
-			"--pause",
-			"--confirm",
-			"--reps",
-			"--yes",
-			"--approved-in-browser",
-			"--json",
-		]);
-	});
-});
+}
 
 describe(findCommand.name, () => {
-	it("matches a one-word command and leaves the rest as arguments", () => {
-		expect(findCommand(["run", "--json"])).toEqual({
-			command: COMMANDS[0] ?? exampleCommand,
-			args: ["--json"],
-		});
-	});
-
-	it("prefers the two-word name over a one-word prefix of it", () => {
-		const found = findCommand(["case", "show", "audit-log"]);
-
-		expect(found.command.name).toBe("case show");
-		expect(found.args).toEqual(["audit-log"]);
-	});
-
-	it("names the unknown command it refuses", () => {
-		expect(() => findCommand(["bogus"])).toThrow("Unknown command bogus");
-	});
-
-	it("names both tokens when the sub-verb is unknown", () => {
-		expect(() => findCommand(["case", "bogus"])).toThrow(
-			"Unknown command case bogus",
-		);
-	});
+	it(
+		"matches a one-word command and leaves the rest as arguments",
+		matchesAOneWordCommandAndLeavesTheRest,
+	);
+	it(
+		"prefers the two-word name over a one-word prefix of it",
+		prefersTheTwoWordNameOverAOneWord,
+	);
+	it("names the unknown command it refuses", namesTheUnknownCommandItRefuses);
+	it(
+		"names both tokens when the sub-verb is unknown",
+		namesBothTokensWhenTheSubVerbIsUnknown,
+	);
 });
 
 describe(parseCommandLine.name, () => {
-	it("names the unknown flag it refuses", () => {
-		expect(() => parseCommandLine(exampleCommand, ["--bogus"])).toThrow(
-			"Unknown flag --bogus for rehearse example",
-		);
-	});
-
-	it("refuses a declared flag standing where a value belongs", () => {
-		expect(() =>
-			parseCommandLine(exampleCommand, ["--model", "--yes"]),
-		).toThrow("Flag --model needs a value for rehearse example");
-	});
-
-	it("refuses a token that is not a flag", () => {
-		expect(() => parseCommandLine(exampleCommand, ["oops"])).toThrow(
-			"Unexpected argument oops for rehearse example",
-		);
-	});
-
-	it("refuses a short flag as a usage error rather than a positional argument", () => {
-		const compare = COMMANDS.find((command) => command.name === "compare");
-
-		expect(() => parseCommandLine(compare ?? exampleCommand, ["-h"])).toThrow(
-			"Unknown flag -h for rehearse compare",
-		);
-	});
-
-	it("refuses a second positional argument", () => {
-		const compare = COMMANDS.find((command) => command.name === "compare");
-
-		expect(() =>
-			parseCommandLine(compare ?? exampleCommand, ["one.json", "two.json"]),
-		).toThrow("Unexpected argument two.json for rehearse compare");
-	});
-
-	it("reports the help request, the argument, and the remaining flags", () => {
-		const compare = COMMANDS.find((command) => command.name === "compare");
-
-		expect(
-			parseCommandLine(compare ?? exampleCommand, ["manifest.json", "--json"]),
-		).toEqual({
-			helpRequested: false,
-			argument: "manifest.json",
-			json: true,
-			flags: [],
-		});
-	});
-
-	it("reports a help request before any other flag is judged", () => {
-		expect(parseCommandLine(exampleCommand, ["--help", "--bogus"])).toEqual({
-			helpRequested: true,
-			argument: undefined,
-			json: false,
-			flags: ["--help", "--bogus"],
-		});
-	});
-
-	it("passes declared flags through in order for the configuration parser", () => {
-		expect(
-			parseCommandLine(exampleCommand, ["--model", "opus", "--yes"]),
-		).toEqual({
-			helpRequested: false,
-			argument: undefined,
-			json: false,
-			flags: ["--model", "opus", "--yes"],
-		});
-	});
+	it("names the unknown flag it refuses", namesTheUnknownFlagItRefuses);
+	it(
+		"refuses a declared flag standing where a value belongs",
+		refusesADeclaredFlagStandingWhereAValueBelongs,
+	);
+	it("refuses a token that is not a flag", refusesATokenThatIsNotAFlag);
+	it(
+		"refuses a short flag as a usage error rather than a positional argument",
+		refusesAShortFlagAsAUsageErrorRather,
+	);
+	it("refuses a second positional argument", refusesASecondPositionalArgument);
+	it(
+		"reports the help request, the argument, and the remaining flags",
+		reportsTheHelpRequestTheArgumentAndTheRemaining,
+	);
+	it(
+		"reports a help request before any other flag is judged",
+		reportsAHelpRequestBeforeAnyOtherFlagIs,
+	);
+	it(
+		"passes declared flags through in order for the configuration parser",
+		passesDeclaredFlagsThroughInOrderForTheConfiguration,
+	);
 });
 
 describe(asUsageError.name, () => {
-	it("re-raises a configuration rejection as a usage error", () => {
-		expect(() =>
-			asUsageError(() => {
-				throw new Error("Provide --target or BENCHMARK_TARGET_DIR");
-			}),
-		).toThrow(new UsageError("Provide --target or BENCHMARK_TARGET_DIR"));
-	});
-
-	it("returns the parsed configuration when parsing succeeds", () => {
-		expect(asUsageError(() => "parsed")).toBe("parsed");
-	});
+	it(
+		"re-raises a configuration rejection as a usage error",
+		reRaisesAConfigurationRejectionAsAUsageError,
+	);
+	it(
+		"returns the parsed configuration when parsing succeeds",
+		returnsTheParsedConfigurationWhenParsingSucceeds,
+	);
 });
 
 describe("the corpus source flag", () => {
@@ -260,43 +239,15 @@ describe("the corpus source flag", () => {
 			expect(help).toContain("directory in corpus layout");
 		},
 	);
-
-	it("declares --corpus once, as one shared definition", () => {
-		const declarations = COMMANDS.flatMap((command) =>
-			command.flags.filter((flag) => flag.name === "--corpus"),
-		);
-
-		expect(declarations.length).toBeGreaterThan(1);
-		expect(new Set(declarations).size).toBe(1);
-	});
+	it(
+		"declares --corpus once, as one shared definition",
+		declaresCorpusOnceAsOneSharedDefinition,
+	);
 });
 
 describe("the confinement each command declares", () => {
-	it("confines the commands whose sessions run commands, and run by its case", () => {
-		const declared = Object.fromEntries(
-			COMMANDS.map((command) => [command.name, command.confinement]),
-		);
-
-		expect(declared).toEqual({
-			run: "by case",
-			replay: "always",
-			review: "never",
-			diagnose: "never",
-			calibrate: "never",
-			compare: "never",
-			"compare attempts": "always",
-			"compare extend": "always",
-			list: "never",
-			show: "never",
-			regrade: "never",
-			stale: "never",
-			"corpus versions": "never",
-			"corpus invalidation": "never",
-			"corpus show": "never",
-			settings: "never",
-			"case list": "never",
-			"case show": "never",
-			"case capture": "never",
-		});
-	});
+	it(
+		"confines the commands whose sessions run commands, and run by its case",
+		confinesTheCommandsWhoseSessionsRunCommandsAndRun,
+	);
 });

@@ -1,12 +1,13 @@
-import type { ComponentProps } from "react";
 import { ChevronDown } from "lucide-react";
-import { cn } from "#client/system/cn";
+import type { ComponentProps } from "react";
+
+import cn from "#client/system/cn";
 
 type NativeSelectProps = Omit<ComponentProps<"select">, "className"> & {
 	prefix?: string;
 };
 
-export function NativeSelect({
+function NativeSelect({
 	prefix,
 	children,
 	...props
@@ -37,3 +38,5 @@ export function NativeSelect({
 		</span>
 	);
 }
+
+export { NativeSelect as default };

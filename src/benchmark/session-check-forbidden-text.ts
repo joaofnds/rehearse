@@ -1,34 +1,40 @@
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
 import type { CheckResult } from "./session-check-result";
 
-export const forbiddenTextCheckSchema = z
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const forbiddenTextCheckSchema = z
 	.object({
 		kind: z.literal("forbidden-text"),
-		strings: z.array(z.string().min(1)).min(1),
+		strings: z.array(z.string().nonempty()).nonempty(),
 	})
 	.strict();
 
-export type ForbiddenTextCheck = z.infer<typeof forbiddenTextCheckSchema>;
+type ForbiddenTextCheck = z.infer<typeof forbiddenTextCheckSchema>;
 
-export function evaluateForbiddenText(
+function evaluateForbiddenText(
 	check: Immutable<ForbiddenTextCheck>,
 	reply: string,
 ): CheckResult {
 	const present = check.strings.filter((forbidden) =>
 		reply.includes(forbidden),
 	);
-	if (present.length === 0) {
+	if (present.length === EMPTY_COLLECTION_LENGTH) {
 		return {
+			detail: `none of ${String(check.strings.length)} forbidden strings present`,
 			kind: check.kind,
 			status: "PASS",
-			detail: `none of ${String(check.strings.length)} forbidden strings present`,
 		};
 	}
 
 	return {
+		detail: `reply contains ${present.map((forbidden) => JSON.stringify(forbidden)).join(", ")}`,
 		kind: check.kind,
 		status: "FAIL",
-		detail: `reply contains ${present.map((forbidden) => JSON.stringify(forbidden)).join(", ")}`,
 	};
 }
+
+export { forbiddenTextCheckSchema, evaluateForbiddenText };
+export type { ForbiddenTextCheck };

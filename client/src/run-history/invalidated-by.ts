@@ -1,5 +1,5 @@
 /** An edit, named by the corpus versions it went from and to. */
-export interface EditVersions {
+interface EditVersions {
 	readonly previous: string;
 	readonly current: string;
 }
@@ -7,10 +7,7 @@ export interface EditVersions {
 const SEPARATOR = "..";
 
 /** The run-history address's `invalidatedBy` value naming an edit. */
-export function invalidatedByValue({
-	previous,
-	current,
-}: EditVersions): string {
+function invalidatedByValue({ previous, current }: EditVersions): string {
 	return `${previous}${SEPARATOR}${current}`;
 }
 
@@ -21,11 +18,14 @@ const EDIT = /^(?<previous>[0-9a-f]{64})\.\.(?<current>[0-9a-f]{64})$/u;
  * The edit an `invalidatedBy` value names, undefined when it names none, as
  * a short version label or anything but two full versions does.
  */
-export function editNamedBy(value: string): EditVersions | undefined {
+function editNamedBy(value: string): EditVersions | undefined {
 	const { previous, current } = EDIT.exec(value)?.groups ?? {};
 	if (previous === undefined || current === undefined) {
 		return undefined;
 	}
 
-	return { previous, current };
+	return { current, previous };
 }
+
+export { editNamedBy, invalidatedByValue };
+export type { EditVersions };

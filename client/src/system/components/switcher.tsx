@@ -1,17 +1,19 @@
-export function Switcher<Option extends string>({
-	label,
-	options,
-	selected,
-	onSelect,
-	optionLabel = (option) => option,
-}: {
+interface SwitcherProps<Option extends string> {
 	readonly label: string;
 	readonly options: readonly Option[];
 	readonly selected: Option;
 	readonly onSelect: (option: Option) => void;
 	/** The words an option shows, when they differ from its value. */
 	readonly optionLabel?: (option: Option) => string;
-}): React.JSX.Element {
+}
+
+function Switcher<Option extends string>({
+	label,
+	options,
+	selected,
+	onSelect,
+	optionLabel = (option) => option,
+}: SwitcherProps<Option>): React.JSX.Element {
 	return (
 		<div
 			role="group"
@@ -34,3 +36,5 @@ export function Switcher<Option extends string>({
 		</div>
 	);
 }
+
+export { Switcher as default };

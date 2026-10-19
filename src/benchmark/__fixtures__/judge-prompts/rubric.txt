@@ -1,0 +1,1 @@
+{"hardBlockers":[{"id":"invalid-stage-delivery","description":"Valid delivery"},{"id":"false-test-safety","description":"Tests carry safety"},{"id":"unfinished-delivery","description":"Complete delivery"}],"requirements":[{"id":"scope","description":"Scope"}],"dimensions":[{"id":"clarity","description":"Clarity","good":"Good","excellent":"Excellent"}]}

@@ -1,15 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "@tanstack/react-router";
+
 import { runListingQuery } from "#client/run-history/run-history-query";
-import { EmptyState } from "#client/system/components/empty-state";
-import { ScreenHeader } from "#client/system/components/screen-header";
+import EmptyState from "#client/system/components/empty-state";
+import ScreenHeader from "#client/system/components/screen-header";
 
 /**
  * The legacy run-detail address, which names no run: it opens the newest
  * recorded pipeline run, the listing's first, under that run's own address so
  * the page can be shared and reloaded.
  */
-export function NewestRunDetail(): React.JSX.Element {
+function NewestRunDetail(): React.JSX.Element {
 	const listing = useQuery(runListingQuery);
 	if (listing.data === undefined) {
 		return (
@@ -40,3 +41,5 @@ export function NewestRunDetail(): React.JSX.Element {
 
 	return <Navigate to="/runs/$run" params={{ run: newest.run }} replace />;
 }
+
+export { NewestRunDetail as default };

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { EmptyState } from "#client/system/components/empty-state";
+
+import EmptyState from "#client/system/components/empty-state";
 import { Button } from "#client/system/ui/button";
 
 /**
@@ -7,7 +8,7 @@ import { Button } from "#client/system/ui/button";
  * default two bare words on an empty canvas. The address is text the operator
  * did not write, so it is a text child: React escapes those.
  */
-export function NotFoundPage(): React.JSX.Element {
+function NotFoundPage(): React.JSX.Element {
 	const { pathname } = useLocation();
 
 	return (
@@ -24,3 +25,5 @@ export function NotFoundPage(): React.JSX.Element {
 		</div>
 	);
 }
+
+export { NotFoundPage as default };

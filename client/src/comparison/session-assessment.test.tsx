@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { SessionAssessment } from "./session-assessment";
+
+import SessionAssessment from "./session-assessment";
 
 describe(SessionAssessment.name, () => {
 	it("keeps an older response's missing projection explicit without inferring check results", () => {

@@ -1,0 +1,73 @@
+{
+	"session_id": "judge-session",
+	"structured_output": {
+		"hardBlockers": [
+			{
+				"id": "invalid-stage-delivery",
+				"status": "PASS",
+				"evidence": [
+					{
+						"claim": "grounded",
+						"path": "backlog-seed.md",
+						"quote": "Task",
+						"source": "task"
+					}
+				]
+			},
+			{
+				"id": "false-test-safety",
+				"status": "PASS",
+				"evidence": [
+					{
+						"claim": "grounded",
+						"path": "backlog-seed.md",
+						"quote": "Task",
+						"source": "task"
+					}
+				]
+			},
+			{
+				"id": "unfinished-delivery",
+				"status": "PASS",
+				"evidence": [
+					{
+						"claim": "grounded",
+						"path": "backlog-seed.md",
+						"quote": "Task",
+						"source": "task"
+					}
+				]
+			}
+		],
+		"requirements": [
+			{
+				"id": "scope",
+				"status": "PASS",
+				"evidence": [
+					{
+						"claim": "grounded",
+						"path": "backlog-seed.md",
+						"quote": "Task",
+						"source": "task"
+					}
+				]
+			}
+		],
+		"dimensions": [
+			{
+				"id": "clarity",
+				"grade": "A",
+				"evidence": [
+					{
+						"claim": "grounded",
+						"path": "backlog-seed.md",
+						"quote": "Task",
+						"source": "task"
+					}
+				]
+			}
+		],
+		"summary": "graded"
+	},
+	"total_cost_usd": 0.1
+}

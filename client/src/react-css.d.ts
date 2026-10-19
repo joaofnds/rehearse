@@ -1,4 +1,4 @@
-export type CustomProperty = `--${string}`;
+type CustomProperty = `--${string}`;
 
 declare module "react" {
 	interface CSSProperties extends Record<
@@ -6,3 +6,5 @@ declare module "react" {
 		string | number | undefined
 	> {}
 }
+
+export type { CustomProperty };

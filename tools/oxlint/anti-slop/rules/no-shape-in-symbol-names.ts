@@ -1,6 +1,8 @@
 import { defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 
+import type { Syntax } from "./syntax.ts";
+
 const FORBIDDEN_SYMBOL_NAME = "shape";
 
 function containsForbiddenSymbolName(name: string): boolean {
@@ -8,9 +10,34 @@ function containsForbiddenSymbolName(name: string): boolean {
 }
 
 /** Ban the case-insensitive substring "shape" in every JavaScript and TypeScript symbol name. */
-export const noForbiddenTermInSymbolNamesRule = defineRule({
+const noForbiddenTermInSymbolNamesRule = defineRule({
+	createOnce(context) {
+		const reportForbiddenSymbolName = (
+			node: Syntax<ESTree.Node> & { readonly name: string },
+		): void => {
+			if (!containsForbiddenSymbolName(node.name)) {
+				return;
+			}
+			context.report({
+				data: { name: node.name },
+				messageId: "forbiddenSymbolName",
+				node: { range: [node.start, node.end] },
+			});
+		};
+
+		return {
+			Identifier(node) {
+				reportForbiddenSymbolName(node);
+			},
+			JSXIdentifier(node) {
+				reportForbiddenSymbolName(node);
+			},
+			PrivateIdentifier(node) {
+				reportForbiddenSymbolName(node);
+			},
+		};
+	},
 	meta: {
-		type: "problem",
 		docs: {
 			description:
 				'Disallow the case-insensitive substring "shape" in JavaScript, TypeScript, private, and JSX symbol names.',
@@ -19,23 +46,8 @@ export const noForbiddenTermInSymbolNamesRule = defineRule({
 			forbiddenSymbolName:
 				'Rename symbol "{{name}}" for its domain role; "shape" describes structure rather than ownership.',
 		},
-	},
-	createOnce(context) {
-		const reportForbiddenSymbolName = (
-			node: ESTree.Node & { name: string },
-		) => {
-			if (!containsForbiddenSymbolName(node.name)) return;
-			context.report({
-				node,
-				messageId: "forbiddenSymbolName",
-				data: { name: node.name },
-			});
-		};
-
-		return {
-			Identifier: reportForbiddenSymbolName,
-			PrivateIdentifier: reportForbiddenSymbolName,
-			JSXIdentifier: reportForbiddenSymbolName,
-		};
+		type: "problem",
 	},
 });
+
+export { noForbiddenTermInSymbolNamesRule as default };

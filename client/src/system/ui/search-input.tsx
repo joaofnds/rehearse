@@ -1,9 +1,9 @@
-import type { ComponentProps } from "react";
 import { Search } from "lucide-react";
+import type { ComponentProps } from "react";
 
 type SearchInputProps = Omit<ComponentProps<"input">, "className" | "type">;
 
-export function SearchInput(props: SearchInputProps): React.JSX.Element {
+function SearchInput(props: SearchInputProps): React.JSX.Element {
 	return (
 		<span className="relative block min-w-0 w-full">
 			<Search
@@ -18,3 +18,5 @@ export function SearchInput(props: SearchInputProps): React.JSX.Element {
 		</span>
 	);
 }
+
+export { SearchInput as default };

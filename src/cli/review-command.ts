@@ -2,13 +2,20 @@ import { displayPath } from "#benchmark/config";
 import type { HumanReview } from "#benchmark/contracts";
 import { humanFindingSchema, humanReviewSchema } from "#benchmark/contracts";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
-import { asUsageError, asUsageErrorAsync, UsageError } from "#cli/commands";
+import {
+	UsageError,
+	asUsageError,
+	asUsageErrorAsync,
+} from "#cli/command-usage";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
 import { writeRecord } from "#cli/output";
 import { parseRunRecordId } from "#cli/record-id";
+import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
 
-export interface ReviewRequest {
+const EMPTY_COLLECTION_LENGTH = 0;
+
+interface ReviewRequest {
 	readonly id: string | undefined;
 	readonly runsDirectory: string;
 	readonly json: boolean;
@@ -25,11 +32,11 @@ const DESCRIBING_FLAGS = ["--verdict", "--summary", "--finding"] as const;
  * choosing which one the caller meant. A review given as a file is the file's
  * own bytes; a review given as flags is assembled from them.
  */
-function reviewText(request: Readonly<ReviewRequest>): Promise<string> {
+async function reviewText(request: Readonly<ReviewRequest>): Promise<string> {
 	const described =
 		request.verdict !== undefined ||
 		request.summary !== undefined ||
-		request.findings.length > 0;
+		request.findings.length > EMPTY_COLLECTION_LENGTH;
 
 	if (request.file !== undefined) {
 		if (described) {
@@ -38,7 +45,9 @@ function reviewText(request: Readonly<ReviewRequest>): Promise<string> {
 			);
 		}
 
-		return asUsageErrorAsync(() => Bun.file(request.file ?? "").text());
+		return await asUsageErrorAsync(
+			async () => await Bun.file(request.file ?? "").text(),
+		);
 	}
 	if (!described) {
 		throw new UsageError(
@@ -46,15 +55,13 @@ function reviewText(request: Readonly<ReviewRequest>): Promise<string> {
 		);
 	}
 
-	return Promise.resolve(
-		JSON.stringify({
-			verdict: request.verdict,
-			summary: request.summary,
-			findings: request.findings.map((finding) =>
-				asUsageError(() => humanFindingSchema.parse(JSON.parse(finding))),
-			),
-		}),
-	);
+	return JSON.stringify({
+		findings: request.findings.map((finding) =>
+			asUsageError(() => humanFindingSchema.parse(JSON.parse(finding))),
+		),
+		summary: request.summary,
+		verdict: request.verdict,
+	});
 }
 
 function parseReview(text: string): HumanReview {
@@ -66,7 +73,7 @@ function parseReview(text: string): HumanReview {
  * the review itself parses, so a mistyped run name or a malformed review never
  * overwrites the review a reviewer already recorded.
  */
-export async function runReview(
+async function runReview(
 	request: Readonly<ReviewRequest>,
 	output: CommandOutput,
 ): Promise<void> {
@@ -83,7 +90,13 @@ export async function runReview(
 	}
 
 	const review = parseReview(await reviewText(request));
-	await Bun.write(paths.reviewFile, `${JSON.stringify(review, null, 2)}\n`);
+	await Bun.write(
+		paths.reviewFile,
+		`${JSON.stringify(review, null, RECORD_JSON_INDENT_SPACES)}\n`,
+	);
 
 	await writeRecord(output, paths.reviewFile, request.json);
 }
+
+export { runReview as default };
+export type { ReviewRequest };

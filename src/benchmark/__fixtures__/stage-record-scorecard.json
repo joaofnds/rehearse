@@ -1,0 +1,160 @@
+{
+	"stage": "shape",
+	"rubricPath": "rubric.json",
+	"rubric": {
+		"hardBlockers": [
+			{
+				"id": "invalid-stage-delivery",
+				"description": "Valid delivery"
+			},
+			{
+				"id": "false-test-safety",
+				"description": "Tests carry safety"
+			},
+			{
+				"id": "unfinished-delivery",
+				"description": "Complete delivery"
+			}
+		],
+		"requirements": [
+			{
+				"id": "scope",
+				"description": "Scope"
+			}
+		],
+		"dimensions": [
+			{
+				"id": "clarity",
+				"description": "Clarity",
+				"good": "Good",
+				"excellent": "Excellent"
+			}
+		]
+	},
+	"input": {
+		"stage": "shape",
+		"kind": "planning",
+		"task": "Task",
+		"productBrief": "Brief",
+		"instructions": "Instructions",
+		"baselineContext": [],
+		"taskState": "State",
+		"transcript": {
+			"stage": "shape",
+			"sessionId": "session",
+			"costUsd": 1,
+			"providerCalls": [],
+			"exchanges": []
+		},
+		"priorArtifacts": []
+	},
+	"prompt": "prompt",
+	"attempts": [],
+	"costUsd": 0.5,
+	"grade": {
+		"hardBlockers": [
+			{
+				"id": "invalid-stage-delivery",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "task",
+						"path": "backlog-seed.md",
+						"claim": "grounded",
+						"quote": "Task",
+						"locator": {
+							"kind": "lines",
+							"file": "backlog-seed.md",
+							"startLine": 1,
+							"endLine": 1,
+							"occurrences": 1
+						}
+					}
+				]
+			},
+			{
+				"id": "false-test-safety",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "task",
+						"path": "backlog-seed.md",
+						"claim": "grounded",
+						"quote": "Task",
+						"locator": {
+							"kind": "lines",
+							"file": "backlog-seed.md",
+							"startLine": 1,
+							"endLine": 1,
+							"occurrences": 1
+						}
+					}
+				]
+			},
+			{
+				"id": "unfinished-delivery",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "task",
+						"path": "backlog-seed.md",
+						"claim": "grounded",
+						"quote": "Task",
+						"locator": {
+							"kind": "lines",
+							"file": "backlog-seed.md",
+							"startLine": 1,
+							"endLine": 1,
+							"occurrences": 1
+						}
+					}
+				]
+			}
+		],
+		"requirements": [
+			{
+				"id": "scope",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "task",
+						"path": "backlog-seed.md",
+						"claim": "grounded",
+						"quote": "Task",
+						"locator": {
+							"kind": "lines",
+							"file": "backlog-seed.md",
+							"startLine": 1,
+							"endLine": 1,
+							"occurrences": 1
+						}
+					}
+				]
+			}
+		],
+		"dimensions": [
+			{
+				"id": "clarity",
+				"grade": "A",
+				"evidence": [
+					{
+						"source": "task",
+						"path": "backlog-seed.md",
+						"claim": "grounded",
+						"quote": "Task",
+						"locator": {
+							"kind": "lines",
+							"file": "backlog-seed.md",
+							"startLine": 1,
+							"endLine": 1,
+							"occurrences": 1
+						}
+					}
+				]
+			}
+		],
+		"summary": "graded",
+		"grade": "A",
+		"verdict": "CONTINUE"
+	}
+}

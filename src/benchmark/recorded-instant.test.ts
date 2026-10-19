@@ -1,12 +1,21 @@
 import { describe, expect, it } from "bun:test";
-import { recordedInstant } from "./recorded-instant";
+
+import recordedInstant from "./recorded-instant";
 
 describe(recordedInstant.name, () => {
 	it.each([
-		{ form: "a run name", time: "2026-10-01T10-30-00.000Z" },
-		{ form: "a start time", time: "2026-10-01T10:30:00.000Z" },
-	])("reads $form as the instant it names", ({ time }) => {
-		expect(recordedInstant(time)).toBe(Date.UTC(2026, 9, 1, 10, 30));
+		{
+			expectedEpochMs: 1_790_850_600_000,
+			form: "a run name",
+			time: "2026-10-01T10-30-00.000Z",
+		},
+		{
+			expectedEpochMs: 1_790_850_600_000,
+			form: "a start time",
+			time: "2026-10-01T10:30:00.000Z",
+		},
+	])("reads $form as the instant it names", ({ time, expectedEpochMs }) => {
+		expect(recordedInstant(time)).toBe(expectedEpochMs);
 	});
 
 	it("places a run name after a start time earlier in the same hour", () => {

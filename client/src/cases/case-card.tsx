@@ -1,14 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
+
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
 import { LaunchDialog } from "#client/launch/launch-dialog";
-import { plural } from "#client/plural";
+import plural from "#client/plural";
+import { spendReading } from "#client/run-history/run-progress";
+import StateBadge from "#client/system/components/state-badge";
 import { Button } from "#client/system/ui/button";
-import { StateBadge } from "#client/system/components/state-badge";
+
 import type { CasesResponse } from "./cases-query";
 
-export type ListedCase = CasesResponse["cases"][number];
+const NO_JUDGED_RESULTS = 0;
+
+const NO_MISSING_COST_ITEMS = 0;
+
+const NO_EXCLUDED_RECORDS = 0;
+
+type ListedCase = CasesResponse["cases"][number];
 
 type PipelineCase = Extract<ListedCase, { kind: "pipeline" }>;
 
@@ -35,7 +44,7 @@ function verdicts(listed: ListedCase): string | undefined {
 	}
 
 	if (listed.kind === "session") {
-		return figures.judged === 0
+		return figures.judged === NO_JUDGED_RESULTS
 			? "no run checked"
 			: `${String(figures.passed)} of ${String(figures.judged)} passed their checks`;
 	}
@@ -50,9 +59,9 @@ function costPerRun({ costPerRun: cost }: MeasuredFigures): string {
 		return "no cost recorded";
 	}
 
-	const mean = `$${cost.meanUsd.toFixed(2)}/run`;
+	const mean = `${spendReading(cost.meanUsd)}/run`;
 
-	return cost.lacking === 0
+	return cost.lacking === NO_MISSING_COST_ITEMS
 		? mean
 		: `${mean}, ${plural(cost.lacking, "run")} without a cost`;
 }
@@ -82,11 +91,11 @@ function minimumGradeLine({
 		: "Minimum grade not recorded";
 }
 
-function Definition({
-	listed,
-}: {
+interface DefinitionProps {
 	readonly listed: ListedCase;
-}): React.JSX.Element {
+}
+
+function Definition({ listed }: DefinitionProps): React.JSX.Element {
 	if (listed.kind === "session") {
 		return (
 			<>
@@ -125,11 +134,11 @@ function Definition({
 	);
 }
 
-function RunButtons({
-	listed,
-}: {
+interface RunButtonsProps {
 	readonly listed: ListedCase;
-}): React.JSX.Element {
+}
+
+function RunButtons({ listed }: RunButtonsProps): React.JSX.Element {
 	const reasonId = useId();
 
 	if (listed.model === null) {
@@ -159,24 +168,26 @@ function RunButtons({
 	return (
 		<>
 			<LaunchDialog
-				target={{ kind: "case", caseId: listed.id, attempts: GROUP_ATTEMPTS }}
+				target={{ attempts: GROUP_ATTEMPTS, caseId: listed.id, kind: "case" }}
 				trigger={<Button variant="quiet">Run group</Button>}
 			/>
 			<LaunchDialog
-				target={{ kind: "case", caseId: listed.id, attempts: 1 }}
+				target={{ attempts: 1, caseId: listed.id, kind: "case" }}
 				trigger={<Button variant="outline">Run once</Button>}
 			/>
 		</>
 	);
 }
 
-export function CaseCard({
-	listed,
-	showFigures = true,
-}: {
+interface CaseCardProps {
 	readonly listed: ListedCase;
 	readonly showFigures?: boolean;
-}): React.JSX.Element {
+}
+
+function CaseCard({
+	listed,
+	showFigures = true,
+}: CaseCardProps): React.JSX.Element {
 	const headingId = useId();
 	const minimumGrade =
 		listed.kind === "pipeline" ? minimumGradeLine(listed) : undefined;
@@ -186,41 +197,14 @@ export function CaseCard({
 			aria-labelledby={headingId}
 			className="rounded-lg border border-divider bg-card p-6"
 		>
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-				<h2
-					id={headingId}
-					className="min-w-0 max-w-full text-16 font-semibold wrap-anywhere"
-				>
-					<Link
-						to="/cases"
-						search={{ caseId: listed.id }}
-						className="text-foreground no-underline hover:text-link hover:underline"
-					>
-						{listed.id}
-					</Link>
-				</h2>
-				<StateBadge tone="neutral">{KIND_LABEL[listed.kind]}</StateBadge>
-				<span className="text-12 text-muted-foreground">
-					{listed.target ?? "no repository"}
-				</span>
-				{showFigures ? (
-					<span className="w-full text-12 leading-reading wrap-anywhere text-dim">
-						{listed.figures.state === "measured" ? (
-							<Link
-								to={`/cases?caseId=${encodeURIComponent(listed.id)}&corpusVersion=${encodeURIComponent(listed.figures.corpusVersion ?? "unrecorded")}#case-evidence`}
-								className="text-link hover:underline"
-							>
-								{figuresLine(listed)}
-							</Link>
-						) : (
-							figuresLine(listed)
-						)}
-					</span>
-				) : null}
-			</div>
+			<CaseCardIdentity
+				headingId={headingId}
+				listed={listed}
+				showFigures={showFigures}
+			/>
 			{showFigures &&
 			listed.figures.state === "measured" &&
-			listed.figures.leftOut > 0 ? (
+			listed.figures.leftOut > NO_EXCLUDED_RECORDS ? (
 				<p className="mt-1 text-12 text-dim">
 					{runsLeftOut(listed.figures.leftOut)}
 				</p>
@@ -231,22 +215,79 @@ export function CaseCard({
 			<p className="mt-3 max-w-prose text-14 leading-reading wrap-anywhere">
 				{listed.title}
 			</p>
-			<div className="mt-5 flex flex-wrap items-center gap-3 border-t border-subtle pt-4">
-				<Definition listed={listed} />
-				<span className="ml-auto flex flex-wrap items-center gap-2">
-					{listed.kind === "pipeline" ? (
-						<Button asChild variant="quiet">
-							<Link
-								to="/cases"
-								search={{ view: "workflows", caseId: listed.id }}
-							>
-								View workflow
-							</Link>
-						</Button>
-					) : null}
-					<RunButtons listed={listed} />
-				</span>
-			</div>
+			<CaseCardActions listed={listed} />
 		</article>
 	);
 }
+
+interface CaseCardIdentityProps {
+	readonly headingId: string;
+	readonly listed: ListedCase;
+	readonly showFigures: boolean;
+}
+
+function CaseCardIdentity({
+	headingId,
+	listed,
+	showFigures,
+}: CaseCardIdentityProps): React.JSX.Element {
+	return (
+		<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+			<h2
+				id={headingId}
+				className="min-w-0 max-w-full text-16 font-semibold wrap-anywhere"
+			>
+				<Link
+					to="/cases"
+					search={{ caseId: listed.id }}
+					className="text-foreground no-underline hover:text-link hover:underline"
+				>
+					{listed.id}
+				</Link>
+			</h2>
+			<StateBadge tone="neutral">{KIND_LABEL[listed.kind]}</StateBadge>
+			<span className="text-12 text-muted-foreground">
+				{listed.target ?? "no repository"}
+			</span>
+			{showFigures ? (
+				<span className="w-full text-12 leading-reading wrap-anywhere text-dim">
+					{listed.figures.state === "measured" ? (
+						<Link
+							to={`/cases?caseId=${encodeURIComponent(listed.id)}&corpusVersion=${encodeURIComponent(listed.figures.corpusVersion ?? "unrecorded")}#case-evidence`}
+							className="text-link hover:underline"
+						>
+							{figuresLine(listed)}
+						</Link>
+					) : (
+						figuresLine(listed)
+					)}
+				</span>
+			) : null}
+		</div>
+	);
+}
+
+interface CaseCardActionsProps {
+	readonly listed: ListedCase;
+}
+
+function CaseCardActions({ listed }: CaseCardActionsProps): React.JSX.Element {
+	return (
+		<div className="mt-5 flex flex-wrap items-center gap-3 border-t border-subtle pt-4">
+			<Definition listed={listed} />
+			<span className="ml-auto flex flex-wrap items-center gap-2">
+				{listed.kind === "pipeline" ? (
+					<Button asChild variant="quiet">
+						<Link to="/cases" search={{ caseId: listed.id, view: "workflows" }}>
+							View workflow
+						</Link>
+					</Button>
+				) : null}
+				<RunButtons listed={listed} />
+			</span>
+		</div>
+	);
+}
+
+export { CaseCard as default };
+export type { ListedCase };

@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import { failureOf } from "#cli/cli-test-support";
+
 import { RefusedPreconditionError } from "./exit-codes";
 import {
 	readSettings,
@@ -11,10 +14,10 @@ import {
 	storeSpendCeiling,
 } from "./settings";
 
-let recordsDirectory: string;
+const recordsDirectory = join(tmpdir(), `rehearse-settings-${randomUUID()}`);
 
 beforeEach(async () => {
-	recordsDirectory = await mkdtemp(join(tmpdir(), "rehearse-settings-"));
+	await mkdir(recordsDirectory, { recursive: true });
 });
 
 afterEach(async () => {
@@ -23,7 +26,9 @@ afterEach(async () => {
 
 describe(readSettings.name, () => {
 	it("reads back a stored spend ceiling", async () => {
-		await storeSpendCeiling(recordsDirectory, 2.5);
+		const storedCeilingUsd = 2.5;
+
+		await storeSpendCeiling(recordsDirectory, storedCeilingUsd);
 
 		const settings = await readSettings(recordsDirectory);
 
@@ -37,12 +42,14 @@ describe(readSettings.name, () => {
 	});
 
 	it("keeps settings it does not know when storing a ceiling", async () => {
+		const storedCeilingUsd = 2.5;
+
 		await Bun.write(
 			join(recordsDirectory, "settings.json"),
 			JSON.stringify({ laterSetting: "kept" }),
 		);
 
-		await storeSpendCeiling(recordsDirectory, 2.5);
+		await storeSpendCeiling(recordsDirectory, storedCeilingUsd);
 
 		expect(
 			await Bun.file(join(recordsDirectory, "settings.json")).json(),
@@ -67,47 +74,64 @@ describe(readSettings.name, () => {
 
 describe(storeSpendCeiling.name, () => {
 	it("replaces the ceiling stored before it", async () => {
-		await storeSpendCeiling(recordsDirectory, 2.5);
+		const firstStoredCeilingUsd = 2.5;
+		const secondStoredCeilingUsd = 4;
 
-		await storeSpendCeiling(recordsDirectory, 4);
+		await storeSpendCeiling(recordsDirectory, firstStoredCeilingUsd);
+
+		await storeSpendCeiling(recordsDirectory, secondStoredCeilingUsd);
 
 		expect(await readSettings(recordsDirectory)).toEqual({
 			spendCeilingUsd: 4,
 		});
 	});
 
-	it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
-		"refuses %p as a ceiling",
-		async (ceilingUsd) => {
-			const error = await failureOf(
-				storeSpendCeiling(recordsDirectory, ceilingUsd),
-			);
+	it.each(
+		(
+			[
+				{ ceilingUsd: 0 },
+				{ ceilingUsd: -1 },
+				{ ceilingUsd: Number.NaN },
+				{ ceilingUsd: Number.POSITIVE_INFINITY },
+			] as const
+		).map(({ ceilingUsd }) => [ceilingUsd] as const),
+	)("refuses %p as a ceiling", async (ceilingUsd) => {
+		const error = await failureOf(
+			storeSpendCeiling(recordsDirectory, ceilingUsd),
+		);
 
-			expect(error).toBeInstanceOf(RangeError);
-			expect(await readSettings(recordsDirectory)).toEqual({});
-		},
-	);
+		expect(error).toBeInstanceOf(RangeError);
+		expect(await readSettings(recordsDirectory)).toEqual({});
+	});
 });
 
 describe("storing two settings at once", () => {
 	it("keeps both, since neither write reads settings the other is replacing", async () => {
+		const storedCeilingUsd = 3;
+
 		await Promise.all([
-			storeSpendCeiling(recordsDirectory, 3),
+			storeSpendCeiling(recordsDirectory, storedCeilingUsd),
 			storeLinkedCorpusDirectory(recordsDirectory, "/corpus"),
 		]);
 
 		expect(await readSettings(recordsDirectory)).toEqual({
-			spendCeilingUsd: 3,
 			linkedCorpusDirectory: "/corpus",
+			spendCeilingUsd: 3,
 		});
 	});
 });
 
 describe(requireSpendCeiling.name, () => {
 	it("returns the stored ceiling", async () => {
-		await storeSpendCeiling(recordsDirectory, 2.5);
+		const storedCeilingUsd = 2.5;
 
-		expect(await requireSpendCeiling(recordsDirectory)).toBe(2.5);
+		const expectedStoredCeilingUsd = 2.5;
+
+		await storeSpendCeiling(recordsDirectory, storedCeilingUsd);
+
+		expect(await requireSpendCeiling(recordsDirectory)).toBe(
+			expectedStoredCeilingUsd,
+		);
 	});
 
 	describe("when no ceiling is stored", () => {

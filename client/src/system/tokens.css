@@ -93,7 +93,7 @@
 
 	/* Scrollbar */
 	--scrollbar-size: 11px;
-	--scrollbar-thumb: #3f424d;
+	--color-scrollbar-thumb: #3f424d;
 	--scrollbar-thumb-border: 3px;
 
 	/* Focus ring */

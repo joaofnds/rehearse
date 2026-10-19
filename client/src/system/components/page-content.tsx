@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
-import { cn } from "#client/system/cn";
 
-export function PageContent({
-	children,
-	className,
-}: {
+import cn from "#client/system/cn";
+
+interface PageContentProps {
 	readonly children: ReactNode;
 	readonly className?: string;
-}): React.JSX.Element {
+}
+
+function PageContent({
+	children,
+	className,
+}: PageContentProps): React.JSX.Element {
 	return (
 		<div
 			className={cn(
@@ -19,3 +22,5 @@ export function PageContent({
 		</div>
 	);
 }
+
+export { PageContent as default };

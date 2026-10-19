@@ -1,15 +1,22 @@
-import { withCorpusReadScope } from "#benchmark/corpus-read-scope";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { LastEdit } from "#benchmark/corpus-invalidation";
 import { corpusInvalidation } from "#benchmark/corpus-invalidation";
-import { hashCorpusLayout } from "#benchmark/corpus-layout";
+import hashCorpusLayout from "#benchmark/corpus-layout";
+import { withCorpusReadScope } from "#benchmark/corpus-read-scope";
 import { corpusVersionDigest } from "#benchmark/corpus-version";
-import { lineCount } from "#benchmark/line-count";
+import lineCount from "#benchmark/line-count";
+
 import { redactAbsolutePaths } from "./redact-path";
 
-export interface CorpusFileReport {
+const NO_RECORDED_READERS = 0;
+const NO_INVALIDATED_RESULTS = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+interface CorpusFileReport {
 	readonly path: string;
 	readonly sha256: string;
 	readonly lastEditedAt: string;
@@ -23,7 +30,7 @@ export interface CorpusFileReport {
 	readonly invalidated: number;
 }
 
-export interface CorpusReport {
+interface CorpusReport {
 	readonly root: string;
 	readonly digest: string | undefined;
 	readonly files: readonly CorpusFileReport[];
@@ -31,7 +38,7 @@ export interface CorpusReport {
 	readonly lastEdit: LastEdit;
 }
 
-export type CorpusSummary = Omit<CorpusReport, "files" | "lastEdit"> & {
+type CorpusSummary = Omit<CorpusReport, "files" | "lastEdit"> & {
 	readonly files: readonly Pick<
 		CorpusFileReport,
 		"path" | "sha256" | "lastEditedAt"
@@ -39,8 +46,8 @@ export type CorpusSummary = Omit<CorpusReport, "files" | "lastEdit"> & {
 };
 
 /** The sidebar's corpus identity and file count need no saved-record judgments. */
-export function corpusSummary(source: CorpusRoot): Promise<CorpusSummary> {
-	return withCorpusReadScope(async () => {
+async function corpusSummary(source: CorpusRoot): Promise<CorpusSummary> {
+	return await withCorpusReadScope(async () => {
 		const layout = await hashCorpusLayout(source);
 		const files = await Promise.all(
 			layout.files.map(async (file) => {
@@ -50,48 +57,52 @@ export function corpusSummary(source: CorpusRoot): Promise<CorpusSummary> {
 		);
 
 		return {
-			root: source.root,
 			digest:
-				layout.refusals.length > 0
+				layout.refusals.length > EMPTY_COLLECTION_LENGTH
 					? undefined
 					: corpusVersionDigest(layout.files),
 			files,
 			refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
+			root: source.root,
 		};
 	});
 }
 
-export function corpusReport(
+async function corpusReport(
 	source: CorpusRoot,
 	runsDirectory: string,
 ): Promise<CorpusReport> {
-	return withCorpusReadScope(async () => {
+	return await withCorpusReadScope(async () => {
 		const layout = await hashCorpusLayout(source);
 		const invalidation = await corpusInvalidation(runsDirectory, source);
 
 		const files: CorpusFileReport[] = [];
-		for (const file of layout.files) {
+		await Array.fromAsync(layout.files, async (file) => {
 			const filePath = join(source.root, file.path);
 			const fileStats = await stat(filePath);
 			files.push({
-				path: file.path,
-				sha256: file.sha256,
+				invalidated:
+					invalidation.invalidated.get(file.path) ?? NO_INVALIDATED_RESULTS,
 				lastEditedAt: fileStats.mtime.toISOString(),
 				lines: lineCount(await readFile(filePath, "utf8")),
-				readBy: invalidation.readBy.get(file.path) ?? 0,
-				invalidated: invalidation.invalidated.get(file.path) ?? 0,
+				path: file.path,
+				readBy: invalidation.readBy.get(file.path) ?? NO_RECORDED_READERS,
+				sha256: file.sha256,
 			});
-		}
+		});
 
 		return {
-			root: source.root,
 			digest:
-				layout.refusals.length > 0
+				layout.refusals.length > EMPTY_COLLECTION_LENGTH
 					? undefined
 					: corpusVersionDigest(layout.files),
 			files,
-			refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
 			lastEdit: invalidation.lastEdit,
+			refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
+			root: source.root,
 		};
 	});
 }
+
+export { corpusSummary, corpusReport };
+export type { CorpusFileReport, CorpusReport, CorpusSummary };

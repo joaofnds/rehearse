@@ -1,6 +1,10 @@
-import { recordFileJson } from "./record-read-scope";
 import { z } from "zod";
+
+import { scopedRecordParser } from "./record-read-scope";
 import { runStageFiles } from "./run-layout";
+import serialMap from "./serial-map";
+
+const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
 /**
  * What makes a stage file a stop record. It stays this narrow because every
@@ -8,11 +12,11 @@ import { runStageFiles } from "./run-layout";
  * still a stop record, and widening this would stop the run appearing as
  * stopped anywhere rather than costing that one reader its one field.
  */
-export const stoppedStageRecordSchema = z
+const stoppedStageRecordSchema = z
 	.object({
+		error: z.string().nonempty(),
+		stage: z.string().nonempty(),
 		status: z.literal("STAGE_JUDGE_FAILED"),
-		stage: z.string().min(1),
-		error: z.string().min(1),
 	})
 	.loose();
 
@@ -22,12 +26,22 @@ export const stoppedStageRecordSchema = z
  * ends, so a file still carrying it is a stage whose run died in that window.
  * It stays as narrow as its sibling above and for the same reason.
  */
-export const awaitingJudgeStageRecordSchema = z
+const awaitingJudgeStageRecordSchema = z
 	.object({
+		stage: z.string().nonempty(),
 		status: z.literal("AWAITING_STAGE_JUDGE"),
-		stage: z.string().min(1),
 	})
 	.loose();
+
+const readStoppedStageRecord = scopedRecordParser(stoppedStageRecordSchema);
+const readAwaitingJudgeStageRecord = scopedRecordParser(
+	awaitingJudgeStageRecordSchema,
+);
+
+const recordedCorpusFileSchema = z.object({
+	path: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	sha256: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+});
 
 /**
  * The stage's own recorded identity, beside whichever state its record rests
@@ -35,14 +49,12 @@ export const awaitingJudgeStageRecordSchema = z
  * wrote them carries neither, and a record that fails this parse loses both
  * together: the reader falls back to the run manifest for the whole of it.
  */
-export const stageRecordDetailSchema = z.object({
-	corpusFiles: z
-		.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
-		.optional(),
-	model: z.string().min(1).optional(),
+const stageRecordDetailSchema = z.object({
+	corpusFiles: z.array(recordedCorpusFileSchema).optional(),
+	model: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS).optional(),
 });
 
-export interface StoppedStage {
+interface StoppedStage {
 	readonly stage: string;
 	readonly error: string;
 }
@@ -51,10 +63,10 @@ export interface StoppedStage {
 async function firstStageRecord<Record>(
 	runsDirectory: string,
 	run: string,
-	schema: z.ZodType<Record>,
+	read: (path: string) => Promise<z.ZodSafeParseResult<Record>>,
 ): Promise<Record | undefined> {
-	for (const file of await runStageFiles(runsDirectory, run)) {
-		const parsed = schema.safeParse(await recordFileJson(file));
+	const files = await runStageFiles(runsDirectory, run);
+	for await (const parsed of serialMap(files.values(), read)) {
 		if (parsed.success) {
 			return parsed.data;
 		}
@@ -69,34 +81,43 @@ async function firstStageRecord<Record>(
  * most one carries `status: STAGE_JUDGE_FAILED`. A run that never stopped, or
  * that stopped before any stage wrote a file at all, has none.
  */
-export async function stoppedStage(
+async function stoppedStage(
 	runsDirectory: string,
 	run: string,
 ): Promise<StoppedStage | undefined> {
 	const record = await firstStageRecord(
 		runsDirectory,
 		run,
-		stoppedStageRecordSchema,
+		readStoppedStageRecord,
 	);
 
 	return record === undefined
 		? undefined
-		: { stage: record.stage, error: record.error };
+		: { error: record.error, stage: record.stage };
 }
 
 /**
  * The stage a run left awaiting its judge, or undefined when no stage file
  * still carries `status: AWAITING_STAGE_JUDGE`.
  */
-export async function awaitingJudgeStage(
+async function awaitingJudgeStage(
 	runsDirectory: string,
 	run: string,
 ): Promise<string | undefined> {
 	const record = await firstStageRecord(
 		runsDirectory,
 		run,
-		awaitingJudgeStageRecordSchema,
+		readAwaitingJudgeStageRecord,
 	);
 
 	return record?.stage;
 }
+
+export {
+	stoppedStageRecordSchema,
+	awaitingJudgeStageRecordSchema,
+	stageRecordDetailSchema,
+	stoppedStage,
+	awaitingJudgeStage,
+};
+export type { StoppedStage };

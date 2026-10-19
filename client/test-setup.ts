@@ -1,13 +1,15 @@
 import { afterEach, expect } from "bun:test";
+
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import type * as Matchers from "@testing-library/jest-dom/matchers";
 import type { cleanup as Cleanup } from "@testing-library/react";
-import { FakeEventSource } from "./src/test-support/event-source";
+
+import FakeEventSource from "./src/test-support/event-source";
 
 GlobalRegistrator.register();
 Object.defineProperty(globalThis, "EventSource", {
-	value: FakeEventSource,
 	configurable: true,
+	value: FakeEventSource,
 	writable: true,
 });
 

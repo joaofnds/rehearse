@@ -1,680 +1,144 @@
 import { afterEach, describe, expect, it } from "bun:test";
+
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
-import type { CorpusResponse } from "#client/corpus/corpus-query";
-import type {
-	RunHistoryResponse,
-	RunListingResponse,
-} from "#client/run-history/run-history-query";
-import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
+
+import createAppRouter from "#client/router";
+
+import NAV_ITEMS from "./nav-items";
 import {
-	UNREAD_SESSION_ATTEMPT_FIGURES,
-	UNREAD_RUN_FIGURES,
-	UNREAD_STALENESS,
-	unversionedStaleness,
-} from "#client/test-support/run-figures";
-import { createAppRouter } from "#client/router";
-import {
-	renderAppAt,
-	renderAppWithStub,
-	SHELL_BASELINE,
-	stubFetchFailing,
-} from "#client/test-support/render-app";
-import { runRow as runInFlight } from "#client/test-support/runs-in-flight";
-import { NAV_ITEMS } from "./nav-items";
+	NAV_LABEL,
+	SPEC_NAV_LABELS,
+	originalFetch,
+	renderShellAt,
+} from "./shell-test-fixtures";
 import { CHORD_DESTINATIONS } from "./use-go-to-shortcut";
-
-const originalFetch = globalThis.fetch;
-
-/**
- * Waits long enough that a navigation the keystroke under test might have
- * started would have landed. The wait is what gives the assertion after it any
- * force: without it the check runs in the same tick as the keystroke and
- * passes whether or not the shortcut fired, which was observed by removing
- * each guard and watching both tests keep passing.
- */
-async function navigationWouldHaveLanded(): Promise<void> {
-	await waitFor(() => {
-		expect(
-			screen.getByRole("navigation", { name: "Sections" }),
-		).toBeInTheDocument();
-	});
-	await Promise.resolve();
-}
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-type RunHistoryRow = RunHistoryResponse["rows"][number];
-type CorpusFile = CorpusResponse["files"][number];
-type SavedComparison = ComparisonIndexResponse["comparisons"][number];
-
-function runRow(run: string): RunHistoryRow {
-	return {
-		kind: "run",
-		recordId: `run:${run}`,
-		...UNREAD_RUN_FIGURES,
-		shortId: undefined,
-		checkpoints: [],
-		links: [],
-		run,
-		caseId: "audit-log",
-		status: "COMPLETE",
-		stage: "build",
-		grade: "B",
-		corpusVersion: { kind: "version", digest: "a3a62f" },
-		corpusChangedDuringRun: false,
-		staleness: unversionedStaleness({ stale: false, causes: [] }),
-		progress: { state: "recorded" },
-		launchId: undefined,
-	};
-}
-
-function sessionAttemptRow(uuid: string): RunHistoryRow {
-	return {
-		kind: "session-attempt",
-		recordId: `attempt:session:brief-reply/${uuid}`,
-		staleness: UNREAD_STALENESS,
-		corpusVersion: undefined,
-		...UNREAD_SESSION_ATTEMPT_FIGURES,
-		shortId: undefined,
-		caseId: "brief-reply",
-		uuid,
-		status: "UNSUCCESSFUL",
-		links: [],
-	};
-}
-
-function savedComparison(digest: string): SavedComparison {
-	return { digest, mode: "session", caseIds: ["audit-log"], reps: 2 };
-}
-
-function corpusFile(path: string): CorpusFile {
-	return {
-		path,
-		sha256: "a".repeat(64),
-		lastEditedAt: "2026-09-22T09:12:00.000Z",
-		lines: 1,
-		readBy: 0,
-		invalidated: 0,
-	};
-}
-
-function renderShellAt(
-	path: string,
-	served?: {
-		readonly runs: number;
-		readonly sessionAttempts?: number;
-		readonly corpusFiles: number;
-		readonly comparisons?: number;
-		readonly unreadableComparisons?: number;
-	},
-): ReturnType<typeof renderAppAt> {
-	const runs = served?.runs ?? 0;
-	const corpusFiles = served?.corpusFiles ?? 0;
-	const comparisons = served?.comparisons ?? 0;
-	const unreadableComparisons = served?.unreadableComparisons ?? 0;
-	const runListing = {
-		rows: [
-			...Array.from({ length: runs }, (_unused, index) =>
-				runRow(`2026-09-06T21-58-29.50${index}Z`),
-			),
-			...Array.from(
-				{ length: served?.sessionAttempts ?? 0 },
-				(_unused, index) => sessionAttemptRow(`attempt-${index}`),
-			),
-		],
-		launches: [],
-		unreadable: [],
-	};
-
-	stubFetchByPath(
-		new Map<string, unknown>([
-			["/api/run-listing", runListing],
-			["/api/runs", runListing],
-			[
-				"/api/corpus-summary",
-				{
-					root: "/corpus",
-					digest: `ffd58d${"0".repeat(58)}`,
-					files: Array.from({ length: corpusFiles }, (_unused, index) =>
-						corpusFile(`file-${index}.md`),
-					),
-					refusals: [],
-					lastEdit: { kind: "not-recorded", reason: "no earlier version" },
-				} satisfies CorpusResponse,
-			],
-			[
-				"/api/comparisons",
-				{
-					comparisons: Array.from({ length: comparisons }, (_unused, index) =>
-						savedComparison(String(index).repeat(64)),
-					),
-					unreadable: Array.from(
-						{ length: unreadableComparisons },
-						(_unused, index) => ({
-							id: `f${index}`.repeat(32),
-							reason: "JSON Parse error",
-						}),
-					),
-				},
-			],
-		]),
-	);
-
-	return renderAppAt(path);
-}
-
-const SPEC_NAV_LABELS = ["Runs", "Comparisons", "Cases", "Corpus", "Settings"];
-
-const NAV_LABEL = new RegExp(`^(?:${SPEC_NAV_LABELS.join("|")})$`, "u");
-
 describe("the navigation shell", () => {
-	it("lists the workspace's five destinations in order", async () => {
-		renderShellAt("/");
-
-		const nav = await screen.findByRole("navigation", { name: "Sections" });
-		const labels = within(nav)
-			.getAllByText(NAV_LABEL)
-			.map((label) => label.textContent);
-
-		expect(labels).toEqual(SPEC_NAV_LABELS);
-	});
-
-	it("links every section to its screen", async () => {
-		renderShellAt("/");
-
-		const nav = await screen.findByRole("navigation", { name: "Sections" });
-		const linked = within(nav)
-			.getAllByRole("link")
-			.map((link) => within(link).getByText(NAV_LABEL).textContent);
-
-		expect(linked).toEqual(SPEC_NAV_LABELS);
-	});
-
-	it("reaches the settings screen from the rail", async () => {
-		renderShellAt("/");
-		const nav = await screen.findByRole("navigation", { name: "Sections" });
-
-		fireEvent.click(within(nav).getByRole("link", { name: /^Settings/u }));
-
-		expect(
-			await screen.findByRole("heading", { name: "Settings" }),
-		).toBeInTheDocument();
-	});
-
-	it("reaches run history from another screen by pressing g then r", async () => {
-		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Instruction corpus" }),
-			).toBeInTheDocument();
-		});
-
-		fireEvent.keyDown(document, { key: "g" });
-		fireEvent.keyDown(document, { key: "r" });
-
-		await waitFor(() => {
-			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
-		});
-	});
-
-	it("reaches the live monitor from another screen by pressing g then m", async () => {
-		const router = renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
-		await screen.findByRole("heading", { name: "Instruction corpus" });
-
-		fireEvent.keyDown(document, { key: "g" });
-		fireEvent.keyDown(document, { key: "m" });
-
-		await waitFor(() => {
-			expect(router.state.location.pathname).toBe("/monitor");
-		});
-	});
-
-	it("stays put when r is pressed without its g prefix", async () => {
-		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Instruction corpus" }),
-			).toBeInTheDocument();
-		});
-
-		fireEvent.keyDown(document, { key: "r" });
-
-		await navigationWouldHaveLanded();
-
-		expect(
-			screen.queryByRole("heading", { name: "Runs" }),
-		).not.toBeInTheDocument();
-	});
-
-	it("leaves the chord alone while the operator is typing in a field", async () => {
-		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Instruction corpus" }),
-			).toBeInTheDocument();
-		});
-
-		const field = document.createElement("input");
-		document.body.append(field);
-		field.focus();
-
-		fireEvent.keyDown(field, { key: "g" });
-		fireEvent.keyDown(field, { key: "r" });
-
-		await navigationWouldHaveLanded();
-
-		expect(
-			screen.queryByRole("heading", { name: "Runs" }),
-		).not.toBeInTheDocument();
-
-		field.remove();
-	});
-
-	it("answers an unknown address inside the shell, naming it", async () => {
-		renderShellAt("/no-such-screen", { runs: 0, corpusFiles: 137 });
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("navigation", { name: "Sections" }),
-			).toBeInTheDocument();
-		});
-
-		expect(
-			screen.getByRole("region", { name: "Corpus under test" }),
-		).toBeInTheDocument();
-		expect(screen.getByText(/\/no-such-screen/u)).toBeInTheDocument();
-		expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
-		expect(screen.getByRole("link", { name: /Back to Runs/u })).toHaveAttribute(
-			"href",
-			"/",
-		);
-	});
-
-	it("names the corpus under test on every screen", async () => {
-		renderShellAt("/", { runs: 0, corpusFiles: 137 });
-
-		const card = await screen.findByRole("region", {
-			name: "Corpus under test",
-		});
-
-		await waitFor(() => {
-			expect(within(card).getByText("corpus@ffd58d")).toBeInTheDocument();
-		});
-		expect(within(card).getByText("137 files")).toBeInTheDocument();
-		expect(screen.queryByText(/corpus root@/u)).not.toBeInTheDocument();
-	});
-
-	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build"])(
-		"names the corpus under test on %s",
-		async (path) => {
-			renderShellAt(path, { runs: 0, corpusFiles: 137 });
-
-			const card = await screen.findByRole("region", {
-				name: "Corpus under test",
-			});
-
-			await waitFor(() => {
-				expect(within(card).getByText("corpus@ffd58d")).toBeInTheDocument();
-			});
-		},
+	it(
+		"lists the workspace's five destinations in order",
+		listsTheWorkspaceSFiveDestinationsInOrder,
 	);
 
-	it("says the corpus could not be read when its request fails", async () => {
-		stubFetchFailing("/api/corpus-summary");
-		renderAppAt("/");
+	it("links every section to its screen", linksEverySectionToItsScreen);
 
-		const card = await screen.findByRole("region", {
-			name: "Corpus under test",
-		});
-
-		await waitFor(() => {
-			expect(within(card).getByRole("alert")).toHaveTextContent(
-				/Could not read the corpus/u,
-			);
-		});
-		expect(
-			within(card).queryByText(/Reading the corpus/u),
-		).not.toBeInTheDocument();
-	});
-
-	it("withholds the digest in words when a file refused hashing", async () => {
-		stubFetchByPath(
-			new Map<string, unknown>([
-				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
-				[
-					"/api/corpus-summary",
-					{
-						root: "/corpus",
-						files: [corpusFile("CLAUDE.md")],
-						refusals: ["skills/a resolves outside the corpus source"],
-					},
-				],
-			]),
-		);
-		renderAppAt("/");
-
-		const card = await screen.findByRole("region", {
-			name: "Corpus under test",
-		});
-
-		await waitFor(() => {
-			expect(within(card).getByText(/withheld/u)).toBeInTheDocument();
-		});
-		expect(within(card).getByText(/1 refusal/u)).toBeInTheDocument();
-		expect(within(card).queryByText(/corpus@/u)).not.toBeInTheDocument();
-	});
-
-	it.each([
-		[4, 137, 3, 1],
-		[2, 9, 1, 2],
-	])(
-		"badges run history with %s, corpus with %s and comparisons with the %s readable ones, leaving out %s unreadable",
-		async (runs, corpusFiles, comparisons, unreadableComparisons) => {
-			renderShellAt("/", {
-				runs,
-				corpusFiles,
-				comparisons,
-				unreadableComparisons,
-			});
-
-			await waitFor(() => {
-				expect(
-					screen.getByRole("link", { name: `Runs ${runs}` }),
-				).toBeInTheDocument();
-			});
-			expect(
-				screen.getByRole("link", { name: `Corpus ${corpusFiles}` }),
-			).toBeInTheDocument();
-			await waitFor(() => {
-				expect(
-					screen.getByRole("link", { name: `Comparisons ${comparisons}` }),
-				).toBeInTheDocument();
-			});
-		},
+	it(
+		"reaches the settings screen from the rail",
+		reachesTheSettingsScreenFromTheRail,
 	);
 
-	it("badges run history with every listed record, not only pipeline runs", async () => {
-		renderShellAt("/", { runs: 2, sessionAttempts: 3, corpusFiles: 0 });
-
-		await waitFor(() => {
-			expect(screen.getByRole("link", { name: "Runs 5" })).toBeInTheDocument();
-		});
-	});
-
-	it("badges run history with the launches its list shows beside the records", async () => {
-		const listing: RunListingResponse = {
-			rows: [
-				runRow("2026-09-06T21-58-29.500Z"),
-				runRow("2026-09-06T21-58-29.501Z"),
-			],
-			launches: [
-				{
-					kind: "launch",
-					id: "case-launch",
-					target: "case",
-					caseId: "audit-log",
-					run: undefined,
-					stage: undefined,
-					attempts: 1,
-					launchedAt: "2026-09-30T08:00:00.000Z",
-					status: "RUNNING",
-				},
-			],
-			unreadable: [],
-		};
-		renderAppWithStub("/corpus", new Map([["/api/run-listing", listing]]));
-
-		expect(
-			await screen.findByRole("link", { name: "Runs 3" }),
-		).toBeInTheDocument();
-	});
-
-	it("keeps in-flight pipelines in the persistent run bar", async () => {
-		renderAppWithStub(
-			"/corpus",
-			new Map([
-				[
-					"/api/run-listing",
-					{
-						rows: [
-							runInFlight({ run: "2026-09-30T09-00-00.000Z" }),
-							runInFlight({ run: "2026-09-30T11-00-00.000Z" }),
-							runInFlight({ status: "COMPLETE" }),
-						],
-						launches: [
-							{
-								kind: "launch",
-								id: "replay-launch",
-								target: "replay",
-								caseId: "audit-log",
-								run: "2026-09-30T08-00-00.000Z",
-								stage: "build",
-								attempts: 1,
-								launchedAt: "2026-09-30T08-00-00.000Z",
-								status: "RUNNING",
-							},
-						],
-						unreadable: [],
-					},
-				],
-			]),
-		);
-
-		expect(
-			await screen.findAllByRole("region", { name: /in flight$/u }),
-		).toHaveLength(2);
-	});
-
-	it("navigates between run history and corpus by click", async () => {
-		renderShellAt("/");
-
-		await waitFor(() => {
-			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
-		});
-
-		fireEvent.click(screen.getByRole("link", { name: /Corpus/u }));
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Instruction corpus" }),
-			).toBeInTheDocument();
-		});
-
-		fireEvent.click(screen.getByRole("link", { name: /Runs/u }));
-
-		await waitFor(() => {
-			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
-		});
-	});
-
-	it("marks the open screen's own section as the current page", async () => {
-		renderShellAt("/corpus");
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Instruction corpus" }),
-			).toBeInTheDocument();
-		});
-
-		expect(screen.getByRole("link", { name: /Corpus/u })).toHaveAttribute(
-			"aria-current",
-			"page",
-		);
-		expect(screen.getByRole("link", { name: /Runs/u })).not.toHaveAttribute(
-			"aria-current",
-		);
-	});
-
-	it.each(["/comparisons", `/comparisons/${"e".repeat(64)}`])(
-		"marks comparisons as the current section on %s",
-		async (path) => {
-			renderShellAt(path);
-
-			await screen.findByRole("navigation", { name: "Sections" });
-
-			expect(
-				screen.getByRole("link", { name: /^Comparisons/u }),
-			).toHaveAttribute("aria-current", "page");
-			expect(screen.getByRole("link", { name: /Runs/u })).not.toHaveAttribute(
-				"aria-current",
-			);
-		},
+	it(
+		"answers an unknown address inside the shell, naming it",
+		answersAnUnknownAddressInsideTheShellNamingIt,
 	);
 
-	it("opens a recorded run from Runs and keeps Runs current", async () => {
-		const router = renderShellAt("/", {
-			runs: 2,
-			sessionAttempts: 1,
-			corpusFiles: 0,
-		});
+	it(
+		"says Run detail has no run to open until a run is recorded",
+		saysRunDetailHasNoRunToOpenUntilARunIsRecorded,
+	);
 
-		fireEvent.click(
-			await screen.findByRole("link", {
-				name: "2026-09-06T21-58-29.500Z",
-			}),
-		);
+	it(
+		"sends every nav item and chord to a route the router serves",
+		sendsEveryNavItemAndChordToARouteTheRouterServes,
+	);
 
-		await waitFor(() => {
-			expect(router.state.location.pathname).toBe(
-				"/runs/2026-09-06T21-58-29.500Z",
-			);
-		});
-		expect(screen.getByRole("link", { name: /^Runs/u })).toHaveAttribute(
-			"aria-current",
-			"page",
-		);
-	});
-
-	it("says Run detail has no run to open until a run is recorded", async () => {
-		renderShellAt("/runs", { runs: 0, sessionAttempts: 1, corpusFiles: 0 });
-
-		expect(
-			await screen.findByText(
-				"No run is recorded yet, so there is no run detail to open.",
-			),
-		).toBeInTheDocument();
-		expect(screen.queryByText("planned")).toBeNull();
-	});
-
-	it.each([
-		"/",
-		"/corpus",
-		"/system",
-		"/runs/run-a/stages/build",
-		"/tasks",
-		"/no-such-screen",
-	])("gives %s one main landmark, the shell's own", async (path) => {
-		renderShellAt(path, { runs: 0, corpusFiles: 137 });
-
-		await screen.findByRole("navigation", { name: "Sections" });
-
-		await waitFor(() => {
-			expect(screen.getAllByRole("main")).toHaveLength(1);
-		});
-	});
-
-	it("sends every nav item and chord to a route the router serves", () => {
-		const served = new Set<string>(
-			Object.values(createAppRouter().routesById).map(
-				(route) => route.fullPath,
-			),
-		);
-		const destinations: string[] = [
-			...NAV_ITEMS.map((item) => item.path),
-			...CHORD_DESTINATIONS.values(),
-		];
-
-		expect(destinations.length).toBeGreaterThan(0);
-		for (const path of destinations) {
-			expect(served.has(path)).toBe(true);
-		}
-	});
-
-	it("gives the comparison screen one main landmark too", async () => {
-		const digest = "e".repeat(64);
-		stubFetchByPath(
-			new Map<string, unknown>([
-				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
-				[
-					"/api/corpus-summary",
-					{
-						root: "/corpus",
-						digest: "ffd58d",
-						files: [],
-						refusals: [],
-						lastEdit: { kind: "not-recorded", reason: "no earlier version" },
-					} satisfies CorpusResponse,
-				],
-				[
-					`/api/comparisons/${digest}`,
-					{
-						report: { mode: "session", cases: [] },
-						checkpoint: { state: "unavailable", reasons: ["no checkpoint"] },
-						corpusVersions: {},
-						armFigures: {},
-						attribution: {},
-						summary: {},
-						baselineArm: { kind: "supplied" },
-					},
-				],
-			]),
-		);
-		renderAppAt(`/comparisons/${digest}`);
-
-		await screen.findByRole("navigation", { name: "Sections" });
-
-		await waitFor(() => {
-			expect(screen.getAllByRole("main")).toHaveLength(1);
-		});
-	});
-
-	it("leads from the landing screen to the corpus screen", async () => {
-		renderShellAt("/");
-
-		await waitFor(() => {
-			expect(screen.getByRole("link", { name: /Corpus/u })).toHaveAttribute(
-				"href",
-				"/corpus",
-			);
-		});
-	});
-
-	describe("on a screen that shows no staleness", () => {
-		it.each([
-			["/corpus", "Instruction corpus"],
-			["/tasks", "Workflows"],
-			["/settings", "Settings"],
-		])(
-			"%s asks for no run history with its staleness judged",
-			async (path, title) => {
-				const server = new FakeServer(
-					new Map(
-						[...SHELL_BASELINE].map(([route, body]) => [
-							`GET ${route}`,
-							{ status: 200, body },
-						]),
-					),
-				);
-				server.install();
-
-				renderAppAt(path);
-				await screen.findByRole("heading", { name: title });
-				await waitFor(() => {
-					expect(server.sent.map(({ pathname }) => pathname)).toContain(
-						"/api/run-listing",
-					);
-				});
-
-				expect(server.sent.map(({ pathname }) => pathname)).not.toContain(
-					"/api/runs",
-				);
-			},
-		);
-	});
+	it(
+		"leads from the landing screen to the corpus screen",
+		leadsFromTheLandingScreenToTheCorpusScreen,
+	);
 });
+
+async function listsTheWorkspaceSFiveDestinationsInOrder(): Promise<void> {
+	renderShellAt("/");
+
+	const nav = await screen.findByRole("navigation", { name: "Sections" });
+	const labels = within(nav)
+		.getAllByText(NAV_LABEL)
+		.map((label) => label.textContent);
+
+	expect(labels).toEqual(SPEC_NAV_LABELS);
+}
+
+async function linksEverySectionToItsScreen(): Promise<void> {
+	renderShellAt("/");
+
+	const nav = await screen.findByRole("navigation", { name: "Sections" });
+	const linked = within(nav)
+		.getAllByRole("link")
+		.map((link) => within(link).getByText(NAV_LABEL).textContent);
+
+	expect(linked).toEqual(SPEC_NAV_LABELS);
+}
+
+async function reachesTheSettingsScreenFromTheRail(): Promise<void> {
+	renderShellAt("/");
+	const nav = await screen.findByRole("navigation", { name: "Sections" });
+
+	fireEvent.click(within(nav).getByRole("link", { name: /^Settings/u }));
+
+	expect(
+		await screen.findByRole("heading", { name: "Settings" }),
+	).toBeInTheDocument();
+}
+
+async function answersAnUnknownAddressInsideTheShellNamingIt(): Promise<void> {
+	renderShellAt("/no-such-screen", { corpusFiles: 137, runs: 0 });
+
+	await waitFor(() => {
+		expect(
+			screen.getByRole("navigation", { name: "Sections" }),
+		).toBeInTheDocument();
+	});
+
+	expect(
+		screen.getByRole("region", { name: "Corpus under test" }),
+	).toBeInTheDocument();
+	expect(screen.getByText(/\/no-such-screen/u)).toBeInTheDocument();
+	expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
+	expect(screen.getByRole("link", { name: /Back to Runs/u })).toHaveAttribute(
+		"href",
+		"/",
+	);
+}
+
+async function saysRunDetailHasNoRunToOpenUntilARunIsRecorded(): Promise<void> {
+	renderShellAt("/runs", { corpusFiles: 0, runs: 0, sessionAttempts: 1 });
+
+	expect(
+		await screen.findByText(
+			"No run is recorded yet, so there is no run detail to open.",
+		),
+	).toBeInTheDocument();
+	expect(screen.queryByText("planned")).toBeNull();
+}
+
+function sendsEveryNavItemAndChordToARouteTheRouterServes(): void {
+	const lowerBoundForDestinationsCount = 0;
+
+	const served = new Set<string>(
+		Object.values(createAppRouter().routesById).map((route) => route.fullPath),
+	);
+	const destinations: string[] = [
+		...NAV_ITEMS.map((item) => item.path),
+		...CHORD_DESTINATIONS.values(),
+	];
+
+	expect(destinations.length).toBeGreaterThan(lowerBoundForDestinationsCount);
+	for (const path of destinations) {
+		expect(served.has(path)).toBe(true);
+	}
+}
+
+async function leadsFromTheLandingScreenToTheCorpusScreen(): Promise<void> {
+	renderShellAt("/");
+
+	await waitFor(() => {
+		expect(screen.getByRole("link", { name: /Corpus/u })).toHaveAttribute(
+			"href",
+			"/corpus",
+		);
+	});
+}

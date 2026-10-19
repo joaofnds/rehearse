@@ -1,339 +1,102 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { spendReading } from "#client/run-history/run-progress";
-import { isShortcutKey } from "#client/shell/shortcut-key";
-import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
+
+import PendingLine from "./pending-line";
 import type { MonitoredStage } from "./run-record-query";
+import { ClosedSession, sessionMeta } from "./session-closed-reading";
+import { TailFooter, useTailKeys } from "./session-tail";
+import { TranscriptRows } from "./session-transcript-rows";
 import type { StageSessionResponse } from "./stage-session-query";
 import { stageSessionQuery } from "./stage-session-query";
-import { stageOutputQuery } from "#client/run-detail/investigation-query";
-import {
-	SavedOutput,
-	savedOutputInitialMode,
-} from "#client/session-history/attempt-evidence";
-import { PendingLine } from "./pending-line";
-import { minutesAndSeconds } from "./minutes-and-seconds";
-
-type SessionLine = Extract<
-	StageSessionResponse,
-	{ readonly state: "running" }
->["lines"][number];
-
-type CitedSpan = Extract<
-	StageSessionResponse,
-	{ readonly state: "closed" }
->["spans"][number];
-
-const TEXT_TONE = {
-	assistant: "text-foreground",
-	user: "text-foreground",
-	tool: "text-secondary-foreground",
-	result: "text-muted-foreground",
-} satisfies Record<SessionLine["kind"], string>;
-
-const lineCountFormat = new Intl.NumberFormat("en-US");
-
-/** How far j and k move the pane: about two rows at its type size. */
-const SCROLL_STEP_PX = 40;
-
-interface TailControls {
-	readonly scrollBy: (top: number) => void;
-	readonly setFollowing: Dispatch<SetStateAction<boolean>>;
-	/** Whether the key is held down, which f ignores so a held key toggles once. */
-	readonly repeat: boolean;
-}
-
-/**
- * The design's tail keys (SPEC.md 2d). Scrolling up reads earlier lines, so
- * k leaves the tail as well.
- */
-const TAIL_KEY_ACTIONS = new Map([
-	[
-		"f",
-		({ setFollowing, repeat }: Readonly<TailControls>) => {
-			if (!repeat) {
-				setFollowing((following) => !following);
-			}
-		},
-	],
-	[
-		"j",
-		({ scrollBy }: Readonly<TailControls>) => {
-			scrollBy(SCROLL_STEP_PX);
-		},
-	],
-	[
-		"k",
-		({ scrollBy, setFollowing }: Readonly<TailControls>) => {
-			setFollowing(false);
-			scrollBy(-SCROLL_STEP_PX);
-		},
-	],
-]);
-
-/**
- * Bound on the document for the reason the `g` chords are: they have to work
- * when nothing on the page holds focus.
- */
-function useTailKeys(
-	scrollBy: (top: number) => void,
-	setFollowing: Dispatch<SetStateAction<boolean>>,
-): void {
-	useEffect(() => {
-		const listener: EventListener = (event) => {
-			if (!(event instanceof KeyboardEvent) || !isShortcutKey(event)) {
-				return;
-			}
-
-			TAIL_KEY_ACTIONS.get(event.key)?.({
-				scrollBy,
-				setFollowing,
-				repeat: event.repeat,
-			});
-		};
-
-		document.addEventListener("keydown", listener);
-
-		return () => {
-			document.removeEventListener("keydown", listener);
-		};
-	}, [scrollBy, setFollowing]);
-}
-
-/** One row of the pane, in the design's three columns. */
-function PaneRow({
-	first,
-	kind,
-	text,
-	tone,
-}: {
-	readonly first: string;
-	readonly kind: string;
-	readonly text: string;
-	readonly tone: string;
-}): React.JSX.Element {
-	return (
-		<li className="flex gap-3 py-px">
-			<span className="w-13.5 flex-none text-right text-faint">{first}</span>
-			<span className="w-19.75 flex-none text-dim">{kind}</span>
-			<span className={`flex-1 break-words whitespace-pre-wrap ${tone}`}>
-				{text}
-			</span>
-		</li>
-	);
-}
-
-function TranscriptRows({
-	lines,
-}: {
-	readonly lines: readonly SessionLine[];
-}): React.JSX.Element {
-	return (
-		<ol aria-label="Transcript">
-			{lines.map((row, index) => (
-				<PaneRow
-					// A tool call and its text can share a transcript line.
-					key={`${String(row.line)}-${String(index)}`}
-					first={String(row.line)}
-					kind={row.kind}
-					text={row.text}
-					tone={TEXT_TONE[row.kind]}
-				/>
-			))}
-		</ol>
-	);
-}
-
-const SPEAKER = {
-	message: "assistant",
-	productOwnerAnswer: "user",
-} satisfies Record<NonNullable<CitedSpan["field"]>, SessionLine["kind"]>;
-
-/**
- * The spans the stage judge cites from the session. The judge cites the
- * session's exchanges, not transcript lines, so a span is numbered by its
- * exchange and named by whose words it quotes, and a span the evidence does
- * not locate reads as cited.
- */
-function CitedRows({
-	spans,
-}: {
-	readonly spans: readonly CitedSpan[];
-}): React.JSX.Element {
-	return (
-		<ol aria-label="Transcript">
-			{spans.map((span) => {
-				const kind = span.field === undefined ? undefined : SPEAKER[span.field];
-
-				return (
-					<PaneRow
-						key={`${span.section}-${span.item}-${String(span.index)}`}
-						first={
-							span.exchange === undefined ? "" : `ex ${String(span.exchange)}`
-						}
-						kind={kind ?? "cited"}
-						text={span.quote ?? span.claim}
-						tone={TEXT_TONE[kind ?? "assistant"]}
-					/>
-				);
-			})}
-		</ol>
-	);
-}
-
-/** The closed session links to saved events for its selected step. */
-function ClosedNote({
-	run,
-	stage,
-	transcriptPath,
-}: {
-	readonly run: string;
-	readonly stage: string;
-	readonly transcriptPath: string | undefined;
-}): React.JSX.Element {
-	return (
-		<div className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-14 text-muted-foreground">
-			{transcriptPath === undefined ? (
-				"Session ended. Rehearse has no copy of its transcript, which it keeps only once the step checkpoints."
-			) : (
-				<>
-					Session ended. Inspect the saved transcript in Context &amp; cost.{" "}
-					<Link
-						to="/runs/$run"
-						params={{ run }}
-						search={{ view: "context", step: stage, focus: "events" }}
-					>
-						Open transcript
-					</Link>
-					<details className="mt-2">
-						<summary className="cursor-pointer">Transcript provenance</summary>
-						<Link
-							to="/runs/$run"
-							params={{ run }}
-							search={{ view: "context", step: stage, focus: "events" }}
-							className="select-all font-mono wrap-anywhere"
-						>
-							{transcriptPath}
-						</Link>
-					</details>
-				</>
-			)}
-		</div>
-	);
-}
-
-function ClosedSession({
-	run,
-	stage,
-	session,
-}: {
-	readonly run: string;
-	readonly stage: string;
-	readonly session: Extract<StageSessionResponse, { state: "closed" }>;
-}): React.JSX.Element {
-	const output = useQuery(stageOutputQuery(run, stage));
-
-	return (
-		<>
-			{output.data?.state === "available" ? (
-				<SavedOutput
-					title="Saved step output"
-					initialMode={savedOutputInitialMode(output.data)}
-					text={output.data.text}
-					note="The session ended. This is its retained output."
-				/>
-			) : null}
-			{session.spans.length === 0 ? null : (
-				<details className="mt-3">
-					<summary className="cursor-pointer font-sans text-14">
-						{session.spans.length} saved Judge citations
-					</summary>
-					<CitedRows spans={session.spans} />
-				</details>
-			)}
-			<ClosedNote
-				run={run}
-				stage={stage}
-				transcriptPath={session.transcriptPath}
-			/>
-		</>
-	);
-}
-
-function sessionMeta(
-	session: StageSessionResponse,
-	figures: MonitoredStage,
-): string | undefined {
-	if (session.state === "not-started" || session.state === "untracked") {
-		return undefined;
-	}
-
-	if (session.state === "running") {
-		return `session running · ${lineCountFormat.format(session.lineCount)} lines`;
-	}
-
-	return [
-		"session closed",
-		...(session.lineCount === undefined
-			? []
-			: [`${lineCountFormat.format(session.lineCount)} lines`]),
-		...(figures.wallTime.state === "available"
-			? [minutesAndSeconds(figures.wallTime.ms)]
-			: []),
-		...(figures.sessionCost.state === "available"
-			? [spendReading(figures.sessionCost.usd)]
-			: []),
-	].join(" · ");
-}
-
-/** The running session's footer: whether the pane follows its tail, and how to change that. */
-function TailFooter({
-	following,
-	toolCalls,
-}: {
-	readonly following: boolean;
-	readonly toolCalls: number;
-}): React.JSX.Element {
-	return (
-		<div className="flex flex-none items-center gap-3 border-t border-divider px-4.25 py-2.25 text-12 text-dim">
-			{following ? (
-				<LiveGlyph />
-			) : (
-				<span aria-hidden="true">{STATUS_VOCABULARY.paused.glyph}</span>
-			)}
-			<span>
-				{following ? "Following tail" : "Tail paused"} ·{" "}
-				<span className="font-mono">j/k</span> to scroll,{" "}
-				<span className="font-mono">f</span> to{" "}
-				{following ? "unfollow" : "follow"}
-			</span>
-			<span className="ml-auto font-mono">
-				tool calls collapsed ({String(toolCalls)})
-			</span>
-		</div>
-	);
-}
 
 /**
  * The session pane (SPEC.md 2d): the stage's transcript as the server reads
  * it, its tail while the session runs and the spans its judge cites once it
  * closes.
  */
-export function SessionPane({
-	run,
-	number,
-	figures,
-}: {
+interface SessionPaneProps {
 	readonly run: string;
 	readonly number: number;
 	readonly figures: MonitoredStage;
-}): React.JSX.Element {
+}
+
+function SessionPane({
+	run,
+	number,
+	figures,
+}: SessionPaneProps): React.JSX.Element {
 	const { stage } = figures;
 	const { data, isError } = useQuery(stageSessionQuery(run, stage));
 	const meta = data === undefined ? undefined : sessionMeta(data, figures);
 
+	return (
+		<section
+			aria-label="Live agent session"
+			className="flex min-h-0 min-w-0 flex-col border-b border-divider lg:border-r lg:border-b-0"
+		>
+			<SessionHeading
+				run={run}
+				number={number}
+				stage={stage}
+				meta={meta}
+				session={data}
+			/>
+			<SessionActivity run={run} stage={stage} data={data} isError={isError} />
+		</section>
+	);
+}
+
+interface SessionHeadingProps {
+	readonly run: string;
+	readonly number: number;
+	readonly stage: string;
+	readonly meta: string | undefined;
+	readonly session: StageSessionResponse | undefined;
+}
+
+function SessionHeading({
+	run,
+	number,
+	stage,
+	meta,
+	session,
+}: SessionHeadingProps): React.JSX.Element {
+	return (
+		<div className="flex flex-none flex-wrap items-center gap-3 border-b border-divider px-4.25 py-2.75">
+			<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
+				Step {String(number)} · {stage}
+			</h2>
+			{meta === undefined ? null : (
+				<span className="font-mono text-12 text-dim">{meta}</span>
+			)}
+			{session?.state === "closed" && session.transcriptPath !== undefined ? (
+				<Link
+					to="/runs/$run"
+					params={{ run }}
+					search={{ focus: "events", step: stage, view: "context" }}
+					className="ml-auto text-14"
+				>
+					open transcript
+				</Link>
+			) : null}
+		</div>
+	);
+}
+
+interface SessionActivityProps {
+	readonly run: string;
+	readonly stage: string;
+	readonly data: StageSessionResponse | undefined;
+	readonly isError: boolean;
+}
+
+function SessionActivity({
+	run,
+	stage,
+	data,
+	isError,
+}: SessionActivityProps): React.JSX.Element {
 	const body = useRef<HTMLDivElement>(null);
 	const [following, setFollowing] = useState(true);
 	const scrollBy = useCallback((top: number) => {
@@ -348,50 +111,17 @@ export function SessionPane({
 	}, [following, data]);
 
 	return (
-		<section
-			aria-label="Live agent session"
-			className="flex min-h-0 min-w-0 flex-col border-b border-divider lg:border-r lg:border-b-0"
-		>
-			<div className="flex flex-none flex-wrap items-center gap-3 border-b border-divider px-4.25 py-2.75">
-				<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
-					Step {String(number)} · {stage}
-				</h2>
-				{meta === undefined ? null : (
-					<span className="font-mono text-12 text-dim">{meta}</span>
-				)}
-				{data?.state === "closed" && data.transcriptPath !== undefined ? (
-					<Link
-						to="/runs/$run"
-						params={{ run }}
-						search={{ view: "context", step: stage, focus: "events" }}
-						className="ml-auto text-14"
-					>
-						open transcript
-					</Link>
-				) : null}
-			</div>
+		<>
 			<div
 				ref={body}
 				className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4.25 py-3 font-mono text-13 leading-transcript"
 			>
-				{isError ? (
-					<p role="alert" className="font-sans text-14 text-attention">
-						<span aria-hidden="true">⚠ </span>
-						Could not read this step's session.
-					</p>
-				) : null}
-				{data?.state === "running" ? (
-					<TranscriptRows lines={data.lines} />
-				) : null}
-				{data?.state === "closed" ? (
-					<ClosedSession run={run} stage={stage} session={data} />
-				) : null}
-				{data?.state === "not-started" ? (
-					<PendingLine words="This step has not started yet." />
-				) : null}
-				{data?.state === "untracked" ? (
-					<PendingLine words="This step's session id was not recorded, so its transcript cannot be found." />
-				) : null}
+				<SessionReadings
+					run={run}
+					stage={stage}
+					data={data}
+					isError={isError}
+				/>
 			</div>
 			{data?.state === "running" ? (
 				<TailFooter
@@ -399,6 +129,36 @@ export function SessionPane({
 					toolCalls={data.lines.filter(({ kind }) => kind === "tool").length}
 				/>
 			) : null}
-		</section>
+		</>
 	);
 }
+
+function SessionReadings({
+	run,
+	stage,
+	data,
+	isError,
+}: SessionActivityProps): React.JSX.Element {
+	return (
+		<>
+			{isError ? (
+				<p role="alert" className="font-sans text-14 text-attention">
+					<span aria-hidden="true">⚠ </span>
+					Could not read this step's session.
+				</p>
+			) : null}
+			{data?.state === "running" ? <TranscriptRows lines={data.lines} /> : null}
+			{data?.state === "closed" ? (
+				<ClosedSession run={run} stage={stage} session={data} />
+			) : null}
+			{data?.state === "not-started" ? (
+				<PendingLine words="This step has not started yet." />
+			) : null}
+			{data?.state === "untracked" ? (
+				<PendingLine words="This step's session id was not recorded, so its transcript cannot be found." />
+			) : null}
+		</>
+	);
+}
+
+export { SessionPane as default };

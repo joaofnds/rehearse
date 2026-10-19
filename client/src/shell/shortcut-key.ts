@@ -17,7 +17,7 @@ function isTyping(target: EventTarget | null): boolean {
  * which leaves the browser's and the system's own shortcuts alone, and not
  * typed into a field.
  */
-export function isShortcutKey(
+function isShortcutKey(
 	event: Readonly<
 		Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "target">
 	>,
@@ -26,3 +26,5 @@ export function isShortcutKey(
 		!event.metaKey && !event.ctrlKey && !event.altKey && !isTyping(event.target)
 	);
 }
+
+export { isShortcutKey as default };

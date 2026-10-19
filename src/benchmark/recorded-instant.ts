@@ -1,3 +1,4 @@
+const PREFIX_START_INDEX = 0;
 const RECORDED_TIME =
 	/^(?<date>\d{4}-\d{2}-\d{2})T(?<hours>\d{2})(?<separator>[-:])(?<minutes>\d{2})\k<separator>(?<seconds>\d{2}(?:\.\d+)?)Z$/u;
 
@@ -7,7 +8,7 @@ const RECORDED_TIME =
  * name. Records compare by this rather than as text: a run name replaces the
  * colons a start time keeps, so text order misplaces them within an hour.
  */
-export function recordedInstant(time: string): number | undefined {
+function recordedInstant(time: string): number | undefined {
 	const parts = RECORDED_TIME.exec(time)?.groups;
 	if (parts === undefined) {
 		return undefined;
@@ -20,9 +21,14 @@ export function recordedInstant(time: string): number | undefined {
 	}
 
 	// Date.parse rolls a day or hour that does not exist into the next one.
-	const toTheSecond = named.slice(0, "2026-01-01T00:00:00".length);
+	const toTheSecond = named.slice(
+		PREFIX_START_INDEX,
+		"2026-01-01T00:00:00".length,
+	);
 
 	return new Date(instant).toISOString().startsWith(toTheSecond)
 		? instant
 		: undefined;
 }
+
+export { recordedInstant as default };

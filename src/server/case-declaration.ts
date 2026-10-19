@@ -1,6 +1,8 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, posix } from "node:path";
+
 import { z } from "zod";
+
 import {
 	CASES_DIRECTORY,
 	CaseDeclarationError,
@@ -12,7 +14,12 @@ import {
 import type { Immutable } from "#benchmark/contracts";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
-import { projectFormatted } from "#benchmark/project-format";
+import projectFormatted from "#benchmark/project-format";
+import {
+	HTTP_STATUS_BAD_REQUEST,
+	HTTP_STATUS_CONFLICT,
+} from "#server/http-status";
+
 import { redactAbsolutePaths } from "./redact-path";
 
 const CASE_FIELDS = new Set<string>(
@@ -27,17 +34,17 @@ const CASE_FIELDS = new Set<string>(
  * where it still reads options, so a prompt that starts with a dash would set
  * a flag the browser may not set.
  */
-export const declareCaseRequestSchema = sessionCaseDeclarationSchema
+const declareCaseRequestSchema = sessionCaseDeclarationSchema
 	.pick({
+		checks: true,
+		corpusFiles: true,
 		id: true,
 		kind: true,
-		title: true,
-		prompt: true,
-		tools: true,
-		corpusFiles: true,
-		checks: true,
 		model: true,
+		prompt: true,
 		sessionBudgetUsd: true,
+		title: true,
+		tools: true,
 	})
 	.extend({
 		kind: z.literal("session", {
@@ -46,34 +53,46 @@ export const declareCaseRequestSchema = sessionCaseDeclarationSchema
 					? "A pipeline case is declared through /api/cases/pipeline"
 					: undefined,
 		}),
+		model: z.string().nonempty(),
 		prompt: z
 			.string()
-			.min(1)
+			.nonempty()
 			.refine(
 				(prompt) => !prompt.startsWith("-"),
 				"A prompt cannot start with -, which the claude CLI would read as an option",
 			),
-		model: z.string().min(1),
 	})
 	.strict();
+
+type DeclareCaseRequest = z.infer<typeof declareCaseRequestSchema>;
+
+const DECLARATION_FIELDS: readonly (keyof DeclareCaseRequest)[] = [
+	"id",
+	"kind",
+	"title",
+	"prompt",
+	"tools",
+	"corpusFiles",
+	"checks",
+	"model",
+	"sessionBudgetUsd",
+];
 
 function refusedFieldReason(field: string): string {
 	if (!CASE_FIELDS.has(field)) {
 		return `${field} is not a case.json field`;
 	}
 
-	return `${field} is declared by hand in case.json: the browser sets only ${declareCaseRequestSchema.keyof().options.join(", ")}`;
+	return `${field} is declared by hand in case.json: the browser sets only ${DECLARATION_FIELDS.join(", ")}`;
 }
 
 /** Names a field the browser may not set with why it may not. */
-export const refusedFieldMessages: z.core.$ZodErrorMap = (issue) =>
+const refusedFieldMessages: z.core.$ZodErrorMap = (issue) =>
 	issue.code === "unrecognized_keys"
 		? issue.keys.map(refusedFieldReason).join("; ")
 		: undefined;
 
-export type DeclareCaseRequest = z.infer<typeof declareCaseRequestSchema>;
-
-export interface DeclaredCase {
+interface DeclaredCase {
 	/** The declaration as written, without the defaults the parser fills in. */
 	readonly declaration: Immutable<DeclareCaseRequest>;
 	/** Relative to the control repository, where the file is uncommitted. */
@@ -84,12 +103,14 @@ export interface DeclaredCase {
  * A declaration that cannot be written as asked: one the parser or the corpus
  * refuses is 400, and an id already on disk is 409.
  */
-export class DeclarationRefusalError extends Error {
+class DeclarationRefusalError extends Error {
 	public override name = "DeclarationRefusalError";
 
 	public constructor(
 		message: string,
-		public readonly status: 400 | 409,
+		public readonly status:
+			| typeof HTTP_STATUS_BAD_REQUEST
+			| typeof HTTP_STATUS_CONFLICT,
 	) {
 		super(message);
 	}
@@ -103,7 +124,7 @@ function refuseUnreadable(id: string, text: string): void {
 		if (!(error instanceof CaseDeclarationError)) {
 			throw error;
 		}
-		throw new DeclarationRefusalError(error.message, 400);
+		throw new DeclarationRefusalError(error.message, HTTP_STATUS_BAD_REQUEST);
 	}
 }
 
@@ -122,7 +143,7 @@ function refuseCorpusFiles(
 		if (posix.normalize(layoutPath) !== layoutPath) {
 			throw new DeclarationRefusalError(
 				`Corpus file ${layoutPath} must be a layout path with no . or .. segment`,
-				400,
+				HTTP_STATUS_BAD_REQUEST,
 			);
 		}
 
@@ -134,7 +155,7 @@ function refuseCorpusFiles(
 			}
 			throw new DeclarationRefusalError(
 				redactAbsolutePaths(error.message),
-				400,
+				HTTP_STATUS_BAD_REQUEST,
 			);
 		}
 	}
@@ -159,9 +180,19 @@ async function claimCaseDirectory(
 		}
 		throw new DeclarationRefusalError(
 			`Case ${id} already has a directory under ${CASES_DIRECTORY}/`,
-			409,
+			HTTP_STATUS_CONFLICT,
 		);
 	}
+}
+
+async function formattedCaseDeclaration(
+	file: string,
+	request: Immutable<DeclareCaseRequest>,
+): Promise<string> {
+	const declaration = Object.fromEntries<
+		(typeof request)[keyof DeclareCaseRequest]
+	>(DECLARATION_FIELDS.map((field) => [field, request[field]]));
+	return await projectFormatted(file, JSON.stringify(declaration, null, "\t"));
 }
 
 /**
@@ -169,16 +200,14 @@ async function claimCaseDirectory(
  * the parser fills in never reaches the file, and as the project's formatter
  * would, so it commits as written.
  */
-export async function declareCase(
+async function declareCase(
 	request: Immutable<DeclareCaseRequest>,
 	casesRoot: string,
 	corpus: CorpusRoot,
 ): Promise<DeclaredCase> {
 	const file = caseDeclarationPath(request.id, casesRoot);
-	const text = await projectFormatted(
-		file,
-		JSON.stringify(request, null, "\t"),
-	);
+	const text = await formattedCaseDeclaration(file, request);
+
 	refuseUnreadable(request.id, text);
 	refuseCorpusFiles(request.corpusFiles, corpus);
 
@@ -195,3 +224,11 @@ export async function declareCase(
 		path: caseDeclarationPath(request.id, CASES_DIRECTORY),
 	};
 }
+
+export {
+	declareCaseRequestSchema,
+	refusedFieldMessages,
+	DeclarationRefusalError,
+	declareCase,
+};
+export type { DeclareCaseRequest, DeclaredCase };

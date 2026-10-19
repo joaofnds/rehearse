@@ -1,0 +1,37 @@
+{
+	"session_id": "worker-session",
+	"structured_output": {
+		"status": "COMPLETE",
+		"message": "Done"
+	},
+	"total_cost_usd": 0.1,
+	"num_turns": 1,
+	"duration_ms": 20,
+	"duration_api_ms": 10,
+	"usage": {
+		"input_tokens": 10,
+		"output_tokens": 20,
+		"cache_read_input_tokens": 30,
+		"cache_creation_input_tokens": 40
+	},
+	"modelUsage": {
+		"zebra": {
+			"inputTokens": 1,
+			"outputTokens": 2,
+			"cacheReadInputTokens": 3,
+			"cacheCreationInputTokens": 4,
+			"costUSD": 0.1,
+			"contextWindow": 1000,
+			"maxOutputTokens": 500
+		},
+		"alpha": {
+			"inputTokens": 2,
+			"outputTokens": 3,
+			"cacheReadInputTokens": 4,
+			"cacheCreationInputTokens": 5,
+			"costUSD": 0.2,
+			"contextWindow": 2000,
+			"maxOutputTokens": 600
+		}
+	}
+}

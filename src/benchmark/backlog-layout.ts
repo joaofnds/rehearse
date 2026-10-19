@@ -1,7 +1,10 @@
 import { lstat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+
 import { z } from "zod";
+
 import { SymlinkedEntryError } from "./file-presence";
+import serialMap from "./serial-map";
 
 const rootBacklogConfigSchema = z
 	.object({
@@ -10,16 +13,16 @@ const rootBacklogConfigSchema = z
 	})
 	.loose();
 
-export type BacklogConfig = z.infer<typeof rootBacklogConfigSchema>;
+type BacklogConfig = z.infer<typeof rootBacklogConfigSchema>;
 
-export class BacklogConfigurationError extends Error {
+class BacklogConfigurationError extends Error {
 	public constructor(path: string, options: Readonly<ErrorOptions>) {
 		super(`Invalid Backlog configuration: ${path}`, options);
 		this.name = "BacklogConfigurationError";
 	}
 }
 
-export interface BacklogLayout {
+interface BacklogLayout {
 	readonly config: {
 		readonly source: string;
 		readonly value: BacklogConfig;
@@ -33,10 +36,14 @@ async function refuseLinkedComponents(
 	path: string,
 ): Promise<void> {
 	let current = targetDir;
-	for (const component of path.split(sep)) {
-		current = join(current, component);
-		try {
-			const stats = await lstat(current);
+	try {
+		for await (const stats of serialMap(
+			path.split(sep).values(),
+			async (component) => {
+				current = join(current, component);
+				return await lstat(current);
+			},
+		)) {
 			if (stats.isSymbolicLink()) {
 				throw new SymlinkedEntryError(
 					`${path} contains a link, so it is not workflow state held by the target`,
@@ -45,16 +52,12 @@ async function refuseLinkedComponents(
 			if (!stats.isDirectory()) {
 				throw new Error(`${path} is not a directory`);
 			}
-		} catch (error) {
-			if (
-				error instanceof Error &&
-				"code" in error &&
-				error.code === "ENOENT"
-			) {
-				return;
-			}
-			throw error;
 		}
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return;
+		}
+		throw error;
 	}
 }
 
@@ -120,7 +123,7 @@ async function readBacklogConfig(
 	}
 }
 
-export async function existingBacklogLayout(
+async function existingBacklogLayout(
 	targetDir: string,
 ): Promise<BacklogLayout | undefined> {
 	const rootConfigPath = join(targetDir, "backlog.config.yml");
@@ -138,9 +141,18 @@ export async function existingBacklogLayout(
 		};
 	}
 
-	for (const directory of ["backlog", ".backlog"]) {
-		const configPath = join(targetDir, directory, "config.yml");
-		if (await configExists(configPath)) {
+	for await (const { directory, configPath, exists } of serialMap(
+		["backlog", ".backlog"].values(),
+		async (boardDirectory) => {
+			const candidatePath = join(targetDir, boardDirectory, "config.yml");
+			return {
+				configPath: candidatePath,
+				directory: boardDirectory,
+				exists: await configExists(candidatePath),
+			};
+		},
+	)) {
+		if (exists) {
 			await refuseLinkedComponents(targetDir, directory);
 
 			return {
@@ -153,3 +165,6 @@ export async function existingBacklogLayout(
 
 	return undefined;
 }
+
+export { BacklogConfigurationError, existingBacklogLayout };
+export type { BacklogConfig, BacklogLayout };

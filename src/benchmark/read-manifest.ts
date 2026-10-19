@@ -1,10 +1,12 @@
 import { basename } from "node:path";
+
 import { z } from "zod";
+
 import type { HashedFile } from "./checkpoint";
 import type { ContextManifest, ManifestEntry } from "./context-manifest";
 import type { Immutable } from "./contracts";
 
-export const READ_ROLES = [
+const READ_ROLES = [
 	"global instructions",
 	"project instructions",
 	"stage skill",
@@ -12,16 +14,16 @@ export const READ_ROLES = [
 	"read for context",
 ] as const;
 
-export type ReadRole = (typeof READ_ROLES)[number];
+type ReadRole = (typeof READ_ROLES)[number];
 
-export type ReadEvidence = ReadManifestEntry["evidence"];
+type ReadEvidence = ReadManifestEntry["evidence"];
 
 const readManifestEntrySchema = z
 	.object({
-		path: z.string().min(1),
-		half: z.enum(["corpus", "project", "rubric"]),
-		role: z.enum(READ_ROLES),
 		evidence: z.enum(["declared", "observed", "declared and observed"]),
+		half: z.enum(["corpus", "project", "rubric"]),
+		path: z.string().nonempty(),
+		role: z.enum(READ_ROLES),
 		sha256: z
 			.string()
 			.regex(/^[0-9a-f]{64}$/u)
@@ -29,18 +31,13 @@ const readManifestEntrySchema = z
 	})
 	.strict();
 
-export const readManifestSchema = z.array(readManifestEntrySchema);
+const readManifestSchema = z.array(readManifestEntrySchema);
 
-export type ReadManifestEntry = Immutable<
-	z.infer<typeof readManifestEntrySchema>
->;
+type ReadManifestEntry = Immutable<z.infer<typeof readManifestEntrySchema>>;
 
-export const PROJECT_INSTRUCTION_FILES: readonly string[] = [
-	"CLAUDE.md",
-	"AGENTS.md",
-];
+const PROJECT_INSTRUCTION_FILES: readonly string[] = ["CLAUDE.md", "AGENTS.md"];
 
-export function stageSkillPath(skill: string): string {
+function stageSkillPath(skill: string): string {
 	return `skills/${skill}/SKILL.md`;
 }
 
@@ -69,7 +66,7 @@ function hashOf(
 	return file === undefined ? {} : { sha256: file.sha256 };
 }
 
-export interface ReadManifestInputs {
+interface ReadManifestInputs {
 	/** The stage skill, when the record ran one. */
 	readonly skill: string | undefined;
 	/** Corpus files as the record's corpus resolved them at its start. */
@@ -88,26 +85,29 @@ export interface ReadManifestInputs {
 	readonly observed: ContextManifest;
 }
 
+function manifestEntryKey(entry: ManifestEntry): string {
+	return `${entry.half}:${entry.path}`;
+}
+
 /**
  * What one record declared and was observed to read. A load the transcript
  * does not show is not proof the record never read the file (GLOSSARY Context
  * manifest), so an entry only ever adds a file, never rules one out.
  */
-export function readManifest(
+function readManifest(
 	inputs: ReadManifestInputs,
 ): readonly ReadManifestEntry[] {
-	const key = (entry: ManifestEntry): string => `${entry.half}:${entry.path}`;
-	const observed = new Set(inputs.observed.paths.map(key));
-	const declared = new Set(inputs.declared.map(key));
+	const observed = new Set(inputs.observed.paths.map(manifestEntryKey));
+	const declared = new Set(inputs.declared.map(manifestEntryKey));
 
 	const entry = (
 		manifestEntry: ManifestEntry,
 		evidence: ReadEvidence,
 	): ReadManifestEntry => ({
-		path: manifestEntry.path,
-		half: manifestEntry.half,
-		role: role(manifestEntry, inputs.skill),
 		evidence,
+		half: manifestEntry.half,
+		path: manifestEntry.path,
+		role: role(manifestEntry, inputs.skill),
 		...hashOf(
 			manifestEntry.half === "corpus"
 				? [...inputs.corpusFiles, ...inputs.versionFiles]
@@ -121,10 +121,10 @@ export function readManifest(
 			? []
 			: [
 					{
-						path: inputs.rubric.path,
-						half: "rubric",
-						role: "judge rubric",
 						evidence: "declared",
+						half: "rubric",
+						path: inputs.rubric.path,
+						role: "judge rubric",
 						sha256: inputs.rubric.sha256,
 					},
 				];
@@ -133,17 +133,19 @@ export function readManifest(
 		...inputs.declared.map((declaredEntry) =>
 			entry(
 				declaredEntry,
-				observed.has(key(declaredEntry)) ? "declared and observed" : "declared",
+				observed.has(manifestEntryKey(declaredEntry))
+					? "declared and observed"
+					: "declared",
 			),
 		),
 		...rubric,
 		...inputs.observed.paths
-			.filter((observedEntry) => !declared.has(key(observedEntry)))
+			.filter((observedEntry) => !declared.has(manifestEntryKey(observedEntry)))
 			.map((observedEntry) => entry(observedEntry, "observed")),
 	];
 }
 
-export interface StageReadManifestInputs {
+interface StageReadManifestInputs {
 	/** The stage's own skill, absent for a stage that ran without it. */
 	readonly skill: string | undefined;
 	readonly corpusFiles: readonly HashedFile[];
@@ -154,13 +156,29 @@ export interface StageReadManifestInputs {
 }
 
 /** A pipeline stage or replay declares its global instructions and its skill. */
-export function stageReadManifest(
+function stageReadManifest(
 	inputs: StageReadManifestInputs,
 ): readonly ReadManifestEntry[] {
-	const declared: ManifestEntry[] = [{ path: "CLAUDE.md", half: "corpus" }];
+	const declared: ManifestEntry[] = [{ half: "corpus", path: "CLAUDE.md" }];
 	if (inputs.skill !== undefined) {
-		declared.push({ path: stageSkillPath(inputs.skill), half: "corpus" });
+		declared.push({ half: "corpus", path: stageSkillPath(inputs.skill) });
 	}
 
 	return readManifest({ ...inputs, declared });
 }
+
+export {
+	READ_ROLES,
+	readManifestSchema,
+	PROJECT_INSTRUCTION_FILES,
+	stageSkillPath,
+	readManifest,
+	stageReadManifest,
+};
+export type {
+	ReadRole,
+	ReadEvidence,
+	ReadManifestEntry,
+	ReadManifestInputs,
+	StageReadManifestInputs,
+};

@@ -1,11 +1,13 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const stageSessionRoute = apiClient.api.runs[":run"].stages[":stage"].session;
 
-export type StageSessionResponse = InferResponseType<
+type StageSessionResponse = InferResponseType<
 	typeof stageSessionRoute.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
 /**
@@ -23,10 +25,10 @@ async function fetchStageSession(
 		throw new Error(`Could not read the session of ${stage}`);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export interface StageSessionQuery {
+interface StageSessionQuery {
 	readonly queryKey: readonly ["stage-session", string, string];
 	readonly queryFn: () => Promise<StageSessionResponse>;
 	readonly refetchInterval: (query: {
@@ -35,7 +37,7 @@ export interface StageSessionQuery {
 }
 
 /** The key every stage session of the run shares, to refetch them together. */
-export function stageSessionsQueryKey(
+function stageSessionsQueryKey(
 	run: string,
 ): readonly ["stage-session", string] {
 	return ["stage-session", run];
@@ -45,14 +47,14 @@ export function stageSessionsQueryKey(
  * One stage's session, re-read while it runs. Once it stops running only a run
  * event refetches it.
  */
-export function stageSessionQuery(
-	run: string,
-	stage: string,
-): StageSessionQuery {
+function stageSessionQuery(run: string, stage: string): StageSessionQuery {
 	return {
+		queryFn: async () => await fetchStageSession(run, stage),
 		queryKey: [...stageSessionsQueryKey(run), stage],
-		queryFn: () => fetchStageSession(run, stage),
 		refetchInterval: ({ state }) =>
 			state.data?.state === "running" ? RUNNING_POLL_MS : false,
 	};
 }
+
+export { stageSessionQuery, stageSessionsQueryKey };
+export type { StageSessionQuery, StageSessionResponse };

@@ -1,5 +1,6 @@
-import { KeyHint } from "#client/system/components/key-hint";
-import { SettingsCard } from "./settings-card";
+import KeyHint from "#client/system/components/key-hint";
+
+import SettingsCard from "./settings-card";
 
 interface Shortcut {
 	readonly key: string;
@@ -11,18 +12,18 @@ interface Shortcut {
  * the dialog library's own close key, which nothing here binds.
  */
 const SHORTCUTS: readonly Shortcut[] = [
-	{ key: "⌘ / Ctrl K", does: "search everything" },
-	{ key: "g r", does: "run history" },
-	{ key: "g m", does: "newest run’s Activity" },
-	{ key: "n", does: "new run" },
-	{ key: "r", does: "replay a step" },
-	{ key: "e", does: "expand cited evidence" },
-	{ key: "j / k", does: "move through rows" },
-	{ key: "f", does: "follow / unfollow the tail" },
-	{ key: "Esc", does: "close dialog" },
+	{ does: "search everything", key: "⌘ / Ctrl K" },
+	{ does: "run history", key: "g r" },
+	{ does: "newest run’s Activity", key: "g m" },
+	{ does: "new run", key: "n" },
+	{ does: "replay a step", key: "r" },
+	{ does: "expand cited evidence", key: "e" },
+	{ does: "move through rows", key: "j / k" },
+	{ does: "follow / unfollow the tail", key: "f" },
+	{ does: "close dialog", key: "Esc" },
 ];
 
-export function KeyboardCard(): React.JSX.Element {
+function KeyboardCard(): React.JSX.Element {
 	return (
 		<SettingsCard title="Keyboard">
 			<ul className="mt-4 grid gap-x-6 gap-y-3 text-14 sm:grid-cols-2">
@@ -38,3 +39,5 @@ export function KeyboardCard(): React.JSX.Element {
 		</SettingsCard>
 	);
 }
+
+export { KeyboardCard as default };

@@ -33,12 +33,14 @@ const TRACKING_STEPS = ["label", "caps", "figure", "bar"] as const;
  * Class merging that knows the theme's own steps. Without them a type step
  * such as `text-11-5` reads as a text colour and drops the colour beside it.
  */
-export const cn = createCn({
+const cn = createCn({
 	extend: {
 		theme: {
-			text: [...TYPE_STEPS],
 			radius: [...RADIUS_STEPS],
+			text: [...TYPE_STEPS],
 			tracking: [...TRACKING_STEPS],
 		},
 	},
 });
+
+export { cn as default };

@@ -4,10 +4,12 @@
  * @param {new () => T} elementType
  * @returns {T}
  */
-export function required(selector, elementType) {
+function required(selector, elementType) {
 	const element = document.querySelector(selector);
 	if (!(element instanceof elementType)) {
 		throw new Error(`Missing ${selector}`);
 	}
 	return element;
 }
+
+export { required as default };

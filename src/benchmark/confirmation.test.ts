@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import type { ConfirmationRepPlan } from "./confirmation";
+
 import {
 	formatProjectedCost,
 	projectConfirmationCost,
 	requireConfirmationApproval,
-	runConfirmation,
-	runRequestedExecution,
 } from "./confirmation";
 
-describe(projectConfirmationCost.name, () => {
-	it("projects a session group as one preflight plus every requested rep", () => {
+const PROMPT_COUNT_INCREMENT = 1;
+
+const projectConfirmationCostProjectsASessionGroupAsOnePreflightPlusEveryRequestedRep =
+	(): void => {
 		const projection = projectConfirmationCost({
 			mode: "session",
 			reps: 3,
@@ -17,14 +17,15 @@ describe(projectConfirmationCost.name, () => {
 		});
 
 		expect(projection).toEqual({
-			reps: 3,
 			perRepMaximumUsd: 0.2,
 			preflightMaximumUsd: 0.1,
+			reps: 3,
 			totalMaximumUsd: 0.7,
 		});
-	});
+	};
 
-	it("prints a session group's projection as a budget the charge can exceed", () => {
+const projectConfirmationCostPrintsASessionGroupsProjectionAsABudgetTheChargeCanExceed =
+	(): void => {
 		expect(
 			formatProjectedCost(
 				projectConfirmationCost({
@@ -36,9 +37,10 @@ describe(projectConfirmationCost.name, () => {
 		).toBe(
 			"Projected budget: $0.70 ($0.10 preflight + 3 reps x $0.20). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		);
-	});
+	};
 
-	it("projects every session at its budget before a confirmation", () => {
+const projectConfirmationCostProjectsEverySessionAtItsBudgetBeforeAConfirmation =
+	(): void => {
 		const replay = projectConfirmationCost({
 			mode: "stage",
 			reps: 5,
@@ -47,34 +49,33 @@ describe(projectConfirmationCost.name, () => {
 		const pipeline = projectConfirmationCost({
 			mode: "pipeline",
 			reps: 5,
-			stages: 4,
 			sessionBudgetUsd: 5,
+			stages: 4,
 		});
 
 		expect(replay).toEqual({
-			reps: 5,
 			perRepMaximumUsd: 20,
+			reps: 5,
 			totalMaximumUsd: 100,
 		});
 		expect(pipeline).toEqual({
-			reps: 5,
 			perRepMaximumUsd: 75,
+			reps: 5,
 			totalMaximumUsd: 375,
 		});
 		expect(formatProjectedCost(replay)).toBe(
 			"Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		);
-	});
-});
+	};
 
-describe(requireConfirmationApproval.name, () => {
-	it("shows the projected budget before prompting for approval", async () => {
+const requireConfirmationApprovalShowsTheProjectedBudgetBeforePromptingForApproval =
+	async (): Promise<void> => {
 		const events: string[] = [];
 
 		await requireConfirmationApproval(
 			{
-				reps: 5,
 				perRepMaximumUsd: 20,
+				reps: 5,
 				totalMaximumUsd: 100,
 			},
 			false,
@@ -82,9 +83,9 @@ describe(requireConfirmationApproval.name, () => {
 				output: (message) => {
 					events.push(`output: ${message}`);
 				},
-				prompt: (message) => {
+				prompt: async (message) => {
 					events.push(`prompt: ${message}`);
-					return Promise.resolve("yes");
+					return await Promise.resolve("yes");
 				},
 			},
 		);
@@ -93,185 +94,89 @@ describe(requireConfirmationApproval.name, () => {
 			"output: Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt: Start confirmation? [y/N] ",
 		]);
-	});
+	};
 
-	it("stops when interactive approval is declined", () => {
+const requireConfirmationApprovalStopsWhenInteractiveApprovalIsDeclined =
+	(): void => {
 		expect(
 			requireConfirmationApproval(
 				{
-					reps: 2,
 					perRepMaximumUsd: 4,
+					reps: 2,
 					totalMaximumUsd: 8,
 				},
 				false,
 				{
-					output: () => undefined,
-					prompt: () => Promise.resolve("no"),
+					output: (message) => {
+						expect(message).toBe(
+							"Projected budget: $8.00 (2 reps x $4.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+						);
+					},
+					prompt: async () => await Promise.resolve("no"),
 				},
 			),
 		).rejects.toThrow("Confirmation declined");
-	});
+	};
 
-	it("uses noninteractive approval without prompting", async () => {
+const requireConfirmationApprovalUsesNoninteractiveApprovalWithoutPrompting =
+	async (): Promise<void> => {
+		const expectedPrompts = 0;
+
 		let prompts = 0;
 
 		await requireConfirmationApproval(
 			{
-				reps: 2,
 				perRepMaximumUsd: 4,
+				reps: 2,
 				totalMaximumUsd: 8,
 			},
 			true,
 			{
-				output: () => undefined,
-				prompt: () => {
-					prompts += 1;
-					return Promise.resolve("no");
+				output: (message) => {
+					expect(message).toBe(
+						"Projected budget: $8.00 (2 reps x $4.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+					);
+				},
+				prompt: async () => {
+					prompts += PROMPT_COUNT_INCREMENT;
+					return await Promise.resolve("no");
 				},
 			},
 		);
 
-		expect(prompts).toBe(0);
-	});
+		expect(prompts).toBe(expectedPrompts);
+	};
+
+describe(projectConfirmationCost.name, () => {
+	it(
+		"projects a session group as one preflight plus every requested rep",
+		projectConfirmationCostProjectsASessionGroupAsOnePreflightPlusEveryRequestedRep,
+	);
+
+	it(
+		"prints a session group's projection as a budget the charge can exceed",
+		projectConfirmationCostPrintsASessionGroupsProjectionAsABudgetTheChargeCanExceed,
+	);
+
+	it(
+		"projects every session at its budget before a confirmation",
+		projectConfirmationCostProjectsEverySessionAtItsBudgetBeforeAConfirmation,
+	);
 });
 
-describe(runRequestedExecution.name, () => {
-	it("labels and runs one debug rep when confirmation is absent", async () => {
-		const output: string[] = [];
-		let confirmations = 0;
+describe(requireConfirmationApproval.name, () => {
+	it(
+		"shows the projected budget before prompting for approval",
+		requireConfirmationApprovalShowsTheProjectedBudgetBeforePromptingForApproval,
+	);
 
-		const result = await runRequestedExecution({
-			confirmation: undefined,
-			projectCost: () => {
-				throw new Error("debug runs have no confirmation projection");
-			},
-			approval: {
-				output: (message) => {
-					output.push(message);
-				},
-				prompt: () => Promise.resolve("no"),
-			},
-			runDebug: () => Promise.resolve("debug result"),
-			runConfirmed: () => {
-				confirmations += 1;
-				return Promise.resolve("confirmation result");
-			},
-		});
+	it(
+		"stops when interactive approval is declined",
+		requireConfirmationApprovalStopsWhenInteractiveApprovalIsDeclined,
+	);
 
-		expect(result).toBe("debug result");
-		expect(output).toEqual(["single-rep evidence, not a score"]);
-		expect(confirmations).toBe(0);
-	});
-
-	it("starts confirmation only after projected cost approval", async () => {
-		const events: string[] = [];
-
-		const result = await runRequestedExecution({
-			confirmation: { reps: 3, approval: "interactive" },
-			projectCost: () => ({
-				reps: 3,
-				perRepMaximumUsd: 20,
-				totalMaximumUsd: 60,
-			}),
-			approval: {
-				output: (message) => {
-					events.push(`output:${message}`);
-				},
-				prompt: () => {
-					events.push("prompt");
-					return Promise.resolve("yes");
-				},
-			},
-			runDebug: () => Promise.resolve("debug result"),
-			runConfirmed: () => {
-				events.push("start");
-				return Promise.resolve("confirmation result");
-			},
-		});
-
-		expect(result).toBe("confirmation result");
-		expect(events).toEqual([
-			"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
-			"prompt",
-			"start",
-		]);
-	});
-});
-
-describe(runConfirmation.name, () => {
-	it("starts isolated reps together from one frozen input", async () => {
-		const frozenInputs = Object.freeze({
-			corpus: "frozen corpus",
-			rubric: "frozen rubric",
-			model: "sonnet",
-			effort: "high",
-			lineage: "checkpoint-1",
-		});
-		const started: ConfirmationRepPlan<typeof frozenInputs>[] = [];
-		const releases: PromiseWithResolvers<string>[] = [];
-		const execution = runConfirmation(
-			{
-				groupId: "confirmation-1",
-				reps: 3,
-				frozenInputs,
-				worktreePath: (repId) => `/worktrees/${repId}`,
-			},
-			(plan) => {
-				const release = Promise.withResolvers<string>();
-				started.push(plan);
-				releases.push(release);
-				return release.promise;
-			},
-		);
-
-		expect(started).toHaveLength(3);
-		expect(started.map(({ repId }) => repId)).toEqual([
-			"confirmation-1-rep-1",
-			"confirmation-1-rep-2",
-			"confirmation-1-rep-3",
-		]);
-		expect(new Set(started.map(({ worktreePath }) => worktreePath)).size).toBe(
-			3,
-		);
-		expect(started.every(({ inputs }) => inputs === frozenInputs)).toBe(true);
-
-		for (const [index, release] of releases.entries()) {
-			release.resolve(`confirmation-1-rep-${index + 1}`);
-		}
-
-		expect(await execution).toEqual(
-			started.map((plan) => ({
-				plan,
-				outcome: { status: "fulfilled", value: plan.repId },
-			})),
-		);
-	});
-
-	it("lets peer reps finish when one rejects", async () => {
-		const completed: number[] = [];
-		const results = await runConfirmation(
-			{
-				groupId: "confirmation-2",
-				reps: 3,
-				frozenInputs: "checkpoint-1",
-				worktreePath: (repId) => `/worktrees/${repId}`,
-			},
-			async (plan) => {
-				if (plan.ordinal === 2) {
-					throw new Error("rep failed");
-				}
-
-				await Promise.resolve();
-				completed.push(plan.ordinal);
-				return plan.ordinal;
-			},
-		);
-
-		expect(results.map(({ outcome }) => outcome.status)).toEqual([
-			"fulfilled",
-			"rejected",
-			"fulfilled",
-		]);
-		expect(completed).toEqual([1, 3]);
-	});
+	it(
+		"uses noninteractive approval without prompting",
+		requireConfirmationApprovalUsesNoninteractiveApprovalWithoutPrompting,
+	);
 });

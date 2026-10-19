@@ -1,14 +1,16 @@
 import type { ReactNode } from "react";
 
-export function FilterPill({
-	pressed,
-	onPress,
-	children,
-}: {
+interface FilterPillProps {
 	readonly pressed: boolean;
 	readonly onPress: () => void;
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function FilterPill({
+	pressed,
+	onPress,
+	children,
+}: FilterPillProps): React.JSX.Element {
 	return (
 		<button
 			type="button"
@@ -20,3 +22,5 @@ export function FilterPill({
 		</button>
 	);
 }
+
+export { FilterPill as default };

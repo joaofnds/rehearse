@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+
 import { CaseDeclarationError } from "./case";
 import type { CaseDeclaration } from "./case";
 import { CONTROL_DIR } from "./config";
@@ -9,81 +10,99 @@ import {
 	currentStageSettingsReference,
 	loadCurrentStageSettings,
 } from "./current-stage-settings";
-import { loadStageSettings, StageSettingsError } from "./stage-settings";
+import { StageSettingsError, loadStageSettings } from "./stage-settings";
 import type { LoadedStageSettings } from "./stage-settings";
 import { TestResources } from "./test-support";
+
+const SHA256_HEX_DIGITS = 64;
 
 const testResources = TestResources.forEachTest();
 
 const pipelineCase: CaseDeclaration = {
+	finalRubric: "rubric.md",
 	id: "audit-log",
 	kind: "pipeline",
-	title: "Audit log",
-	task: "task.md",
-	productBrief: "brief.md",
-	finalRubric: "rubric.md",
 	pipeline: "pipeline.json",
+	productBrief: "brief.md",
 	rubrics: "rubrics",
-	target: { path: "/target" },
 	settingsFile: "settings/stage.json",
+	target: { path: "/target" },
+	task: "task.md",
+	title: "Audit log",
 };
 
-describe(currentStageSettingsReference.name, () => {
-	it("selects the pipeline case's declared settings file", async () => {
+const currentStageSettingsReferenceSelectsThePipelineCasesDeclaredSettingsFile =
+	async (): Promise<void> => {
 		const reference = await currentStageSettingsReference("audit-log", {
-			readCaseDeclaration: () => Promise.resolve(pipelineCase),
+			readCaseDeclaration: async () => await Promise.resolve(pipelineCase),
 		});
 
 		expect(reference).toEqual({
+			recordPath: "cases/audit-log/settings/stage.json",
 			sourcePath: join(
 				CONTROL_DIR,
 				"cases",
 				"audit-log",
 				"settings/stage.json",
 			),
-			recordPath: "cases/audit-log/settings/stage.json",
 		});
-	});
+	};
 
-	it("falls back to the root default when the case no longer loads", async () => {
+const currentStageSettingsReferenceFallsBackToTheRootDefaultWhenTheCaseNoLongerLoads =
+	async (): Promise<void> => {
 		const reference = await currentStageSettingsReference("removed", {
-			readCaseDeclaration: () =>
-				Promise.reject(
+			readCaseDeclaration: async () =>
+				await Promise.reject(
 					new CaseDeclarationError("case declaration unavailable"),
 				),
 		});
 
 		expect(reference).toEqual({
-			sourcePath: join(CONTROL_DIR, "stage-settings.json"),
 			recordPath: "stage-settings.json",
+			sourcePath: join(CONTROL_DIR, "stage-settings.json"),
 		});
-	});
+	};
+
+describe(currentStageSettingsReference.name, () => {
+	it(
+		"selects the pipeline case's declared settings file",
+		currentStageSettingsReferenceSelectsThePipelineCasesDeclaredSettingsFile,
+	);
+
+	it(
+		"falls back to the root default when the case no longer loads",
+		currentStageSettingsReferenceFallsBackToTheRootDefaultWhenTheCaseNoLongerLoads,
+	);
 });
 
-describe(loadCurrentStageSettings.name, () => {
-	it("loads the selected file once", async () => {
+const loadCurrentStageSettingsLoadsTheSelectedFileOnce =
+	async (): Promise<void> => {
 		const loaded: LoadedStageSettings = {
+			hashed: {
+				path: "stage-settings.json",
+				sha256: "a".repeat(SHA256_HEX_DIGITS),
+			},
 			json: "{}",
-			hashed: { path: "stage-settings.json", sha256: "a".repeat(64) },
 		};
 		const paths: string[] = [];
 
 		const result = await loadCurrentStageSettings("audit-log", {
-			readCaseDeclaration: () => Promise.resolve(pipelineCase),
-			loadStageSettings: (path) => {
+			loadStageSettings: async (path) => {
 				paths.push(path);
 
-				return Promise.resolve(loaded);
+				return await Promise.resolve(loaded);
 			},
+			readCaseDeclaration: async () => await Promise.resolve(pipelineCase),
 		});
 
 		expect(result).toBe(loaded);
 		expect(paths).toEqual([
 			join(CONTROL_DIR, "cases", "audit-log", "settings/stage.json"),
 		]);
-	});
+	};
 
-	it("retains a successfully loaded case-declared settings identity", async () => {
+const loadCurrentStageSettingsRetainsASuccessfullyLoadedCasedeclaredSettingsIdentity =
+	async (): Promise<void> => {
 		const caseId = "zz-current-stage-settings";
 		const caseDirectory = join(CONTROL_DIR, "cases", caseId);
 		const settingsPath = join(caseDirectory, "settings", "stage.json");
@@ -92,31 +111,48 @@ describe(loadCurrentStageSettings.name, () => {
 		await Bun.write(settingsPath, '{"disableAllHooks":true}');
 
 		const loaded = await loadCurrentStageSettings(caseId, {
-			readCaseDeclaration: () =>
-				Promise.resolve({
+			loadStageSettings,
+			readCaseDeclaration: async () =>
+				await Promise.resolve({
 					...pipelineCase,
 					id: caseId,
 				}),
-			loadStageSettings,
 		});
 
 		expect(loaded.hashed.path).toBe(`cases/${caseId}/settings/stage.json`);
-	});
+	};
+
+describe(loadCurrentStageSettings.name, () => {
+	it(
+		"loads the selected file once",
+		loadCurrentStageSettingsLoadsTheSelectedFileOnce,
+	);
+
+	it(
+		"retains a successfully loaded case-declared settings identity",
+		loadCurrentStageSettingsRetainsASuccessfullyLoadedCasedeclaredSettingsIdentity,
+	);
 });
 
-describe(compareCurrentStageSettings.name, () => {
-	it("turns an unavailable selected file into a redacted refusal", async () => {
+const compareCurrentStageSettingsTurnsAnUnavailableSelectedFileIntoARedactedRefusal =
+	async (): Promise<void> => {
 		const result = await compareCurrentStageSettings("audit-log", {
-			readCaseDeclaration: () => Promise.resolve(pipelineCase),
-			loadStageSettings: (path) =>
-				Promise.reject(
+			loadStageSettings: async (path) =>
+				await Promise.reject(
 					new StageSettingsError(`No stage settings file at ${path}`),
 				),
+			readCaseDeclaration: async () => await Promise.resolve(pipelineCase),
 		});
 
 		expect(result).toEqual({
 			settingsFileRefusal:
 				"stage settings file cases/audit-log/settings/stage.json is unavailable: No stage settings file at cases/audit-log/settings/stage.json",
 		});
-	});
+	};
+
+describe(compareCurrentStageSettings.name, () => {
+	it(
+		"turns an unavailable selected file into a redacted refusal",
+		compareCurrentStageSettingsTurnsAnUnavailableSelectedFileIntoARedactedRefusal,
+	);
 });

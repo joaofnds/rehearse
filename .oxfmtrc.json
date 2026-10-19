@@ -17,5 +17,6 @@
 		"backlog/**",
 		"docs/recovered/**",
 		"docs/design-handoff/**"
-	]
+	],
+	"sortImports": true
 }

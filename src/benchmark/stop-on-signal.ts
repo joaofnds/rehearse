@@ -1,18 +1,49 @@
 import { killActiveCommands } from "./command";
+import processSignals from "./process-signals";
+import type { SignalRegistration, SignalStopOutcome } from "./process-signals";
 import { RUN_SIGNALS, signalExitCode } from "./run-abort";
 
-export interface SignalStopDependencies {
-	readonly killActiveCommands: () => Promise<void>;
-	readonly registerSignal: (
-		signal: NodeJS.Signals,
-		handler: (signal: NodeJS.Signals) => void,
-	) => void;
-	readonly releaseSignal: (
-		signal: NodeJS.Signals,
-		handler: (signal: NodeJS.Signals) => void,
-	) => void;
-	readonly exit: (code: number) => void;
+interface SignalStopDiagnostics {
 	readonly log: (message: string) => void;
+	readonly flush: () => Promise<void>;
+}
+
+interface SignalStopDependencies extends SignalRegistration {
+	readonly killActiveCommands: () => Promise<void>;
+	readonly log: (message: string) => void;
+}
+
+interface SignalStopRequest {
+	readonly dependencies: SignalStopDependencies;
+	readonly cleanUp: () => Promise<void>;
+	readonly recordStop: (signal: NodeJS.Signals) => Promise<void>;
+	readonly signal: NodeJS.Signals;
+}
+
+async function stopAndCleanUp({
+	dependencies,
+	cleanUp,
+	recordStop,
+	signal,
+}: SignalStopRequest): Promise<SignalStopOutcome> {
+	dependencies.log(`Received ${signal}; stopping.`);
+	try {
+		await recordStop(signal);
+	} catch (error) {
+		dependencies.log(
+			`Could not record the stop: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+	await dependencies.killActiveCommands();
+	try {
+		await cleanUp();
+	} catch (error) {
+		dependencies.log(
+			`Could not clean up after the stop: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+
+	return { code: signalExitCode(signal), kind: "stopped" };
 }
 
 /**
@@ -24,37 +55,29 @@ export interface SignalStopDependencies {
  * them spending. Answers the release, which returns the signals to their
  * default unless a stop has begun.
  */
-export function stopOnSignal(
+function stopOnSignal(
 	dependencies: SignalStopDependencies,
 	cleanUp: () => Promise<void>,
-	recordStop: (signal: NodeJS.Signals) => Promise<void> = () =>
-		Promise.resolve(),
+	recordStop: (signal: NodeJS.Signals) => Promise<void> = async () => {
+		await Promise.resolve();
+	},
 ): () => void {
 	let stopping = false;
-	const stop = async (signal: NodeJS.Signals): Promise<void> => {
-		dependencies.log(`Received ${signal}; stopping.`);
-		try {
-			await recordStop(signal);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			dependencies.log(`Could not record the stop: ${message}`);
-		}
-		await dependencies.killActiveCommands();
-		try {
-			await cleanUp();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			dependencies.log(`Could not clean up after the stop: ${message}`);
+
+	const handler = async (
+		signal: NodeJS.Signals,
+	): Promise<SignalStopOutcome> => {
+		if (stopping) {
+			return { kind: "ignored" };
 		}
 
-		dependencies.exit(signalExitCode(signal));
-	};
-	const handler = (signal: NodeJS.Signals): void => {
-		if (stopping) {
-			return;
-		}
 		stopping = true;
-		void stop(signal);
+		return await stopAndCleanUp({
+			cleanUp,
+			dependencies,
+			recordStop,
+			signal,
+		});
 	};
 	for (const signal of RUN_SIGNALS) {
 		dependencies.registerSignal(signal, handler);
@@ -72,19 +95,13 @@ export function stopOnSignal(
 	};
 }
 
-/** This process's signals, its running commands, and its exit. */
-export function processSignalStop(
-	log: (message: string) => void,
-): SignalStopDependencies {
-	return {
-		killActiveCommands,
-		registerSignal: (signal, handler) => {
-			process.on(signal, handler);
-		},
-		releaseSignal: (signal, handler) => {
-			process.off(signal, handler);
-		},
-		exit: (code) => process.exit(code),
-		log,
-	};
+/** This process's signal listeners, active commands, and diagnostic output. */
+function processSignalStop({
+	log,
+	flush,
+}: SignalStopDiagnostics): SignalStopDependencies {
+	return { ...processSignals(flush), killActiveCommands, log };
 }
+
+export { stopOnSignal, processSignalStop };
+export type { SignalStopDependencies, SignalStopDiagnostics };

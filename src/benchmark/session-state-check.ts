@@ -1,31 +1,12 @@
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+
 import { z } from "zod";
+
 import type { SessionCase } from "./case";
-import { CommandError } from "./command";
-import {
-	restoreStateEvidence,
-	runAgainstStateEvidence,
-} from "./session-state-evidence";
-
-/**
- * The same shape as a reply check's result with `name` where that one carries
- * `kind`, so a reader who knows one knows the other. The difference is
- * deliberate: a reply check's kind comes from a closed enum the harness owns,
- * while a state result's name is an outcome the case declared, so the harness
- * pairs by name rather than by position and a scorer reporting a variable
- * number of results needs no change to how `checks` is read.
- */
-export const stateResultSchema = z
-	.object({
-		name: z.string().min(1),
-		status: z.enum(["PASS", "FAIL"]),
-		detail: z.string().min(1),
-	})
-	.strict();
-
-export type StateResult = z.infer<typeof stateResultSchema>;
+import { gradeStateEvidence } from "./state-scorer-execution";
+import type { StateScorerOutcome } from "./state-scorer-output";
 
 /**
  * The scorer is declared inline rather than as a file beside `case.json`
@@ -38,12 +19,12 @@ export type StateResult = z.infer<typeof stateResultSchema>;
  * A scorer complex enough to need its own file is a command that invokes one
  * inside the fixture, which the fixture digest already covers.
  */
-export const stateCheckSchema = z
+const stateCheckSchema = z
 	.object({
-		command: z.array(z.string().min(1)).min(1),
+		command: z.array(z.string().nonempty()).nonempty(),
 		outcomes: z
-			.array(z.string().min(1))
-			.min(1)
+			.array(z.string().nonempty())
+			.nonempty()
 			.refine(
 				(names) => new Set(names).size === names.length,
 				"declares the same outcome more than once",
@@ -51,198 +32,7 @@ export const stateCheckSchema = z
 	})
 	.strict();
 
-export type StateCheck = z.infer<typeof stateCheckSchema>;
-
-const stateScorerOutputSchema = z
-	.object({ results: z.array(stateResultSchema) })
-	.strict();
-
-export interface StateResults {
-	readonly kind: "results";
-	readonly results: readonly StateResult[];
-}
-
-export interface StateGradingError {
-	readonly kind: "error";
-	readonly detail: string;
-}
-
-export type StateScorerOutcome = StateResults | StateGradingError;
-
-/**
- * A scorer that could not grade is a different fact from a grade that failed,
- * so every way the output can be unusable returns the error case rather than
- * a FAIL result: an operator comparing two arms must not read a broken scorer
- * as the corpus having got worse.
- *
- * A declared outcome the scorer did not report is one of those ways. The case
- * says which outcomes it expects, and a scorer that silently drops one leaves
- * a grade with nothing behind it.
- */
-export function parseStateScorerOutput(
-	stdout: string,
-	declared: readonly string[],
-): StateScorerOutcome {
-	let document: unknown;
-	try {
-		document = JSON.parse(stdout);
-	} catch (error) {
-		return {
-			kind: "error",
-			detail: `scorer stdout is not JSON: ${error instanceof Error ? error.message : String(error)}`,
-		};
-	}
-
-	const parsed = stateScorerOutputSchema.safeParse(document);
-	if (!parsed.success) {
-		const [issue] = parsed.error.issues;
-
-		return {
-			kind: "error",
-			detail: `scorer stdout does not match the state result schema: ${issue?.path.join(".") ?? "results"}: ${issue?.message ?? "invalid"}`,
-		};
-	}
-
-	const reported = new Map(
-		parsed.data.results.map((result) => [result.name, result]),
-	);
-	const results = declared.flatMap((name) => {
-		const result = reported.get(name);
-
-		return result === undefined ? [] : [result];
-	});
-	if (results.length !== declared.length) {
-		const missing = declared.filter((name) => !reported.has(name));
-
-		return {
-			kind: "error",
-			detail: `scorer reported no result for ${missing.join(", ")}`,
-		};
-	}
-
-	return { kind: "results", results };
-}
-
-export interface StateGradingRequest {
-	readonly evidenceDirectory: string;
-	readonly restoreDirectory: string;
-	readonly scorerSource: string | undefined;
-	readonly command: readonly string[];
-	readonly outcomes: readonly string[];
-	readonly timeoutMs?: number | undefined;
-}
-
-/**
- * A scorer is a command the case author wrote, and a grade that never returns
- * stalls the run it belongs to, so the deadline is explicit rather than left
- * to the shared command default.
- */
-export const STATE_SCORER_TIMEOUT_MS = 60_000;
-
-/**
- * A word of the command that resolves to a file under the case's fixture is
- * one of the scorer's own bytes; everything else in the command line is an
- * argument the session cannot reach. Seeding leaves these paths out of the
- * session's tree and grading lays them back, so both read this one list.
- */
-export async function scorerFiles(
-	fixturePath: string,
-	command: readonly string[],
-): Promise<readonly string[]> {
-	const files = new Set<string>();
-	for (const word of command) {
-		const source = join(fixturePath, word);
-		if (!source.startsWith(`${fixturePath}/`)) {
-			continue;
-		}
-		if (!(await Bun.file(source).exists())) {
-			continue;
-		}
-
-		files.add(relative(fixturePath, source));
-	}
-
-	return [...files];
-}
-
-/**
- * Only the paths the command itself names are laid back, never the whole
- * fixture: restoring every file would overwrite the very work the grade is
- * meant to read. Whatever the session left at such a path is removed first,
- * since a directory there would refuse the copy and leave the attempt
- * ungraded.
- */
-async function layBackScorerFiles(
-	scorerSource: string,
-	command: readonly string[],
-	restored: string,
-): Promise<void> {
-	for (const file of await scorerFiles(scorerSource, command)) {
-		await rm(join(restored, file), { recursive: true, force: true });
-		await cp(join(scorerSource, file), join(restored, file));
-	}
-}
-
-/**
- * The grade runs in a fresh restore rather than in the saved evidence, so a
- * scorer that writes, deletes, or commits changes only its own copy and the
- * next pass reads the same bytes this one did.
- *
- * A scorer that cannot run is a grading error, not a failed grade: a missing
- * executable, a non-zero exit, and a deadline the scorer outlived each say
- * nothing about the session's work, and recording them as FAIL would let a
- * broken scorer read as a corpus that got worse. A timeout is named as one,
- * because the kill surfaces as an ordinary non-zero exit with empty stderr and
- * an operator reading "exited 137" learns nothing about why.
- *
- * The case's own files are laid back over the restore before the command runs.
- * Seeding leaves a scorer file out of the session's tree, but the session may
- * still write a file at that path; without this the grade would execute
- * whatever the session left there, and any session could report itself
- * successful. The grading definition is the case's bytes, which is what
- * the lineage digest covers.
- */
-export async function gradeStateEvidence(
-	request: Readonly<StateGradingRequest>,
-): Promise<StateScorerOutcome> {
-	const restored = await restoreStateEvidence(
-		request.evidenceDirectory,
-		request.restoreDirectory,
-	);
-	if (request.scorerSource !== undefined) {
-		await layBackScorerFiles(request.scorerSource, request.command, restored);
-	}
-
-	const timeoutMs = request.timeoutMs ?? STATE_SCORER_TIMEOUT_MS;
-	const startedAt = Date.now();
-	let stdout: string;
-	try {
-		stdout = await runAgainstStateEvidence(request.command, restored, {
-			timeoutMs,
-		});
-	} catch (error) {
-		if (error instanceof CommandError) {
-			if (Date.now() - startedAt >= timeoutMs) {
-				return {
-					kind: "error",
-					detail: `scorer ${request.command.join(" ")} timed out after ${timeoutMs}ms`,
-				};
-			}
-
-			return {
-				kind: "error",
-				detail: `scorer ${request.command.join(" ")} exited ${error.exitCode}: ${error.stderr.trim()}`,
-			};
-		}
-
-		return {
-			kind: "error",
-			detail: `scorer ${request.command.join(" ")} could not run: ${error instanceof Error ? error.message : String(error)}`,
-		};
-	}
-
-	return parseStateScorerOutput(stdout, request.outcomes);
-}
+type StateCheck = z.infer<typeof stateCheckSchema>;
 
 /**
  * Grading a case's declared scorer against preserved evidence, in a restore
@@ -255,7 +45,7 @@ export async function gradeStateEvidence(
  * `undefined` rather than as an empty result list. That is a different fact
  * from a scorer that ran and reported nothing.
  */
-export async function gradeCaseState(
+async function gradeCaseState(
 	sessionCase: Readonly<
 		Pick<SessionCase, "stateCheck"> & {
 			readonly fixturePath: string | undefined;
@@ -271,13 +61,32 @@ export async function gradeCaseState(
 	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-grade-"));
 	try {
 		return await gradeStateEvidence({
+			command: stateCheck.command,
 			evidenceDirectory,
+			outcomes: stateCheck.outcomes,
 			restoreDirectory,
 			scorerSource: sessionCase.fixturePath,
-			command: stateCheck.command,
-			outcomes: stateCheck.outcomes,
 		});
 	} finally {
 		await rm(restoreDirectory, { force: true, recursive: true });
 	}
 }
+
+export { stateCheckSchema, gradeCaseState };
+export type { StateCheck };
+export {
+	stateResultSchema,
+	parseStateScorerOutput,
+} from "./state-scorer-output";
+export {
+	STATE_SCORER_TIMEOUT_MS,
+	scorerFiles,
+	gradeStateEvidence,
+} from "./state-scorer-execution";
+export type {
+	StateResult,
+	StateResults,
+	StateGradingError,
+	StateScorerOutcome,
+} from "./state-scorer-output";
+export type { StateGradingRequest } from "./state-scorer-execution";

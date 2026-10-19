@@ -1,84 +1,31 @@
 import { RefusedPreconditionError } from "./exit-codes";
 import type { TargetCheck, TargetDefinition, TargetService } from "./pipeline";
 import { SERVICE_PORT_PLACEHOLDER } from "./pipeline";
+import serialMap from "./serial-map";
+import TargetServiceError from "./target-service-contract";
+import type {
+	ContainerOwner,
+	ContainerRuntime,
+	OwnedContainer,
+	ServiceEnvironment,
+	ServiceReadiness,
+	StartedContainer,
+	TargetServices,
+} from "./target-service-contract";
 
-export class TargetServiceError extends Error {
-	public override name = "TargetServiceError";
+const EMPTY_COLLECTION_LENGTH = 0;
 
-	public constructor(
-		public readonly service: string,
-		message: string,
-		options?: Readonly<ErrorOptions>,
-	) {
-		super(`Target service ${service} ${message}`, options);
-	}
-}
-
-export interface StartedContainer {
-	readonly id: string;
-	readonly hostPort: number;
-}
-
-/**
- * Whom a container belongs to: the run or confirmation group an operator
- * recovers by, and the run or attempt whose end removes it.
- */
-export interface ContainerOwner {
-	readonly run: string;
-	readonly attempt: string;
-}
-
-export interface OwnedContainer {
-	readonly id: string;
-	readonly service: string;
-}
-
-/** Runs a target's services as containers reachable from this machine only. */
-export interface ContainerRuntime {
-	readonly start: (
-		service: TargetService,
-		owner: ContainerOwner,
-	) => Promise<StartedContainer>;
-	/**
-	 * Whether the command exits zero inside the container. Rejects when the
-	 * container has stopped or the command cannot run in it, since no later
-	 * check can pass.
-	 */
-	readonly succeeds: (
-		id: string,
-		command: readonly string[],
-	) => Promise<boolean>;
-	/** Every container started for the owner, including one whose start has not returned. */
-	readonly owned: (owner: ContainerOwner) => Promise<readonly OwnedContainer[]>;
-	readonly remove: (id: string) => Promise<void>;
-}
-
-/** How many times a service's readiness command runs, and the pause between. */
-export interface ServiceReadiness {
-	readonly checks: number;
-	readonly wait: () => Promise<void>;
-}
-
-/** Each service's exports, its assigned port in place of the placeholder. */
-export type ServiceEnvironment = Readonly<Record<string, string>>;
+const SERVICE_READY_POLL_INTERVAL_MS = 500;
 
 /** 120 checks half a second apart, since a database image initializes its data on first start. */
-export const SERVICE_READINESS: ServiceReadiness = {
+const SERVICE_READINESS: ServiceReadiness = {
 	checks: 120,
-	wait: () => Bun.sleep(500),
+	wait: async () => {
+		await Bun.sleep(SERVICE_READY_POLL_INTERVAL_MS);
+	},
 };
 
-/** The services one run or attempt starts, and stops whenever it ends. */
-export interface TargetServices {
-	/** Starts each service in turn and waits until it is ready. */
-	readonly start: (
-		services: readonly TargetService[],
-	) => Promise<ServiceEnvironment>;
-	/** Removes every container the owner started, however far its start got. */
-	readonly stop: () => Promise<void>;
-}
-
-export function targetServices(
+function targetServices(
 	owner: ContainerOwner,
 	runtime: ContainerRuntime,
 	readiness: ServiceReadiness,
@@ -86,27 +33,30 @@ export function targetServices(
 	return {
 		start: async (services) => {
 			const environment: Record<string, string> = {};
-			for (const service of services) {
+			await Array.fromAsync(services, async (service) => {
 				try {
 					const container = await startContainer(service, owner, runtime);
-					await awaitReady(service, container.id, runtime, readiness);
+					await awaitReady(service, container.id, { readiness, runtime });
 					Object.assign(environment, exportsOn(service, container.hostPort));
 				} catch (error) {
 					const failure =
 						error instanceof Error ? error : new Error(String(error));
-					await removeAfterFailedStart(service, owner, runtime, failure);
+					await removeAfterFailedStart({ owner, service }, runtime, failure);
+
 					throw error;
 				}
-			}
+			});
 
 			return environment;
 		},
-		stop: () => removeOwned(owner, runtime),
+		stop: async () => {
+			await removeOwned(owner, runtime);
+		},
 	};
 }
 
 /** A service that cannot start or never gets ready is a precondition the run refuses. */
-export async function startTargetServices(
+async function startTargetServices(
 	services: TargetServices,
 	target: TargetDefinition,
 ): Promise<ServiceEnvironment> {
@@ -122,9 +72,7 @@ export async function startTargetServices(
 }
 
 /** Tries every attempt's services before reporting the ones left running. */
-export async function stopEvery(
-	services: readonly TargetServices[],
-): Promise<void> {
+async function stopEvery(services: readonly TargetServices[]): Promise<void> {
 	const failures: unknown[] = [];
 	await Promise.all(
 		services.map(async ({ stop }) => {
@@ -136,13 +84,13 @@ export async function stopEvery(
 		}),
 	);
 
-	if (failures.length > 0) {
+	if (failures.length > EMPTY_COLLECTION_LENGTH) {
 		throw new AggregateError(failures, failures.map(String).join("\n"));
 	}
 }
 
 /** The target's setup, when it declares one, with the services' exports. */
-export function setupWithServices(
+function setupWithServices(
 	setup: readonly TargetCheck[] | undefined,
 	environment: ServiceEnvironment,
 ): readonly TargetCheck[] | undefined {
@@ -152,7 +100,7 @@ export function setupWithServices(
 }
 
 /** A check's own value wins over a service's export of the same variable. */
-export function checksWithServices(
+function checksWithServices(
 	checks: readonly TargetCheck[],
 	environment: ServiceEnvironment,
 ): readonly TargetCheck[] {
@@ -190,13 +138,17 @@ function exportsOn(
 	);
 }
 
+interface FailedServiceStart {
+	readonly service: TargetService;
+	readonly owner: ContainerOwner;
+}
+
 /**
  * The start's failure stays the one reported. A container left behind joins
  * it, so the operator learns both what failed and what to remove.
  */
 async function removeAfterFailedStart(
-	service: TargetService,
-	owner: ContainerOwner,
+	{ service, owner }: FailedServiceStart,
 	runtime: ContainerRuntime,
 	failure: Readonly<Error>,
 ): Promise<void> {
@@ -224,20 +176,21 @@ async function removeOwned(
 ): Promise<void> {
 	const left: OwnedContainer[] = [];
 	const failures: unknown[] = [];
-	for (const container of await runtime.owned(owner)) {
+	await Array.fromAsync(await runtime.owned(owner), async (container) => {
 		try {
 			await runtime.remove(container.id);
 		} catch (error) {
 			left.push(container);
 			failures.push(error);
 		}
-	}
+	});
 
 	const [first] = left;
 	const [cause] = failures;
 	if (first !== undefined) {
 		const ids = left.map(({ id }) => id).join(" ");
 		const reason = cause instanceof Error ? cause.message : String(cause);
+
 		throw new TargetServiceError(
 			first.service,
 			`could not be removed (${reason}); remove it by hand with docker rm --force ${ids}`,
@@ -246,14 +199,21 @@ async function removeOwned(
 	}
 }
 
+interface ServiceReadinessContext {
+	readonly runtime: ContainerRuntime;
+	readonly readiness: ServiceReadiness;
+}
+
 async function awaitReady(
 	service: TargetService,
 	id: string,
-	runtime: ContainerRuntime,
-	readiness: ServiceReadiness,
+	{ runtime, readiness }: ServiceReadinessContext,
 ): Promise<void> {
-	for (let check = 1; check <= readiness.checks; check += 1) {
-		if (await readyCheck(service, id, runtime)) {
+	for await (const ready of serialMap(
+		Array.from({ length: readiness.checks }).values(),
+		async () => await readyCheck(service, id, runtime),
+	)) {
+		if (ready) {
 			return;
 		}
 
@@ -281,3 +241,22 @@ async function readyCheck(
 		);
 	}
 }
+
+export {
+	SERVICE_READINESS,
+	targetServices,
+	startTargetServices,
+	stopEvery,
+	setupWithServices,
+	checksWithServices,
+};
+export { default as TargetServiceError } from "./target-service-contract";
+export type {
+	StartedContainer,
+	ContainerOwner,
+	OwnedContainer,
+	ContainerRuntime,
+	ServiceReadiness,
+	ServiceEnvironment,
+	TargetServices,
+} from "./target-service-contract";

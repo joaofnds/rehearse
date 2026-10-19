@@ -1,193 +1,37 @@
-import { randomUUID } from "node:crypto";
-import {
-	chmod,
-	readFile,
-	realpath,
-	rename,
-	rm,
-	stat,
-	writeFile,
-} from "node:fs/promises";
-import { join, resolve } from "node:path";
-import type { CorpusRoot, LiveCorpusRoot } from "./corpus-file";
+import { join } from "node:path";
+
+import type {
+	AppliedCorpusEdit,
+	CorpusEditReview,
+	EditedCorpus,
+	EditedLayout,
+	RecordedCorpusEdit,
+	ReviewedCorpusEdit,
+} from "./corpus-edit-contract";
+import { bytesUnchanged, editedLayout, replaceFile } from "./corpus-edit-files";
+import { liveInstallRefusal } from "./corpus-edit-live-guard";
+import type { CorpusRoot } from "./corpus-file";
 import { rowsAnEditInvalidates } from "./corpus-invalidation";
-import { hashCorpusLayout } from "./corpus-layout";
-import type { HashedLayout } from "./corpus-layout";
+import hashCorpusLayout from "./corpus-layout";
 import { corpusVersionDigest, measureCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
-import { pathIsWithin } from "./path-containment";
-import { LINK_CORPUS_COMMAND } from "./settings";
 
-/** The edited path is not one of the files the corpus report lists. */
-export class UnlistedCorpusFileError extends Error {
-	public override name = "UnlistedCorpusFileError";
-}
-
-/** The linked corpus an edit writes to, and the live install it never may. */
-export interface EditedCorpus {
-	readonly source: CorpusRoot;
-	readonly live: LiveCorpusRoot;
-}
-
-/** New text for one file the corpus report lists. */
-export interface CorpusEdit {
-	readonly path: string;
-	readonly text: string;
-}
-
-/** An edit, carrying the version its review read. */
-export interface ReviewedCorpusEdit extends CorpusEdit {
-	readonly startsFrom: string;
-}
-
-/** What applying an edit would do, read before anything is written. */
-export interface CorpusEditReview {
-	/** The version of the corpus under test the edit starts from. */
-	readonly startsFrom: string;
-	/** The run-history rows the edit would mark stale. */
-	readonly invalidated: readonly string[];
-	/** Why an apply of this edit would be refused, read before it is tried. */
-	readonly applyRefusal: string | null;
-}
-
-export interface AppliedCorpusEdit {
-	readonly previous: string;
-	readonly version: string;
-	readonly invalidated: readonly string[];
-}
-
-interface EditedLayout {
-	readonly layout: HashedLayout;
-	readonly startsFrom: string;
-	readonly bytes: Readonly<Uint8Array>;
-}
-
-/** The layout of a corpus that measures, refusing one that does not. */
-async function measuredLayout(source: CorpusRoot): Promise<HashedLayout> {
-	const layout = await hashCorpusLayout(source);
-	if (layout.refusals.length > 0) {
-		throw new RefusedPreconditionError(
-			`The linked corpus does not measure: ${layout.refusals.join("; ")}`,
-		);
-	}
-
-	return layout;
-}
-
-function refuseUnlisted(layout: HashedLayout, path: string): void {
-	if (!layout.files.some((file) => file.path === path)) {
-		throw new UnlistedCorpusFileError(
-			`The corpus report lists no file ${path}`,
-		);
-	}
-}
-
-async function editedLayout(
-	source: CorpusRoot,
-	edit: CorpusEdit,
-): Promise<EditedLayout> {
-	const layout = await measuredLayout(source);
-	refuseUnlisted(layout, edit.path);
-
-	return {
-		layout,
-		startsFrom: corpusVersionDigest(layout.files),
-		bytes: new TextEncoder().encode(edit.text),
-	};
-}
-
-function invalidatedBy(
+async function invalidatedBy(
 	recordsDirectory: string,
 	source: CorpusRoot,
-	edit: CorpusEdit,
-	edited: EditedLayout,
+	{ edit, edited }: RecordedCorpusEdit,
 ): Promise<readonly string[]> {
-	return rowsAnEditInvalidates(
-		recordsDirectory,
-		source,
-		edited.layout.files.map(({ path }) => path),
-		{ path: edit.path, bytes: edited.bytes },
-	);
-}
-
-/** The real path, or the resolved one for a path that does not exist yet. */
-async function realOrResolved(path: string): Promise<string> {
-	try {
-		return await realpath(path);
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return resolve(path);
-		}
-		throw error;
-	}
-}
-
-const LIVE_INSTALL_REFUSAL = `The linked corpus directory resolves into the live install, which every agent session on this machine loads as instructions, so edits to it belong where it is produced. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
-
-/** Whether any of the real paths lies under the live install's real roots. */
-async function reachesLiveInstall(
-	live: LiveCorpusRoot,
-	written: readonly string[],
-): Promise<boolean> {
-	const protectedRoots = await Promise.all(
-		[live.root, live.backingRoot].map((root) => realOrResolved(root)),
-	);
-
-	return written.some((target) =>
-		protectedRoots.some((root) => pathIsWithin(target, root)),
-	);
-}
-
-/**
- * The live install is what every session on this machine loads, so no edit
- * from the browser writes under it or its backing tree, however the linked
- * directory or the edited file reaches there.
- */
-async function liveInstallRefusal(
-	source: CorpusRoot,
-	live: LiveCorpusRoot,
-	path: string,
-): Promise<string | null> {
-	if (source.kind === "live") {
-		return `The linked corpus is the live install, which every agent session on this machine loads as instructions, so edits to it belong where it is produced. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
-	}
-
-	const written = await Promise.all(
-		[source.root, join(source.root, path)].map((candidate) =>
-			realOrResolved(candidate),
-		),
-	);
-
-	return (await reachesLiveInstall(live, written))
-		? LIVE_INSTALL_REFUSAL
-		: null;
-}
-
-/** A listed file as the corpus under test holds it, which an edit starts from. */
-export interface OpenedCorpusFile {
-	readonly bytes: Uint8Array;
-	/** The version the corpus held when the file was read. */
-	readonly version: string;
-}
-
-export async function readListedCorpusFile(
-	source: CorpusRoot,
-	path: string,
-): Promise<OpenedCorpusFile> {
-	const layout = await measuredLayout(source);
-	refuseUnlisted(layout, path);
-
-	return {
-		bytes: await readFile(join(source.root, path)),
-		version: corpusVersionDigest(layout.files),
-	};
+	return await rowsAnEditInvalidates(recordsDirectory, source, {
+		edit: { bytes: edited.bytes, path: edit.path },
+		layoutPaths: edited.layout.files.map(({ path }) => path),
+	});
 }
 
 /**
  * Refuses an edit whose file changed after it was opened, since its text
  * would overwrite the change without the editor having seen it.
  */
-export async function reviewCorpusEdit(
+async function reviewCorpusEdit(
 	recordsDirectory: string,
 	corpus: EditedCorpus,
 	edit: ReviewedCorpusEdit,
@@ -200,54 +44,17 @@ export async function reviewCorpusEdit(
 		);
 	}
 
+	const invalidated = await invalidatedBy(recordsDirectory, source, {
+		edit,
+		edited,
+	});
+	const applyRefusal = await liveInstallRefusal(source, live, edit.path);
+
 	return {
+		applyRefusal,
+		invalidated,
 		startsFrom: edited.startsFrom,
-		invalidated: await invalidatedBy(recordsDirectory, source, edit, edited),
-		applyRefusal: await liveInstallRefusal(source, live, edit.path),
 	};
-}
-
-/**
- * Written to a temporary file and renamed over the file's real path, so no
- * reader sees a torn body and a linked file is replaced where it lives rather
- * than unlinked. The real path is checked again here, since the file can
- * become a link to elsewhere after the layout listed it. The temporary file
- * sits at the corpus root, outside every layout directory a measurement
- * walks. The file keeps its mode, which the version digest does not hold.
- */
-async function replaceFile(
-	corpus: EditedCorpus,
-	path: string,
-	bytes: Readonly<Uint8Array>,
-): Promise<void> {
-	const target = await realpath(join(corpus.source.root, path));
-	const realRoot = await realpath(corpus.source.root);
-	if (!pathIsWithin(target, realRoot)) {
-		throw new RefusedPreconditionError(
-			`${path} resolves outside the linked corpus directory, so it was not written. Review the edit again.`,
-		);
-	}
-
-	if (await reachesLiveInstall(corpus.live, [target])) {
-		throw new RefusedPreconditionError(LIVE_INSTALL_REFUSAL);
-	}
-
-	const { mode } = await stat(target);
-	const temporary = join(realRoot, `.rehearse-edit-${randomUUID()}.tmp`);
-	try {
-		await writeFile(temporary, bytes, { mode });
-		await chmod(temporary, mode);
-		await rename(temporary, target);
-	} finally {
-		await rm(temporary, { force: true });
-	}
-}
-
-async function bytesUnchanged(
-	file: string,
-	bytes: Readonly<Uint8Array>,
-): Promise<boolean> {
-	return Buffer.from(await readFile(file)).equals(bytes);
 }
 
 /**
@@ -284,7 +91,7 @@ async function refuseUnappliable(
  * it as previous, and refuses the write when the directory changed while the
  * stale count was judged, since that count would describe another tree.
  */
-export async function applyCorpusEdit(
+async function applyCorpusEdit(
 	recordsDirectory: string,
 	corpus: EditedCorpus,
 	edit: ReviewedCorpusEdit,
@@ -292,27 +99,39 @@ export async function applyCorpusEdit(
 	const { source } = corpus;
 	const edited = await editedLayout(source, edit);
 	await refuseUnappliable(corpus, edit, edited);
+	await recordStartingCorpusVersion(recordsDirectory, source);
+	const invalidated = await invalidatedBy(recordsDirectory, source, {
+		edit,
+		edited,
+	});
+	await assertReviewedCorpusStillCurrent(source, edit.startsFrom);
+
+	await replaceFile(corpus, edit.path, edited.bytes);
+
+	const version = await recordAppliedCorpusVersion(recordsDirectory, source);
+
+	return {
+		invalidated,
+		previous: edit.startsFrom,
+		version,
+	};
+}
+async function recordStartingCorpusVersion(
+	recordsDirectory: string,
+	source: CorpusRoot,
+): Promise<void> {
 	const starting = await measureCorpusVersion(recordsDirectory, source);
 	if (starting.kind === "refused") {
 		throw new RefusedPreconditionError(
 			`The linked corpus does not measure: ${starting.refusal}`,
 		);
 	}
-	const invalidated = await invalidatedBy(
-		recordsDirectory,
-		source,
-		edit,
-		edited,
-	);
-	const beforeWrite = await hashCorpusLayout(source);
-	if (corpusVersionDigest(beforeWrite.files) !== edit.startsFrom) {
-		throw new RefusedPreconditionError(
-			`The linked directory changed while the edit was being applied, so it was not written. Review the edit again.`,
-		);
-	}
+}
 
-	await replaceFile(corpus, edit.path, edited.bytes);
-
+async function recordAppliedCorpusVersion(
+	recordsDirectory: string,
+	source: CorpusRoot,
+): Promise<string> {
 	const measured = await measureCorpusVersion(recordsDirectory, source);
 	if (measured.kind === "refused") {
 		throw new Error(
@@ -320,9 +139,28 @@ export async function applyCorpusEdit(
 		);
 	}
 
-	return {
-		previous: edit.startsFrom,
-		version: measured.digest,
-		invalidated,
-	};
+	return measured.digest;
 }
+
+async function assertReviewedCorpusStillCurrent(
+	source: CorpusRoot,
+	startsFrom: string,
+): Promise<void> {
+	const beforeWrite = await hashCorpusLayout(source);
+	if (corpusVersionDigest(beforeWrite.files) !== startsFrom) {
+		throw new RefusedPreconditionError(
+			`The linked directory changed while the edit was being applied, so it was not written. Review the edit again.`,
+		);
+	}
+}
+export { default as UnlistedCorpusFileError } from "./corpus-edit-contract";
+export type {
+	EditedCorpus,
+	CorpusEdit,
+	ReviewedCorpusEdit,
+	CorpusEditReview,
+	AppliedCorpusEdit,
+	OpenedCorpusFile,
+} from "./corpus-edit-contract";
+export { readListedCorpusFile } from "./corpus-edit-files";
+export { reviewCorpusEdit, applyCorpusEdit };

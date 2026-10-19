@@ -1,126 +1,94 @@
-import { parseRecord } from "./record-parse-cache";
 import { z } from "zod";
-import { COMPARISON_ARMS } from "./comparison-record";
-import type {
-	ComparisonArm,
-	ComparisonReport,
-	LegacyComparisonReport,
-	LegacySingleCaseComparisonReport,
-	SingleCaseComparisonReport,
-} from "./comparison-record";
-import type {
-	PairedEstimate,
-	ProportionInterval,
-	SingleCaseSpread,
-} from "./comparison-estimator";
-import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
+
 import type {
 	EvidenceLocator,
 	Immutable,
 	RecordedStageEvidence,
 } from "./contracts";
 import { recordedStageEvidenceSchema, unhandled } from "./contracts";
-import { corpusMeasurementReading } from "./corpus-version-label";
-import type { GroupRepReads } from "./staleness-report";
+import { parseRecord } from "./record-parse-cache";
+import { table, usd } from "./record-summary-format";
 
-/**
- * The short markdown a session pastes onto a card. Each summary is a pure
- * function of what it is given: no file is read and no clock is consulted, so
- * the same inputs render the same bytes on every machine and a committed
- * expected string is a meaningful assertion. A run or comparison summary is
- * given one parsed record. A group summary is also given its reps' reads as
- * judged against a corpus when `show` ran, so its read states follow that
- * corpus and the summary names it.
- */
-function table(
-	header: readonly string[],
-	rows: readonly (readonly string[])[],
-): string[] {
-	return [
-		`| ${header.join(" | ")} |`,
-		`| ${header.map(() => "---").join(" | ")} |`,
-		...rows.map((row) => `| ${row.join(" | ")} |`),
-	];
-}
+const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
-function usd(amount: number): string {
-	return `$${amount.toFixed(2)}`;
-}
+const EXCHANGE_NUMBER_BASE = 1;
 
-function ratio(value: number): string {
-	return value.toFixed(3);
-}
+const INITIAL_CHARACTER_CODE_UNITS = 1;
 
-function delta(value: number): string {
-	return `${value >= 0 ? "+" : ""}${value.toFixed(3)}`;
-}
+const SINGLE_ITEM_COUNT = 1;
 
-/**
- * The run artifact carries no schema of its own, so the summary parses exactly
- * the fields it renders and fails loudly on a record that cannot supply them.
- * This is not a second record shape: `--json` still prints the artifact's own
- * bytes.
- */
+const DISPLAY_POSITION_BASE = 1;
+
+const INITIAL_CHARACTER_INDEX = 0;
+
+const NO_SPEND_USD = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
 const judgedItemSchema = z
 	.object({
-		id: z.string().min(1),
-		status: z.string().min(1).optional(),
-		grade: z.string().min(1).optional(),
 		evidence: z.array(recordedStageEvidenceSchema),
+		grade: z.string().nonempty().optional(),
+		id: z.string().nonempty(),
+		status: z.string().nonempty().optional(),
 	})
 	.loose();
 
-export const runSummarySchema = z
+const recordedCostSchema = z.object({ costUsd: z.number() }).loose();
+
+const summaryStageGradeSchema = z
 	.object({
-		caseId: z.string().min(1),
-		timestamp: z.string().min(1),
-		status: z.string().min(1),
+		dimensions: z.array(judgedItemSchema).optional(),
+		grade: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+		hardBlockers: z.array(judgedItemSchema).optional(),
+		requirements: z.array(judgedItemSchema).optional(),
+		verdict: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	})
+	.loose();
+
+const summaryScorecardSchema = z
+	.object({
+		costUsd: z.number(),
+		grade: summaryStageGradeSchema,
+		stage: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	})
+	.loose();
+
+const runSummarySchema = z
+	.object({
+		caseId: z.string().nonempty(),
+		failure: z.string().nonempty().optional(),
 		grade: z
 			.object({
-				verdict: z.string().min(1),
-				summary: z.string().min(1),
 				requirements: z.array(judgedItemSchema).optional(),
+				summary: z.string().nonempty(),
+				verdict: z.string().nonempty(),
 			})
 			.loose()
 			.optional(),
-		failure: z.string().min(1).optional(),
-		productOwnerCostUsd: z.number(),
 		judgeCostUsd: z.number(),
-		workflow: z.array(z.object({ costUsd: z.number() }).loose()),
-		stageScorecards: z.array(
-			z
-				.object({
-					stage: z.string().min(1),
-					costUsd: z.number(),
-					grade: z
-						.object({
-							grade: z.string().min(1),
-							verdict: z.string().min(1),
-							hardBlockers: z.array(judgedItemSchema).optional(),
-							requirements: z.array(judgedItemSchema).optional(),
-							dimensions: z.array(judgedItemSchema).optional(),
-						})
-						.loose(),
-				})
-				.loose(),
-		),
+		productOwnerCostUsd: z.number(),
+		stageScorecards: z.array(summaryScorecardSchema),
+		status: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+		timestamp: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+		workflow: z.array(recordedCostSchema),
 	})
 	.loose();
 
-export type RunSummaryRecord = Immutable<z.infer<typeof runSummarySchema>>;
+type RunSummaryRecord = Immutable<z.infer<typeof runSummarySchema>>;
 
-export function parseRunSummaryRecord(text: string): RunSummaryRecord {
+function parseRunSummaryRecord(text: string): RunSummaryRecord {
 	return parseRecord(runSummarySchema, text);
 }
 
-export function runSummary(runName: string, record: RunSummaryRecord): string {
+function runSummary(runName: string, record: RunSummaryRecord): string {
 	const stageCost = record.stageScorecards.reduce(
 		(total, scorecard) => total + scorecard.costUsd,
-		0,
+		NO_SPEND_USD,
 	);
 	const workflowCost = record.workflow.reduce(
 		(total, transcript) => total + transcript.costUsd,
-		0,
+		NO_SPEND_USD,
 	);
 	const totalCost =
 		stageCost + workflowCost + record.productOwnerCostUsd + record.judgeCostUsd;
@@ -157,7 +125,7 @@ export function runSummary(runName: string, record: RunSummaryRecord): string {
 type JudgedItem = Immutable<z.infer<typeof judgedItemSchema>>;
 
 function evidenceLines(judge: string, items: readonly JudgedItem[]): string[] {
-	if (items.length === 0) {
+	if (items.length === EMPTY_COLLECTION_LENGTH) {
 		return [];
 	}
 
@@ -167,7 +135,7 @@ function evidenceLines(judge: string, items: readonly JudgedItem[]): string[] {
 		...items.flatMap((item) => {
 			const result = `${item.id} ${item.status ?? item.grade ?? ""}`;
 
-			return item.evidence.length === 0
+			return item.evidence.length === EMPTY_COLLECTION_LENGTH
 				? [`- ${result}: no evidence.`]
 				: item.evidence.map(
 						(evidence) => `- ${result}: ${evidenceReading(evidence)}`,
@@ -177,10 +145,6 @@ function evidenceLines(judge: string, items: readonly JudgedItem[]): string[] {
 	];
 }
 
-/**
- * An item without a locator was recorded before quoted spans, which is not
- * the same as an item recorded with no evidence at all.
- */
 function evidenceReading(evidence: RecordedStageEvidence): string {
 	const cited = `${oneLine(evidence.claim)} (${evidence.source} ${evidence.path}).`;
 	if (evidence.locator === undefined) {
@@ -193,7 +157,7 @@ function evidenceReading(evidence: RecordedStageEvidence): string {
 	return `${cited} Quote "${oneLine(evidence.quote)}" at ${locatorReading(evidence.locator)}.`;
 }
 
-export function locatorReading(locator: EvidenceLocator): string {
+function locatorReading(locator: EvidenceLocator): string {
 	switch (locator.kind) {
 		case "lines": {
 			const lines =
@@ -207,10 +171,10 @@ export function locatorReading(locator: EvidenceLocator): string {
 			return `${locator.file} ${locator.hunk}${occurrences(locator.occurrences)}`;
 		}
 		case "commit-subject": {
-			return `commit subject ${String(locator.index + 1)}`;
+			return `commit subject ${String(locator.index + DISPLAY_POSITION_BASE)}`;
 		}
 		case "exchange": {
-			return `exchange ${String(locator.exchange + 1)} ${locator.field}, characters ${String(locator.start)}-${String(locator.end)}`;
+			return `exchange ${String(locator.exchange + EXCHANGE_NUMBER_BASE)} ${locator.field}, characters ${String(locator.start)}-${String(locator.end)}`;
 		}
 		case "harness": {
 			return locator.recorded
@@ -227,7 +191,7 @@ export function locatorReading(locator: EvidenceLocator): string {
 }
 
 function occurrences(count: number): string {
-	return count === 1 ? "" : `, ${String(count)} occurrences`;
+	return count === SINGLE_ITEM_COUNT ? "" : `, ${String(count)} occurrences`;
 }
 
 function oneLine(text: string): string {
@@ -235,425 +199,18 @@ function oneLine(text: string): string {
 }
 
 function capitalized(text: string): string {
-	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+	return `${text.charAt(INITIAL_CHARACTER_INDEX).toUpperCase()}${text.slice(INITIAL_CHARACTER_CODE_UNITS)}`;
 }
 
-const reliabilitySummarySchema = z
-	.object({
-		name: z.string().min(1),
-		requested: z.number(),
-		successful: z.number(),
-		successRate: z.number(),
-		standardError: z.number(),
-		passK: z.number(),
-	})
-	.loose();
-
-export const groupReportSummarySchema = z
-	.object({
-		reliability: z.array(reliabilitySummarySchema),
-		resources: z
-			.object({
-				total: z.object({ costUsd: z.array(z.number()) }).loose(),
-				commandTotal: z
-					.discriminatedUnion("status", [
-						z.object({
-							status: z.literal("COMPLETE"),
-							metrics: z.object({ costUsd: z.number() }).loose(),
-						}),
-						z.object({
-							status: z.literal("MISSING"),
-							missing: z.array(z.string().min(1)),
-						}),
-					])
-					.optional(),
-			})
-			.loose(),
-	})
-	.loose();
-
-export type GroupReportSummaryRecord = Immutable<
-	z.infer<typeof groupReportSummarySchema>
->;
-
-export function parseGroupReportSummaryRecord(
-	text: string,
-): GroupReportSummaryRecord {
-	return parseRecord(groupReportSummarySchema, text);
-}
-
-export function groupSummary(
-	record: Immutable<ParsedConfirmationGroupRecord>,
-	report: GroupReportSummaryRecord,
-	reads: RepReadsSummary,
-): string {
-	const costs = report.resources.total.costUsd;
-	const total = costs.reduce((sum, cost) => sum + cost, 0);
-	const { commandTotal } = report.resources;
-	let costLine = `Cost ${usd(total)} over ${String(costs.length)} reps.`;
-	if (
-		record.schemaVersion === 2 &&
-		record.mode === "session" &&
-		commandTotal === undefined
-	) {
-		costLine = "Cost unavailable: command total evidence is missing.";
-	} else if (commandTotal?.status === "MISSING") {
-		costLine = `Cost unavailable: ${commandTotal.missing.join(", ")}.`;
-	} else if (commandTotal?.status === "COMPLETE") {
-		costLine = `Cost ${usd(commandTotal.metrics.costUsd)} for the confirmed command.`;
-	}
-
-	return [
-		`## group:${record.groupId}`,
-		"",
-		`Case ${record.caseId}, ${record.mode} mode, ${String(record.reps)} reps.`,
-		`Corpus ${corpusMeasurementReading(record.inputs.corpusVersion)}.`,
-		"",
-		...table(
-			["outcome", "successful", "success rate", "standard error", "pass^k"],
-			report.reliability.map((summary) => [
-				summary.name,
-				`${String(summary.successful)}/${String(summary.requested)}`,
-				ratio(summary.successRate),
-				ratio(summary.standardError),
-				ratio(summary.passK),
-			]),
-		),
-		"",
-		costLine,
-		"",
-		...readLines(record.mode === "session", reads),
-		"",
-	].join("\n");
-}
-
-/**
- * A group's rep reads and the corpus their states were judged against, named
- * the way a reader would say it, or undefined when no corpus could judge them.
- */
-export interface RepReadsSummary {
-	readonly reads: GroupRepReads;
-	readonly judgedAgainst: string | undefined;
-}
-
-/** A table cell holds one line, and a pipe in it would start a new cell. */
-function cell(text: string): string {
-	return text.replaceAll(/\s+/gu, " ").replaceAll("|", String.raw`\|`);
-}
-
-/**
- * Each rep stage's reads, one row per file, with the start of its hash and
- * whether it changed since. A session rep ran no stage, so a session group's
- * table has no stage column.
- */
-function readLines(session: boolean, summary: RepReadsSummary): string[] {
-	const { reps, reasons } = summary.reads;
-	if (reps.length === 0 && reasons.length === 0) {
-		return ["No rep recorded a read."];
-	}
-
-	const rows = reps.flatMap(({ repId, stage, readManifest }) =>
-		readManifest.map((entry) => [
-			repId,
-			...(session ? [] : [stage ?? ""]),
-			entry.path,
-			entry.role,
-			entry.evidence,
-			entry.sha256?.slice(0, 12) ?? "none",
-			entry.state ?? "not judged",
-		]),
-	);
-	const judged = reps.some(({ readManifest }) =>
-		readManifest.some(({ state }) => state !== undefined),
-	);
-
-	return [
-		...(rows.length === 0
-			? []
-			: table(
-					[
-						"rep",
-						...(session ? [] : ["stage"]),
-						"path",
-						"role",
-						"evidence",
-						"sha256",
-						"state",
-					],
-					rows.map((row) => row.map((text) => cell(text))),
-				)),
-		...(judged && summary.judgedAgainst !== undefined
-			? [
-					`States compare each file with ${summary.judgedAgainst} as it was when this summary was printed.`,
-				]
-			: []),
-		...reasons.map((reason) => `${cell(reason)}.`),
-	];
-}
-
-function interval(arm: { readonly interval: ProportionInterval }): string {
-	return `${ratio(arm.interval.low)}-${ratio(arm.interval.high)}`;
-}
-
-function spread(estimate: { readonly spread: SingleCaseSpread }): string {
-	return estimate.spread.status === "ESTIMATED"
-		? ratio(estimate.spread.standardError)
-		: "no observed spread";
-}
-
-interface SingleCaseArmRow {
-	readonly name: ComparisonArm;
-	readonly successful: number;
-	readonly requested: number;
-	readonly rate: number;
-	readonly interval: ProportionInterval;
-	readonly passK: number;
-}
-
-/**
- * Each arm's own counts and interval, which the report carries only inside the
- * contrasts: every arm appears as the minuend or the subtrahend of at least one
- * of the three, and the three agree on any arm they share.
- */
-function armProportions(
-	report: Immutable<
-		SingleCaseComparisonReport | LegacySingleCaseComparisonReport
-	>,
-): readonly SingleCaseArmRow[] {
-	const rows = new Map<ComparisonArm, SingleCaseArmRow>();
-
-	for (const contrast of Object.values(report.contrasts)) {
-		for (const quality of contrast.quality) {
-			rows.set(contrast.minuend, {
-				name: contrast.minuend,
-				...quality.successRate.minuend,
-				passK: quality.passK.minuend,
-			});
-			rows.set(contrast.subtrahend, {
-				name: contrast.subtrahend,
-				...quality.successRate.subtrahend,
-				passK: quality.passK.subtrahend,
-			});
-		}
-	}
-
-	return COMPARISON_ARMS.flatMap((arm) => {
-		const row = rows.get(arm);
-
-		return row === undefined ? [] : [row];
-	});
-}
-
-type ComparisonContrastName = keyof SingleCaseComparisonReport["contrasts"];
-type SingleCaseContrast = Immutable<
-	| SingleCaseComparisonReport["contrasts"][ComparisonContrastName]
-	| LegacySingleCaseComparisonReport["contrasts"][ComparisonContrastName]
->;
-
-/**
- * Elapsed time joins the cost table rather than taking one of its own, because
- * an operator comparing spend against speed reads one row per contrast. A
- * report written before version 5 carries no elapsed observation at all, which
- * is why its column renders unavailable instead of a zero delta.
- */
-function resourceRow(contrast: SingleCaseContrast): readonly string[] {
-	const name = `${contrast.minuend} − ${contrast.subtrahend}`;
-	const { resources } = contrast;
-	if (resources.status === "UNAVAILABLE") {
-		return [name, "unavailable", "unavailable", "unavailable", "unavailable"];
-	}
-
-	const cost = [
-		delta(resources.total.costUsd.delta),
-		spread(resources.total.costUsd),
-	];
-	if (!("elapsedMs" in resources)) {
-		return [name, ...cost, "unavailable", "unavailable"];
-	}
-
-	return [
-		name,
-		...cost,
-		delta(resources.elapsedMs.delta),
-		spread(resources.elapsedMs),
-	];
-}
-
-function singleCaseComparisonSummary(
-	digest: string,
-	report: Immutable<
-		SingleCaseComparisonReport | LegacySingleCaseComparisonReport
-	>,
-): string {
-	const [benchmarkCase] = report.cases;
-	if (benchmarkCase === undefined) {
-		throw new Error("A single-case comparison report carries no case");
-	}
-
-	const armRows = armProportions(report).map((arm) => [
-		arm.name,
-		`${String(arm.successful)}/${String(arm.requested)}`,
-		ratio(arm.rate),
-		interval(arm),
-		ratio(arm.passK),
-	]);
-	const contrastRows = Object.values(report.contrasts).flatMap((contrast) =>
-		contrast.quality.map((quality) => [
-			`${contrast.minuend} − ${contrast.subtrahend}`,
-			quality.name,
-			delta(quality.successRate.delta),
-			ratio(quality.successRate.standardError),
-			delta(quality.passK.delta),
-		]),
-	);
-	const resourceRows = Object.values(report.contrasts).map((contrast) =>
-		resourceRow(contrast),
-	);
-
-	return [
-		`## comparison:${digest}`,
-		"",
-		`1 case, ${report.mode} mode, ${String(report.reps)} reps.`,
-		"",
-		`Sampling unit: ${report.samplingUnit}. Arms are independent samples; this estimate covers case ${benchmarkCase.caseId} only.`,
-		"",
-		...table(
-			["arm", "successful", "success rate", "95% interval", "pass^k"],
-			armRows,
-		),
-		"",
-		...table(
-			["contrast", "outcome", "success rate Δ", "standard error", "pass^k Δ"],
-			contrastRows,
-		),
-		"",
-		...table(
-			[
-				"contrast",
-				"cost Δ",
-				"standard error",
-				"per-attempt elapsed Δ (ms)",
-				"standard error",
-			],
-			resourceRows,
-		),
-		"",
-	].join("\n");
-}
-
-/**
- * A cost figure keeps six decimals where a success rate keeps three. The saved
- * comparison 511cd2c4 carries a candidate-minus-baseline cost standard error of
- * 0.0004999999999999172, which `ratio`'s three decimals render as "0.000", the
- * false certainty a rounded zero always claims. The boundary is narrow: an
- * error of 0.0005 exactly renders as "0.001" and would not have shown the
- * defect. Six decimals put the figure beyond that boundary rather than beside
- * it.
- */
-function usdDelta(value: number): string {
-	return `${value >= 0 ? "+" : ""}${value.toFixed(6)}`;
-}
-
-function usdRatio(value: number): string {
-	return value.toFixed(6);
-}
-
-/**
- * A mean over cases describes the cases only when they agree on a direction.
- * Deltas of +0.5 and -0.5 average to exactly zero, which renders identically to
- * two cases that did not move, so the sign disagreement is reported beside the
- * mean rather than left for a reader to infer from a standard error.
- *
- * Sign is the test rather than the mean's distance from its standard error: a
- * genuinely null result also sits within one standard error of zero, and this
- * is reporting that the cases disagree, not that the mean is small.
- *
- * A delta of exactly zero counts as agreement. A case that did not move is not
- * evidence of conflict, so a strict comparison is deliberate on both sides:
- * relaxing either to `>=` or `<=` would report every flat case as a
- * disagreement.
- */
-function caseDeltasDisagree(estimate: Immutable<PairedEstimate>): boolean {
-	const values = estimate.caseDeltas.map(({ value }) => value);
-	return values.some((value) => value > 0) && values.some((value) => value < 0);
-}
-
-function perCaseDeltas(
-	estimate: Immutable<PairedEstimate>,
-	format: (value: number) => string = delta,
-): string {
-	return estimate.caseDeltas
-		.map(({ caseId, value }) => `${caseId} ${format(value)}`)
-		.join(", ");
-}
-
-/**
- * Every paired delta the report carries, each beside the contrast against the
- * control arm, because a candidate that beats the baseline while both sit at
- * the control's rate has moved nothing.
- *
- * The per-case column and the cost table both read figures the report already
- * carries. Without them an operator reads a mean of zero as "the edit changed
- * nothing" where the cases in fact disagreed, and reads no cost at all.
- */
-export function comparisonSummary(
-	digest: string,
-	report: Immutable<ComparisonReport | LegacyComparisonReport>,
-): string {
-	if ("samplingUnit" in report) {
-		return singleCaseComparisonSummary(digest, report);
-	}
-
-	const rows = Object.values(report.contrasts).flatMap((contrast) =>
-		contrast.quality.map((quality) => [
-			`${contrast.minuend} − ${contrast.subtrahend}`,
-			quality.name,
-			delta(quality.successRate.meanDelta),
-			ratio(quality.successRate.standardError),
-			delta(quality.passK.meanDelta),
-			perCaseDeltas(quality.successRate),
-			caseDeltasDisagree(quality.successRate) ? "cases disagree" : "",
-		]),
-	);
-
-	const costRows = Object.values(report.contrasts).map((contrast) => {
-		const name = `${contrast.minuend} − ${contrast.subtrahend}`;
-		const { resources } = contrast;
-		if (resources.status === "UNAVAILABLE") {
-			return [name, "unavailable", "unavailable", "unavailable"];
-		}
-
-		const { costUsd } = resources.total;
-		return [
-			name,
-			usdDelta(costUsd.meanDelta),
-			usdRatio(costUsd.standardError),
-			perCaseDeltas(costUsd, usdDelta),
-		];
-	});
-
-	return [
-		`## comparison:${digest}`,
-		"",
-		`${String(report.cases.length)} cases, ${report.mode} mode, ${String(report.reps)} reps.`,
-		"",
-		...table(
-			[
-				"contrast",
-				"outcome",
-				"success rate Δ",
-				"standard error",
-				"pass^k Δ",
-				"per-case Δ",
-				"reading",
-			],
-			rows,
-		),
-		"",
-		...table(
-			["contrast", "cost Δ (USD)", "standard error", "per-case Δ"],
-			costRows,
-		),
-		"",
-	].join("\n");
-}
+export { runSummarySchema, parseRunSummaryRecord, runSummary, locatorReading };
+export type { RunSummaryRecord };
+export {
+	groupReportSummarySchema,
+	parseGroupReportSummaryRecord,
+	groupSummary,
+} from "./group-record-summary";
+export { default as comparisonSummary } from "./comparison-record-summary";
+export type {
+	GroupReportSummaryRecord,
+	RepReadsSummary,
+} from "./group-record-summary";

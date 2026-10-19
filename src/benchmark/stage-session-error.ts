@@ -10,17 +10,17 @@ function reasonOf(cause: unknown): string {
  * since a resumed call's total covers the calls before it and the calls'
  * sum would otherwise read as the whole.
  */
-export interface SessionSpend {
+interface SessionSpend {
 	readonly providerCalls: readonly ProviderCall[];
 	readonly costUsd: number | undefined;
 }
 
-export interface StageSessionFailure extends SessionSpend {
+interface StageSessionFailure extends SessionSpend {
 	readonly cause: unknown;
 }
 
 /** A stage session that failed, carrying what it spent up to the failure. */
-export class StageSessionError extends Error {
+class StageSessionError extends Error {
 	public readonly providerCalls: readonly ProviderCall[];
 	public readonly costUsd: number | undefined;
 
@@ -31,3 +31,6 @@ export class StageSessionError extends Error {
 		this.costUsd = props.costUsd;
 	}
 }
+
+export { StageSessionError as default };
+export type { SessionSpend, StageSessionFailure };

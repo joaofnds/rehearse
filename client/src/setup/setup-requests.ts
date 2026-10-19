@@ -1,18 +1,19 @@
 import { launchClient } from "#client/api-client";
-import { SettingsRefusedError } from "#client/launch/settings-query";
+import HTTP_STATUS from "#client/http-status";
 import type { SettingsReading } from "#client/launch/settings-query";
-import { refusalReason } from "#client/refusal-reason";
+import { SettingsRefusedError } from "#client/launch/settings-query";
+import refusalReason from "#client/refusal-reason";
 
 /** Links what setup scanned, where an empty path is the live install. */
-export async function linkSetupCorpus(
-	directory: string,
-): Promise<SettingsReading> {
+async function linkSetupCorpus(directory: string): Promise<SettingsReading> {
 	const response = await launchClient.api.setup.corpus.$put({
 		json: { directory },
 	});
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
-	return response.json();
+	return await response.json();
 }
+
+export { linkSetupCorpus as default };

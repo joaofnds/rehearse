@@ -1,14 +1,15 @@
 import { z } from "zod";
+
 import { effortSchema } from "./config";
 import type { Immutable } from "./contracts";
 import {
 	contextFileSchema,
+	judgeAttemptListSchema,
 	judgeGradeSchema,
 	localCheckResultSchema,
 	stageGradeSchema,
-	stageRubricSchema,
-	judgeAttemptListSchema,
 	stageJudgeInputSchema,
+	stageRubricSchema,
 	stageScorecardSchema,
 } from "./contracts";
 
@@ -24,27 +25,27 @@ import {
  * that rejudges nothing needs neither.
  */
 const judgeKnobsSchema = z.object({
-	judgeModel: z.string().min(1),
 	judgeEffort: effortSchema.optional(),
+	judgeModel: z.string().nonempty(),
 	sessionBudgetUsd: z.number().positive().optional(),
 });
 
-export const calibratableArtifactSchema = judgeKnobsSchema
+const calibratableArtifactSchema = judgeKnobsSchema
 	.extend({
-		status: z.enum(["AWAITING_HUMAN_REVIEW", "COMPLETE", "FAILED"]),
-		caseId: z.string().min(1),
-		sourceRoot: z.string().min(1),
-		resultSha: z.string().min(1),
-		instructions: z.string(),
-		rubric: z.string().min(1),
-		grade: judgeGradeSchema,
 		baselineContext: z.array(contextFileSchema),
-		diff: z.string(),
+		caseId: z.string().nonempty(),
 		changedPaths: z.array(z.string()),
 		checkIntegrity: localCheckResultSchema,
+		diff: z.string(),
+		grade: judgeGradeSchema,
+		instructions: z.string(),
 		localChecks: localCheckResultSchema,
+		resultSha: z.string().nonempty(),
+		reviewFile: z.string().nonempty(),
+		rubric: z.string().nonempty(),
+		sourceRoot: z.string().nonempty(),
 		stageScorecards: z.array(stageScorecardSchema),
-		reviewFile: z.string().min(1),
+		status: z.enum(["AWAITING_HUMAN_REVIEW", "COMPLETE", "FAILED"]),
 	})
 	.loose();
 
@@ -53,24 +54,27 @@ export const calibratableArtifactSchema = judgeKnobsSchema
  * card that started recording it, and `calibrate` needs one to name the
  * agreement baseline, so a record without it is refused rather than guessed.
  */
-export const calibratableStageRecordSchema = judgeKnobsSchema
+const calibratableStageRecordSchema = judgeKnobsSchema
 	.extend({
-		stage: z.string().min(1),
-		rubricPath: z.string().min(1),
-		rubric: stageRubricSchema,
-		input: stageJudgeInputSchema,
-		prompt: z.string(),
 		attempts: judgeAttemptListSchema,
+		calibration: z.unknown().optional(),
 		costUsd: z.number(),
 		grade: stageGradeSchema,
-		calibration: z.unknown().optional(),
+		input: stageJudgeInputSchema,
+		prompt: z.string(),
+		rubric: stageRubricSchema,
+		rubricPath: z.string().nonempty(),
+		stage: z.string().nonempty(),
 	})
 	.loose();
 
-export type CalibratableArtifact = Immutable<
+type CalibratableArtifact = Immutable<
 	z.infer<typeof calibratableArtifactSchema>
 >;
 
-export type CalibratableStageRecord = Immutable<
+type CalibratableStageRecord = Immutable<
 	z.infer<typeof calibratableStageRecordSchema>
 >;
+
+export { calibratableArtifactSchema, calibratableStageRecordSchema };
+export type { CalibratableArtifact, CalibratableStageRecord };

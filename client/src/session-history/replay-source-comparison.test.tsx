@@ -1,117 +1,42 @@
 import { afterEach, expect, it } from "bun:test";
-import { act, fireEvent, screen, within } from "@testing-library/react";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReplayRow } from "#server/run-history";
-import { renderWithRouter } from "#client/test-support/render-app";
+import { act, fireEvent, screen, within } from "@testing-library/react";
+
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
-import { recordStage, runRecord } from "#client/test-support/run-record";
+import { renderWithRouter } from "#client/test-support/render-app";
 import {
-	UNREAD_REPLAY_FIGURES,
-	UNREAD_STALENESS,
-} from "#client/test-support/run-figures";
-import { ReplaySourceComparison } from "./replay-source-comparison";
+	REPLAY_SOURCE_REPLIES,
+	REPLAY_SOURCE_ROW,
+} from "#client/test-support/session-history/replay-source-test-fixtures";
+
+import ReplaySourceComparison from "./replay-source-comparison";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
-it("compares the actual source and replay outputs with their own grade, cost and corpus", async () => {
-	const row: ReplayRow = {
-		kind: "replay",
-		recordId: "attempt:stage:lineage/time",
-		lineage: "lineage",
-		timestamp: "time",
-		caseId: "case",
-		stage: "build",
-		grade: "B",
-		status: "CONTINUE",
-		shortId: "r1",
-		checkpointShortId: "c1",
-		attempt: { position: 2, count: 2 },
-		links: [],
-		corpusVersion: { kind: "version", digest: "b".repeat(64) },
-		staleness: UNREAD_STALENESS,
-		...UNREAD_REPLAY_FIGURES,
-		cost: {
-			state: "available",
-			usd: 2,
-			parts: [
-				{ part: "build session", usd: 1.5 },
-				{ part: "Product Owner", usd: 0.1 },
-				{ part: "build judge", usd: 0.4 },
-			],
-			missing: [],
-		},
-	};
-	stubFetchByPath(
-		new Map<string, unknown>([
-			[
-				"/api/runs/source",
-				runRecord({
-					run: "source",
-					running: "build",
-					stages: [
-						recordStage("build", {
-							grade: {
-								state: "available",
-								letter: "C",
-								verdict: "STOP",
-								reachesMinimum: false,
-							},
-							sessionCost: { state: "available", usd: 3 },
-							judgeCost: { state: "available", usd: 0.5 },
-							corpusVersion: { kind: "version", digest: "a".repeat(64) },
-						}),
-					],
-				}),
-			],
-			[
-				"/api/runs/source/stages/build/output",
-				{
-					state: "available",
-					kind: "artifact",
-					path: "delivery.md",
-					text: "Original delivery omitted hasMore.",
-				},
-			],
-			[
-				"/api/attempt-evidence/attempt%3Astage%3Alineage%2Ftime",
-				{
-					state: "available",
-					kind: "stage",
-					stage: "build",
-					output: {
-						state: "available",
-						kind: "artifact",
-						path: "delivery.md",
-						text: "Replay delivery includes hasMore.",
-					},
-					assessment: {
-						grade: "B",
-						verdict: "CONTINUE",
-						detailed: false,
-						hardBlockers: [],
-						requirements: [],
-						dimensions: [],
-					},
-				},
-			],
-		]),
-	);
+it(
+	"compares the actual source and replay outputs with their own grade, cost and corpus",
+	comparesTheActualSourceAndReplayOutputsWithTheirOwnGradeCostAndCorpus,
+);
+
+async function comparesTheActualSourceAndReplayOutputsWithTheirOwnGradeCostAndCorpus(): Promise<void> {
+	stubFetchByPath(REPLAY_SOURCE_REPLIES);
 	renderWithRouter(
 		<QueryClientProvider
 			client={
 				new QueryClient({ defaultOptions: { queries: { retry: false } } })
 			}
 		>
-			<ReplaySourceComparison sourceRun="source" row={row} />
+			<ReplaySourceComparison sourceRun="source" row={REPLAY_SOURCE_ROW} />
 		</QueryClientProvider>,
 	);
-	await act(() => {
+	await act(async () => {
 		fireEvent.click(
 			screen.getByRole("button", { name: "Compare with source" }),
 		);
-		return Promise.resolve();
+		await Promise.resolve();
 	});
 	const dialog = await screen.findByRole("dialog");
 	expect(
@@ -132,4 +57,4 @@ it("compares the actual source and replay outputs with their own grade, cost and
 	expect(
 		within(dialog).getByRole("link", { name: "Source step" }),
 	).toHaveAttribute("href", "/runs/source?view=results&step=build");
-});
+}

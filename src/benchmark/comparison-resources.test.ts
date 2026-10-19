@@ -1,332 +1,167 @@
 import { describe, expect, it } from "bun:test";
-import type { ConfirmationRepRecord } from "./confirmation-record";
-import type { ComparisonArm } from "./comparison-record";
-import type { PairedEstimate } from "./comparison-estimator";
-import { buildComparisonResources } from "./comparison-resources";
-import {
-	comparisonRep,
-	comparisonReps,
-	FAIL,
-	PASS,
-	withMissingMetrics,
-} from "./comparison-test-fixtures";
+import assert from "node:assert/strict";
 
+import type {
+	ComparisonContrast,
+	PairedEstimate,
+} from "./comparison-estimator";
+import ResourceProjections from "./comparison-resource-test-fixtures";
+import buildComparisonResources from "./comparison-resources";
+
+const CONTRASTS = [
+	{ caseOneDelta: 2.5, caseTwoDelta: 5, name: "candidateMinusBaseline" },
+	{ caseOneDelta: 5, caseTwoDelta: 7.5, name: "candidateMinusControl" },
+	{ caseOneDelta: 2.5, caseTwoDelta: 2.5, name: "baselineMinusControl" },
+] as const;
+const METRICS = [
+	{ coefficient: 1, metric: "costUsd" },
+	{ coefficient: 10, metric: "inputTokens" },
+	{ coefficient: 2, metric: "outputTokens" },
+	{ coefficient: 3, metric: "cacheReadTokens" },
+	{ coefficient: 4, metric: "cacheWriteTokens" },
+] as const;
+const PAIRED_CASE_COUNT = 2;
+interface ExpectedDeltas {
+	readonly caseOneDelta: number;
+	readonly caseTwoDelta: number;
+}
+
+function expectedEstimate({
+	caseOneDelta,
+	caseTwoDelta,
+}: ExpectedDeltas): PairedEstimate {
+	return {
+		caseDeltas: [
+			{ caseId: "case-1", value: caseOneDelta },
+			{ caseId: "case-2", value: caseTwoDelta },
+		],
+		meanDelta: (caseOneDelta + caseTwoDelta) / PAIRED_CASE_COUNT,
+		standardError: Math.abs(caseOneDelta - caseTwoDelta) / PAIRED_CASE_COUNT,
+	};
+}
+
+interface UnusedRoleMetric {
+	readonly role: "product-owner" | "stage-judge" | "final-judge";
+	readonly metric: "costUsd" | "inputTokens" | "cacheWriteTokens";
+}
+
+interface ContrastExample extends ExpectedDeltas {
+	readonly name: ComparisonContrast;
+}
+
+interface MetricContrastExample extends ContrastExample {
+	readonly coefficient: number;
+	readonly metric: (typeof METRICS)[number]["metric"];
+}
+
+function reportsUnusedRoleMetric({ role, metric }: UnusedRoleMetric): void {
+	const request = ResourceProjections.complete();
+
+	const report = buildComparisonResources(request);
+	const [firstCase] = report.cases;
+	const candidate = firstCase?.arms.candidate;
+
+	assert.ok(
+		candidate?.status === "AVAILABLE",
+		"candidate resources should be available",
+	);
+	const unusedRoleValue = 0;
+	expect(candidate.perRole[role][metric]).toEqual({
+		mean: 0,
+		values: [
+			unusedRoleValue,
+			unusedRoleValue,
+			unusedRoleValue,
+			unusedRoleValue,
+		],
+	});
+}
+
+function reportsMetricContrast({
+	name,
+	metric,
+	coefficient,
+	caseOneDelta,
+	caseTwoDelta,
+}: MetricContrastExample): void {
+	const request = ResourceProjections.complete();
+
+	const report = buildComparisonResources(request);
+	const { resources } = report.contrasts[name];
+
+	assert.ok(
+		resources.status === "AVAILABLE",
+		`${name} resources should be available`,
+	);
+	expect(resources.total[metric]).toEqual(
+		expectedEstimate({
+			caseOneDelta: caseOneDelta * coefficient,
+			caseTwoDelta: caseTwoDelta * coefficient,
+		}),
+	);
+	expect(resources.perRole.worker[metric]).toEqual(resources.total[metric]);
+}
+
+function reportsWorkerTurnContrast({
+	name,
+	caseOneDelta,
+	caseTwoDelta,
+}: ContrastExample): void {
+	const request = ResourceProjections.complete();
+
+	const report = buildComparisonResources(request);
+	const { resources } = report.contrasts[name];
+
+	assert.ok(
+		resources.status === "AVAILABLE",
+		`${name} resources should be available`,
+	);
+	expect(resources.workerTurns).toEqual(
+		expectedEstimate({ caseOneDelta, caseTwoDelta }),
+	);
+}
+
+function reportsWorkerResourcesAsTheCompleteTotal(): void {
+	const request = ResourceProjections.complete();
+
+	const report = buildComparisonResources(request);
+	const [firstCase] = report.cases;
+	const candidate = firstCase?.arms.candidate;
+
+	assert.ok(
+		candidate?.status === "AVAILABLE",
+		"candidate resources should be available",
+	);
+	expect(candidate.perRole.worker).toEqual(candidate.total);
+}
 describe(buildComparisonResources.name, () => {
-	it("reports per-role observations and exact estimates for every resource contrast", () => {
-		const report = buildComparisonResources({
-			contract: {
-				mode: "pipeline",
-				declaredStages: ["discuss", "build"],
-				reps: 4,
-			},
-			cases: [
-				{
-					caseId: "case-1",
-					arms: {
-						baseline: comparisonReps(
-							"case-1",
-							"baseline",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 1 },
-						),
-						candidate: comparisonReps(
-							"case-1",
-							"candidate",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 2 },
-						),
-						control: comparisonReps(
-							"case-1",
-							"control",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 0 },
-						),
-					},
-				},
-				{
-					caseId: "case-2",
-					arms: {
-						baseline: comparisonReps(
-							"case-2",
-							"baseline",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 1 },
-						),
-						candidate: comparisonReps(
-							"case-2",
-							"candidate",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 3 },
-						),
-						control: comparisonReps(
-							"case-2",
-							"control",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 0 },
-						),
-					},
-				},
-			],
-		});
-		const candidate = report.cases[0]?.arms.candidate;
-		if (candidate?.status !== "AVAILABLE") {
-			throw new Error("candidate resources should be available");
-		}
-
-		expect(candidate.perRole.worker).toEqual(candidate.total);
-		expect(candidate.perRole["product-owner"].costUsd).toEqual({
-			values: [0, 0, 0, 0],
-			mean: 0,
-		});
-		expect(candidate.perRole["stage-judge"].inputTokens).toEqual({
-			values: [0, 0, 0, 0],
-			mean: 0,
-		});
-		expect(candidate.perRole["final-judge"].cacheWriteTokens).toEqual({
-			values: [0, 0, 0, 0],
-			mean: 0,
-		});
-
-		const expectedEstimate = (
-			first: number,
-			second: number,
-		): PairedEstimate => ({
-			caseDeltas: [
-				{ caseId: "case-1", value: first },
-				{ caseId: "case-2", value: second },
-			],
-			meanDelta: (first + second) / 2,
-			standardError: Math.abs(first - second) / 2,
-		});
-		const contrasts = [
-			["candidateMinusBaseline", [2.5, 5]],
-			["candidateMinusControl", [5, 7.5]],
-			["baselineMinusControl", [2.5, 2.5]],
-		] as const;
-		const coefficients = [
-			["costUsd", 1],
-			["inputTokens", 10],
-			["outputTokens", 2],
-			["cacheReadTokens", 3],
-			["cacheWriteTokens", 4],
-		] as const;
-		for (const [name, [first, second]] of contrasts) {
-			const { resources } = report.contrasts[name];
-			if (resources.status !== "AVAILABLE") {
-				throw new Error(`${name} resources should be available`);
-			}
-			for (const [metric, coefficient] of coefficients) {
-				expect(resources.total[metric]).toEqual(
-					expectedEstimate(first * coefficient, second * coefficient),
-				);
-				expect(resources.perRole.worker[metric]).toEqual(
-					resources.total[metric],
-				);
-			}
-			expect(resources.workerTurns).toEqual(expectedEstimate(first, second));
-		}
-	});
-
-	it("reports complete resource means and unavailable missing-metric contrasts", () => {
-		const caseOneControl = [
-			comparisonRep("case-1-control", 1, FAIL, { metricScale: 0 }),
-			withMissingMetrics(
-				comparisonRep("case-1-control", 2, FAIL, { metricScale: 0 }),
-				"stage-judge call metrics",
-			),
-			comparisonRep("case-1-control", 3, FAIL, { metricScale: 0 }),
-			comparisonRep("case-1-control", 4, FAIL, { metricScale: 0 }),
-		];
-		const report = buildComparisonResources({
-			contract: {
-				mode: "pipeline",
-				declaredStages: ["discuss", "build"],
-				reps: 4,
-			},
-			cases: [
-				{
-					caseId: "case-1",
-					arms: {
-						baseline: comparisonReps(
-							"case-1",
-							"baseline",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 1 },
-						),
-						candidate: comparisonReps(
-							"case-1",
-							"candidate",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 2 },
-						),
-						control: caseOneControl,
-					},
-				},
-				{
-					caseId: "case-2",
-					arms: {
-						baseline: comparisonReps(
-							"case-2",
-							"baseline",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 1 },
-						),
-						candidate: comparisonReps(
-							"case-2",
-							"candidate",
-							[PASS, PASS, PASS, PASS],
-							{ metricScale: 3 },
-						),
-						control: comparisonReps(
-							"case-2",
-							"control",
-							[FAIL, FAIL, FAIL, FAIL],
-							{ metricScale: 0 },
-						),
-					},
-				},
-			],
-		});
-
-		expect(report.cases[0]?.arms.candidate).toMatchObject({
-			status: "AVAILABLE",
-			completeReps: 4,
-			missingMetricReps: 0,
-			total: {
-				costUsd: { values: [2, 4, 6, 8], mean: 5 },
-				inputTokens: { values: [20, 40, 60, 80], mean: 50 },
-				outputTokens: { values: [4, 8, 12, 16], mean: 10 },
-				cacheReadTokens: { values: [6, 12, 18, 24], mean: 15 },
-				cacheWriteTokens: { values: [8, 16, 24, 32], mean: 20 },
-			},
-			workerTurns: { values: [2, 4, 6, 8], mean: 5 },
-		});
-		expect(report.cases[0]?.arms.control).toEqual({
-			status: "UNAVAILABLE",
-			completeReps: 3,
-			missingMetricReps: 1,
-			missingEvidence: [
-				{
-					repId: "case-1-control-rep-2",
-					ordinal: 2,
-					missing: ["stage-judge call metrics"],
-				},
-			],
-		});
-		expect(report.contrasts.candidateMinusBaseline.resources).toMatchObject({
-			status: "AVAILABLE",
-			total: {
-				costUsd: {
-					caseDeltas: [
-						{ caseId: "case-1", value: 2.5 },
-						{ caseId: "case-2", value: 5 },
-					],
-					meanDelta: 3.75,
-					standardError: 1.25,
-				},
-			},
-		});
-		expect(report.contrasts.candidateMinusControl.resources).toEqual({
-			status: "UNAVAILABLE",
-			missingEvidence: [
-				{
-					caseId: "case-1",
-					arm: "control",
-					repId: "case-1-control-rep-2",
-					ordinal: 2,
-					missing: ["stage-judge call metrics"],
-				},
-			],
-		});
-		expect(report.contrasts.baselineMinusControl.resources.status).toBe(
-			"UNAVAILABLE",
+	describe("when every rep records all metrics", () => {
+		it(
+			"reports worker resources as the complete total",
+			reportsWorkerResourcesAsTheCompleteTotal,
 		);
-	});
-
-	it("summarises each arm's per-attempt elapsed time from its reps", () => {
-		const arm = (
-			role: "baseline" | "candidate" | "control",
-			elapsedMs: readonly number[],
-		): readonly ConfirmationRepRecord[] =>
-			elapsedMs.map((elapsed, index) =>
-				comparisonRep(`case-1-${role}`, index + 1, PASS, {
-					elapsedMs: elapsed,
-				}),
-			);
-		const report = buildComparisonResources({
-			contract: {
-				mode: "pipeline",
-				declaredStages: ["discuss", "build"],
-				reps: 2,
-			},
-			cases: [
-				{
-					caseId: "case-1",
-					arms: {
-						baseline: arm("baseline", [1000, 3000]),
-						candidate: arm("candidate", [2000, 6000]),
-						control: arm("control", [500, 1500]),
-					},
-				},
-			],
-		});
-		const baseline = report.cases[0]?.arms.baseline;
-		if (baseline?.status !== "AVAILABLE") {
-			throw new Error("baseline resources should be available");
-		}
-
-		expect(baseline.elapsedMs).toEqual({ values: [1000, 3000], mean: 2000 });
-	});
-	it("estimates a paired elapsed contrast across cases from each arm's durations", () => {
-		const arm = (
-			caseId: string,
-			role: ComparisonArm,
-			elapsedMs: number,
-		): readonly ConfirmationRepRecord[] =>
-			[1, 2].map((ordinal) =>
-				comparisonRep(`${caseId}-${role}`, ordinal, PASS, {
-					metricScale: 1,
-					elapsedMs,
-				}),
-			);
-		const report = buildComparisonResources({
-			contract: {
-				mode: "pipeline",
-				declaredStages: ["discuss", "build"],
-				reps: 2,
-			},
-			cases: [
-				{
-					caseId: "case-1",
-					arms: {
-						baseline: arm("case-1", "baseline", 1000),
-						candidate: arm("case-1", "candidate", 1500),
-						control: arm("case-1", "control", 800),
-					},
-				},
-				{
-					caseId: "case-2",
-					arms: {
-						baseline: arm("case-2", "baseline", 2000),
-						candidate: arm("case-2", "candidate", 3000),
-						control: arm("case-2", "control", 800),
-					},
-				},
-			],
-		});
-		const { resources } = report.contrasts.candidateMinusBaseline;
-		if (resources.status !== "AVAILABLE") {
-			throw new Error("candidate minus baseline resources should be available");
-		}
-
-		expect(resources.elapsedMs).toEqual({
-			caseDeltas: [
-				{ caseId: "case-1", value: 500 },
-				{ caseId: "case-2", value: 1000 },
-			],
-			meanDelta: 750,
-			standardError: 250,
-		});
-		expect(resources.elapsedMs).not.toEqual(resources.workerTurns);
+		it.each([
+			{ metric: "costUsd", role: "product-owner" },
+			{ metric: "inputTokens", role: "stage-judge" },
+			{ metric: "cacheWriteTokens", role: "final-judge" },
+		] as const)(
+			"reports zero $metric observations for the unused $role",
+			reportsUnusedRoleMetric,
+		);
+		it.each(
+			CONTRASTS.flatMap(({ caseOneDelta, caseTwoDelta, name }) =>
+				METRICS.map(({ coefficient, metric }) => ({
+					caseOneDelta,
+					caseTwoDelta,
+					coefficient,
+					metric,
+					name,
+				})),
+			),
+		)("reports exact $metric estimates for $name", reportsMetricContrast);
+		it.each([...CONTRASTS])(
+			"reports exact worker-turn estimates for $name",
+			reportsWorkerTurnContrast,
+		);
 	});
 });

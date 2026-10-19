@@ -14,10 +14,10 @@ const ELAPSED_TICK_MS = 1000;
  * It ticks only while something is running, so a page showing finished history
  * redraws nothing.
  */
-export function useNow(running: boolean): number {
+function useNow(running: boolean): number {
 	const [nowMs, setNowMs] = useState(() => Date.now());
 
-	useEffect(() => {
+	useEffect((): (() => void) | undefined => {
 		if (!running) {
 			return undefined;
 		}
@@ -33,3 +33,5 @@ export function useNow(running: boolean): number {
 
 	return nowMs;
 }
+
+export { useNow as default };

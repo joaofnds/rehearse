@@ -5,30 +5,31 @@ import type {
 } from "#benchmark/case";
 import { PipelineDefinitionError } from "#benchmark/pipeline";
 import type { RunLiveness } from "#benchmark/run-liveness";
+
+import { pipelineDefinition, sessionDefinition } from "./case-definition";
+import type { CaseDefinition } from "./case-definition";
 import { caseFigures, medianVerdict } from "./case-figures";
 import type { CaseFigures, CaseRun } from "./case-figures";
-import { readCaseRuns } from "./case-runs";
+import readCaseRuns from "./case-runs";
 import type {
 	CaseRunMember,
 	RecordedCase,
 	UnreadableCaseRecord,
 } from "./case-runs";
-import { pipelineDefinition, sessionDefinition } from "./case-definition";
-import type { CaseDefinition } from "./case-definition";
 import { readDeclaredPipeline } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 
-export interface ListedStage {
+interface ListedStage {
 	readonly name: string;
 	readonly rubric: string;
 }
 
-export type PipelineReading =
+type PipelineReading =
 	| { readonly state: "available"; readonly stages: readonly ListedStage[] }
 	| { readonly state: "unavailable"; readonly reason: string };
 
 /** A pipeline case's figures add the median of its final Judge's verdicts. */
-export type PipelineCaseFigures =
+type PipelineCaseFigures =
 	| Extract<CaseFigures, { state: "no-runs" }>
 	| (Extract<CaseFigures, { state: "measured" }> & {
 			readonly median: "PASS" | "FAIL" | null;
@@ -39,7 +40,7 @@ export type PipelineCaseFigures =
  * not recorded where that run lacks one or only groups ran the case, since a
  * group record holds none.
  */
-export type LatestMinimumGrade =
+type LatestMinimumGrade =
 	| { readonly state: "recorded"; readonly letter: string }
 	| { readonly state: "not-recorded" }
 	| null;
@@ -52,7 +53,7 @@ interface ListedCaseIdentity {
 	readonly cohorts?: readonly CaseCohort[];
 }
 
-export interface CaseCohort {
+interface CaseCohort {
 	readonly corpusVersion: string | null;
 	readonly figures: CaseFigures;
 	readonly members: readonly CaseRunMember[];
@@ -73,7 +74,7 @@ function caseCohorts(
 	}));
 }
 
-export interface ListedPipelineCase extends ListedCaseIdentity {
+interface ListedPipelineCase extends ListedCaseIdentity {
 	readonly kind: "pipeline";
 	readonly target: string;
 	readonly pipeline: PipelineReading;
@@ -86,21 +87,21 @@ export interface ListedPipelineCase extends ListedCaseIdentity {
  * A session case runs against no repository and its declared checks judge
  * it, so its figures count the runs whose checks passed and carry no letter.
  */
-export interface ListedSessionCase extends ListedCaseIdentity {
+interface ListedSessionCase extends ListedCaseIdentity {
 	readonly kind: "session";
 	readonly target: null;
 	readonly checks: readonly string[];
 	readonly figures: CaseFigures;
 }
 
-export type ListedCase = ListedPipelineCase | ListedSessionCase;
+type ListedCase = ListedPipelineCase | ListedSessionCase;
 
-export interface UnreadableDeclaration {
+interface UnreadableDeclaration {
 	readonly id: string;
 	readonly reason: string;
 }
 
-export interface CaseListing {
+interface CaseListing {
 	readonly cases: readonly ListedCase[];
 	/** Declarations that do not parse. */
 	readonly unreadable: readonly UnreadableDeclaration[];
@@ -118,8 +119,8 @@ async function pipelineReading(
 		const pipeline = await readDeclaredPipeline(casesRoot, declaration);
 
 		return {
-			state: "available",
 			stages: pipeline.stages.map(({ name, rubric }) => ({ name, rubric })),
+			state: "available",
 		};
 	} catch (error) {
 		if (
@@ -130,8 +131,8 @@ async function pipelineReading(
 		}
 
 		return {
-			state: "unavailable",
 			reason: redactAbsolutePaths(error.message),
+			state: "unavailable",
 		};
 	}
 }
@@ -155,7 +156,7 @@ function latestMinimumGrade(
 	const { minimumGrade } = recorded;
 
 	return minimumGrade?.state === "available"
-		? { state: "recorded", letter: minimumGrade.letter }
+		? { letter: minimumGrade.letter, state: "recorded" }
 		: { state: "not-recorded" };
 }
 
@@ -164,18 +165,21 @@ async function listedPipelineCase(
 	declaration: PipelineCaseDeclaration,
 	recorded: RecordedCase | undefined,
 ): Promise<ListedPipelineCase> {
+	const pipeline = await pipelineReading(casesRoot, declaration);
+	const definition = await pipelineDefinition(casesRoot, declaration);
+
 	return {
+		cohorts: caseCohorts(recorded),
+		definition,
+		figures: pipelineFigures(recorded?.runs ?? NO_RUNS),
+		finalRubric: declaration.finalRubric,
 		id: declaration.id,
 		kind: "pipeline",
-		title: declaration.title,
-		model: declaration.model ?? null,
-		target: declaration.target.path,
-		pipeline: await pipelineReading(casesRoot, declaration),
-		finalRubric: declaration.finalRubric,
-		figures: pipelineFigures(recorded?.runs ?? NO_RUNS),
 		latestMinimumGrade: latestMinimumGrade(recorded),
-		definition: await pipelineDefinition(casesRoot, declaration),
-		cohorts: caseCohorts(recorded),
+		model: declaration.model ?? null,
+		pipeline,
+		target: declaration.target.path,
+		title: declaration.title,
 	};
 }
 
@@ -184,15 +188,15 @@ function listedSessionCase(
 	recorded: RecordedCase | undefined,
 ): ListedSessionCase {
 	return {
+		checks: declaration.checks.map(({ kind }) => kind),
+		cohorts: caseCohorts(recorded),
+		definition: sessionDefinition(declaration),
+		figures: caseFigures(recorded?.runs ?? NO_RUNS),
 		id: declaration.id,
 		kind: "session",
-		title: declaration.title,
 		model: declaration.model ?? null,
 		target: null,
-		checks: declaration.checks.map(({ kind }) => kind),
-		figures: caseFigures(recorded?.runs ?? NO_RUNS),
-		definition: sessionDefinition(declaration),
-		cohorts: caseCohorts(recorded),
+		title: declaration.title,
 	};
 }
 
@@ -200,7 +204,7 @@ function listedSessionCase(
  * Every declared case with what defines it and its figures over its
  * recorded runs (doc-193 decisions 3 and 4).
  */
-export async function caseListing({
+async function caseListing({
 	casesRoot,
 	runsDirectory,
 	liveness,
@@ -214,14 +218,14 @@ export async function caseListing({
 		readCaseRuns(runsDirectory, liveness),
 	]);
 	const cases: ListedCase[] = [];
-	for (const declaration of listing.declarations) {
+	await Array.fromAsync(listing.declarations, async (declaration) => {
 		const ran = recorded.cases.get(declaration.id);
 		cases.push(
 			declaration.kind === "pipeline"
 				? await listedPipelineCase(casesRoot, declaration, ran)
 				: listedSessionCase(declaration, ran),
 		);
-	}
+	});
 
 	return {
 		cases,
@@ -232,3 +236,17 @@ export async function caseListing({
 		unreadableRecords: recorded.unreadable,
 	};
 }
+
+export { caseListing as default };
+export type {
+	ListedStage,
+	PipelineReading,
+	PipelineCaseFigures,
+	LatestMinimumGrade,
+	CaseCohort,
+	ListedPipelineCase,
+	ListedSessionCase,
+	ListedCase,
+	UnreadableDeclaration,
+	CaseListing,
+};

@@ -1,121 +1,150 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	transcriptInstructionLoads,
 	transcriptInstructionLoadsFromLines,
 } from "#benchmark/transcript-instruction-loads";
 
-async function* asLines(text: string): AsyncGenerator<string> {
-	for (const line of text.split("\n")) {
-		yield await Promise.resolve(line);
-	}
+function asLines(text: string): ReadableStream<string> {
+	return new ReadableStream<string>({
+		start(controller) {
+			for (const line of text.split("\n")) {
+				controller.enqueue(line);
+			}
+			controller.close();
+		},
+	});
 }
 
 function attachmentRow(files: readonly unknown[]): string {
 	return JSON.stringify({
-		type: "attachment",
+		attachment: { files, type: "instructions" },
 		timestamp: "2026-09-14T00:00:01.000Z",
-		attachment: { type: "instructions", files },
+		type: "attachment",
 	});
 }
 
-describe(transcriptInstructionLoads.name, () => {
-	it("carries path and type from the instructions attachment", () => {
-		const loads = transcriptInstructionLoads(
-			attachmentRow([
-				{
-					path: "/Users/someone/.claude/CLAUDE.md",
-					type: "User",
-					content: "# How work is done here",
-				},
-				{
-					path: "/tmp/project/CLAUDE.md",
-					type: "Project",
-					content: "# Working on it",
-				},
-			]),
-		);
+function carriesPathAndTypeFromTheInstructionsAttachment(): void {
+	const loads = transcriptInstructionLoads(
+		attachmentRow([
+			{
+				content: "# How work is done here",
+				path: "/Users/someone/.claude/CLAUDE.md",
+				type: "User",
+			},
+			{
+				content: "# Working on it",
+				path: "/tmp/project/CLAUDE.md",
+				type: "Project",
+			},
+		]),
+	);
 
-		expect(loads).toEqual({
-			state: "available",
-			loads: [
-				{
-					filePath: "/Users/someone/.claude/CLAUDE.md",
-					memoryType: "User",
-					loadReason: { state: "unavailable" },
-					triggerFilePath: { state: "unavailable" },
-					parentFilePath: { state: "unavailable" },
-				},
-				{
-					filePath: "/tmp/project/CLAUDE.md",
-					memoryType: "Project",
-					loadReason: { state: "unavailable" },
-					triggerFilePath: { state: "unavailable" },
-					parentFilePath: { state: "unavailable" },
-				},
-			],
-		});
+	expect(loads).toEqual({
+		loads: [
+			{
+				filePath: "/Users/someone/.claude/CLAUDE.md",
+				loadReason: { state: "unavailable" },
+				memoryType: "User",
+				parentFilePath: { state: "unavailable" },
+				triggerFilePath: { state: "unavailable" },
+			},
+			{
+				filePath: "/tmp/project/CLAUDE.md",
+				loadReason: { state: "unavailable" },
+				memoryType: "Project",
+				parentFilePath: { state: "unavailable" },
+				triggerFilePath: { state: "unavailable" },
+			},
+		],
+		state: "available",
 	});
+}
 
-	it("reports loads unavailable when the transcript carries no instructions attachment", () => {
-		const loads = transcriptInstructionLoads(
+function reportsLoadsUnavailableWhenTheTranscriptCarriesNoInstructionsAttachment(): void {
+	const loads = transcriptInstructionLoads(
+		JSON.stringify({
+			attachment: {
+				files: [{ content: "x", path: "/tmp/other.md", type: "Project" }],
+				type: "nested_memory",
+			},
+			type: "attachment",
+		}),
+	);
+
+	expect(loads).toEqual({ state: "unavailable" });
+}
+
+function reportsAnAttachmentCarryingNoFilesAsAvailableWithNoLoads(): void {
+	const loads = transcriptInstructionLoads(attachmentRow([]));
+
+	expect(loads).toEqual({ loads: [], state: "available" });
+}
+
+function selectsOnTheAttachmentTypeRatherThanThePresenceOfFiles(): void {
+	const loads = transcriptInstructionLoads(
+		[
 			JSON.stringify({
-				type: "attachment",
 				attachment: {
+					files: [{ content: "x", path: "/tmp/nested.md", type: "Project" }],
 					type: "nested_memory",
-					files: [{ path: "/tmp/other.md", type: "Project", content: "x" }],
 				},
+				type: "attachment",
 			}),
-		);
+			attachmentRow([{ content: "y", path: "/tmp/real.md", type: "Project" }]),
+		].join("\n"),
+	);
 
-		expect(loads).toEqual({ state: "unavailable" });
-	});
+	expect(
+		loads.state === "available" && loads.loads.map((load) => load.filePath),
+	).toEqual(["/tmp/real.md"]);
+}
 
-	it("reports an attachment carrying no files as available with no loads", () => {
-		const loads = transcriptInstructionLoads(attachmentRow([]));
+async function readsTheSameLoadsFromStreamedLinesAsFromWholeText(): Promise<void> {
+	const transcript = attachmentRow([
+		{ content: "# it", path: "/tmp/project/CLAUDE.md", type: "Project" },
+	]);
 
-		expect(loads).toEqual({ state: "available", loads: [] });
-	});
+	const streamed = await transcriptInstructionLoadsFromLines(
+		asLines(transcript),
+	);
 
-	it("selects on the attachment type rather than the presence of files", () => {
-		const loads = transcriptInstructionLoads(
-			[
-				JSON.stringify({
-					type: "attachment",
-					attachment: {
-						type: "nested_memory",
-						files: [{ path: "/tmp/nested.md", type: "Project", content: "x" }],
-					},
-				}),
-				attachmentRow([
-					{ path: "/tmp/real.md", type: "Project", content: "y" },
-				]),
-			].join("\n"),
-		);
+	expect(streamed).toEqual(transcriptInstructionLoads(transcript));
+}
 
-		expect(
-			loads.state === "available" && loads.loads.map((load) => load.filePath),
-		).toEqual(["/tmp/real.md"]);
-	});
+async function reportsLoadsUnavailableWhenNoStreamedLineCarriesTheAttachment(): Promise<void> {
+	const streamed = await transcriptInstructionLoadsFromLines(
+		asLines(JSON.stringify({ type: "assistant" })),
+	);
+
+	expect(streamed).toEqual({ state: "unavailable" });
+}
+
+describe(transcriptInstructionLoads.name, () => {
+	it(
+		"carries path and type from the instructions attachment",
+		carriesPathAndTypeFromTheInstructionsAttachment,
+	);
+	it(
+		"reports loads unavailable when the transcript carries no instructions attachment",
+		reportsLoadsUnavailableWhenTheTranscriptCarriesNoInstructionsAttachment,
+	);
+	it(
+		"reports an attachment carrying no files as available with no loads",
+		reportsAnAttachmentCarryingNoFilesAsAvailableWithNoLoads,
+	);
+	it(
+		"selects on the attachment type rather than the presence of files",
+		selectsOnTheAttachmentTypeRatherThanThePresenceOfFiles,
+	);
 });
-
 describe(transcriptInstructionLoadsFromLines.name, () => {
-	it("reads the same loads from streamed lines as from whole text", async () => {
-		const transcript = attachmentRow([
-			{ path: "/tmp/project/CLAUDE.md", type: "Project", content: "# it" },
-		]);
-
-		const streamed = await transcriptInstructionLoadsFromLines(
-			asLines(transcript),
-		);
-
-		expect(streamed).toEqual(transcriptInstructionLoads(transcript));
-	});
-
-	it("reports loads unavailable when no streamed line carries the attachment", async () => {
-		const streamed = await transcriptInstructionLoadsFromLines(
-			asLines(JSON.stringify({ type: "assistant" })),
-		);
-
-		expect(streamed).toEqual({ state: "unavailable" });
-	});
+	it(
+		"reads the same loads from streamed lines as from whole text",
+		readsTheSameLoadsFromStreamedLinesAsFromWholeText,
+	);
+	it(
+		"reports loads unavailable when no streamed line carries the attachment",
+		reportsLoadsUnavailableWhenNoStreamedLineCarriesTheAttachment,
+	);
 });

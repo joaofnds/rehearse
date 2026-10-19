@@ -1,83 +1,25 @@
-import { CurrentLink } from "#client/system/components/current-link";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Notice } from "#client/system/components/notice";
-import { EmptyState } from "#client/system/components/empty-state";
-import { ScreenHeader } from "#client/system/components/screen-header";
-import { TasksPage } from "#client/tasks/tasks-page";
-import { CaseCard } from "./case-card";
-import { CaseDetail } from "./case-detail";
-import type { CasesResponse } from "./cases-query";
-import { casesQuery } from "./cases-query";
-import { DeclareCaseDialog } from "./declare-case-dialog";
 
-function SelectedCases({
-	cases,
-	caseId,
-	loaded,
-	corpusVersion,
-	hasUnreadable,
-}: {
-	readonly cases: CasesResponse["cases"];
-	readonly caseId: string | undefined;
-	readonly loaded: boolean;
-	readonly corpusVersion: string | undefined;
-	readonly hasUnreadable: boolean;
-}): React.JSX.Element {
-	const visibleCases =
-		caseId === undefined
-			? cases
-			: cases.filter((listed) => listed.id === caseId);
-	return (
-		<>
-			{loaded &&
-			caseId === undefined &&
-			cases.length === 0 &&
-			!hasUnreadable ? (
-				<EmptyState heading="No cases yet">
-					<p>Use Declare a case above to add a session or workflow case.</p>
-				</EmptyState>
-			) : null}
-			{caseId === undefined ? null : (
-				<div className="flex flex-wrap items-center gap-3 text-14">
-					<p role="status">{`Selected case: ${caseId}`}</p>
-					<Link
-						to="/cases"
-						search={{}}
-						className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
-					>
-						All cases
-					</Link>
-				</div>
-			)}
-			{loaded && caseId !== undefined && visibleCases.length === 0 ? (
-				<p
-					role="alert"
-					className="text-14 text-attention"
-				>{`Case ${caseId} was not found among the readable declarations.`}</p>
-			) : null}
-			{visibleCases.map((listed) => (
-				<div key={listed.id} className="flex flex-col gap-6">
-					<CaseCard listed={listed} showFigures={caseId === undefined} />
-					{caseId === undefined ? null : (
-						<CaseDetail listed={listed} corpusVersion={corpusVersion} />
-					)}
-				</div>
-			))}
-		</>
-	);
-}
+import CurrentLink from "#client/system/components/current-link";
+import ScreenHeader from "#client/system/components/screen-header";
+import TasksPage from "#client/tasks/tasks-page";
 
-export function CasesPage({
-	view = "cases",
-	caseId,
-	corpusVersion,
-}: {
+import CasesListing from "./case-listing";
+import casesQuery from "./cases-query";
+import DeclareCaseDialog from "./declare-case-dialog";
+
+interface CasesPageProps {
 	readonly view?: "cases" | "workflows";
 	readonly caseId?: string;
 	readonly corpusVersion?: string;
-}): React.JSX.Element {
+}
+
+function CasesPage({
+	view = "cases",
+	caseId,
+	corpusVersion,
+}: CasesPageProps): React.JSX.Element {
 	const query = useQuery(casesQuery);
 	const [declaredPath, setDeclaredPath] = useState<string>();
 	const cases = query.data?.cases ?? [];
@@ -100,82 +42,53 @@ export function CasesPage({
 					) : undefined
 				}
 			/>
-			<nav
-				aria-label="Case sections"
-				className="flex gap-1 border-b border-divider page-gutter"
-			>
-				<CurrentLink
-					to="/cases"
-					search={{}}
-					marksCurrent={view === "cases"}
-					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
-				>
-					Cases
-				</CurrentLink>
-				<CurrentLink
-					to="/cases"
-					search={{ view: "workflows" }}
-					marksCurrent={view === "workflows"}
-					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
-				>
-					Workflows
-				</CurrentLink>
-			</nav>
+			<CaseSections view={view} />
 
 			{view === "workflows" ? (
 				<TasksPage embedded {...(caseId === undefined ? {} : { caseId })} />
 			) : (
-				<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
-					{cases.length > 0 ? (
-						<p className="max-w-prose text-14 text-muted-foreground">
-							Open a case to inspect its prompt, evaluation contract and
-							evidence by corpus. Card figures use the newest recorded corpus
-							version available for that case.
-						</p>
-					) : null}
-
-					{declaredPath === undefined ? null : (
-						<p role="status" className="text-14 text-secondary-foreground">
-							{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
-						</p>
-					)}
-
-					{query.isLoading ? (
-						<p className="text-muted-foreground">Loading…</p>
-					) : null}
-					{query.isError ? (
-						<p role="alert" className="text-attention">
-							<span aria-hidden="true">⚠ </span>
-							Could not load the cases.
-						</p>
-					) : null}
-
-					{unreadable.length > 0 ? (
-						<Notice
-							message="These declarations could not be read, so no card shows them:"
-							items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
-						/>
-					) : null}
-					{unreadableRecords.length > 0 ? (
-						<Notice
-							message="These run records could not be read, so their verdicts and costs are missing from the figures:"
-							items={unreadableRecords.map(
-								({ id, reason }) => `${id}: ${reason}`,
-							)}
-						/>
-					) : null}
-
-					<SelectedCases
-						cases={cases}
-						caseId={caseId}
-						loaded={query.isSuccess}
-						corpusVersion={corpusVersion}
-						hasUnreadable={
-							unreadable.length > 0 || unreadableRecords.length > 0
-						}
-					/>
-				</div>
+				<CasesListing
+					caseId={caseId}
+					corpusVersion={corpusVersion}
+					declaredPath={declaredPath}
+					query={query}
+					cases={cases}
+					unreadable={unreadable}
+					unreadableRecords={unreadableRecords}
+				/>
 			)}
 		</div>
 	);
 }
+
+interface CaseSectionsProps {
+	readonly view: "cases" | "workflows";
+}
+
+function CaseSections({ view }: CaseSectionsProps): React.JSX.Element {
+	return (
+		<nav
+			aria-label="Case sections"
+			className="flex gap-1 border-b border-divider page-gutter"
+		>
+			<CurrentLink
+				to="/cases"
+				search={{}}
+				marksCurrent={view === "cases"}
+				className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+			>
+				Cases
+			</CurrentLink>
+			<CurrentLink
+				to="/cases"
+				search={{ view: "workflows" }}
+				marksCurrent={view === "workflows"}
+				className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+			>
+				Workflows
+			</CurrentLink>
+		</nav>
+	);
+}
+
+export { CasesPage as default };

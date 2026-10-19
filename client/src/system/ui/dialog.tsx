@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
+import type { ReactNode } from "react";
 
 const Dialog = DialogPrimitive.Root;
+
 const DialogTrigger = DialogPrimitive.Trigger;
+
 const DialogClose = DialogPrimitive.Close;
 
 /** A form's width, or the step modal's two columns (SPEC.md 3). */
@@ -16,13 +18,15 @@ const DIALOG_WIDTHS = {
  * it is open, closes it on Esc, and returns focus to the trigger that opened
  * it.
  */
+interface DialogContentProps {
+	readonly children: ReactNode;
+	readonly width?: keyof typeof DIALOG_WIDTHS;
+}
+
 function DialogContent({
 	children,
 	width = "form",
-}: {
-	readonly children: ReactNode;
-	readonly width?: keyof typeof DIALOG_WIDTHS;
-}): React.JSX.Element {
+}: DialogContentProps): React.JSX.Element {
 	return (
 		<DialogPrimitive.Portal>
 			<DialogPrimitive.Overlay
@@ -41,11 +45,11 @@ function DialogContent({
 	);
 }
 
-function DialogTitle({
-	children,
-}: {
+interface DialogTitleProps {
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function DialogTitle({ children }: DialogTitleProps): React.JSX.Element {
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
@@ -56,11 +60,13 @@ function DialogTitle({
 	);
 }
 
+interface DialogDescriptionProps {
+	readonly children: ReactNode;
+}
+
 function DialogDescription({
 	children,
-}: {
-	readonly children: ReactNode;
-}): React.JSX.Element {
+}: DialogDescriptionProps): React.JSX.Element {
 	return (
 		<DialogPrimitive.Description
 			data-slot="dialog-description"

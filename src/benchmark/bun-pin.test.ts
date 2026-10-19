@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+
 import { TOML } from "bun";
+
 import { assertPinnedBunVersion, pinnedBunRefusal } from "./bun-pin";
 import { PROJECT_ROOT } from "./test-support";
+
+const OVERSIZED_VERSION_CHARACTERS = 100_000;
 
 describe("pinnedBunRefusal", () => {
 	it("returns no refusal when the running version matches the required one", () => {
@@ -27,24 +31,41 @@ describe("assertPinnedBunVersion", () => {
 });
 
 describe("bun-pin-guard", () => {
-	it("stops the process and names both versions when the version is wrong", async () => {
-		const child = Bun.spawn(
-			[
-				process.execPath,
-				join(PROJECT_ROOT, "src/benchmark/bun-pin-guard.ts"),
-				"9.9.9",
-			],
-			{ stdout: "pipe", stderr: "pipe" },
-		);
-		const [exitCode, stderr] = await Promise.all([
-			child.exited,
-			new Response(child.stderr).text(),
-		]);
+	it.each([
+		{ label: "version mismatch", required: "9.9.9" },
+		{
+			label: "long version mismatch",
+			required: "9".repeat(OVERSIZED_VERSION_CHARACTERS),
+		},
+	])(
+		"writes the whole $label to stderr before exiting",
+		async ({ required }) => {
+			const expectedExitCode = 1;
 
-		expect(exitCode).toBe(1);
-		expect(stderr).toContain("Use Bun 9.9.9");
-		expect(stderr).toContain(Bun.version);
-	});
+			const child = Bun.spawn(
+				[join(PROJECT_ROOT, "src/benchmark/bun-pin-guard.ts"), required],
+				{
+					env: {
+						...Bun.env,
+						PATH: `${dirname(process.execPath)}:${Bun.env["PATH"] ?? ""}`,
+					},
+					stderr: "pipe",
+					stdout: "pipe",
+				},
+			);
+			const [exitCode, stdout, stderr] = await Promise.all([
+				child.exited,
+				new Response(child.stdout).text(),
+				new Response(child.stderr).text(),
+			]);
+
+			expect(exitCode).toBe(expectedExitCode);
+			expect(stdout).toBe("");
+			expect(stderr).toBe(
+				`Use Bun ${required}; current version is ${Bun.version}\n`,
+			);
+		},
+	);
 });
 
 describe("bunfig.toml", () => {

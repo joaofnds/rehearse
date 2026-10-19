@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
 
-export function EmptyState({
-	heading,
-	children,
-}: {
+interface EmptyStateProps {
 	readonly heading: string;
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function EmptyState({ heading, children }: EmptyStateProps): React.JSX.Element {
 	return (
 		<div className="grid place-items-center py-8 sm:py-16">
 			<div className="max-w-sm">
@@ -18,3 +17,5 @@ export function EmptyState({
 		</div>
 	);
 }
+
+export { EmptyState as default };

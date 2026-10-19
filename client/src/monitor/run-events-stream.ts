@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+
 import { runHistoryQuery } from "#client/run-history/run-history-query";
+
 import { runRecordQuery } from "./run-record-query";
 import { stageJudgesQueryKey } from "./stage-judge-query";
 import { stageSessionsQueryKey } from "./stage-session-query";
@@ -18,7 +20,7 @@ import { stageSessionsQueryKey } from "./stage-session-query";
  * stops reading as running, which closes the stream before a browser
  * EventSource would reconnect and replay the whole run again.
  */
-export function useRunEventsStream(run: string): void {
+function useRunEventsStream(run: string): void {
 	const client = useQueryClient();
 
 	useEffect(() => {
@@ -49,3 +51,5 @@ export function useRunEventsStream(run: string): void {
 		};
 	}, [client, run]);
 }
+
+export { useRunEventsStream as default };

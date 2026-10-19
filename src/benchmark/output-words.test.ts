@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import { replyWords, stageOutputWords } from "./output-words";
 
 describe(replyWords.name, () => {
@@ -10,9 +11,9 @@ describe(replyWords.name, () => {
 	});
 
 	it("reads unavailable, not zero, when the attempt recorded no reply", () => {
-		expect(replyWords(undefined)).toEqual({
-			state: "unavailable",
+		expect(replyWords()).toEqual({
 			reason: "the attempt recorded no reply",
+			state: "unavailable",
 		});
 	});
 });
@@ -41,8 +42,8 @@ describe(stageOutputWords.name, () => {
 
 	it("reads unavailable when the stage recorded no output", () => {
 		expect(stageOutputWords({})).toEqual({
-			state: "unavailable",
 			reason: "the stage recorded no output",
+			state: "unavailable",
 		});
 	});
 });

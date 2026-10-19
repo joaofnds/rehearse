@@ -1,14 +1,25 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+
 import { z } from "zod";
+
 import { unhandled } from "./contracts";
 import { writeWhole } from "./corpus-version";
+import orderedJson from "./ordered-json";
 import { comparisonDigests, comparisonReportPaths } from "./run-layout";
+import type { ValidationFieldOrder } from "./validation-issue-order";
+import orderedValidationIssues from "./validation-issue-order";
+
+const BASELINE_CORPUS_SCHEMA_VERSION = 1;
+
+const CONTROL_CORPUS_SCHEMA_VERSION = 2;
+
+const MULTIPLE_GROUPS_BASELINE_SCHEMA_VERSION = 3;
 
 /** Beside a comparison's report, how its baseline arm was derived. */
 const BASELINE_RECORD_FILE = "baseline.json";
 
-const groupIdSchema = z.string().min(1);
+const groupIdSchema = z.string().nonempty();
 
 const derivationKindSchema = z.enum(["derived", "armA"]);
 
@@ -32,11 +43,8 @@ const corpusDigestSchema = z.string().regex(/^[0-9a-f]{64}$/u);
  * arm, and version 1 also called the control corpus baselineCorpus, one word
  * for two arms; both are still read.
  */
-export const comparisonBaselineRecordSchema = z
+const comparisonBaselineRecordSchema = z
 	.object({
-		schemaVersion: z.literal(3),
-		kind: derivationKindSchema,
-		skillUnderTest: z.string().min(1),
 		arms: z
 			.object({
 				baseline: groupIdsSchema,
@@ -50,34 +58,50 @@ export const comparisonBaselineRecordSchema = z
 			.string()
 			.regex(/^[0-9a-f]{64}$/u)
 			.optional(),
+		kind: derivationKindSchema,
+		schemaVersion: z.literal(MULTIPLE_GROUPS_BASELINE_SCHEMA_VERSION),
+		skillUnderTest: z.string().nonempty(),
 	})
 	.strict();
 
 const singleGroupFields = {
-	kind: derivationKindSchema,
-	skillUnderTest: z.string().min(1),
 	arms: singleGroupArmsSchema,
+	kind: derivationKindSchema,
+	skillUnderTest: z.string().nonempty(),
 };
 
 const recordedBaselineSchema = z.discriminatedUnion("schemaVersion", [
 	comparisonBaselineRecordSchema,
 	z
 		.object({
-			schemaVersion: z.literal(2),
+			schemaVersion: z.literal(CONTROL_CORPUS_SCHEMA_VERSION),
 			...singleGroupFields,
 			controlCorpus: corpusDigestSchema,
 		})
 		.strict(),
 	z
 		.object({
-			schemaVersion: z.literal(1),
+			schemaVersion: z.literal(BASELINE_CORPUS_SCHEMA_VERSION),
 			...singleGroupFields,
 			baselineCorpus: corpusDigestSchema,
 		})
 		.strict(),
 ]);
 
-export type ComparisonBaselineRecord = Readonly<
+const baselineFieldOrder: ValidationFieldOrder = {
+	children: { arms: { fields: ["baseline", "candidate", "control"] } },
+	fields: [
+		"schemaVersion",
+		"kind",
+		"skillUnderTest",
+		"arms",
+		"controlCorpus",
+		"baselineCorpus",
+		"extends",
+	],
+};
+
+type ComparisonBaselineRecord = Readonly<
 	z.infer<typeof comparisonBaselineRecordSchema>
 >;
 
@@ -86,7 +110,7 @@ export type ComparisonBaselineRecord = Readonly<
  * run unchanged, by `compare attempts`; otherwise supplied by the manifest's
  * author, whose control corpus says nothing about a skill under test.
  */
-export type ComparisonBaselineArm =
+type ComparisonBaselineArm =
 	| {
 			readonly kind: "derived" | "armA";
 			readonly skillUnderTest: string;
@@ -94,58 +118,58 @@ export type ComparisonBaselineArm =
 	| { readonly kind: "supplied" }
 	| { readonly kind: "unreadable"; readonly reason: string };
 
-export function comparisonBaselineRecordFile(reportDirectory: string): string {
+/** How `compare attempts` made a comparison, or why no record says so. */
+type RecordedComparisonBaseline =
+	| { readonly kind: "recorded"; readonly record: ComparisonBaselineRecord }
+	| { readonly kind: "supplied" }
+	| { readonly kind: "unreadable"; readonly reason: string };
+
+function comparisonBaselineRecordFile(reportDirectory: string): string {
 	return join(reportDirectory, BASELINE_RECORD_FILE);
 }
 
 /** Written whole, so a reader never takes a torn record for another kind. */
-export async function writeComparisonBaselineRecord(
+async function writeComparisonBaselineRecord(
 	reportDirectory: string,
 	record: Readonly<ComparisonBaselineRecord>,
 ): Promise<void> {
 	await mkdir(reportDirectory, { recursive: true });
-	await writeWhole(
-		comparisonBaselineRecordFile(reportDirectory),
-		`${JSON.stringify(comparisonBaselineRecordSchema.parse(record), null, 2)}\n`,
-	);
+	const parsed = comparisonBaselineRecordSchema.parse(record);
+	const json = JSON.stringify(parsed);
+	const text = orderedJson({ json, order: baselineFieldOrder });
+	await writeWhole(comparisonBaselineRecordFile(reportDirectory), `${text}\n`);
 }
-
-/** How `compare attempts` made a comparison, or why no record says so. */
-export type RecordedComparisonBaseline =
-	| { readonly kind: "recorded"; readonly record: ComparisonBaselineRecord }
-	| { readonly kind: "supplied" }
-	| { readonly kind: "unreadable"; readonly reason: string };
 
 function currentRecord(
 	record: Readonly<z.infer<typeof recordedBaselineSchema>>,
 ): ComparisonBaselineRecord {
 	switch (record.schemaVersion) {
-		case 3: {
+		case MULTIPLE_GROUPS_BASELINE_SCHEMA_VERSION: {
 			return record;
 		}
-		case 2: {
+		case CONTROL_CORPUS_SCHEMA_VERSION: {
 			return {
 				...record,
-				schemaVersion: 3,
 				arms: {
 					baseline: [record.arms.baseline],
 					candidate: [record.arms.candidate],
 					control: [record.arms.control],
 				},
+				schemaVersion: MULTIPLE_GROUPS_BASELINE_SCHEMA_VERSION,
 			};
 		}
-		case 1: {
+		case BASELINE_CORPUS_SCHEMA_VERSION: {
 			const { baselineCorpus, ...fields } = record;
 
 			return {
 				...fields,
-				schemaVersion: 3,
 				arms: {
 					baseline: [record.arms.baseline],
 					candidate: [record.arms.candidate],
 					control: [record.arms.control],
 				},
 				controlCorpus: baselineCorpus,
+				schemaVersion: MULTIPLE_GROUPS_BASELINE_SCHEMA_VERSION,
 			};
 		}
 		default: {
@@ -158,7 +182,7 @@ function currentRecord(
  * A record that cannot be read says nothing about the baseline arm, so it
  * reads unreadable rather than hiding the report it sits beside.
  */
-export async function readComparisonBaselineRecord(
+async function readComparisonBaselineRecord(
 	reportDirectory: string,
 ): Promise<RecordedComparisonBaseline> {
 	const file = Bun.file(comparisonBaselineRecordFile(reportDirectory));
@@ -166,25 +190,35 @@ export async function readComparisonBaselineRecord(
 		return { kind: "supplied" };
 	}
 	try {
+		const recordedBaseline = recordedBaselineSchema.parse(
+			JSON.parse(await file.text()),
+		);
 		return {
 			kind: "recorded",
-			record: currentRecord(
-				recordedBaselineSchema.parse(JSON.parse(await file.text())),
-			),
+			record: currentRecord(recordedBaseline),
 		};
 	} catch (error) {
 		if (!(error instanceof SyntaxError || error instanceof z.ZodError)) {
 			throw error;
 		}
+		const message =
+			error instanceof z.ZodError
+				? new z.ZodError([
+						...orderedValidationIssues({
+							error,
+							order: baselineFieldOrder,
+						}),
+					]).message
+				: error.message;
 
 		return {
 			kind: "unreadable",
-			reason: `${BASELINE_RECORD_FILE} is not a baseline record: ${error.message}`,
+			reason: `${BASELINE_RECORD_FILE} is not a baseline record: ${message}`,
 		};
 	}
 }
 
-export async function readComparisonBaselineArm(
+async function readComparisonBaselineArm(
 	reportDirectory: string,
 ): Promise<ComparisonBaselineArm> {
 	const recorded = await readComparisonBaselineRecord(reportDirectory);
@@ -204,24 +238,38 @@ export async function readComparisonBaselineArm(
  * kept and still opens by its digest. An extension that stopped before
  * writing its report replaces nothing, since it holds no attempts to read.
  */
-export async function listedComparisonDigests(
+async function listedComparisonDigests(
 	runsDirectory: string,
 ): Promise<readonly string[]> {
 	const digests = await comparisonDigests(runsDirectory);
 	const extended = new Set<string>();
-	for (const digest of digests) {
+	await Array.fromAsync(digests, async (digest) => {
 		const { directory, reportFile } = comparisonReportPaths(
 			runsDirectory,
 			digest,
 		);
 		if (!(await Bun.file(reportFile).exists())) {
-			continue;
+			return;
 		}
 		const recorded = await readComparisonBaselineRecord(directory);
 		if (recorded.kind === "recorded" && recorded.record.extends !== undefined) {
 			extended.add(recorded.record.extends);
 		}
-	}
+	});
 
 	return digests.filter((digest) => !extended.has(digest));
 }
+
+export {
+	comparisonBaselineRecordFile,
+	comparisonBaselineRecordSchema,
+	listedComparisonDigests,
+	readComparisonBaselineArm,
+	readComparisonBaselineRecord,
+	writeComparisonBaselineRecord,
+};
+export type {
+	ComparisonBaselineArm,
+	ComparisonBaselineRecord,
+	RecordedComparisonBaseline,
+};

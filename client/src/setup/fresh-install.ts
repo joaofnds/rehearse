@@ -1,19 +1,22 @@
-import type { Immutable } from "#benchmark/contracts";
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { ArchiveReport } from "#client/run-history/confirmation-archives";
-import { useConfirmationArchives } from "#client/run-history/confirmation-archives";
+import { useEffect, useState } from "react";
+
+import type { Immutable } from "#benchmark/contracts";
 import type { SettingsReading } from "#client/launch/settings-query";
 import { launchSettingsQuery } from "#client/launch/settings-query";
+import type { ArchiveReport } from "#client/run-history/confirmation-archives";
+import { useConfirmationArchives } from "#client/run-history/confirmation-archives";
 import type { RunListingResponse } from "#client/run-history/run-history-query";
 import { runListingQuery } from "#client/run-history/run-history-query";
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 /**
  * A records directory with no stored spend ceiling and no record at all.
  * Records can predate the ceiling, so a missing ceiling alone is not enough,
  * and an unread reading is not fresh, since nothing vouches for it.
  */
-export function isFreshInstall(
+function isFreshInstall(
 	settings: SettingsReading | undefined,
 	records: RunListingResponse | undefined,
 	archives: Immutable<ArchiveReport> | undefined,
@@ -28,24 +31,29 @@ export function isFreshInstall(
 
 	return (
 		settings.spendCeilingUsd === null &&
-		records.rows.length === 0 &&
-		records.launches.length === 0 &&
-		records.unreadable.length === 0 &&
-		archives.archived.length === 0 &&
-		archives.unreadable.length === 0
+		records.rows.length === EMPTY_COLLECTION_LENGTH &&
+		records.launches.length === EMPTY_COLLECTION_LENGTH &&
+		records.unreadable.length === EMPTY_COLLECTION_LENGTH &&
+		archives.archived.length === EMPTY_COLLECTION_LENGTH &&
+		archives.unreadable.length === EMPTY_COLLECTION_LENGTH
 	);
 }
 
-export function useFreshInstall(): boolean {
+function useFreshInstall(): boolean {
 	const settings = useQuery(launchSettingsQuery);
 	const records = useQuery(runListingQuery);
 	const archives = useConfirmationArchives();
 	const hasRecords =
-		(records.data?.rows.length ?? 0) > 0 ||
-		(records.data?.launches.length ?? 0) > 0 ||
-		(records.data?.unreadable.length ?? 0) > 0 ||
-		(archives.data?.archived.length ?? 0) > 0 ||
-		(archives.data?.unreadable.length ?? 0) > 0;
+		(records.data?.rows.length ?? EMPTY_COLLECTION_LENGTH) >
+			EMPTY_COLLECTION_LENGTH ||
+		(records.data?.launches.length ?? EMPTY_COLLECTION_LENGTH) >
+			EMPTY_COLLECTION_LENGTH ||
+		(records.data?.unreadable.length ?? EMPTY_COLLECTION_LENGTH) >
+			EMPTY_COLLECTION_LENGTH ||
+		(archives.data?.archived.length ?? EMPTY_COLLECTION_LENGTH) >
+			EMPTY_COLLECTION_LENGTH ||
+		(archives.data?.unreadable.length ?? EMPTY_COLLECTION_LENGTH) >
+			EMPTY_COLLECTION_LENGTH;
 	const [seenRecords, setSeenRecords] = useState(false);
 	useEffect(() => {
 		if (hasRecords) {
@@ -58,3 +66,5 @@ export function useFreshInstall(): boolean {
 		!seenRecords && isFreshInstall(settings.data, records.data, archives.data)
 	);
 }
+
+export { isFreshInstall, useFreshInstall };

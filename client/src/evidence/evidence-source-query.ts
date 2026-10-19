@@ -1,21 +1,24 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
-import { RecordNotFoundError } from "#client/record-not-found";
+import HTTP_STATUS from "#client/http-status";
+import RecordNotFoundError from "#client/record-not-found";
 
 const stageEvidence =
 	apiClient.api.runs[":run"].stages[":stage"].evidence[":section"][":item"][
 		":index"
 	];
+
 const finalEvidence =
 	apiClient.api.runs[":run"].final.evidence[":item"][":index"];
 
-export type EvidenceSourceResponse = InferResponseType<
+type EvidenceSourceResponse = InferResponseType<
 	typeof stageEvidence.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
 /** The evidence item a page opens: a stage judge's or the final judge's. */
-export type EvidenceSourceIdentity =
+type EvidenceSourceIdentity =
 	| {
 			readonly kind: "stage";
 			readonly run: string;
@@ -38,34 +41,40 @@ export type EvidenceSourceIdentity =
  */
 const escaped = encodeURIComponent;
 
-export async function fetchEvidenceSource(
+async function fetchEvidenceSource(
 	identity: EvidenceSourceIdentity,
 ): Promise<EvidenceSourceResponse> {
 	const response =
 		identity.kind === "stage"
 			? await stageEvidence.$get({
 					param: {
-						run: escaped(identity.run),
-						stage: escaped(identity.stage),
-						section: escaped(identity.section),
-						item: escaped(identity.item),
 						index: escaped(identity.index),
+						item: escaped(identity.item),
+						run: escaped(identity.run),
+						section: escaped(identity.section),
+						stage: escaped(identity.stage),
 					},
 				})
 			: await finalEvidence.$get({
 					param: {
-						run: escaped(identity.run),
-						item: escaped(identity.item),
 						index: escaped(identity.index),
+						item: escaped(identity.item),
+						run: escaped(identity.run),
 					},
 				});
 	// A refused run id names no record either, and asking again changes nothing.
-	if (response.status === 404 || response.status === 400) {
+	if (
+		response.status === HTTP_STATUS.notFound ||
+		response.status === HTTP_STATUS.badRequest
+	) {
 		throw new RecordNotFoundError("The run record holds no such evidence item");
 	}
 	if (!response.ok) {
 		throw new Error(`Evidence source answered ${String(response.status)}`);
 	}
 
-	return response.json();
+	return await response.json();
 }
+
+export { fetchEvidenceSource as default };
+export type { EvidenceSourceIdentity, EvidenceSourceResponse };

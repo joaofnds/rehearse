@@ -1,15 +1,19 @@
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
 import { spendReading } from "#client/run-history/run-progress";
 
+const EMPTY_COLLECTION_LENGTH = 0;
+
 type Tokens = RunRecordResponse["totals"]["tokens"];
+
+interface TokenReadingProps {
+	readonly label: string;
+	readonly reading: Tokens;
+}
 
 function TokenReading({
 	label,
 	reading,
-}: {
-	readonly label: string;
-	readonly reading: Tokens;
-}): React.JSX.Element {
+}: TokenReadingProps): React.JSX.Element {
 	if (reading.state === "unavailable") {
 		return (
 			<p className="text-12 text-attention">
@@ -27,7 +31,7 @@ function TokenReading({
 		<section aria-label={label}>
 			<h3 className="text-12 font-medium">
 				{label}
-				{reading.missing.length === 0 ? "" : " · partial"}
+				{reading.missing.length === EMPTY_COLLECTION_LENGTH ? "" : " · partial"}
 			</h3>
 			<dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
 				{values.map(([term, value]) => (
@@ -46,13 +50,15 @@ function TokenReading({
 	);
 }
 
-export function ResourceReadings({
-	record,
-	stage,
-}: {
+interface ResourceReadingsProps {
 	readonly record: RunRecordResponse;
 	readonly stage: RunRecordResponse["stages"][number];
-}): React.JSX.Element {
+}
+
+function ResourceReadings({
+	record,
+	stage,
+}: ResourceReadingsProps): React.JSX.Element {
 	const { cost } = record.totals;
 	return (
 		<div className="mt-4 flex flex-col gap-4 border-t border-divider pt-4">
@@ -85,3 +91,5 @@ export function ResourceReadings({
 		</div>
 	);
 }
+
+export { ResourceReadings as default };

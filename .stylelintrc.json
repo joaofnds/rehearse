@@ -1,11 +1,6 @@
 {
+	"plugins": ["./tools/stylelint/color-token-palette.ts"],
 	"rules": {
-		"color-no-hex": [
-			true,
-			{
-				"severity": "error"
-			}
-		],
 		"declaration-property-unit-disallowed-list": [
 			{
 				"/^padding/": ["px", "rem"],
@@ -30,15 +25,7 @@
 			{
 				"severity": "error"
 			}
-		]
-	},
-	"overrides": [
-		{
-			"files": ["client/src/system/tokens.css"],
-			"rules": {
-				"color-no-hex": null,
-				"declaration-property-unit-disallowed-list": null
-			}
-		}
-	]
+		],
+		"rehearse/color-token-palette": true
+	}
 }

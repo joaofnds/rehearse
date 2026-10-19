@@ -1,18 +1,19 @@
 import { z } from "zod";
-import { recordedInstant } from "./recorded-instant";
+
+import recordedInstant from "./recorded-instant";
 
 /**
  * The start time an attempt or group records: an ISO instant every reader
  * can place, so a record never shows a time it is not ordered by.
  */
-export const startedAtSchema = z.iso
+const startedAtSchema = z.iso
 	.datetime()
 	.refine((time) => recordedInstant(time) !== undefined, {
 		message: "Expected an instant to the second",
 	});
 
 /** The start time a writer records for the wall-clock instant it read. */
-export function startTime(wallClock: () => number): string {
+function startTime(wallClock: () => number): string {
 	return new Date(wallClock()).toISOString();
 }
 
@@ -38,7 +39,7 @@ function partitioned<T>(
 		if (instant === undefined) {
 			untimed.push(record);
 		} else {
-			timed.push({ record, instant });
+			timed.push({ instant, record });
 		}
 	}
 
@@ -50,7 +51,7 @@ function partitioned<T>(
  * not, in the order given. Placing those by file time would claim an order
  * the records never held: most attempt files share one modification second.
  */
-export function newestFirst<T>(
+function newestFirst<T>(
 	records: readonly T[],
 	timeOf: (record: T) => string | undefined,
 ): T[] {
@@ -65,7 +66,7 @@ export function newestFirst<T>(
 }
 
 /** Oldest first where a record says when it ran, then the rest as given. */
-export function oldestFirst<T>(
+function oldestFirst<T>(
 	records: readonly T[],
 	timeOf: (record: T) => string | undefined,
 ): T[] {
@@ -78,3 +79,5 @@ export function oldestFirst<T>(
 		...untimed,
 	];
 }
+
+export { startedAtSchema, startTime, newestFirst, oldestFirst };

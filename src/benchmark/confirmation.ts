@@ -1,9 +1,20 @@
 import type { ConfirmationConfig } from "./config";
 import { unhandled } from "./contracts";
 import { MAX_JUDGE_ATTEMPTS } from "./judge-attempt";
-import { MODEL_PREFLIGHT_MAXIMUM_USD } from "./preflight";
+import { MODEL_PREFLIGHT_MAXIMUM_USD } from "./model-preflight";
 
-export type ConfirmationCostRequest =
+const SESSION_CASE_PROVIDER_CALL_COUNT = 1;
+const STAGE_PRE_JUDGE_SESSION_COUNT = 2;
+const PIPELINE_STAGE_SESSION_COUNT = 1;
+const PIPELINE_FINAL_SESSION_COUNT = 1;
+
+const ORDINAL_BASE = 1;
+
+const USD_FRACTION_DIGITS = 2;
+
+const BUDGET_SIGNIFICANT_DIGITS = 15;
+
+type ConfirmationCostRequest =
 	| {
 			readonly mode: "stage";
 			readonly reps: number;
@@ -21,7 +32,7 @@ export type ConfirmationCostRequest =
 			readonly sessionBudgetUsd: number;
 	  };
 
-export interface ConfirmationCostProjection {
+interface ConfirmationCostProjection {
 	readonly reps: number;
 	readonly perRepMaximumUsd: number;
 	readonly preflightMaximumUsd?: number | undefined;
@@ -36,13 +47,17 @@ export interface ConfirmationCostProjection {
 function sessionsPerRepFor(request: ConfirmationCostRequest): number {
 	switch (request.mode) {
 		case "session": {
-			return 1;
+			return SESSION_CASE_PROVIDER_CALL_COUNT;
 		}
 		case "stage": {
-			return 2 + MAX_JUDGE_ATTEMPTS;
+			return STAGE_PRE_JUDGE_SESSION_COUNT + MAX_JUDGE_ATTEMPTS;
 		}
 		case "pipeline": {
-			return (1 + MAX_JUDGE_ATTEMPTS) * request.stages + 1 + MAX_JUDGE_ATTEMPTS;
+			return (
+				(PIPELINE_STAGE_SESSION_COUNT + MAX_JUDGE_ATTEMPTS) * request.stages +
+				PIPELINE_FINAL_SESSION_COUNT +
+				MAX_JUDGE_ATTEMPTS
+			);
 		}
 		default: {
 			return unhandled(request, "confirmation mode");
@@ -50,50 +65,48 @@ function sessionsPerRepFor(request: ConfirmationCostRequest): number {
 	}
 }
 
-export function projectConfirmationCost(
+function projectConfirmationCost(
 	request: ConfirmationCostRequest,
 ): ConfirmationCostProjection {
 	const sessionsPerRep = sessionsPerRepFor(request);
 	const perRepMaximumUsd = sessionsPerRep * request.sessionBudgetUsd;
 	if (request.mode === "session") {
 		return {
-			reps: request.reps,
 			perRepMaximumUsd,
 			preflightMaximumUsd: MODEL_PREFLIGHT_MAXIMUM_USD,
+			reps: request.reps,
 			totalMaximumUsd: Number(
 				(
 					MODEL_PREFLIGHT_MAXIMUM_USD +
 					request.reps * perRepMaximumUsd
-				).toPrecision(15),
+				).toPrecision(BUDGET_SIGNIFICANT_DIGITS),
 			),
 		};
 	}
 
 	return {
-		reps: request.reps,
 		perRepMaximumUsd,
+		reps: request.reps,
 		totalMaximumUsd: request.reps * perRepMaximumUsd,
 	};
 }
 
-export function formatProjectedCost(
-	projection: ConfirmationCostProjection,
-): string {
-	const repBudgets = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(2)}`;
+function formatProjectedCost(projection: ConfirmationCostProjection): string {
+	const repBudgets = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(USD_FRACTION_DIGITS)}`;
 	const breakdown =
 		projection.preflightMaximumUsd === undefined
 			? repBudgets
-			: `$${projection.preflightMaximumUsd.toFixed(2)} preflight + ${repBudgets}`;
+			: `$${projection.preflightMaximumUsd.toFixed(USD_FRACTION_DIGITS)} preflight + ${repBudgets}`;
 
-	return `Projected budget: $${projection.totalMaximumUsd.toFixed(2)} (${breakdown}). A session stops only after the call that crosses its budget, so the charge can exceed this.`;
+	return `Projected budget: $${projection.totalMaximumUsd.toFixed(USD_FRACTION_DIGITS)} (${breakdown}). A session stops only after the call that crosses its budget, so the charge can exceed this.`;
 }
 
-export interface ConfirmationApprovalIO {
+interface ConfirmationApprovalIO {
 	readonly output: (message: string) => void;
 	readonly prompt: (message: string) => Promise<string>;
 }
 
-export async function requireConfirmationApproval(
+async function requireConfirmationApproval(
 	projection: ConfirmationCostProjection,
 	approved: boolean,
 	io: ConfirmationApprovalIO,
@@ -110,7 +123,7 @@ export async function requireConfirmationApproval(
 	}
 }
 
-export interface RequestedExecution<Result> {
+interface RequestedExecution<Result> {
 	readonly confirmation: ConfirmationConfig | undefined;
 	readonly projectCost: () => ConfirmationCostProjection;
 	readonly approval: ConfirmationApprovalIO;
@@ -120,13 +133,13 @@ export interface RequestedExecution<Result> {
 	) => Promise<Result>;
 }
 
-export async function runRequestedExecution<Result>(
+async function runRequestedExecution<Result>(
 	execution: RequestedExecution<Result>,
 ): Promise<Result> {
 	if (execution.confirmation === undefined) {
 		execution.approval.output("single-rep evidence, not a score");
 
-		return execution.runDebug();
+		return await execution.runDebug();
 	}
 
 	const projection = execution.projectCost();
@@ -136,17 +149,17 @@ export async function runRequestedExecution<Result>(
 		execution.approval,
 	);
 
-	return execution.runConfirmed(projection);
+	return await execution.runConfirmed(projection);
 }
 
-export interface ConfirmationPlan<Inputs> {
+interface ConfirmationPlan<Inputs> {
 	readonly groupId: string;
 	readonly reps: number;
 	readonly frozenInputs: Inputs;
 	readonly worktreePath: (repId: string) => string;
 }
 
-export interface ConfirmationRepPlan<Inputs> {
+interface ConfirmationRepPlan<Inputs> {
 	readonly groupId: string;
 	readonly ordinal: number;
 	readonly repId: string;
@@ -154,7 +167,7 @@ export interface ConfirmationRepPlan<Inputs> {
 	readonly inputs: Inputs;
 }
 
-export interface ConfirmationRepResult<Inputs, Result> {
+interface ConfirmationRepResult<Inputs, Result> {
 	readonly plan: ConfirmationRepPlan<Inputs>;
 	readonly outcome: PromiseSettledResult<Result>;
 }
@@ -165,30 +178,49 @@ async function executeRep<Inputs, Result>(
 ): Promise<ConfirmationRepResult<Inputs, Result>> {
 	try {
 		return {
-			plan,
 			outcome: { status: "fulfilled", value: await execute(plan) },
+			plan,
 		};
 	} catch (error) {
-		return { plan, outcome: { status: "rejected", reason: error } };
+		return { outcome: { reason: error, status: "rejected" }, plan };
 	}
 }
 
-export function runConfirmation<Inputs, Result>(
+async function runConfirmation<Inputs, Result>(
 	confirmation: ConfirmationPlan<Inputs>,
 	execute: (plan: ConfirmationRepPlan<Inputs>) => Promise<Result>,
 ): Promise<readonly ConfirmationRepResult<Inputs, Result>[]> {
 	const plans = Array.from({ length: confirmation.reps }, (_value, index) => {
-		const ordinal = index + 1;
+		const ordinal = index + ORDINAL_BASE;
 		const repId = `${confirmation.groupId}-rep-${ordinal}`;
 
 		return {
 			groupId: confirmation.groupId,
+			inputs: confirmation.frozenInputs,
 			ordinal,
 			repId,
 			worktreePath: confirmation.worktreePath(repId),
-			inputs: confirmation.frozenInputs,
 		};
 	});
 
-	return Promise.all(plans.map((plan) => executeRep(plan, execute)));
+	return await Promise.all(
+		plans.map(async (plan) => await executeRep(plan, execute)),
+	);
 }
+
+export {
+	projectConfirmationCost,
+	formatProjectedCost,
+	requireConfirmationApproval,
+	runRequestedExecution,
+	runConfirmation,
+};
+export type {
+	ConfirmationCostRequest,
+	ConfirmationCostProjection,
+	ConfirmationApprovalIO,
+	RequestedExecution,
+	ConfirmationPlan,
+	ConfirmationRepPlan,
+	ConfirmationRepResult,
+};

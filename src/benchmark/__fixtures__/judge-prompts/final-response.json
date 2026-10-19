@@ -1,0 +1,34 @@
+{
+	"session_id": "judge-session",
+	"structured_output": {
+		"requirements": [
+			{
+				"id": "check-integrity",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "local-checks",
+						"path": "harness",
+						"claim": "passes",
+						"quote": ""
+					}
+				]
+			},
+			{
+				"id": "local-checks",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "local-checks",
+						"path": "harness",
+						"claim": "passes",
+						"quote": ""
+					}
+				]
+			}
+		],
+		"summary": "complete",
+		"verdict": "PASS"
+	},
+	"total_cost_usd": 0.1
+}

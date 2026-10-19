@@ -5,4 +5,6 @@
  * Both ends read the name from here so a rename cannot open one and leave the
  * other looking for the old one.
  */
-export const STORED_GIT_DIRECTORY = "dot-git";
+const STORED_GIT_DIRECTORY = "dot-git";
+
+export { STORED_GIT_DIRECTORY as default };

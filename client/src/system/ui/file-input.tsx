@@ -1,12 +1,14 @@
-export function FileInput({
-	id,
-	accept,
-	onChoose,
-}: {
+interface FileInputProps {
 	readonly id: string;
 	readonly accept: string;
 	readonly onChoose: (file: File) => void;
-}): React.JSX.Element {
+}
+
+function FileInput({
+	id,
+	accept,
+	onChoose,
+}: FileInputProps): React.JSX.Element {
 	return (
 		<input
 			id={id}
@@ -22,3 +24,5 @@ export function FileInput({
 		/>
 	);
 }
+
+export { FileInput as default };

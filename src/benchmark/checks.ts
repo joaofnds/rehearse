@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+
 import { CommandError, runCommand } from "./command";
 import { MAX_CONTEXT_FILE_BYTES, MAX_CONTEXT_TOTAL_BYTES } from "./config";
 import type { ContextFile, LocalCheckResult } from "./contracts";
 import type { TargetCheck } from "./pipeline";
+
+const PREFIX_START_INDEX = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const BINARY_PROBE_BYTES = 8192;
+const NUL_BYTE = 0;
 
 class TargetCheckLaunchError extends Error {
 	public override name = "TargetCheckLaunchError";
@@ -15,16 +23,19 @@ class TargetCheckLaunchError extends Error {
 		super(`Target check could not launch: ${command.join(" ")}`, { cause });
 	}
 }
+interface TargetCheckSuite {
+	readonly label: string;
+	readonly checks: readonly TargetCheck[];
+}
 
-export async function runChecks(
+async function runChecks(
 	targetDir: string,
-	label: string,
-	checks: readonly TargetCheck[],
+	{ label, checks }: TargetCheckSuite,
 	log: (message: string) => void,
 ): Promise<void> {
 	log(`\n${label}`);
 
-	for (const check of checks) {
+	await Array.fromAsync(checks, async (check) => {
 		try {
 			await runCommand(check.command, targetDir, { env: check.env });
 		} catch (error) {
@@ -35,25 +46,25 @@ export async function runChecks(
 			const cause = error instanceof Error ? error : new Error(String(error));
 			throw new TargetCheckLaunchError(check.command, cause);
 		}
-	}
+	});
 }
 
-export async function captureTreatmentChecks(
+async function captureTreatmentChecks(
 	targetDir: string,
 	checks: readonly TargetCheck[],
 	log: (message: string) => void,
 ): Promise<LocalCheckResult> {
 	try {
-		await runChecks(targetDir, "Treatment checks", checks, log);
+		await runChecks(targetDir, { checks, label: "Treatment checks" }, log);
 		return {
-			status: "PASS",
 			evidence: [
 				{
-					source: "local-checks",
-					path: checks.map(({ command }) => command.join(" ")).join("; "),
 					claim: "All treatment checks exited successfully",
+					path: checks.map(({ command }) => command.join(" ")).join("; "),
+					source: "local-checks",
 				},
 			],
+			status: "PASS",
 		};
 	} catch (error) {
 		let command = "unknown command";
@@ -67,25 +78,25 @@ export async function captureTreatmentChecks(
 		log(`Treatment check failed: ${command} exited ${exitCode}`);
 
 		return {
-			status: "FAIL",
 			evidence: [
 				{
-					source: "local-checks",
-					path: command,
 					claim: `Treatment check exited ${exitCode}`,
+					path: command,
+					source: "local-checks",
 				},
 			],
+			status: "FAIL",
 		};
 	}
 }
 
-export async function captureFileHashes(
+async function captureFileHashes(
 	directory: string,
 	integrityFiles: readonly string[],
 ): Promise<Map<string, string>> {
 	const hashes = new Map<string, string>();
 
-	for (const path of integrityFiles) {
+	await Array.fromAsync(integrityFiles, async (path) => {
 		const file = Bun.file(join(directory, path));
 		const exists = await file.exists();
 		if (!exists) {
@@ -94,22 +105,22 @@ export async function captureFileHashes(
 
 		const content = await file.bytes();
 		hashes.set(path, createHash("sha256").update(content).digest("hex"));
-	}
+	});
 
 	return hashes;
 }
 
-export async function captureCheckIntegrity(
+async function captureCheckIntegrity(
 	directory: string,
 	baselineHashes: ReadonlyMap<string, string>,
 ): Promise<LocalCheckResult> {
 	const changedPaths: string[] = [];
 
-	for (const [path, baselineHash] of baselineHashes) {
+	await Array.fromAsync(baselineHashes, async ([path, baselineHash]) => {
 		const file = Bun.file(join(directory, path));
 		if (!(await file.exists())) {
 			changedPaths.push(path);
-			continue;
+			return;
 		}
 
 		const treatmentHash = createHash("sha256")
@@ -118,25 +129,25 @@ export async function captureCheckIntegrity(
 		if (treatmentHash !== baselineHash) {
 			changedPaths.push(path);
 		}
-	}
+	});
 	const integrityFiles = [...baselineHashes.keys()];
 
 	return {
-		status: changedPaths.length === 0 ? "PASS" : "FAIL",
 		evidence: [
 			{
-				source: "local-checks",
-				path: integrityFiles.join(", "),
 				claim:
-					changedPaths.length === 0
+					changedPaths.length === EMPTY_COLLECTION_LENGTH
 						? "Check scripts and configurations match the baseline"
 						: `Build modified check definitions: ${changedPaths.join(", ")}`,
+				path: integrityFiles.join(", "),
+				source: "local-checks",
 			},
 		],
+		status: changedPaths.length === EMPTY_COLLECTION_LENGTH ? "PASS" : "FAIL",
 	};
 }
 
-export async function captureBoundedContent(
+async function captureBoundedContent(
 	file: ReturnType<typeof Bun.file>,
 ): Promise<string> {
 	if (file.size > MAX_CONTEXT_FILE_BYTES) {
@@ -144,14 +155,16 @@ export async function captureBoundedContent(
 	}
 
 	const bytes = await file.bytes();
-	if (bytes.subarray(0, 8192).includes(0)) {
+	if (
+		bytes.subarray(PREFIX_START_INDEX, BINARY_PROBE_BYTES).includes(NUL_BYTE)
+	) {
 		return "[binary file omitted]";
 	}
 
 	return new TextDecoder().decode(bytes);
 }
 
-export async function captureBaselineContext(
+async function captureBaselineContext(
 	directory: string,
 ): Promise<ContextFile[]> {
 	const context: ContextFile[] = [];
@@ -163,24 +176,24 @@ export async function captureBaselineContext(
 		.filter((path) => path !== "bun.lock");
 	let totalBytes = 0;
 
-	for (const path of trackedPaths) {
+	await Array.fromAsync(trackedPaths, async (path) => {
 		const file = Bun.file(join(directory, path));
 		if (!(await file.exists())) {
-			continue;
+			return;
 		}
 
 		if (totalBytes + file.size > MAX_CONTEXT_TOTAL_BYTES) {
 			context.push({
-				path,
 				content: "[omitted: total capture budget exhausted]",
+				path,
 			});
-			continue;
+			return;
 		}
 
 		const content = await captureBoundedContent(file);
-		context.push({ path, content });
+		context.push({ content, path });
 		totalBytes += content.length;
-	}
+	});
 
 	return context;
 }
@@ -191,7 +204,7 @@ export async function captureBaselineContext(
  * dependencies fails in one until its setup has run. Every rep installs its
  * own, because reps that shared a tree would not be independent.
  */
-export async function runSetup(
+async function runSetup(
 	targetDir: string,
 	setup: readonly TargetCheck[] | undefined,
 	log: (message: string) => void,
@@ -200,5 +213,15 @@ export async function runSetup(
 		return;
 	}
 
-	await runChecks(targetDir, "Target setup", setup, log);
+	await runChecks(targetDir, { checks: setup, label: "Target setup" }, log);
 }
+
+export {
+	runChecks,
+	captureTreatmentChecks,
+	captureFileHashes,
+	captureCheckIntegrity,
+	captureBoundedContent,
+	captureBaselineContext,
+	runSetup,
+};

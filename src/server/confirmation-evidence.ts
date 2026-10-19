@@ -1,6 +1,7 @@
-import type { Immutable } from "#benchmark/contracts";
+import { dirname, relative } from "node:path";
+
 import { ZodError } from "zod";
-import { relative, dirname } from "node:path";
+
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -9,8 +10,10 @@ import type {
 	ParsedConfirmationGroupRecord,
 	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
-import { readConstructedEvidenceFile } from "./constructed-evidence-file";
+import type { Immutable } from "#benchmark/contracts";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
+
+import readConstructedEvidenceFile from "./constructed-evidence-file";
 import { SessionHistoryReaderError } from "./session-history-reader";
 
 interface OwnedConfirmationRep {
@@ -35,7 +38,7 @@ function parseMetadata<Value>(
 	}
 }
 /** The group reference owns the exact rep file, its ordinal, case and execution mode. */
-export async function readOwnedConfirmationRep(
+async function readOwnedConfirmationRep(
 	root: string,
 	groupId: string,
 	repId: string,
@@ -75,3 +78,5 @@ export async function readOwnedConfirmationRep(
 	}
 	return { group, rep };
 }
+
+export { readOwnedConfirmationRep as default };

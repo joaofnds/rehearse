@@ -1,27 +1,31 @@
 import { z } from "zod";
 
+import parseJsonDocument from "./json-document";
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
 const UNAVAILABLE = { state: "unavailable" } as const;
 
 const instructionFileSchema = z
 	.object({
-		path: z.string().min(1),
-		type: z.string().min(1),
+		path: z.string().nonempty(),
+		type: z.string().nonempty(),
 	})
 	.loose();
 
-export const instructionsAttachmentSchema = z
+const instructionsAttachmentSchema = z
 	.object({
-		type: z.literal("attachment"),
 		attachment: z
 			.object({
-				type: z.literal("instructions"),
 				files: z.array(instructionFileSchema),
+				type: z.literal("instructions"),
 			})
 			.loose(),
+		type: z.literal("attachment"),
 	})
 	.loose();
 
-export interface TranscriptInstructionLoad {
+interface TranscriptInstructionLoad {
 	readonly filePath: string;
 	readonly memoryType: string;
 	readonly loadReason: typeof UNAVAILABLE;
@@ -29,7 +33,7 @@ export interface TranscriptInstructionLoad {
 	readonly parentFilePath: typeof UNAVAILABLE;
 }
 
-export type TranscriptInstructionLoads =
+type TranscriptInstructionLoads =
 	| {
 			readonly state: "available";
 			readonly loads: readonly TranscriptInstructionLoad[];
@@ -42,7 +46,7 @@ export type TranscriptInstructionLoads =
  * the transcript, so they report unavailable rather than a guess a reader
  * would take for evidence.
  */
-export function transcriptInstructionLoads(
+function transcriptInstructionLoads(
 	transcript: string,
 ): TranscriptInstructionLoads {
 	return settledLoads(
@@ -50,7 +54,7 @@ export function transcriptInstructionLoads(
 	);
 }
 
-export async function transcriptInstructionLoadsFromLines(
+async function transcriptInstructionLoadsFromLines(
 	lines: AsyncIterable<string>,
 ): Promise<TranscriptInstructionLoads> {
 	const readings: (readonly TranscriptInstructionLoad[] | undefined)[] = [];
@@ -68,23 +72,21 @@ function attachmentLoads(
 	if (line.trim() === "") {
 		return undefined;
 	}
-	let row: unknown;
-	try {
-		row = JSON.parse(line);
-	} catch {
+	const documentReading = parseJsonDocument(line, instructionsAttachmentSchema);
+	if (documentReading.kind === "invalid-json") {
 		return undefined;
 	}
-	const parsed = instructionsAttachmentSchema.safeParse(row);
+	const { parsed } = documentReading;
 	if (!parsed.success) {
 		return undefined;
 	}
 
 	return parsed.data.attachment.files.map((file) => ({
 		filePath: file.path,
-		memoryType: file.type,
 		loadReason: UNAVAILABLE,
-		triggerFilePath: UNAVAILABLE,
+		memoryType: file.type,
 		parentFilePath: UNAVAILABLE,
+		triggerFilePath: UNAVAILABLE,
 	}));
 }
 
@@ -92,9 +94,16 @@ function settledLoads(
 	readings: readonly (readonly TranscriptInstructionLoad[] | undefined)[],
 ): TranscriptInstructionLoads {
 	const attached = readings.filter((reading) => reading !== undefined);
-	if (attached.length === 0) {
+	if (attached.length === EMPTY_COLLECTION_LENGTH) {
 		return UNAVAILABLE;
 	}
 
-	return { state: "available", loads: attached.flat() };
+	return { loads: attached.flat(), state: "available" };
 }
+
+export {
+	instructionsAttachmentSchema,
+	transcriptInstructionLoads,
+	transcriptInstructionLoadsFromLines,
+};
+export type { TranscriptInstructionLoad, TranscriptInstructionLoads };

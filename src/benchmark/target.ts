@@ -1,48 +1,28 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
+
 import { z } from "zod";
+
 import { existingBacklogLayout } from "./backlog-layout";
-import { captureBoundedContent } from "./checks";
-import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
-import { StageValidationError } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
-import { MissingDirectoryError } from "./missing-directory-error";
+import MissingDirectoryError from "./missing-directory-error";
+import { git, optionalGit } from "./target-repository";
 import { managedWorkflowPaths } from "./workflow-state";
 
-export interface SourceBaseline {
+const EMPTY_COLLECTION_LENGTH = 0;
+interface SourceBaseline {
 	readonly root: string;
 	readonly sha: string;
 	readonly origin?: string | undefined;
 }
 
-export async function git(
-	directory: string,
-	...args: readonly string[]
-): Promise<string> {
-	const output = await runCommand(["git", ...args], directory);
-	return output.trim();
-}
-
-/**
- * The commit a checkout is on. A stage's changes are measured against it, and
- * a replay's worktree starts there because the harness adds no commit of its
- * own before the session runs.
- */
-export function currentSha(directory: string): Promise<string> {
-	return git(directory, "rev-parse", "HEAD");
-}
-
-export async function assertSourceReady(
-	sourceDir: string,
-): Promise<SourceBaseline> {
+async function readySourceRoot(sourceDir: string): Promise<string> {
 	const sourceRoot = await realpath(sourceDir);
 	const repositoryRoot = await realpath(
 		await git(sourceRoot, "rev-parse", "--show-toplevel"),
 	);
 	const controlRoot = await realpath(CONTROL_DIR);
-
 	if (sourceRoot !== repositoryRoot) {
 		throw new Error("Target must be the repository root");
 	}
@@ -50,6 +30,12 @@ export async function assertSourceReady(
 	if (sourceRoot === controlRoot) {
 		throw new Error("Target must not be the control repository");
 	}
+
+	return sourceRoot;
+}
+
+async function assertSourceReady(sourceDir: string): Promise<SourceBaseline> {
+	const sourceRoot = await readySourceRoot(sourceDir);
 
 	const sha = await optionalGit(
 		sourceRoot,
@@ -63,24 +49,13 @@ export async function assertSourceReady(
 	}
 
 	return {
+		origin: await optionalGit(sourceRoot, "remote", "get-url", "origin"),
 		root: sourceRoot,
 		sha,
-		origin: await optionalGit(sourceRoot, "remote", "get-url", "origin"),
 	};
 }
 
-async function optionalGit(
-	directory: string,
-	...args: readonly string[]
-): Promise<string | undefined> {
-	try {
-		return await git(directory, ...args);
-	} catch {
-		return undefined;
-	}
-}
-
-export async function assertControlReady(): Promise<string> {
+async function assertControlReady(): Promise<string> {
 	const status = await git(
 		CONTROL_DIR,
 		"status",
@@ -93,20 +68,18 @@ export async function assertControlReady(): Promise<string> {
 		);
 	}
 
-	return git(CONTROL_DIR, "rev-parse", "HEAD");
+	return await git(CONTROL_DIR, "rev-parse", "HEAD");
 }
 
-export async function assertWorkflowBoardPrivate(
-	targetDir: string,
-): Promise<void> {
+async function assertWorkflowBoardPrivate(targetDir: string): Promise<void> {
 	const layout = await existingBacklogLayout(targetDir);
 	const configPath =
 		layout === undefined ? undefined : relative(targetDir, layout.configPath);
 	const trackedBoardFiles: string[] = [];
 
-	for (const path of await managedWorkflowPaths(targetDir)) {
+	await Array.fromAsync(await managedWorkflowPaths(targetDir), async (path) => {
 		if (path === "backlog.config.yml") {
-			continue;
+			return;
 		}
 
 		const tracked = await git(targetDir, "ls-files", "-z", "--", path);
@@ -117,9 +90,9 @@ export async function assertWorkflowBoardPrivate(
 					(trackedPath) => trackedPath !== "" && trackedPath !== configPath,
 				),
 		);
-	}
+	});
 
-	if (trackedBoardFiles.length > 0) {
+	if (trackedBoardFiles.length > EMPTY_COLLECTION_LENGTH) {
 		throw new RefusedPreconditionError(
 			`Backlog workflow state must not contain tracked files: ${trackedBoardFiles.join(", ")}`,
 		);
@@ -135,29 +108,33 @@ async function runMarkerPath(root: string): Promise<string> {
 
 const runMarkerSchema = z.object({
 	pid: z.number(),
-	run: z.string().min(1).optional(),
+	run: z.string().nonempty().optional(),
 	startedAt: z.iso.datetime(),
 });
 
-export type RunMarker = z.infer<typeof runMarkerSchema>;
+type RunMarker = z.infer<typeof runMarkerSchema>;
 
 /**
  * Undefined for a checkout nothing has claimed, or one that is gone, which
  * only a run's end or an operator removes: both read as "nothing to reconcile"
  * to a caller reconciling crashed runs, not as an error.
  */
-export async function readRunMarker(
-	root: string,
-): Promise<RunMarker | undefined> {
-	let path;
-	try {
-		path = await runMarkerPath(root);
-	} catch (error) {
-		if (error instanceof MissingDirectoryError) {
-			return undefined;
-		}
+async function readRunMarker(root: string): Promise<RunMarker | undefined> {
+	const existingRunMarkerPath = async (): Promise<string | undefined> => {
+		try {
+			return await runMarkerPath(root);
+		} catch (error) {
+			if (error instanceof MissingDirectoryError) {
+				return undefined;
+			}
 
-		throw error;
+			throw error;
+		}
+	};
+
+	const path = await existingRunMarkerPath();
+	if (path === undefined) {
+		return undefined;
 	}
 
 	const marker = Bun.file(path);
@@ -168,10 +145,7 @@ export async function readRunMarker(
 	return runMarkerSchema.parse(JSON.parse(await marker.text()));
 }
 
-export async function claimTarget(
-	source: SourceBaseline,
-	run: string,
-): Promise<void> {
+async function claimTarget(source: SourceBaseline, run: string): Promise<void> {
 	await Bun.write(
 		await runMarkerPath(source.root),
 		`${JSON.stringify({
@@ -182,363 +156,31 @@ export async function claimTarget(
 	);
 }
 
-/**
- * Checkpointed commits must outlive the run: no branch reaches the task and
- * result commits, so only this ref keeps gc from pruning the history a later
- * replay materializes. The ref is harness state, never part of the corpus.
- */
-export async function recordRetentionRef(
-	targetDir: string,
-	runName: string,
-	sha: string,
-): Promise<void> {
-	await git(targetDir, "update-ref", retentionRef(runName), sha);
-}
-
-/** The ref that keeps a run's candidate and checkpoint commits reachable. */
-export function retentionRef(runName: string): string {
-	return `refs/rehearse/${runName}`;
-}
-
-/**
- * A run's stages work on main; a replay's stage works on the worktree's
- * detached HEAD. `null` expects the detached checkout, where
- * `branch --show-current` prints nothing.
- */
-export type ExpectedBranch = string | null;
-
-function describeBranchDrift(
-	branch: string,
-	expectedBranch: ExpectedBranch,
-): string {
-	const found = branch ? `branch ${branch}` : "a detached checkout";
-	const expected = expectedBranch ?? "a detached checkout";
-
-	return `Target is on ${found}, expected ${expected}`;
-}
-
-function describeDirtyWorktree(status: string): string {
-	const paths = status.split("\n").map((line) => line.trim());
-
-	return `Target worktree is dirty: ${paths.join(", ")}`;
-}
-
-export async function assertWorkspaceCleanAt(
-	targetDir: string,
-	expectedSha: string,
-	expectedBranch: ExpectedBranch = "main",
-): Promise<void> {
-	const branch = await git(targetDir, "branch", "--show-current");
-	const sha = await git(targetDir, "rev-parse", "HEAD");
-	const status = await git(
-		targetDir,
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=all",
-	);
-
-	if (branch !== (expectedBranch ?? "")) {
-		throw new StageValidationError(describeBranchDrift(branch, expectedBranch));
-	}
-
-	if (sha !== expectedSha) {
-		throw new StageValidationError(
-			`Target is at commit ${sha}, expected ${expectedSha}`,
-		);
-	}
-
-	if (status) {
-		throw new StageValidationError(describeDirtyWorktree(status));
-	}
-}
-
-export interface BuildCandidate {
-	readonly resultSha: string;
-	readonly diff: string;
-	readonly changedPaths: readonly string[];
-}
-
-/**
- * A planning stage may commit workflow artifacts (a glossary, a document),
- * so an advanced HEAD is evidence, not a broken baseline. What it may not
- * do is leave the branch, leave the worktree dirty, or rewrite the history
- * it started from.
- */
-export async function capturePlanningAdvance(
-	targetDir: string,
-	baselineSha: string,
-	expectedBranch: ExpectedBranch = "main",
-): Promise<{
-	resultSha: string;
-	diff: string;
-	changedPaths: string[];
-	commitSubjects?: string[] | undefined;
-}> {
-	const branch = await git(targetDir, "branch", "--show-current");
-	const status = await git(
-		targetDir,
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=all",
-	);
-	if (branch !== (expectedBranch ?? "")) {
-		throw new StageValidationError(describeBranchDrift(branch, expectedBranch));
-	}
-
-	if (status !== "") {
-		throw new StageValidationError(describeDirtyWorktree(status));
-	}
-
-	const resultSha = await git(targetDir, "rev-parse", "HEAD");
-	if (resultSha === baselineSha) {
-		return { resultSha, diff: "", changedPaths: [] };
-	}
-
-	try {
-		await git(targetDir, "merge-base", "--is-ancestor", baselineSha, resultSha);
-	} catch (error) {
-		if (error instanceof CommandError && error.exitCode === 1) {
-			throw new StageValidationError(
-				"Planning stage rewrote or discarded task history",
-			);
-		}
-
-		throw error;
-	}
-
-	return {
-		resultSha,
-		diff: await runCommand(
-			["git", "diff", "--no-ext-diff", `${baselineSha}..${resultSha}`],
-			targetDir,
-		),
-		changedPaths: await changedPathsBetween(targetDir, baselineSha, resultSha),
-		commitSubjects: await commitSubjectsBetween(
-			targetDir,
-			baselineSha,
-			resultSha,
-		),
-	};
-}
-
-export async function captureBuildCandidate(
-	targetDir: string,
-	taskSha: string,
-): Promise<BuildCandidate> {
-	const resultSha = await git(targetDir, "rev-parse", "HEAD");
-	const trackedDiff = await runCommand(
-		["git", "diff", "--no-ext-diff", taskSha],
-		targetDir,
-	);
-	const trackedOutput = await git(targetDir, "diff", "--name-only", taskSha);
-	const trackedPaths = trackedOutput.split("\n").filter(Boolean);
-	const untrackedOutput = await runCommand(
-		["git", "ls-files", "--others", "--exclude-standard", "-z"],
-		targetDir,
-	);
-	const untrackedPaths = untrackedOutput.split("\0").filter(Boolean);
-	const untrackedDiffs = await Promise.all(
-		untrackedPaths.map(async (path) => {
-			const content = await captureBoundedContent(
-				Bun.file(join(targetDir, path)),
-			);
-			return `diff --git a/${path} b/${path}\nnew untracked file\n--- /dev/null\n+++ b/${path}\n@@ untracked file @@\n${content}`;
-		}),
-	);
-
-	return {
-		resultSha,
-		diff: [trackedDiff, ...untrackedDiffs].filter(Boolean).join("\n"),
-		changedPaths: [...new Set([...trackedPaths, ...untrackedPaths])],
-	};
-}
-
-/**
- * Commits the checkout as it stands, uncommitted and untracked files
- * included, onto no branch. It stages through an index of its own, so HEAD,
- * the checkout's index and its working tree stay as they were. The snapshot
- * descends from the base as well as HEAD, so a ref kept at the base moves to
- * it by fast-forward even when the stage rewrote the history below the base.
- */
-export async function snapshotCheckout(
-	targetDir: string,
-	base: string,
-): Promise<string> {
-	const head = await currentSha(targetDir);
-	const parents = [...new Set([head, base])].flatMap((sha) => ["-p", sha]);
-	const indexDirectory = await mkdtemp(join(tmpdir(), "rehearse-snapshot-"));
-	const options = { env: { GIT_INDEX_FILE: join(indexDirectory, "index") } };
-
-	try {
-		await runCommand(["git", "read-tree", "HEAD"], targetDir, options);
-		await runCommand(["git", "add", "--all"], targetDir, options);
-		const tree = await runCommand(["git", "write-tree"], targetDir, options);
-
-		return await git(
-			targetDir,
-			"commit-tree",
-			tree.trim(),
-			...parents,
-			"-m",
-			"Snapshot of the checkout, uncommitted files included",
-		);
-	} finally {
-		await rm(indexDirectory, { force: true, recursive: true });
-	}
-}
-
-export async function assertBuildCommitted(
-	targetDir: string,
-	taskSha: string,
-	expectedBranch: ExpectedBranch = "main",
-	commitSubjectPattern?: string,
-): Promise<{
-	resultSha: string;
-	diff: string;
-	commitSubjects: string[];
-}> {
-	const branch = await git(targetDir, "branch", "--show-current");
-	if (branch !== (expectedBranch ?? "")) {
-		throw new StageValidationError(
-			`Build phase left ${expectedBranch ?? "its detached checkout"}`,
-		);
-	}
-
-	const status = await git(
-		targetDir,
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=all",
-	);
-	if (status) {
-		throw new StageValidationError(
-			`Build phase left uncommitted changes:\n${status}`,
-		);
-	}
-
-	const resultSha = await git(targetDir, "rev-parse", "HEAD");
-	if (resultSha === taskSha) {
-		throw new StageValidationError("Build phase did not create a commit");
-	}
-
-	try {
-		await git(targetDir, "merge-base", "--is-ancestor", taskSha, resultSha);
-	} catch (error) {
-		if (error instanceof CommandError && error.exitCode === 1) {
-			throw new StageValidationError(
-				"Build phase rewrote or discarded task history",
-			);
-		}
-
-		throw error;
-	}
-	const diff = await runCommand(
-		["git", "diff", "--no-ext-diff", `${taskSha}..${resultSha}`],
-		targetDir,
-	);
-	if (!diff.trim()) {
-		throw new StageValidationError("Build commit contains no changes");
-	}
-
-	const commitSubjects = await commitSubjectsBetween(
-		targetDir,
-		taskSha,
-		resultSha,
-	);
-	if (commitSubjectPattern !== undefined) {
-		assertCommitSubjects(commitSubjects, commitSubjectPattern);
-	}
-
-	return { resultSha, diff, commitSubjects };
-}
-
-async function commitSubjectsBetween(
-	targetDir: string,
-	baselineSha: string,
-	resultSha: string,
-): Promise<string[]> {
-	const subjects = await git(
-		targetDir,
-		"log",
-		"--reverse",
-		"--format=%s",
-		`${baselineSha}..${resultSha}`,
-	);
-
-	return subjects.split("\n");
-}
-
-export function assertCommitSubjects(
-	subjects: readonly string[],
-	pattern: string,
-): void {
-	const subjectPattern = new RegExp(pattern, "u");
-	const invalidSubjects = subjects.filter(
-		(subject) => !subjectPattern.test(subject),
-	);
-
-	if (invalidSubjects.length > 0) {
-		throw new StageValidationError(
-			`Build commit subjects do not match the pipeline's convention: ${invalidSubjects.join(", ")}`,
-		);
-	}
-}
-
-/**
- * Whether the target still holds a run's retained candidate. `rev-parse
- * --verify --quiet` exits 1 on a name that resolves to nothing, which is the
- * question, and 128 when it cannot read a repository there at all, which is
- * not: a repository that moved still holds the candidate, and its caller
- * should be sent looking for it rather than told to re-run.
- */
-export async function refExists(
-	repositoryRoot: string,
-	reference: string,
-): Promise<boolean> {
-	try {
-		await git(repositoryRoot, "rev-parse", "--verify", "--quiet", reference);
-
-		return true;
-	} catch (error) {
-		if (error instanceof CommandError && error.exitCode === 1) {
-			return false;
-		}
-
-		throw error;
-	}
-}
-
-export async function addWorktree(
-	repositoryRoot: string,
-	committish: string,
-	path: string,
-): Promise<void> {
-	await git(repositoryRoot, "worktree", "add", "--detach", path, committish);
-}
-
-// --force: a replay worktree holds untracked workflow state by design.
-export async function removeWorktree(
-	repositoryRoot: string,
-	path: string,
-): Promise<void> {
-	await git(repositoryRoot, "worktree", "remove", "--force", path);
-}
-
-/** Forgets each worktree whose directory no longer exists. */
-export async function pruneWorktrees(repositoryRoot: string): Promise<void> {
-	await git(repositoryRoot, "worktree", "prune");
-}
-
-export async function changedPathsBetween(
-	targetDir: string,
-	fromSha: string,
-	toSha: string,
-): Promise<string[]> {
-	const output = await git(
-		targetDir,
-		"diff",
-		"--name-only",
-		`${fromSha}..${toSha}`,
-	);
-	return output.split("\n").filter(Boolean);
-}
+export {
+	git,
+	currentSha,
+	recordRetentionRef,
+	retentionRef,
+	refExists,
+	addWorktree,
+	removeWorktree,
+	pruneWorktrees,
+	changedPathsBetween,
+} from "./target-repository";
+export { captureBuildCandidate, snapshotCheckout } from "./target-snapshot";
+export type { BuildCandidate } from "./target-snapshot";
+export {
+	assertWorkspaceCleanAt,
+	capturePlanningAdvance,
+	assertBuildCommitted,
+	assertCommitSubjects,
+} from "./target-stage-validation";
+export type { BuildBaseline, ExpectedBranch } from "./target-stage-validation";
+export {
+	assertSourceReady,
+	assertControlReady,
+	assertWorkflowBoardPrivate,
+	readRunMarker,
+	claimTarget,
+};
+export type { SourceBaseline, RunMarker };

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { pathIsWithin } from "./path-containment";
+
+import pathIsWithin from "./path-containment";
 
 describe("pathIsWithin", () => {
 	const root = resolve("saved-runs");

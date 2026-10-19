@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import {
 	judgeGradeSchema,
 	stageGradeSchema,
@@ -6,22 +7,24 @@ import {
 	stageScorecardSchema,
 } from "#benchmark/contracts";
 import type { Immutable, RecordedStageEvidence } from "#benchmark/contracts";
-import type { StageLetterGrade } from "#benchmark/stage-letter-grades";
 import { locatorReading } from "#benchmark/record-summary";
+import type { StageLetterGrade } from "#benchmark/stage-letter-grades";
 
-export interface EvidenceCitation {
+const NO_EVIDENCE_ITEMS = 0;
+
+interface EvidenceCitation {
 	readonly source: string;
 	readonly path: string;
 	readonly claim: string;
 	readonly quote?: string | undefined;
 	readonly place?: string | undefined;
 }
-export interface AssessedCriterion {
+interface AssessedCriterion {
 	readonly id: string;
 	readonly status: "PASS" | "FAIL";
 	readonly evidence: readonly EvidenceCitation[];
 }
-export type SavedStageOutput =
+type SavedStageOutput =
 	| {
 			readonly state: "available";
 			readonly kind: "artifact" | "reply" | "diff";
@@ -29,14 +32,14 @@ export type SavedStageOutput =
 			readonly text: string;
 	  }
 	| { readonly state: "unavailable"; readonly reason: string };
-export type FinalAssessment =
+type FinalAssessment =
 	| { readonly state: "unavailable"; readonly reason: string }
 	| {
 			readonly state: "available";
 			readonly summary?: string | undefined;
 			readonly requirements: readonly AssessedCriterion[];
 	  };
-export interface StepAssessment {
+interface StepAssessment {
 	readonly grade: StageLetterGrade;
 	readonly verdict: "CONTINUE" | "STOP";
 	readonly summary?: string | undefined;
@@ -52,10 +55,10 @@ export interface StepAssessment {
 const savedInputSchema = stageJudgeInputSchema
 	.pick({ artifact: true, diff: true, transcript: true })
 	.partial();
-export const savedOutputRecordSchema = z.object({
+const savedOutputRecordSchema = z.object({
 	input: savedInputSchema.optional(),
 });
-export interface SavedStepOutput {
+interface SavedStepOutput {
 	readonly output: SavedStageOutput;
 	readonly diff?: string | undefined;
 	readonly completionReply?: string | undefined;
@@ -66,26 +69,26 @@ function selectSavedOutput(
 ): SavedStageOutput {
 	if (input?.artifact !== undefined) {
 		return {
-			state: "available",
 			kind: "artifact",
 			path: input.artifact.path,
+			state: "available",
 			text: input.artifact.content,
 		};
 	}
 	if (reply !== undefined) {
-		return { state: "available", kind: "reply", text: reply };
+		return { kind: "reply", state: "available", text: reply };
 	}
 	if (input?.diff !== undefined) {
-		return { state: "available", kind: "diff", text: input.diff };
+		return { kind: "diff", state: "available", text: input.diff };
 	}
 
 	return {
-		state: "unavailable",
 		reason:
 			"This record retains no output artifact, completed agent reply or delivery diff.",
+		state: "unavailable",
 	};
 }
-export function projectSavedStepOutput(
+function projectSavedStepOutput(
 	record: Immutable<z.infer<typeof savedOutputRecordSchema>>,
 ): SavedStepOutput {
 	const { input } = record;
@@ -112,9 +115,9 @@ function projectCitation(
 	const { source, path, claim, quote, locator } = cited;
 
 	return {
-		source,
-		path,
 		claim,
+		path,
+		source,
 		...(quote !== undefined && { quote }),
 		...(locator !== undefined && { place: locatorReading(locator) }),
 	};
@@ -131,15 +134,15 @@ function projectCriteria(
 	criteria: readonly CriterionRecord[],
 ): readonly AssessedCriterion[] {
 	return criteria.map(({ id, status, evidence }) => ({
+		evidence: projectCitations(evidence),
 		id,
 		status,
-		evidence: projectCitations(evidence),
 	}));
 }
-export const finalAssessmentRecordSchema = z.object({
+const finalAssessmentRecordSchema = z.object({
 	grade: judgeGradeSchema.partial().required({ requirements: true }),
 });
-export function projectFinalAssessment(
+function projectFinalAssessment(
 	record: Immutable<z.infer<typeof finalAssessmentRecordSchema>>,
 	expectedVerdict?: "PASS" | "FAIL",
 ): FinalAssessment {
@@ -148,9 +151,9 @@ export function projectFinalAssessment(
 		record.grade.verdict !== expectedVerdict
 	) {
 		return {
-			state: "unavailable",
 			reason:
 				"This record retains no readable final criteria or citations matching its recorded outcome.",
+			state: "unavailable",
 		};
 	}
 
@@ -164,7 +167,7 @@ export function projectFinalAssessment(
 }
 const summarySchema = stageScorecardSchema.pick({ stage: true }).extend({
 	grade: stageGradeSchema
-		.pick({ grade: true, verdict: true, summary: true })
+		.pick({ grade: true, summary: true, verdict: true })
 		.partial({ summary: true }),
 });
 const detailedSchema = stageGradeSchema
@@ -179,29 +182,31 @@ function projectStepAssessment(
 	const dimensions = details?.dimensions ?? [];
 
 	return {
+		detailed:
+			hardBlockers.length + requirements.length + dimensions.length >
+			NO_EVIDENCE_ITEMS,
+		dimensions: dimensions.map(({ id, grade, evidence }) => ({
+			evidence: projectCitations(evidence),
+			grade,
+			id,
+		})),
 		grade: record.grade.grade,
-		verdict: record.grade.verdict,
-		summary: record.grade.summary,
-		detailed: hardBlockers.length + requirements.length + dimensions.length > 0,
 		hardBlockers: projectCriteria(hardBlockers),
 		requirements: projectCriteria(requirements),
-		dimensions: dimensions.map(({ id, grade, evidence }) => ({
-			id,
-			grade,
-			evidence: projectCitations(evidence),
-		})),
+		summary: record.grade.summary,
+		verdict: record.grade.verdict,
 	};
 }
 /** Validate the retained fields once, then project typed values without re-reading JSON. */
-export const scorecardEvidenceSchema = summarySchema.transform((record) => {
+const scorecardEvidenceSchema = summarySchema.transform((record) => {
 	const output = savedOutputRecordSchema.safeParse(record);
 	const details = detailedSchema.safeParse(record.grade);
 	const saved: SavedStepOutput = output.success
 		? projectSavedStepOutput(output.data)
 		: {
 				output: {
-					state: "unavailable",
 					reason: "The saved step record does not retain readable output.",
+					state: "unavailable",
 				},
 			};
 
@@ -214,3 +219,19 @@ export const scorecardEvidenceSchema = summarySchema.transform((record) => {
 		),
 	};
 });
+
+export {
+	savedOutputRecordSchema,
+	projectSavedStepOutput,
+	finalAssessmentRecordSchema,
+	projectFinalAssessment,
+	scorecardEvidenceSchema,
+};
+export type {
+	EvidenceCitation,
+	AssessedCriterion,
+	SavedStageOutput,
+	FinalAssessment,
+	StepAssessment,
+	SavedStepOutput,
+};

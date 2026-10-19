@@ -12,18 +12,19 @@
 		"#client/*": "./client/src/*"
 	},
 	"scripts": {
-		"check": "$npm_execpath run typecheck && $npm_execpath run lint && $npm_execpath run lint:css && $npm_execpath run fmt:check && $npm_execpath run build:client && $npm_execpath run test",
-		"fmt": "oxfmt",
-		"fmt:check": "oxfmt --check",
-		"lint": "oxlint --type-aware",
-		"lint:css": "stylelint \"client/**/*.css\" \"!client/**/__fixtures__/**\" \"!client/dist/**\"",
+		"check": "$npm_execpath run quality:policy && $npm_execpath run typecheck && $npm_execpath run lint && $npm_execpath run lint:css && $npm_execpath run fmt:check && $npm_execpath run build:client && $npm_execpath run test",
+		"fmt": "oxfmt --config .oxfmtrc.json --disable-nested-config",
+		"fmt:check": "oxfmt --config .oxfmtrc.json --disable-nested-config --check",
+		"lint": "oxlint --config .oxlintrc.json --disable-nested-config --type-aware --deny-warnings",
+		"lint:css": "stylelint --config .stylelintrc.json \"client/src/**/*.css\" --max-warnings 0",
 		"test": "bun test && bun test --path-ignore-patterns \"**/node_modules/**\" --preload ./client/test-setup.ts ./client",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p client/tsconfig.json && tsc --noEmit -p prototypes/ux-comparison/tsconfig.json",
 		"rehearse": "$npm_execpath run rehearse.ts",
 		"dev:client": "vite --config client/vite.config.ts",
 		"build:client": "vite build --config client/vite.config.ts",
 		"benchmark:loading": "$npm_execpath tools/benchmark-loading.ts",
-		"serve": "bun run src/server/serve.ts"
+		"serve": "bun run src/server/serve.ts",
+		"quality:policy": "bun tools/quality-policy.ts"
 	},
 	"dependencies": {
 		"@fontsource/inter": "^5.3.0",
@@ -51,12 +52,19 @@
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.7",
 		"@vitejs/plugin-react": "^6.1.1",
+		"jsonc-parser": "3.3.1",
+		"mdast-util-from-markdown": "2.1.0",
+		"oxc-parser": "0.148.0",
 		"oxlint": "^1.80.0",
 		"oxlint-tsgolint": "^7.0.2001",
+		"parse5": "8.0.1",
+		"postcss": "8.5.28",
 		"stylelint": "^17.0.0",
 		"tailwindcss": "4.3.3",
+		"toml-eslint-parser": "1.0.3",
 		"typescript": "^7.0.2",
-		"vite": "^8.2.2"
+		"vite": "^8.2.2",
+		"yaml": "2.9.1"
 	},
 	"packageManager": "bun@1.4.0"
 }

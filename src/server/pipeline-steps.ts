@@ -1,29 +1,37 @@
 import { rename, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
+
 import { z } from "zod";
+
 import {
-	caseRelative,
 	CaseDeclarationError,
+	caseRelative,
 	readCaseDeclaration,
 } from "#benchmark/case";
 import type { PipelineCaseDeclaration } from "#benchmark/case";
 import { CONTROL_DIR } from "#benchmark/config";
 import { PipelineDefinitionError } from "#benchmark/pipeline";
 import type { StageDefinition } from "#benchmark/pipeline";
+import projectFormatted from "#benchmark/project-format";
+import {
+	HTTP_STATUS_BAD_REQUEST,
+	HTTP_STATUS_CONFLICT,
+	HTTP_STATUS_NOT_FOUND,
+} from "#server/http-status";
+
 import {
 	caseRubrics,
 	checkedPipeline,
 	declaredPipelineFile,
 	readDeclaredPipeline,
 } from "./pipelines";
-import { projectFormatted } from "#benchmark/project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** A pipeline file's top level, which the harness has already read as valid. */
 const WRITTEN_PIPELINE = z.record(z.string(), z.unknown());
 
 /** A pipeline case's steps as its pipeline file declares them. */
-export interface DeclaredSteps {
+interface DeclaredSteps {
 	readonly caseId: string;
 	/** The pipeline file, control-relative. */
 	readonly pipeline: string;
@@ -32,35 +40,46 @@ export interface DeclaredSteps {
 	readonly rubrics: readonly string[];
 }
 
-export class PipelineCaseRefusalError extends Error {
+class PipelineCaseRefusalError extends Error {
 	public override name = "PipelineCaseRefusalError";
 
 	public constructor(
 		message: string,
-		public readonly status: 400 | 404 | 409,
+		public readonly status:
+			| typeof HTTP_STATUS_BAD_REQUEST
+			| typeof HTTP_STATUS_NOT_FOUND
+			| typeof HTTP_STATUS_CONFLICT,
 	) {
 		super(message);
 	}
 }
 
-export async function pipelineCase(
+async function pipelineCase(
 	casesRoot: string,
 	caseId: string,
 ): Promise<PipelineCaseDeclaration> {
-	let declaration;
-	try {
-		declaration = await readCaseDeclaration(caseId, casesRoot);
-	} catch (error) {
-		if (!(error instanceof CaseDeclarationError)) {
-			throw error;
-		}
+	const readPipelineCaseDeclaration = async (): ReturnType<
+		typeof readCaseDeclaration
+	> => {
+		try {
+			return await readCaseDeclaration(caseId, casesRoot);
+		} catch (error) {
+			if (!(error instanceof CaseDeclarationError)) {
+				throw error;
+			}
 
-		throw new PipelineCaseRefusalError(`No case ${caseId} is declared`, 404);
-	}
+			throw new PipelineCaseRefusalError(
+				`No case ${caseId} is declared`,
+				HTTP_STATUS_NOT_FOUND,
+			);
+		}
+	};
+
+	const declaration = await readPipelineCaseDeclaration();
 	if (declaration.kind !== "pipeline") {
 		throw new PipelineCaseRefusalError(
 			`Case ${caseId} is a session case, which declares no steps`,
-			404,
+			HTTP_STATUS_NOT_FOUND,
 		);
 	}
 
@@ -68,8 +87,8 @@ export async function pipelineCase(
 }
 
 /** Reads through `read`, answering a pipeline the harness refuses with `status`. */
-export async function refusingAs<T>(
-	status: 400 | 409,
+async function refusingAs<T>(
+	status: typeof HTTP_STATUS_BAD_REQUEST | typeof HTTP_STATUS_CONFLICT,
 	read: () => Promise<T>,
 ): Promise<T> {
 	try {
@@ -97,21 +116,22 @@ async function stepsOf(
 			CONTROL_DIR,
 			caseRelative(declaration, declaration.pipeline),
 		),
-		stages,
 		rubrics: await caseRubrics(casesRoot, declaration),
+		stages,
 	};
 }
 
-export async function declaredSteps(
+async function declaredSteps(
 	casesRoot: string,
 	caseId: string,
 ): Promise<DeclaredSteps> {
 	const declaration = await pipelineCase(casesRoot, caseId);
-	const pipeline = await refusingAs(409, () =>
-		readDeclaredPipeline(casesRoot, declaration),
+	const pipeline = await refusingAs(
+		HTTP_STATUS_CONFLICT,
+		async () => await readDeclaredPipeline(casesRoot, declaration),
 	);
 
-	return stepsOf(casesRoot, declaration, pipeline.stages);
+	return await stepsOf(casesRoot, declaration, pipeline.stages);
 }
 
 /**
@@ -120,13 +140,16 @@ export async function declaredSteps(
  * old one, so a step the harness would refuse to run is refused here and the
  * file stays as it was. Recorded runs keep the steps their manifests froze.
  */
-export async function editDeclaredSteps(
+async function editDeclaredSteps(
 	casesRoot: string,
 	caseId: string,
 	stages: readonly StageDefinition[],
 ): Promise<DeclaredSteps> {
 	const declaration = await pipelineCase(casesRoot, caseId);
-	await refusingAs(409, () => readDeclaredPipeline(casesRoot, declaration));
+	await refusingAs(
+		HTTP_STATUS_CONFLICT,
+		async () => await readDeclaredPipeline(casesRoot, declaration),
+	);
 	const file = declaredPipelineFile(casesRoot, declaration);
 	// The rest of the file as written, not as parsed, so a default the parser
 	// fills in never reaches it.
@@ -139,13 +162,23 @@ export async function editDeclaredSteps(
 		// pipeline files are written.
 		JSON.stringify({ ...written, stages }, null, "\t"),
 	);
-	const edited = await refusingAs(400, () =>
-		checkedPipeline(casesRoot, declaration, text),
+	const edited = await refusingAs(
+		HTTP_STATUS_BAD_REQUEST,
+		async () => await checkedPipeline(casesRoot, declaration, text),
 	);
 
 	const staged = `${file}.editing`;
 	await writeFile(staged, text);
 	await rename(staged, file);
 
-	return stepsOf(casesRoot, declaration, edited.stages);
+	return await stepsOf(casesRoot, declaration, edited.stages);
 }
+
+export {
+	PipelineCaseRefusalError,
+	pipelineCase,
+	refusingAs,
+	declaredSteps,
+	editDeclaredSteps,
+};
+export type { DeclaredSteps };

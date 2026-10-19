@@ -1,0 +1,3 @@
+const RECORD_JSON_INDENT_SPACES = 2;
+
+export { RECORD_JSON_INDENT_SPACES as default };

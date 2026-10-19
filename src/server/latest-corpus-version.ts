@@ -4,14 +4,14 @@
  * another version or recorded none. When no run recorded a version, every run
  * is counted and the version is null.
  */
-export interface AtLatestCorpusVersion<Run> {
+interface AtLatestCorpusVersion<Run> {
 	readonly counted: readonly Run[];
 	readonly corpusVersion: string | null;
 	readonly leftOut: number;
 }
 
 /** `runs` is newest first, so the first digest found is the latest. */
-export function atLatestCorpusVersion<Run>(
+function atLatestCorpusVersion<Run>(
 	runs: readonly Run[],
 	digestOf: (run: Run) => string | undefined,
 ): AtLatestCorpusVersion<Run> {
@@ -19,14 +19,17 @@ export function atLatestCorpusVersion<Run>(
 		.map((run) => digestOf(run))
 		.find((digest) => digest !== undefined);
 	if (latest === undefined) {
-		return { counted: runs, corpusVersion: null, leftOut: 0 };
+		return { corpusVersion: null, counted: runs, leftOut: 0 };
 	}
 
 	const counted = runs.filter((run) => digestOf(run) === latest);
 
 	return {
-		counted,
 		corpusVersion: latest,
+		counted,
 		leftOut: runs.length - counted.length,
 	};
 }
+
+export { atLatestCorpusVersion as default };
+export type { AtLatestCorpusVersion };

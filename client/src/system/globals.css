@@ -148,7 +148,7 @@
 	}
 
 	::-webkit-scrollbar-thumb {
-		background-color: var(--scrollbar-thumb);
+		background-color: var(--color-scrollbar-thumb);
 		border-radius: var(--radius-button);
 		border: var(--scrollbar-thumb-border) solid var(--color-canvas);
 	}

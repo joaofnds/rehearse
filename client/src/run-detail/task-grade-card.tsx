@@ -3,28 +3,26 @@ import {
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
-import { EvidenceDialogLink } from "#client/evidence/evidence-dialog";
-import type { FinalAssessmentResponse } from "./investigation-query";
 import type { PipelineRowWithStaleness } from "#client/run-history/run-history-query";
-import { SectionLabel } from "#client/system/components/section-label";
-import { Status } from "#client/system/components/status";
-import { SummaryPanel } from "#client/system/components/summary-panel";
-import { StateBadge } from "#client/system/components/state-badge";
-
 import type { PipelineRow } from "#client/shell/run-in-flight";
+import SectionLabel from "#client/system/components/section-label";
+import { Status } from "#client/system/components/status";
+import SummaryPanel from "#client/system/components/summary-panel";
+
+import type { FinalAssessmentResponse } from "./investigation-query";
+import FinalAssessmentReadings from "./task-final-criteria";
+
+const LATEST_OTHER_RUN_INDEX = 0;
 
 type FinalOutcome = RunRecordResponse["finalOutcome"];
 
 type CorpusMeasurement = PipelineRowWithStaleness["corpusVersion"];
 
-export const NOT_RETURNED = "—";
+const NOT_RETURNED = "—";
 
-export const JUDGED_NOTE = "graded independently";
+const JUDGED_NOTE = "graded independently";
 
-const JUDGE_SCOPE =
-	"The task judge sees only what went in at step 1 and what came out of the last step. It does not read the intermediate steps, so it cannot grade a run that stopped early. Step grades below are unaffected.";
-
-export interface OutcomeReading {
+interface OutcomeReading {
 	readonly value: string;
 	readonly note: string;
 }
@@ -33,24 +31,24 @@ export interface OutcomeReading {
  * The final judge returns PASS or FAIL and no letter (decision-5), so the
  * value is its verdict or a dash with the reason it has none.
  */
-export function outcomeReading(outcome: FinalOutcome): OutcomeReading {
+function outcomeReading(outcome: FinalOutcome): OutcomeReading {
 	switch (outcome.status) {
 		case "JUDGED": {
-			return { value: outcome.verdict, note: JUDGED_NOTE };
+			return { note: JUDGED_NOTE, value: outcome.verdict };
 		}
 		case "JUDGING_FAILED": {
 			return {
-				value: NOT_RETURNED,
 				note: `judging failed · ${outcome.reason}`,
+				value: NOT_RETURNED,
 			};
 		}
 		case "NOT_REACHED": {
-			return { value: NOT_RETURNED, note: `not reached · ${outcome.reason}` };
+			return { note: `not reached · ${outcome.reason}`, value: NOT_RETURNED };
 		}
 		case "PENDING": {
 			return {
-				value: NOT_RETURNED,
 				note: `pending · the run is at ${outcome.stage}`,
+				value: NOT_RETURNED,
 			};
 		}
 		default: {
@@ -74,7 +72,7 @@ function isJudged(row: PipelineRow): row is JudgedRow {
 }
 
 /** The newest other run of the same case whose final judge returned a verdict. */
-export function lastTaskGrade(
+function lastTaskGrade(
 	row: PipelineRow,
 	rows: readonly PipelineRowWithStaleness[],
 ): JudgedRow | undefined {
@@ -86,7 +84,9 @@ export function lastTaskGrade(
 				other.run !== row.run &&
 				isJudged(other),
 		)
-		.toSorted((left, right) => right.run.localeCompare(left.run))[0];
+		.toSorted((left, right) => right.run.localeCompare(left.run))[
+		LATEST_OTHER_RUN_INDEX
+	];
 }
 
 function digestOf(measurement: CorpusMeasurement): string | undefined {
@@ -101,13 +101,12 @@ function corpusWords(measurement: CorpusMeasurement): string {
 		: corpusVersionLabel(digest);
 }
 
-function LastTaskGrade({
-	row,
-	last,
-}: {
+interface LastTaskGradeProps {
 	readonly row: PipelineRow;
 	readonly last: JudgedRow | undefined;
-}): React.JSX.Element {
+}
+
+function LastTaskGrade({ row, last }: LastTaskGradeProps): React.JSX.Element {
 	if (last === undefined) {
 		return (
 			<p className="mt-2 text-12 text-muted-foreground">
@@ -142,11 +141,11 @@ function LastTaskGrade({
  * Whether the last task grade still measures the corpus under test, as the
  * server judged its record for run history.
  */
-function StalenessReading({
-	last,
-}: {
+interface StalenessReadingProps {
 	readonly last: JudgedRow;
-}): React.JSX.Element {
+}
+
+function StalenessReading({ last }: StalenessReadingProps): React.JSX.Element {
 	const { staleness } = last;
 	const corpus = corpusWords(last.corpusVersion);
 	if (staleness.state === "unavailable") {
@@ -168,24 +167,8 @@ function StalenessReading({
 	);
 }
 
-function outcomeTone(value: string): "negative" | "positive" | "neutral" {
-	if (value === "FAIL") {
-		return "negative";
-	}
-	return value === "PASS" ? "positive" : "neutral";
-}
-
 /** SPEC.md 4c item 1: the outcome graded on its own, before any root cause. */
-export function TaskGradeCard({
-	row,
-	rows,
-	outcome,
-	assessment,
-	assessmentError,
-	assessmentLoading,
-	criteriaOpen,
-	onCriteriaOpenChange,
-}: {
+interface TaskGradeCardProps {
 	readonly row: PipelineRow;
 	readonly rows: readonly PipelineRowWithStaleness[];
 	readonly outcome: FinalOutcome;
@@ -194,134 +177,19 @@ export function TaskGradeCard({
 	readonly assessmentLoading: boolean;
 	readonly criteriaOpen: boolean;
 	readonly onCriteriaOpenChange: (open: boolean) => void;
-}): React.JSX.Element {
-	const { value, note } = outcomeReading(outcome);
-	const criteria =
-		assessment?.state === "available" ? assessment.requirements : [];
-	const failed = criteria.filter(({ status }) => status === "FAIL");
-	const passed = criteria.filter(({ status }) => status === "PASS");
-	const firstFinding = failed[0]?.evidence[0]?.claim;
-	const criterion = (
-		item: Readonly<(typeof criteria)[number]>,
-	): React.JSX.Element => (
-		<li
-			key={item.id}
-			className="min-w-0 rounded-md border border-divider p-3 text-14 wrap-anywhere"
-		>
-			<p className="font-medium">
-				{item.status} · {item.id}
-			</p>
-			{item.evidence.map((evidence, index) => (
-				<div key={index} className="mt-2">
-					<p>{evidence.claim}</p>
-					{evidence.quote === undefined ? null : (
-						<blockquote className="mt-2 border-l-2 border-accent-line pl-3 font-mono text-13 leading-transcript whitespace-pre-wrap wrap-anywhere">
-							{evidence.quote}
-						</blockquote>
-					)}
-					<EvidenceDialogLink
-						identity={{
-							kind: "final",
-							run: row.run,
-							item: item.id,
-							index: String(index),
-						}}
-					>
-						<span className="mt-1 inline-block text-12 text-link underline">
-							{evidence.place ?? `${evidence.path} · open cited source`}
-						</span>
-					</EvidenceDialogLink>
-				</div>
-			))}
-		</li>
-	);
-	let missingCriteria = "No final criteria were recorded.";
-	if (assessmentError) {
-		missingCriteria = "Could not read the saved final criteria.";
-	} else if (assessment?.state === "unavailable") {
-		missingCriteria = assessment.reason;
-	} else if (assessmentLoading) {
-		missingCriteria = "Reading saved final criteria…";
-	}
+}
 
+function TaskGradeCard(request: TaskGradeCardProps): React.JSX.Element {
+	const reading = outcomeReading(request.outcome);
 	return (
 		<SummaryPanel
 			id="task-grade-label"
 			title="Final outcome · independent task Judge"
-			className={value === "FAIL" ? "border-l-4 border-l-negative bg-card" : ""}
+			className={
+				reading.value === "FAIL" ? "border-l-4 border-l-negative bg-card" : ""
+			}
 		>
-			<div>
-				<div className="mt-2 flex flex-wrap items-baseline gap-3">
-					<StateBadge tone={outcomeTone(value)}>{value}</StateBadge>
-					<p className="text-12 text-dim">{note}</p>
-				</div>
-				{failed.length === 0 ? null : (
-					<>
-						<p className="mt-2 text-14">
-							{failed.length} of {criteria.length} final criteria failed ·{" "}
-							{failed.map(({ id }) => id).join(", ")}
-						</p>
-						{firstFinding === undefined ? null : (
-							<p className="mt-2 text-14 text-secondary-foreground">
-								{firstFinding}
-							</p>
-						)}
-						<details
-							id="final-criteria"
-							tabIndex={-1}
-							className="mt-3"
-							open={criteriaOpen}
-							onToggle={(event) => {
-								onCriteriaOpenChange(event.currentTarget.open);
-							}}
-						>
-							<summary className="cursor-pointer text-14 text-pale">
-								All {failed.length} failed criteria &amp; citations
-							</summary>
-							<ul
-								aria-label="Failed final criteria"
-								className="mt-3 grid gap-2"
-							>
-								{failed.map((item) => criterion(item))}
-							</ul>
-						</details>
-					</>
-				)}
-				<div className="mt-4 grid items-start gap-2 border-t border-divider pt-3 lg:grid-cols-3">
-					{assessment?.state === "available" &&
-					assessment.summary !== undefined ? (
-						<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
-							<summary className="cursor-pointer text-14 text-muted-foreground">
-								Full saved final Judge summary
-							</summary>
-							<p className="mt-2 text-14 leading-reading text-secondary-foreground">
-								{assessment.summary}
-							</p>
-						</details>
-					) : null}
-					{passed.length === 0 ? null : (
-						<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
-							<summary className="cursor-pointer text-14 text-muted-foreground">
-								{passed.length} passed final criteria
-							</summary>
-							<ul className="mt-2 grid gap-2">
-								{passed.map((item) => criterion(item))}
-							</ul>
-						</details>
-					)}
-					{outcome.status === "JUDGED" && criteria.length === 0 ? (
-						<p className="mt-2 text-14 text-attention">{missingCriteria}</p>
-					) : null}
-					<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
-						<summary className="cursor-pointer text-14 text-muted-foreground">
-							How final grading works
-						</summary>
-						<p className="mt-2 mb-3 max-w-prose text-14 leading-reading text-secondary-foreground">
-							{JUDGE_SCOPE}
-						</p>
-					</details>
-				</div>
-			</div>
+			<FinalAssessmentReadings request={request} reading={reading} />
 			<details className="mt-3 border-t border-divider pt-3">
 				<summary className="cursor-pointer text-14 text-muted-foreground">
 					Previous task result
@@ -330,9 +198,21 @@ export function TaskGradeCard({
 					<h2 id="last-task-grade-label">
 						<SectionLabel>Last task grade for this case</SectionLabel>
 					</h2>
-					<LastTaskGrade row={row} last={lastTaskGrade(row, rows)} />
+					<LastTaskGrade
+						row={request.row}
+						last={lastTaskGrade(request.row, request.rows)}
+					/>
 				</section>
 			</details>
 		</SummaryPanel>
 	);
 }
+
+export {
+	JUDGED_NOTE,
+	lastTaskGrade,
+	NOT_RETURNED,
+	outcomeReading,
+	TaskGradeCard,
+};
+export type { FinalOutcome, OutcomeReading, TaskGradeCardProps };

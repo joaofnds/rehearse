@@ -1,14 +1,19 @@
 import {
-	isStopped,
 	OPERATOR_STOPPED,
+	isStopped,
 	stoppedStageOf,
 } from "#benchmark/stopped-status";
 import type { RunListingResponse } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
-import { withinCase } from "#client/within-case";
+import withinCase from "#client/within-case";
+
+const MISSING_SEQUENCE_INDEX = -1;
+
+const ORDINAL_BASE = 1;
 
 type HistoryRow = RunListingResponse["rows"][number];
-export type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
+
+type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 /**
  * The share of a run's ceiling at which the operator hears that it is close.
@@ -18,9 +23,7 @@ export type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 const CEILING_APPROACHED_SHARE = 0.8;
 
 /** Pipeline runs in flight, newest first, which a run's timestamped id orders. */
-export function runsInFlight(
-	rows: readonly HistoryRow[],
-): readonly PipelineRow[] {
+function runsInFlight(rows: readonly HistoryRow[]): readonly PipelineRow[] {
 	return rows
 		.filter(
 			(row): row is PipelineRow =>
@@ -29,13 +32,13 @@ export function runsInFlight(
 		.toSorted((left, right) => right.run.localeCompare(left.run));
 }
 
-export interface Step {
+interface Step {
 	readonly number: number;
 	readonly of: number;
 }
 
 /** Where the stage now running sits in the run's pipeline, when both are known. */
-export function stepOf(row: PipelineRow): Step | undefined {
+function stepOf(row: PipelineRow): Step | undefined {
 	if (row.progress.state !== "running") {
 		return undefined;
 	}
@@ -52,13 +55,13 @@ function stepNamed(row: PipelineRow, stage: string): Step | undefined {
 		(grade) => grade.stage === stage,
 	);
 
-	return index === -1
+	return index === MISSING_SEQUENCE_INDEX
 		? undefined
-		: { number: index + 1, of: row.stageGrades.grades.length };
+		: { number: index + ORDINAL_BASE, of: row.stageGrades.grades.length };
 }
 
 /** The letters of the stages graded so far, in pipeline order. */
-export function gradesSoFar(row: PipelineRow): readonly string[] {
+function gradesSoFar(row: PipelineRow): readonly string[] {
 	if (row.stageGrades.state === "unavailable") {
 		return [];
 	}
@@ -69,12 +72,12 @@ export function gradesSoFar(row: PipelineRow): readonly string[] {
 }
 
 /** The run as the bar and its announcements name it. */
-export function nameOf(row: PipelineRow): string {
+function nameOf(row: PipelineRow): string {
 	return row.shortId ?? row.run;
 }
 
 /** The run as a reading that names its case beside it shows it. */
-export function nameWithinCase(row: PipelineRow): string {
+function nameWithinCase(row: PipelineRow): string {
 	return withinCase(nameOf(row), row.caseId);
 }
 
@@ -169,7 +172,7 @@ function approachedCeiling(row: PipelineRow): CeilingSpend | undefined {
 	}
 
 	return runSpentUsd >= ceilingUsd * CEILING_APPROACHED_SHARE
-		? { runSpentUsd, ceilingUsd }
+		? { ceilingUsd, runSpentUsd }
 		: undefined;
 }
 
@@ -194,7 +197,7 @@ function ceilingWords(
  * in flight are spoken of, so a page opened on finished history says nothing,
  * and a spend change with none of these says nothing either.
  */
-export function announcements(
+function announcements(
 	before: readonly HistoryRow[],
 	after: readonly HistoryRow[],
 ): readonly string[] {
@@ -223,7 +226,7 @@ export function announcements(
  * reading could not read taken from the earlier one, so the next reading is compared with
  * the last stages known rather than with none.
  */
-export function withGradesKnownBefore(
+function withGradesKnownBefore(
 	before: readonly HistoryRow[],
 	after: readonly HistoryRow[],
 ): readonly HistoryRow[] {
@@ -245,3 +248,14 @@ export function withGradesKnownBefore(
 			: { ...row, stageGrades };
 	});
 }
+
+export {
+	announcements,
+	gradesSoFar,
+	nameOf,
+	nameWithinCase,
+	runsInFlight,
+	stepOf,
+	withGradesKnownBefore,
+};
+export type { PipelineRow, Step };

@@ -1,14 +1,16 @@
-import type { CorpusRoot } from "./corpus-file";
 import type { ConfirmationConfig, StageSkillPresence } from "./config";
 import { projectConfirmationCost, runRequestedExecution } from "./confirmation";
+import type { CorpusRoot } from "./corpus-file";
 import type { ReplayRequest } from "./replay";
 import type { ReplayConfirmationRequest } from "./replay-confirmation";
 
-export type ReplayStageOutcome<DebugEvidence, ConfirmationEvidence> =
+const SINGLE_EXECUTION_REP_COUNT = 1;
+
+type ReplayStageOutcome<DebugEvidence, ConfirmationEvidence> =
 	| { readonly kind: "debug"; readonly evidence: DebugEvidence }
 	| { readonly kind: "confirmation"; readonly evidence: ConfirmationEvidence };
 
-export interface ReplayStageExecutionDependencies<
+interface ReplayStageExecutionDependencies<
 	DebugEvidence,
 	ConfirmationEvidence,
 > {
@@ -24,7 +26,7 @@ export interface ReplayStageExecutionDependencies<
 	readonly corpusRoots: readonly CorpusRoot[];
 }
 
-export function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
+async function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 	config: {
 		readonly confirmation?: ConfirmationConfig | undefined;
 		readonly stageSkill: StageSkillPresence;
@@ -37,38 +39,41 @@ export function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 ): Promise<ReplayStageOutcome<DebugEvidence, ConfirmationEvidence>> {
 	const { confirmation } = config;
 
-	return runRequestedExecution<
+	return await runRequestedExecution<
 		ReplayStageOutcome<DebugEvidence, ConfirmationEvidence>
 	>({
+		approval: dependencies.approval,
 		confirmation,
 		projectCost: () =>
 			projectConfirmationCost({
 				mode: "stage",
-				reps: confirmation?.reps ?? 1,
+				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: request.sessionBudgetUsd,
 			}),
-		approval: dependencies.approval,
-		runDebug: async () => ({
-			kind: "debug" as const,
-			evidence: await dependencies.runDebug(request),
-		}),
 		runConfirmed: async (projectedCost) => {
 			if (confirmation === undefined) {
 				throw new Error("Confirmation configuration is required");
 			}
 
 			return {
-				kind: "confirmation" as const,
 				evidence: await dependencies.runConfirmed({
 					...request,
-					groupId: dependencies.groupId(),
-					reps: confirmation.reps,
-					corpusRoots: dependencies.corpusRoots,
-					projectedCost,
 					approvalMethod: confirmation.approval,
+					corpusRoots: dependencies.corpusRoots,
+					groupId: dependencies.groupId(),
+					projectedCost,
+					reps: confirmation.reps,
 					stageSkill: config.stageSkill,
 				}),
+				kind: "confirmation" as const,
 			};
 		},
+		runDebug: async () => ({
+			evidence: await dependencies.runDebug(request),
+			kind: "debug" as const,
+		}),
 	});
 }
+
+export { executeReplayStage as default };
+export type { ReplayStageOutcome, ReplayStageExecutionDependencies };

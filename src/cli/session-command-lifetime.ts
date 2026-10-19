@@ -1,0 +1,66 @@
+import { randomUUID } from "node:crypto";
+
+import type { SessionRunConfig } from "#benchmark/config";
+import { operatorStopRecord } from "#benchmark/operator-stop";
+import { confirmationGroupPaths } from "#benchmark/run-layout";
+import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
+import type { CommandOutput } from "#cli/output";
+import { signalDiagnostics } from "#cli/output";
+import type { TerminalQuestioner } from "#cli/questioner";
+import terminalQuestioner from "#cli/questioner";
+
+import type { SessionRunExecutionDependencies } from "./run-command-contracts";
+
+interface SessionCommandLifetimeRequest {
+	readonly config: Pick<SessionRunConfig, "confirmation">;
+	readonly output: CommandOutput;
+	readonly runsDirectory: string;
+	readonly boundary: Pick<SessionRunExecutionDependencies, "stopOnSignal">;
+}
+class SessionCommandLifetime {
+	public readonly questioner: TerminalQuestioner;
+	public readonly groupId: string;
+	private readonly release: () => void;
+	public constructor({
+		config,
+		output,
+		runsDirectory,
+		boundary,
+	}: SessionCommandLifetimeRequest) {
+		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
+		this.groupId = randomUUID();
+		// A session attempt keeps no worktree, so the stop only kills its commands,
+		// and only a group has a directory to record the stop in.
+		this.release = (
+			boundary.stopOnSignal ??
+			((cleanUp, recordStop) =>
+				stopOnSignal(
+					processSignalStop(signalDiagnostics(output)),
+					cleanUp,
+					recordStop,
+				))
+		)(
+			async () => {
+				await Promise.resolve();
+			},
+			async (signal) => {
+				if (config.confirmation !== undefined) {
+					await Bun.write(
+						confirmationGroupPaths(runsDirectory, this.groupId)
+							.operatorStopFile,
+						operatorStopRecord(signal),
+					);
+				}
+			},
+		);
+	}
+	public readonly prompt = async (message: string): Promise<string> =>
+		await this.questioner.question(message);
+	public close(): void {
+		const { release } = this;
+
+		this.questioner.close();
+		release();
+	}
+}
+export { SessionCommandLifetime as default };

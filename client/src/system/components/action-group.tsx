@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
-import { cn } from "#client/system/cn";
 
-export function ActionGroup({
-	children,
-	className,
-}: {
+import cn from "#client/system/cn";
+
+interface ActionGroupProps {
 	readonly children: ReactNode;
 	readonly className?: string;
-}): React.JSX.Element {
+}
+
+function ActionGroup({
+	children,
+	className,
+}: ActionGroupProps): React.JSX.Element {
 	return (
 		<div
 			className={cn(
@@ -19,3 +22,5 @@ export function ActionGroup({
 		</div>
 	);
 }
+
+export { ActionGroup as default };

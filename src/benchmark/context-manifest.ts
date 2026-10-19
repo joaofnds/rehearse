@@ -1,6 +1,7 @@
 import { isAbsolute, relative } from "node:path";
-import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
+
 import type { Immutable } from "./contracts";
+import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { TranscriptLine } from "./transcript";
 import {
 	filesRead,
@@ -10,9 +11,11 @@ import {
 	toolUsesExceptFailed,
 } from "./transcript";
 
-export type ContextHalf = "corpus" | "project";
+const FINAL_OUTPUT_STYLE_OFFSET = -1;
 
-export interface ManifestEntry {
+type ContextHalf = "corpus" | "project";
+
+interface ManifestEntry {
 	readonly path: string;
 	readonly half: ContextHalf;
 }
@@ -22,11 +25,11 @@ export interface ManifestEntry {
  * bytes (doc-9 gap 2), so a manifest entry is a layout path and nothing a hash
  * could attach to.
  */
-export interface ContextManifest {
+interface ContextManifest {
 	readonly paths: readonly ManifestEntry[];
 }
 
-export type ManifestDivergence =
+type ManifestDivergence =
 	| {
 			readonly kind: "undeclared-file";
 			readonly path: string;
@@ -83,22 +86,19 @@ function readCorpusLayoutPath(
  * start, so a file beside them came from the repository or was written by
  * the session.
  */
-export interface CorpusReadRoots {
+interface CorpusReadRoots {
 	readonly sources: readonly string[];
 	readonly shadow: readonly string[];
 	readonly shadowed: readonly string[];
 }
 
 /** Whether `path` is a load of the corpus under `corpusRoots`. */
-export function isCorpusRead(
-	path: string,
-	corpusRoots: CorpusReadRoots,
-): boolean {
+function isCorpusRead(path: string, corpusRoots: CorpusReadRoots): boolean {
 	return readCorpusLayoutPath(path, corpusRoots) !== undefined;
 }
 
 /** The path relative to the first of `roots` it lies under, if any. */
-export function pathInsideAny(
+function pathInsideAny(
 	path: string,
 	roots: readonly string[],
 ): string | undefined {
@@ -147,7 +147,7 @@ function readProjectLayoutPath(
  * (doc-9 gap 1, AC#4).
  */
 function outputStyleLayoutPath(styles: readonly string[]): string | undefined {
-	const last = styles.at(-1);
+	const last = styles.at(FINAL_OUTPUT_STYLE_OFFSET);
 
 	return last === undefined ? undefined : `output-styles/${last}.md`;
 }
@@ -156,12 +156,12 @@ function entryKey(entry: ManifestEntry): string {
 	return `${entry.half}:${entry.path}`;
 }
 
-export function corpusEntries(paths: readonly string[]): ManifestEntry[] {
-	return paths.map((path) => ({ path, half: "corpus" as const }));
+function corpusEntries(paths: readonly string[]): ManifestEntry[] {
+	return paths.map((path) => ({ half: "corpus" as const, path }));
 }
 
-export function projectEntries(paths: readonly string[]): ManifestEntry[] {
-	return paths.map((path) => ({ path, half: "project" as const }));
+function projectEntries(paths: readonly string[]): ManifestEntry[] {
+	return paths.map((path) => ({ half: "project" as const, path }));
 }
 
 function dedupeEntries(
@@ -176,7 +176,7 @@ function dedupeEntries(
 }
 
 /** Every file path a transcript shows the session loading, as it was loaded. */
-export function loadedFiles(
+function loadedFiles(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly string[] {
 	return [
@@ -186,11 +186,11 @@ export function loadedFiles(
 	];
 }
 
-export function isCorpusLoad(path: string): boolean {
+function isCorpusLoad(path: string): boolean {
 	return readCorpusLayoutPath(path) !== undefined;
 }
 
-export function observedManifest(
+function observedManifest(
 	lines: Immutable<readonly TranscriptLine[]>,
 	declaredProjectFiles: readonly string[] = [],
 	corpusRoots?: CorpusReadRoots,
@@ -213,7 +213,7 @@ export function observedManifest(
 	return { paths: dedupeEntries(entries) };
 }
 
-export function reconcileManifest(
+function reconcileManifest(
 	manifest: Readonly<ContextManifest>,
 	declared: readonly ManifestEntry[],
 ): readonly ManifestDivergence[] {
@@ -223,18 +223,36 @@ export function reconcileManifest(
 	const undeclared: ManifestDivergence[] = manifest.paths
 		.filter((entry) => !declaredSet.has(entryKey(entry)))
 		.map((entry) => ({
+			half: entry.half,
 			kind: "undeclared-file",
 			path: entry.path,
-			half: entry.half,
 		}));
 
 	const unloaded: ManifestDivergence[] = declared
 		.filter((entry) => !observedSet.has(entryKey(entry)))
 		.map((entry) => ({
+			half: entry.half,
 			kind: "unloaded-file",
 			path: entry.path,
-			half: entry.half,
 		}));
 
 	return [...undeclared, ...unloaded];
 }
+
+export {
+	isCorpusRead,
+	pathInsideAny,
+	corpusEntries,
+	projectEntries,
+	loadedFiles,
+	isCorpusLoad,
+	observedManifest,
+	reconcileManifest,
+};
+export type {
+	ContextHalf,
+	ManifestEntry,
+	ContextManifest,
+	ManifestDivergence,
+	CorpusReadRoots,
+};

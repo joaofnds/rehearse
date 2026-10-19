@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+
 import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
+import { SHA256_HEX_CHARACTERS } from "#client/test-support/digest-widths";
+import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import type { ArmFileDiff } from "#server/comparison-arm-diff";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
-import { AttributionCard } from "./attribution-card";
+
+import AttributionCard from "./attribution-card";
 
 const originalFetch = globalThis.fetch;
 
@@ -14,7 +18,7 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-const DIGEST = "d".repeat(64);
+const DIGEST = "d".repeat(SHA256_HEX_CHARACTERS);
 const SKILL = "skills/shape/SKILL.md";
 
 const ATTRIBUTABLE: ComparisonAttribution = {
@@ -29,15 +33,15 @@ const DERIVED: ComparisonBaselineArm = {
 };
 
 const AFFORDABLE: MoreAttemptsCost = {
-	state: "available",
 	attemptsPerArm: 2,
+	state: "available",
 	usd: 9.28,
 };
 
 const OTHER_CASE_FILE: ArmFileDiff = {
-	path: "skills/other/SKILL.md",
 	baseline: { state: "available", text: "other\n" },
 	candidate: { state: "available", text: "other, revised\n" },
+	path: "skills/other/SKILL.md",
 };
 
 function stubArmDiff(files: readonly ArmFileDiff[]): void {
@@ -79,169 +83,214 @@ function card(): HTMLElement {
 }
 
 describe(AttributionCard.name, () => {
-	it("names the isolated corpus edit without claiming it caused an observed movement", () => {
-		renderCard();
+	it(
+		"names the isolated corpus edit without claiming it caused an observed movement",
+		namesTheIsolatedCorpusEditWithoutClaimingItCausedAnObservedMovement,
+	);
 
-		expect(card()).toHaveTextContent(
-			`The only recorded corpus difference between baseline and candidate is ${SKILL}. This isolates the corpus edit to one file; the repeated outcomes and their uncertainty determine what the comparison supports.`,
-		);
-	});
+	it(
+		"refuses the claim and lists the files when more than one differs",
+		refusesTheClaimAndListsTheFilesWhenMoreThanOneDiffers,
+	);
 
-	it("refuses the claim and lists the files when more than one differs", () => {
-		renderCard({
-			attribution: {
-				claim: "refused",
-				differingPaths: ["CLAUDE.md", SKILL],
-			},
-		});
+	it(
+		"says no file explains a movement when the arms ran identical corpora, and offers no diff",
+		saysNoFileExplainsAMovementWhenTheArmsRanIdenticalCorporaAndOffersNoDiff,
+	);
 
-		expect(card()).toHaveTextContent(
-			"2 files differ between baseline and candidate, so no movement between them is attributed to one file.",
-		);
-		expect(
-			within(card())
-				.getAllByRole("listitem")
-				.map((item) => item.textContent),
-		).toEqual(["CLAUDE.md", SKILL]);
-	});
+	it(
+		"offers more attempts in every arm with the cost on the button",
+		offersMoreAttemptsInEveryArmWithTheCostOnTheButton,
+	);
 
-	it("says no file explains a movement when the arms ran identical corpora, and offers no diff", () => {
-		renderCard({ attribution: { claim: "identical" } });
+	it(
+		"says why more attempts cannot be offered when their cost cannot be stated",
+		saysWhyMoreAttemptsCannotBeOfferedWhenTheirCostCannotBeStated,
+	);
 
-		expect(card()).toHaveTextContent(
-			"Baseline and candidate ran identical corpora, so no file explains a movement between them.",
-		);
-		expect(
-			screen.queryByRole("button", { name: "See the diff between arms" }),
-		).not.toBeInTheDocument();
-	});
-
-	it("offers more attempts in every arm with the cost on the button", () => {
-		renderCard();
-
-		expect(
-			within(card()).getByRole("button", {
-				name: "Add 2 attempts to each arm · ≈ $9.28",
-			}),
-		).toBeInTheDocument();
-	});
-
-	it("says why more attempts cannot be offered when their cost cannot be stated", () => {
-		renderCard({
-			moreAttempts: {
-				state: "unavailable",
-				reasons: ["rep-1 lacks worker.costUsd"],
-			},
-		});
-
-		expect(card()).toHaveTextContent(
-			"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd.",
-		);
-		expect(
-			screen.queryByRole("button", { name: /to each arm/u }),
-		).not.toBeInTheDocument();
-	});
-
-	it("says why a comparison whose author supplied the control arm cannot take more attempts", () => {
-		renderCard({ baselineArm: { kind: "supplied" } });
-
-		expect(card()).toHaveTextContent(
-			"More attempts cannot be added: this comparison was not made by compare attempts",
-		);
-		expect(
-			screen.queryByRole("button", { name: /to each arm/u }),
-		).not.toBeInTheDocument();
-	});
+	it(
+		"says why a comparison whose author supplied the control arm cannot take more attempts",
+		saysWhyAComparisonWhoseAuthorSuppliedTheControlArmCannotTakeMoreAttempts,
+	);
 
 	describe("see the diff between arms", () => {
-		it("shows each differing file's lines at baseline (before)'s version against candidate (after)'s", async () => {
-			stubArmDiff([
-				{
-					path: SKILL,
-					baseline: { state: "available", text: "keep\nold line\n" },
-					candidate: { state: "available", text: "keep\nnew line\n" },
-				},
-			]);
-			renderCard();
+		it(
+			"shows each differing file's lines at baseline (before)'s version against candidate (after)'s",
+			showsEachDifferingFileSLinesAtBaselineBeforeSVersionAgainstCandidateAfterS,
+		);
 
-			fireEvent.click(
-				screen.getByRole("button", { name: "See the diff between arms" }),
-			);
+		it("says which arm ran no such file", saysWhichArmRanNoSuchFile);
 
-			const changes = await screen.findByRole("list", {
-				name: `Changes to ${SKILL}`,
-			});
-			expect(
-				within(changes)
-					.getAllByRole("listitem")
-					.map((line) => line.textContent),
-			).toEqual(["1  keep", "2− old line", "2+ new line"]);
-			expect(
-				screen.queryByRole("list", {
-					name: `Changes to ${OTHER_CASE_FILE.path}`,
-				}),
-			).not.toBeInTheDocument();
-		});
+		it(
+			"says why an arm's text cannot be shown",
+			saysWhyAnArmSTextCannotBeShown,
+		);
 
-		it("says which arm ran no such file", async () => {
-			stubArmDiff([
-				{
-					path: "skills/shape/notes.md",
-					baseline: { state: "absent" },
-					candidate: { state: "available", text: "added\n" },
-				},
-			]);
-			renderCard();
-
-			fireEvent.click(
-				screen.getByRole("button", { name: "See the diff between arms" }),
-			);
-
-			expect(
-				await screen.findByText(
-					"Baseline (before) ran no skills/shape/notes.md.",
-				),
-			).toBeInTheDocument();
-		});
-
-		it("says why an arm's text cannot be shown", async () => {
-			stubArmDiff([
-				{
-					path: SKILL,
-					baseline: { state: "available", text: "old\n" },
-					candidate: {
-						state: "unavailable",
-						reasons: ["its frozen copy no longer matches"],
-					},
-				},
-			]);
-			renderCard();
-
-			fireEvent.click(
-				screen.getByRole("button", { name: "See the diff between arms" }),
-			);
-
-			expect(
-				await screen.findByText(
-					`Candidate (after)'s ${SKILL} cannot be shown: its frozen copy no longer matches.`,
-				),
-			).toBeInTheDocument();
-			expect(
-				screen.queryByRole("list", { name: `Changes to ${SKILL}` }),
-			).not.toBeInTheDocument();
-		});
-
-		it("says the diff could not be loaded when the request fails", async () => {
-			stubFetchByPath(new Map());
-			renderCard();
-
-			fireEvent.click(
-				screen.getByRole("button", { name: "See the diff between arms" }),
-			);
-
-			expect(await screen.findByRole("alert")).toHaveTextContent(
-				"The diff between arms could not be loaded.",
-			);
-		});
+		it(
+			"says the diff could not be loaded when the request fails",
+			saysTheDiffCouldNotBeLoadedWhenTheRequestFails,
+		);
 	});
 });
+
+function namesTheIsolatedCorpusEditWithoutClaimingItCausedAnObservedMovement(): void {
+	renderCard();
+
+	expect(card()).toHaveTextContent(
+		`The only recorded corpus difference between baseline and candidate is ${SKILL}. This isolates the corpus edit to one file; the repeated outcomes and their uncertainty determine what the comparison supports.`,
+	);
+}
+
+function refusesTheClaimAndListsTheFilesWhenMoreThanOneDiffers(): void {
+	renderCard({
+		attribution: {
+			claim: "refused",
+			differingPaths: ["CLAUDE.md", SKILL],
+		},
+	});
+
+	expect(card()).toHaveTextContent(
+		"2 files differ between baseline and candidate, so no movement between them is attributed to one file.",
+	);
+	expect(
+		within(card())
+			.getAllByRole("listitem")
+			.map((item) => item.textContent),
+	).toEqual(["CLAUDE.md", SKILL]);
+}
+
+function saysNoFileExplainsAMovementWhenTheArmsRanIdenticalCorporaAndOffersNoDiff(): void {
+	renderCard({ attribution: { claim: "identical" } });
+
+	expect(card()).toHaveTextContent(
+		"Baseline and candidate ran identical corpora, so no file explains a movement between them.",
+	);
+	expect(
+		screen.queryByRole("button", { name: "See the diff between arms" }),
+	).not.toBeInTheDocument();
+}
+
+function offersMoreAttemptsInEveryArmWithTheCostOnTheButton(): void {
+	renderCard();
+
+	expect(
+		within(card()).getByRole("button", {
+			name: "Add 2 attempts to each arm · ≈ $9.28",
+		}),
+	).toBeInTheDocument();
+}
+
+function saysWhyMoreAttemptsCannotBeOfferedWhenTheirCostCannotBeStated(): void {
+	renderCard({
+		moreAttempts: {
+			reasons: ["rep-1 lacks worker.costUsd"],
+			state: "unavailable",
+		},
+	});
+
+	expect(card()).toHaveTextContent(
+		"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd.",
+	);
+	expect(
+		screen.queryByRole("button", { name: /to each arm/u }),
+	).not.toBeInTheDocument();
+}
+
+function saysWhyAComparisonWhoseAuthorSuppliedTheControlArmCannotTakeMoreAttempts(): void {
+	renderCard({ baselineArm: { kind: "supplied" } });
+
+	expect(card()).toHaveTextContent(
+		"More attempts cannot be added: this comparison was not made by compare attempts",
+	);
+	expect(
+		screen.queryByRole("button", { name: /to each arm/u }),
+	).not.toBeInTheDocument();
+}
+
+async function showsEachDifferingFileSLinesAtBaselineBeforeSVersionAgainstCandidateAfterS(): Promise<void> {
+	stubArmDiff([
+		{
+			baseline: { state: "available", text: "keep\nold line\n" },
+			candidate: { state: "available", text: "keep\nnew line\n" },
+			path: SKILL,
+		},
+	]);
+	renderCard();
+
+	fireEvent.click(
+		screen.getByRole("button", { name: "See the diff between arms" }),
+	);
+
+	const changes = await screen.findByRole("list", {
+		name: `Changes to ${SKILL}`,
+	});
+	expect(
+		within(changes)
+			.getAllByRole("listitem")
+			.map((line) => line.textContent),
+	).toEqual(["1  keep", "2− old line", "2+ new line"]);
+	expect(
+		screen.queryByRole("list", {
+			name: `Changes to ${OTHER_CASE_FILE.path}`,
+		}),
+	).not.toBeInTheDocument();
+}
+
+async function saysWhichArmRanNoSuchFile(): Promise<void> {
+	stubArmDiff([
+		{
+			baseline: { state: "absent" },
+			candidate: { state: "available", text: "added\n" },
+			path: "skills/shape/notes.md",
+		},
+	]);
+	renderCard();
+
+	fireEvent.click(
+		screen.getByRole("button", { name: "See the diff between arms" }),
+	);
+
+	expect(
+		await screen.findByText("Baseline (before) ran no skills/shape/notes.md."),
+	).toBeInTheDocument();
+}
+
+async function saysWhyAnArmSTextCannotBeShown(): Promise<void> {
+	stubArmDiff([
+		{
+			baseline: { state: "available", text: "old\n" },
+			candidate: {
+				reasons: ["its frozen copy no longer matches"],
+				state: "unavailable",
+			},
+			path: SKILL,
+		},
+	]);
+	renderCard();
+
+	fireEvent.click(
+		screen.getByRole("button", { name: "See the diff between arms" }),
+	);
+
+	expect(
+		await screen.findByText(
+			`Candidate (after)'s ${SKILL} cannot be shown: its frozen copy no longer matches.`,
+		),
+	).toBeInTheDocument();
+	expect(
+		screen.queryByRole("list", { name: `Changes to ${SKILL}` }),
+	).not.toBeInTheDocument();
+}
+
+async function saysTheDiffCouldNotBeLoadedWhenTheRequestFails(): Promise<void> {
+	stubFetchByPath(new Map());
+	renderCard();
+
+	fireEvent.click(
+		screen.getByRole("button", { name: "See the diff between arms" }),
+	);
+
+	expect(await screen.findByRole("alert")).toHaveTextContent(
+		"The diff between arms could not be loaded.",
+	);
+}

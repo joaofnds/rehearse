@@ -1,23 +1,27 @@
 import { describe, expect, it } from "bun:test";
+
 import { z } from "zod";
+
 import { costFromRate } from "#benchmark/context-evidence-contract";
 import { committedRateCatalog, rateFor } from "#benchmark/rate-catalog";
 
+const COST_DRIFT_TOLERANCE_USD = 1e-12;
+
 const recordedAttemptSchema = z.object({
-	attemptPath: z.string().min(1),
-	transcriptModel: z.string().min(1),
-	recordModelLabel: z.string().min(1),
-	inputTokens: z.number().int().nonnegative(),
-	outputTokens: z.number().int().nonnegative(),
+	attemptPath: z.string().nonempty(),
 	cacheReadTokens: z.number().int().nonnegative(),
 	cacheWrite1hTokens: z.number().int().nonnegative(),
+	inputTokens: z.number().int().nonnegative(),
+	outputTokens: z.number().int().nonnegative(),
+	recordModelLabel: z.string().nonempty(),
 	recordedCostUsd: z.number().nonnegative(),
+	transcriptModel: z.string().nonempty(),
 });
 
 const recordedCostsSchema = z.object({
-	measuredOn: z.string().min(1),
-	note: z.string().min(1),
 	attempts: z.array(recordedAttemptSchema).nonempty(),
+	measuredOn: z.string().nonempty(),
+	note: z.string().nonempty(),
 });
 
 async function recordedAttempts(): Promise<
@@ -32,8 +36,8 @@ async function recordedAttempts(): Promise<
 	return parsed.attempts;
 }
 
-describe("committedRateCatalog", () => {
-	it("re-derives every recorded attempt cost from the catalogued rates", async () => {
+const committedRateCatalogRederivesEveryRecordedAttemptCostFromTheCataloguedRates =
+	async (): Promise<void> => {
 		const attempts = await recordedAttempts();
 
 		const drifted = attempts.filter((attempt) => {
@@ -43,22 +47,25 @@ describe("committedRateCatalog", () => {
 			}
 			const derived = costFromRate(
 				{
+					cacheReadTokens: attempt.cacheReadTokens,
+					cacheWrite1hTokens: attempt.cacheWrite1hTokens,
+					cacheWrite5mTokens: 0,
 					inputTokens: attempt.inputTokens,
 					outputTokens: attempt.outputTokens,
-					cacheReadTokens: attempt.cacheReadTokens,
-					cacheWrite5mTokens: 0,
-					cacheWrite1hTokens: attempt.cacheWrite1hTokens,
 				},
 				rate,
 			);
 
-			return Math.abs(derived - attempt.recordedCostUsd) > 1e-12;
+			return (
+				Math.abs(derived - attempt.recordedCostUsd) > COST_DRIFT_TOLERANCE_USD
+			);
 		});
 
 		expect(drifted.map((attempt) => attempt.attemptPath)).toEqual([]);
-	});
+	};
 
-	it("keys its rates on the transcript model string rather than the record's label", async () => {
+const committedRateCatalogKeysItsRatesOnTheTranscriptModelStringRatherThanTheRecordsLabel =
+	async (): Promise<void> => {
 		const attempts = await recordedAttempts();
 
 		const labels = [
@@ -70,24 +77,44 @@ describe("committedRateCatalog", () => {
 		for (const label of labels) {
 			expect(rateFor(committedRateCatalog, label)).toBeUndefined();
 		}
-	});
+	};
 
-	it("names a source that no category contradicts", () => {
-		const provenances = new Set(Object.values(committedRateCatalog.provenance));
+const committedRateCatalogNamesASourceThatNoCategoryContradicts = (): void => {
+	const provenances = new Set(Object.values(committedRateCatalog.provenance));
 
-		expect(provenances.has("publication-backed")).toBe(false);
-		expect(committedRateCatalog.source).toBe(
-			"corpus-fit-with-tier-inferred-5m",
-		);
-	});
+	expect(provenances.has("publication-backed")).toBe(false);
+	expect(committedRateCatalog.source).toBe("corpus-fit-with-tier-inferred-5m");
+};
 
-	it("marks the 5m cache-write rate as inferred and the rest as corpus-measured", () => {
+const committedRateCatalogMarksThe5mCachewriteRateAsInferredAndTheRestAsCorpusmeasured =
+	(): void => {
 		expect(committedRateCatalog.provenance).toEqual({
-			inputUsdPerMillion: "corpus-measured",
-			outputUsdPerMillion: "corpus-measured",
 			cacheReadUsdPerMillion: "corpus-measured",
 			cacheWrite1hUsdPerMillion: "corpus-measured",
 			cacheWrite5mUsdPerMillion: "tier-inferred",
+			inputUsdPerMillion: "corpus-measured",
+			outputUsdPerMillion: "corpus-measured",
 		});
-	});
+	};
+
+describe("committedRateCatalog", () => {
+	it(
+		"re-derives every recorded attempt cost from the catalogued rates",
+		committedRateCatalogRederivesEveryRecordedAttemptCostFromTheCataloguedRates,
+	);
+
+	it(
+		"keys its rates on the transcript model string rather than the record's label",
+		committedRateCatalogKeysItsRatesOnTheTranscriptModelStringRatherThanTheRecordsLabel,
+	);
+
+	it(
+		"names a source that no category contradicts",
+		committedRateCatalogNamesASourceThatNoCategoryContradicts,
+	);
+
+	it(
+		"marks the 5m cache-write rate as inferred and the rest as corpus-measured",
+		committedRateCatalogMarksThe5mCachewriteRateAsInferredAndTheRestAsCorpusmeasured,
+	);
 });

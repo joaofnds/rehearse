@@ -1,107 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { corpusVersionLabel } from "#benchmark/corpus-version-label";
-import { corpusQuery } from "#client/corpus/corpus-query";
-import type { SettingsReading } from "#client/launch/settings-query";
+import { useQuery } from "@tanstack/react-query";
+
 import { launchSettingsQuery } from "#client/launch/settings-query";
-import { runHistoryQuery } from "#client/run-history/run-history-query";
-import { Button } from "#client/system/ui/button";
-import { SettingsCard } from "./settings-card";
+
 import {
-	linkCorpusDirectory,
-	rehashCorpus,
-	unlinkCorpusDirectory,
-} from "./settings-requests";
+	CorpusDirectoryForm,
+	CorpusLinkActions,
+} from "./corpus-settings-controls";
+import VersionLabel, { CorpusSettingsOutcome } from "./corpus-settings-reading";
+import SettingsCard from "./settings-card";
+import useCorpusSettings from "./use-corpus-settings";
 
-/**
- * The label the corpus screen shows for the corpus under test, once the
- * corpus read is of the root linked now rather than the one linked before.
- */
-function VersionLabel({
-	root,
-}: Readonly<{ root: string }>): React.JSX.Element | null {
-	const corpus = useQuery(corpusQuery);
-	if (corpus.isError) {
-		return (
-			<span className="text-attention">
-				<span aria-hidden="true">⚠ </span>
-				corpus unreadable
-			</span>
-		);
-	}
-
-	if (corpus.data?.root !== root) {
-		return null;
-	}
-
-	return (
-		<span
-			className={
-				corpus.data.digest === undefined ? "text-attention" : "text-pale"
-			}
-		>
-			{corpus.data.digest === undefined ? (
-				<>
-					<span aria-hidden="true">⚠ </span>
-					digest withheld
-				</>
-			) : (
-				corpusVersionLabel(corpus.data.digest)
-			)}
-		</span>
-	);
-}
-
-type Outcome =
-	| { readonly kind: "none" }
-	| { readonly kind: "rehashed"; readonly label: string }
-	| { readonly kind: "refused"; readonly reason: string };
-
-export function CorpusSettingsCard(): React.JSX.Element {
+function CorpusSettingsCard(): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
-	const queryClient = useQueryClient();
-	const [directory, setDirectory] = useState("");
-	const [outcome, setOutcome] = useState<Outcome>({ kind: "none" });
-
-	/** The run history reads each run's staleness against the linked corpus. */
-	async function showLinkedCorpus(reading: SettingsReading): Promise<void> {
-		queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
-		setOutcome({ kind: "none" });
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey }),
-			queryClient.invalidateQueries({ queryKey: runHistoryQuery.queryKey }),
-		]);
-	}
-
-	function refused(error: Readonly<Error>): void {
-		setOutcome({ kind: "refused", reason: error.message });
-	}
-
-	const link = useMutation({
-		mutationFn: linkCorpusDirectory,
-		onSuccess: async (reading) => {
-			setDirectory("");
-			await showLinkedCorpus(reading);
-		},
-		onError: refused,
-	});
-	const unlink = useMutation({
-		mutationFn: unlinkCorpusDirectory,
-		onSuccess: showLinkedCorpus,
-		onError: refused,
-	});
-	const rehash = useMutation({
-		mutationFn: rehashCorpus,
-		onSuccess: (label) => {
-			setOutcome({ kind: "rehashed", label });
-		},
-		onError: refused,
-		onSettled: async () => {
-			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
-		},
-	});
-	const writing = link.isPending || unlink.isPending || rehash.isPending;
-
+	const { directory, setDirectory, outcome, writing, link, unlink, rehash } =
+		useCorpusSettings();
 	return (
 		<SettingsCard title="Corpus">
 			{settings.isError ? (
@@ -118,66 +30,27 @@ export function CorpusSettingsCard(): React.JSX.Element {
 					<VersionLabel root={settings.data.linkedCorpus.root} />
 				</div>
 			)}
-			<div className="mt-3 flex min-w-0 flex-wrap gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={writing}
-					onClick={() => {
-						rehash.mutate();
-					}}
-				>
-					Rehash now
-				</Button>
-				{settings.data?.linkedCorpus.kind === "directory" ? (
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={writing}
-						onClick={() => {
-							unlink.mutate();
-						}}
-					>
-						Unlink corpus
-					</Button>
-				) : null}
-			</div>
-			<form
-				className="mt-3 flex items-center gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					link.mutate(directory);
+			<CorpusLinkActions
+				writing={writing}
+				linked={settings.data?.linkedCorpus.kind === "directory"}
+				onRehash={() => {
+					rehash.mutate();
 				}}
-			>
-				<input
-					value={directory}
-					aria-label="Corpus directory to link"
-					placeholder="an absolute path, or one starting with ~/"
-					onChange={(event) => {
-						setDirectory(event.target.value);
-					}}
-					className="min-h-touch-target min-w-0 flex-1 rounded-md border border-strong bg-background px-3 py-2 font-mono text-14"
-				/>
-				<Button
-					type="submit"
-					variant="outline"
-					size="sm"
-					disabled={directory === "" || writing}
-				>
-					Link
-				</Button>
-			</form>
-			{outcome.kind === "rehashed" ? (
-				<p className="mt-1.5 font-mono text-12 text-pale">
-					{`Rehashed as ${outcome.label}`}
-				</p>
-			) : null}
-			{outcome.kind === "refused" ? (
-				<p role="alert" className="mt-1.5 text-12 text-attention">
-					<span aria-hidden="true">⚠ </span>
-					{outcome.reason}
-				</p>
-			) : null}
+				onUnlink={() => {
+					unlink.mutate();
+				}}
+			/>
+			<CorpusDirectoryForm
+				directory={directory}
+				setDirectory={setDirectory}
+				writing={writing}
+				onLink={(value) => {
+					link.mutate(value);
+				}}
+			/>
+			<CorpusSettingsOutcome outcome={outcome} />
 		</SettingsCard>
 	);
 }
+
+export { CorpusSettingsCard as default };

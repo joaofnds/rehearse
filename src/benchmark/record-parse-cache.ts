@@ -1,81 +1,162 @@
-import type { z } from "zod";
-import type { Immutable } from "./contracts";
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import { z } from "zod";
+
+import type { Immutable } from "./contracts";
+
+const DEFAULT_CACHE_BYTES = 67_108_864;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const INITIAL_PARSER_ID = 0;
+
+const EMPTY_CACHE_BYTES = 0;
+
+const MAX_CACHE_ENTRIES = 2048;
+
 interface ParsedRecord {
-	readonly value: unknown;
 	readonly bytes: number;
+	readonly evict: () => void;
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- recursively visit a schema-validated JSON tree, not an input boundary
-function freezeRecord(value: unknown): void {
-	// oxlint-disable-next-line anti-slop/no-runtime-typeof -- traverse an already validated JSON tree to freeze its objects
-	if (value === null || typeof value !== "object") {
-		return;
+function freezeRecord<Value>(
+	value: Value,
+): asserts value is Value & Immutable<Value> {
+	const pending: unknown[] = [value];
+	const visited = new Set<unknown>();
+	while (pending.length > EMPTY_COLLECTION_LENGTH) {
+		const current = pending.pop();
+		if (
+			current !== null &&
+			current !== undefined &&
+			!visited.has(current) &&
+			(current instanceof Object || Object.getPrototypeOf(current) === null)
+		) {
+			visited.add(current);
+			for (const child of Object.values(Object.freeze(current))) {
+				pending.push(child);
+			}
+		}
 	}
-
-	for (const child of Object.values(value)) {
-		freezeRecord(child);
-	}
-	Object.freeze(value);
 }
 
 function parseImmutable<Value>(
-	schema: z.ZodType<Value>,
+	schema: z.ZodType<Value> & z.ZodType<Immutable<Value>>,
 	text: string,
-): Immutable<Value> {
+): Value & Immutable<Value> {
 	const value = schema.parse(JSON.parse(text));
+
 	freezeRecord(value);
-	// SAFETY: freezeRecord recursively freezes the parsed JSON tree.
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime freezing supplies the immutable contract
-	return value as Immutable<Value>;
+
+	return value;
+}
+
+interface ParsedRecordValues<Value> {
+	readonly get: (key: string) => { readonly value: Value } | undefined;
+	readonly set: (key: string, value: { readonly value: Value }) => void;
+	readonly delete: (key: string) => void;
+}
+
+interface ParserCache<Value> {
+	readonly parserId: number;
+	readonly values: ParsedRecordValues<Value>;
+}
+
+interface ParsedRecordWrite<Value> {
+	readonly key: string;
+	readonly text: string;
+	readonly value: Value & Immutable<Value>;
+	readonly values: ParsedRecordValues<Value & Immutable<Value>>;
 }
 
 /** Reuse validated bytes, never a path or a freshness judgment. */
-export class RecordParseCache {
+class RecordParseCache {
 	private readonly entries = new Map<string, ParsedRecord>();
-	private readonly parsers = new WeakMap<object, number>();
-	private nextParser = 0;
-	private bytes = 0;
+	private readonly parsers = z.registry<ParserCache<z.$output>>();
+	private nextParser = INITIAL_PARSER_ID;
+	private bytes = EMPTY_CACHE_BYTES;
 
-	public constructor(private readonly maximumBytes = 64 * 1024 * 1024) {}
+	public constructor(private readonly maximumBytes = DEFAULT_CACHE_BYTES) {}
 
+	// Keep the schema's output and its deeply readonly view associated in the registry.
 	public parse<Value>(
-		schema: z.ZodType<Value>,
+		schema: z.ZodType<Value> & z.ZodType<Immutable<Value>>,
 		text: string,
 	): Immutable<Value> {
-		let parser = this.parsers.get(schema);
-		if (parser === undefined) {
-			parser = this.nextParser;
-			this.nextParser += 1;
-			this.parsers.set(schema, parser);
-		}
-		const key = `${String(parser)}:${new Bun.CryptoHasher("sha256").update(text).digest("hex")}`;
-		const cached = this.entries.get(key);
-		if (cached !== undefined) {
-			this.entries.delete(key);
-			this.entries.set(key, cached);
-			// SAFETY: the key identifies this exact parser and the SHA-256 of its input bytes.
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- schema identity preserves the cached output type
-			return cached.value as Immutable<Value>;
+		const parser = this.parserFor<Value>(schema);
+		const key = `${String(parser.parserId)}:${new Bun.CryptoHasher("sha256").update(text).digest("hex")}`;
+		const cached = parser.values.get(key);
+		if (cached !== undefined && this.promote(key)) {
+			return cached.value;
 		}
 
-		const value = parseImmutable(schema, text);
-		const bytes = Buffer.byteLength(text);
-		if (bytes <= this.maximumBytes) {
-			this.entries.set(key, { value, bytes });
-			this.bytes += bytes;
-			while (this.bytes > this.maximumBytes || this.entries.size > 2048) {
-				const oldest = this.entries.entries().next().value;
-				if (oldest === undefined) {
-					break;
-				}
-				this.entries.delete(oldest[0]);
-				this.bytes -= oldest[1].bytes;
-			}
-		}
+		const value = parseImmutable<Value>(schema, text);
+
+		this.remember<Value>({ key, text, value, values: parser.values });
 
 		return value;
+	}
+	private parserFor<Value>(
+		schema: z.ZodType<Value> & z.ZodType<Immutable<Value>>,
+	): ParserCache<Value & Immutable<Value>> {
+		// Registry metadata normally inherits across schema clones; cache ownership does not.
+		let parser = this.parsers.has(schema)
+			? this.parsers.get(schema)
+			: undefined;
+		if (parser === undefined) {
+			parser = { parserId: this.nextParser, values: new Map() };
+			this.nextParser += 1;
+			this.parsers.add(schema, parser);
+		}
+
+		return parser;
+	}
+	private promote(key: string): boolean {
+		const entry = this.entries.get(key);
+		if (entry === undefined) {
+			return false;
+		}
+
+		this.entries.delete(key);
+		this.entries.set(key, entry);
+
+		return true;
+	}
+	private remember<Value>({
+		key,
+		text,
+		value,
+		values,
+	}: ParsedRecordWrite<Value>): void {
+		const bytes = Buffer.byteLength(text);
+		if (bytes <= this.maximumBytes) {
+			values.set(key, { value });
+			this.entries.set(key, {
+				bytes,
+				evict: () => {
+					values.delete(key);
+				},
+			});
+			this.bytes += bytes;
+			this.evictOverBudget();
+		}
+	}
+	private evictOverBudget(): void {
+		while (
+			this.bytes > this.maximumBytes ||
+			this.entries.size > MAX_CACHE_ENTRIES
+		) {
+			const oldest = this.entries.entries().next().value;
+			if (oldest === undefined) {
+				break;
+			}
+
+			const [cacheKey, entry] = oldest;
+
+			this.entries.delete(cacheKey);
+			this.bytes -= entry.bytes;
+			entry.evict();
+		}
 	}
 }
 
@@ -83,19 +164,21 @@ const cache = new AsyncLocalStorage<
 	Readonly<Pick<RecordParseCache, "parse">>
 >();
 
-export function withRecordParseCache<Value>(
+async function withRecordParseCache<Value>(
 	owner: Readonly<Pick<RecordParseCache, "parse">>,
 	read: () => Promise<Value>,
 ): Promise<Value> {
-	return cache.run(owner, read);
+	return await cache.run(owner, read);
 }
 
-export function parseRecord<Value>(
-	schema: z.ZodType<Value>,
+function parseRecord<Value>(
+	schema: z.ZodType<Value> & z.ZodType<Immutable<Value>>,
 	text: string,
 ): Immutable<Value> {
 	const owner = cache.getStore();
 	return owner === undefined
-		? parseImmutable(schema, text)
-		: owner.parse(schema, text);
+		? parseImmutable<Value>(schema, text)
+		: owner.parse<Value>(schema, text);
 }
+
+export { RecordParseCache, withRecordParseCache, parseRecord };

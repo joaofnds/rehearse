@@ -1,25 +1,43 @@
 import { CONTROL_DIR } from "#benchmark/config";
+import type { SignalStopDiagnostics } from "#benchmark/stop-on-signal";
 
-export interface CommandOutput {
+interface CommandOutput {
 	readonly stdout: (text: string) => void;
 	readonly stderr: (text: string) => void;
+	readonly flush?: (() => Promise<void>) | undefined;
 }
 
-export const processOutput: CommandOutput = {
-	stdout: (text) => {
-		process.stdout.write(text);
-	},
-	stderr: (text) => {
-		process.stderr.write(text);
-	},
-};
+async function writeStderrAfter(
+	previous: Promise<void>,
+	text: string,
+): Promise<void> {
+	await previous;
+	await Bun.write(Bun.stderr, text);
+}
+
+function processCommandOutput(): CommandOutput {
+	let pendingWrites = Promise.resolve();
+	return {
+		flush: async () => {
+			await pendingWrites;
+		},
+		stderr: (text) => {
+			pendingWrites = writeStderrAfter(pendingWrites, text);
+		},
+		stdout: (text) => {
+			process.stdout.write(text);
+		},
+	};
+}
+
+const processOutput = processCommandOutput();
 
 /**
  * The only thing stdout carries: the strict record a command wrote, or the
  * path to it. Every command answers `--json` the same way, so the rule lives
  * here rather than at each command's last line.
  */
-export async function writeRecord(
+async function writeRecord(
 	output: CommandOutput,
 	recordFile: string,
 	json: boolean,
@@ -32,18 +50,22 @@ export async function writeRecord(
  * pipeline's own functions take one rather than printing, so a caller reading
  * stdout for the record never has to separate it from the progress beside it.
  */
-export function diagnosticWriter(
-	output: CommandOutput,
-): (message: string) => void {
+function diagnosticWriter(output: CommandOutput): (message: string) => void {
 	return (message) => {
 		output.stderr(`${message}\n`);
 	};
 }
 
-export function writeDiagnostic(
-	output: CommandOutput,
-	message: string | undefined,
-): void {
+function signalDiagnostics(output: CommandOutput): SignalStopDiagnostics {
+	return {
+		flush: async () => {
+			await output.flush?.();
+		},
+		log: diagnosticWriter(output),
+	};
+}
+
+function writeDiagnostic(output: CommandOutput, message?: string): void {
 	if (message === undefined) {
 		return;
 	}
@@ -58,7 +80,7 @@ export function writeDiagnostic(
  * these rather than throwing, because one half-written record must not hide
  * the ones beside it.
  */
-export interface UnreadableRecord {
+interface UnreadableRecord {
 	readonly id: string;
 	readonly reason: string;
 }
@@ -69,7 +91,7 @@ export interface UnreadableRecord {
  * under the control root that discloses the home directory while naming the
  * same file the control-relative path names.
  */
-export function controlRelative(reason: string): string {
+function controlRelative(reason: string): string {
 	return reason.replaceAll(`${CONTROL_DIR}/`, "");
 }
 
@@ -78,7 +100,7 @@ export function controlRelative(reason: string): string {
  * that did read. Every command that reads more than one record answers this
  * the same way, so the rule lives here rather than at each command's own loop.
  */
-export function writeUnreadable(
+function writeUnreadable(
 	output: CommandOutput,
 	unreadable: readonly UnreadableRecord[],
 ): void {
@@ -86,3 +108,14 @@ export function writeUnreadable(
 		output.stderr(`${id}: ${reason}\n`);
 	}
 }
+
+export {
+	controlRelative,
+	diagnosticWriter,
+	processOutput,
+	signalDiagnostics,
+	writeDiagnostic,
+	writeRecord,
+	writeUnreadable,
+};
+export type { CommandOutput, UnreadableRecord };

@@ -1,25 +1,20 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { describe, expect, it } from "bun:test";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { parseReplayArgs, recordsDirectory } from "#benchmark/config";
-import { corpusLayoutRoots } from "#benchmark/checkpoint";
-import { RefusedPreconditionError } from "#cli/interactive-stdin";
-import { benchmarkRunPaths } from "#benchmark/run-layout";
-import { failureOf, recordOutput } from "#cli/cli-test-support";
-import { writeReplayableRunManifest } from "#cli/replay-test-support";
-import type { ReplayCliConfig } from "#benchmark/config";
+
 import {
-	executeReplay,
-	replayCorpus,
-	replayCorpusRoots,
-	replayDeclaredTarget,
-	replaySettingsFile,
-	runReplayCommand,
-} from "#cli/replay-command";
-import { CorpusConfigurationError } from "#benchmark/corpus-file";
-import { DEFAULT_STAGE_SETTINGS_FILE } from "#benchmark/stage-settings";
-import { loadCase } from "#benchmark/case";
+	CliTestWorkspace,
+	failureOf,
+	recordOutput,
+} from "#cli/cli-test-support";
+import { RefusedPreconditionError } from "#cli/interactive-stdin";
+import { runReplayCommand } from "#cli/replay-command";
+import writeReplayableRunManifest from "#cli/replay-test-support";
+import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
+
+const workspace = CliTestWorkspace.forEachTest();
+
+const STORED_SPEND_CEILING_USD = 100;
 
 const sessionArgs = [
 	"--model",
@@ -30,414 +25,223 @@ const sessionArgs = [
 	"1",
 ];
 
-const passingProbe = (): Promise<void> => Promise.resolve();
-const storedCeiling = (): Promise<number> => Promise.resolve(100);
+const passingProbe = async (): Promise<void> => {
+	await Promise.resolve();
+};
 
-/**
- * Replay now reads the run's own manifest to find the case it replayed, so a
- * test claiming a run named "any-name" resolved must leave a real manifest at
- * the path replay computes for it, not just a Fake resolveRunDirectory.
- */
-function replayConfigFor(runName: string, corpus: string): ReplayCliConfig {
-	return parseReplayArgs([
-		"--run",
-		runName,
-		"--stage",
-		"shape",
-		"--corpus",
-		corpus,
-		...sessionArgs,
-	]);
-}
+const storedCeiling = async (): Promise<number> =>
+	await Promise.resolve(STORED_SPEND_CEILING_USD);
 
-describe(runReplayCommand.name, () => {
-	const temporaryDirectories: string[] = [];
+async function refusesAConfirmationWithoutYesBeforeResolvingTheRun(): Promise<void> {
+	const resolved: string[] = [];
+	const { output, stdout, stderr } = recordOutput();
 
-	afterEach(async () => {
-		await Promise.all(
-			temporaryDirectories
-				.splice(0)
-				.map((directory) => rm(directory, { force: true, recursive: true })),
-		);
-	});
-
-	it("refuses a confirmation without --yes before resolving the run, when stdin is not a terminal", async () => {
-		const resolved: string[] = [];
-		const { output, stdout, stderr } = recordOutput();
-
-		const failure = await failureOf(
-			runReplayCommand(
-				{
-					args: [
-						"--run",
-						"any-name",
-						"--stage",
-						"shape",
-						...sessionArgs,
-						"--confirm",
-					],
-					json: false,
-					stdinIsTerminal: false,
-				},
-				{
-					output,
-					resolveRunDirectory: (name) => {
-						resolved.push(name);
-
-						return Promise.resolve("/runs/any-name");
-					},
-					requireSpendCeiling: storedCeiling,
-					probeModel: passingProbe,
-					execute: () => Promise.reject(new Error("replay must not run")),
-				},
-			),
-		);
-
-		expect(failure).toBeInstanceOf(RefusedPreconditionError);
-		expect(resolved).toEqual([]);
-		expect(stdout).toEqual([]);
-		expect(stderr.join("")).not.toContain("Projected budget");
-	});
-
-	it("does not check for a terminal when --yes answers the approval", async () => {
-		const resolved: string[] = [];
-		const { output } = recordOutput();
-
-		const failure = await failureOf(
-			runReplayCommand(
-				{
-					args: [
-						"--run",
-						"any-name",
-						"--stage",
-						"shape",
-						...sessionArgs,
-						"--confirm",
-						"--yes",
-					],
-					json: false,
-					stdinIsTerminal: false,
-				},
-				{
-					output,
-					resolveRunDirectory: (name) => {
-						resolved.push(name);
-
-						return Promise.reject(new Error(`No replayable run named ${name}`));
-					},
-					requireSpendCeiling: storedCeiling,
-					probeModel: passingProbe,
-					execute: () => Promise.reject(new Error("replay must not run")),
-				},
-			),
-		);
-
-		expect(failure).not.toBeInstanceOf(RefusedPreconditionError);
-		expect(String(failure)).toContain("No replayable run named any-name");
-		expect(resolved).toEqual(["any-name"]);
-	});
-
-	it("does not check for a terminal for a single debug rep", async () => {
-		const resolved: string[] = [];
-		const { output } = recordOutput();
-
-		const failure = await failureOf(
-			runReplayCommand(
-				{
-					args: ["--run", "any-name", "--stage", "shape", ...sessionArgs],
-					json: false,
-					stdinIsTerminal: false,
-				},
-				{
-					output,
-					resolveRunDirectory: (name) => {
-						resolved.push(name);
-
-						return Promise.reject(new Error(`No replayable run named ${name}`));
-					},
-					requireSpendCeiling: storedCeiling,
-					probeModel: passingProbe,
-					execute: () => Promise.reject(new Error("replay must not run")),
-				},
-			),
-		);
-
-		expect(failure).not.toBeInstanceOf(RefusedPreconditionError);
-		expect(resolved).toEqual(["any-name"]);
-	});
-
-	it("halts before executing when the declared model is not available", async () => {
-		const executed: string[] = [];
-		const { output } = recordOutput();
-		const manifestFile = await writeReplayableRunManifest("any-name-bad-model");
-
-		try {
-			const failure = await failureOf(
-				runReplayCommand(
-					{
-						args: [
-							"--run",
-							"any-name-bad-model",
-							"--stage",
-							"shape",
-							...sessionArgs,
-						],
-						json: false,
-						stdinIsTerminal: true,
-					},
-					{
-						output,
-						resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
-						requireSpendCeiling: storedCeiling,
-						probeModel: () =>
-							Promise.reject(
-								new RefusedPreconditionError("Model sonnet is not available"),
-							),
-						execute: () => {
-							executed.push("executed");
-
-							return Promise.reject(new Error("replay must not run"));
-						},
-					},
-				),
-			);
-
-			expect(failure).toBeInstanceOf(RefusedPreconditionError);
-			expect(executed).toEqual([]);
-		} finally {
-			await rm(manifestFile, { force: true });
-		}
-	});
-
-	it("prints the replay record's exact bytes on stdout with --json", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-replay-json-"));
-		temporaryDirectories.push(directory);
-		const recordPath = join(directory, "replay.json");
-		const recordText = `${JSON.stringify({ schemaVersion: 1, stage: "shape" }, null, 2)}\n`;
-		await Bun.write(recordPath, recordText);
-		temporaryDirectories.push(
-			await writeReplayableRunManifest("any-name-json"),
-		);
-		const { output, stdout } = recordOutput();
-
-		await runReplayCommand(
+	const failure = await failureOf(
+		runReplayCommand(
 			{
-				args: ["--run", "any-name-json", "--stage", "shape", ...sessionArgs],
-				json: true,
+				args: [
+					"--run",
+					"any-name",
+					"--stage",
+					"shape",
+					...sessionArgs,
+					"--confirm",
+				],
+				json: false,
 				stdinIsTerminal: false,
 			},
 			{
+				execute: async () =>
+					await Promise.reject(new Error("replay must not run")),
 				output,
-				resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
-				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
-				execute: (_config, _paths, commandOutput) => {
-					commandOutput.stderr("Replay progress\n");
+				requireSpendCeiling: storedCeiling,
+				resolveRunDirectory: async (name) => {
+					resolved.push(name);
 
-					return Promise.resolve({
-						kind: "debug" as const,
-						evidence: { recordPath, lineage: "lineage-1" },
-					});
+					return await Promise.resolve("/runs/any-name");
 				},
 			},
-		);
+		),
+	);
 
-		expect(stdout.join("")).toBe(recordText);
-		expect(stdout.join("")).toBe(await Bun.file(recordPath).text());
-	});
-});
+	expect(failure).toBeInstanceOf(RefusedPreconditionError);
+	expect(resolved).toEqual([]);
+	expect(stdout).toEqual([]);
+	expect(stderr.join("")).not.toContain("Projected budget");
+}
 
-describe(replayCorpus.name, () => {
-	it("retains the captured live source alongside its instructions", async () => {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-live-source-"));
-		const source = {
-			kind: "live",
-			root,
-			backingRoot: join(root, "backing"),
-		} as const;
-		await Bun.write(join(root, "CLAUDE.md"), "captured instructions\n");
+async function doesNotCheckForATerminalWhenYesAnswers(): Promise<void> {
+	const resolved: string[] = [];
+	const { output } = recordOutput();
 
-		try {
-			const corpus = await replayCorpus(undefined, () =>
-				Promise.resolve(source),
-			);
+	const failure = await failureOf(
+		runReplayCommand(
+			{
+				args: [
+					"--run",
+					"any-name",
+					"--stage",
+					"shape",
+					...sessionArgs,
+					"--confirm",
+					"--yes",
+				],
+				json: false,
+				stdinIsTerminal: false,
+			},
+			{
+				execute: async () =>
+					await Promise.reject(new Error("replay must not run")),
+				output,
+				probeModel: passingProbe,
+				requireSpendCeiling: storedCeiling,
+				resolveRunDirectory: async (name) => {
+					resolved.push(name);
 
-			expect(corpus).toEqual({
-				instructions: "captured instructions\n",
-				source,
-				settingSources: undefined,
-			});
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
-	});
+					return await Promise.reject(
+						new Error(`No replayable run named ${name}`),
+					);
+				},
+			},
+		),
+	);
 
-	it("tells the session to prefer the project level for a linked directory nobody named", async () => {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-linked-source-"));
-		const source = { kind: "directory", root } as const;
-		await Bun.write(join(root, "CLAUDE.md"), "linked instructions\n");
+	expect(failure).not.toBeInstanceOf(RefusedPreconditionError);
+	expect(String(failure)).toContain("No replayable run named any-name");
+	expect(resolved).toEqual(["any-name"]);
+}
 
-		try {
-			const corpus = await replayCorpus(undefined, () =>
-				Promise.resolve(source),
-			);
+async function doesNotCheckForATerminalForASingle(): Promise<void> {
+	const resolved: string[] = [];
+	const { output } = recordOutput();
 
-			expect(corpus.settingSources).toBe("project");
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
-	});
+	const failure = await failureOf(
+		runReplayCommand(
+			{
+				args: ["--run", "any-name", "--stage", "shape", ...sessionArgs],
+				json: false,
+				stdinIsTerminal: false,
+			},
+			{
+				execute: async () =>
+					await Promise.reject(new Error("replay must not run")),
+				output,
+				probeModel: passingProbe,
+				requireSpendCeiling: storedCeiling,
+				resolveRunDirectory: async (name) => {
+					resolved.push(name);
 
-	it("classifies invalid live corpus configuration as a refused precondition", async () => {
+					return await Promise.reject(
+						new Error(`No replayable run named ${name}`),
+					);
+				},
+			},
+		),
+	);
+
+	expect(failure).not.toBeInstanceOf(RefusedPreconditionError);
+	expect(resolved).toEqual(["any-name"]);
+}
+
+async function haltsBeforeExecutingWhenTheDeclaredModelIsNot(): Promise<void> {
+	const executed: string[] = [];
+	const { output } = recordOutput();
+	const manifestFile = await writeReplayableRunManifest("any-name-bad-model");
+
+	try {
 		const failure = await failureOf(
-			replayCorpus(undefined, () =>
-				Promise.reject(new CorpusConfigurationError("invalid backing root")),
-			),
-		);
-
-		expect(failure).toBeInstanceOf(RefusedPreconditionError);
-		expect(failure.message).toContain("invalid backing root");
-	});
-});
-
-describe(replayCorpusRoots.name, () => {
-	it("searches the target the replayed run was cloned from, not its checkout or the control repository", async () => {
-		const manifestFile = await writeReplayableRunManifest(
-			"any-name-corpus-roots",
-		);
-
-		try {
-			expect(
-				await replayCorpusRoots(manifestFile, {
-					kind: "live",
-					root: "/live",
-					backingRoot: "/backing",
-				}),
-			).toEqual(
-				corpusLayoutRoots("/tmp/target", {
-					kind: "live",
-					root: "/live",
-					backingRoot: "/backing",
-				}),
-			);
-		} finally {
-			await rm(manifestFile, { force: true });
-		}
-	});
-});
-
-describe(replaySettingsFile.name, () => {
-	it("loads the settings file the replayed run's case declares today", async () => {
-		const manifestFile = await writeReplayableRunManifest(
-			"any-name-settings-file",
-		);
-
-		try {
-			const settingsFile = await replaySettingsFile(manifestFile);
-
-			expect(settingsFile.hashed.path).toBe(DEFAULT_STAGE_SETTINGS_FILE);
-		} finally {
-			await rm(manifestFile, { force: true });
-		}
-	});
-});
-
-describe(replayDeclaredTarget.name, () => {
-	it("names the target a fresh run of the replayed run's case would use, not the one the run recorded", async () => {
-		const manifestFile = await writeReplayableRunManifest(
-			"any-name-declared-target",
-		);
-
-		try {
-			const target = await replayDeclaredTarget(manifestFile);
-
-			expect(await loadCase("audit-log")).toMatchObject({
-				kind: "pipeline",
-				targetPath: target,
-			});
-		} finally {
-			await rm(manifestFile, { force: true });
-		}
-	});
-});
-
-describe("--corpus on a stage replay", () => {
-	/**
-	 * A project-level skill shadows the user-level one under
-	 * --setting-sources project, so a replay can be given a corpus source and
-	 * the stage reads the bytes the lineage records.
-	 */
-	it("carries the corpus source through to the replay", async () => {
-		const corpora: (string | undefined)[] = [];
-		const { output } = recordOutput();
-		const manifestFile = await writeReplayableRunManifest("any-name-corpus");
-
-		try {
-			await runReplayCommand(
+			runReplayCommand(
 				{
 					args: [
 						"--run",
-						"any-name-corpus",
+						"any-name-bad-model",
 						"--stage",
 						"shape",
 						...sessionArgs,
-						"--corpus",
-						"/some/corpus",
 					],
 					json: false,
 					stdinIsTerminal: true,
 				},
 				{
-					output,
-					resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
-					requireSpendCeiling: storedCeiling,
-					probeModel: passingProbe,
-					execute: (config) => {
-						corpora.push(config.corpus);
+					execute: async () => {
+						executed.push("executed");
 
-						return Promise.resolve({
-							kind: "debug" as const,
-							evidence: {
-								recordPath: "/runs/replay.json",
-								lineage: "lineage-1",
-							},
-						});
+						return await Promise.reject(new Error("replay must not run"));
 					},
+					output,
+					probeModel: async () => {
+						await Promise.reject(
+							new RefusedPreconditionError("Model sonnet is not available"),
+						);
+					},
+					requireSpendCeiling: storedCeiling,
+					resolveRunDirectory: async () =>
+						await Promise.resolve("/runs/any-name"),
 				},
-			);
-
-			expect(corpora).toEqual(["/some/corpus"]);
-		} finally {
-			await rm(manifestFile, { force: true });
-		}
-	});
-	it("refuses a corpus whose CLAUDE.md is a symlink out of the root, as a precondition", async () => {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-replay-corpus-"));
-		const outside = await mkdtemp(join(tmpdir(), "rehearse-replay-outside-"));
-		const manifestFile = await writeReplayableRunManifest(
-			"any-name-corpus-linked",
+			),
 		);
 
-		try {
-			await mkdir(join(root, "skills"), { recursive: true });
-			await Bun.write(join(outside, "secret.md"), "SECRET BYTES\n");
-			await symlink(join(outside, "secret.md"), join(root, "CLAUDE.md"));
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(executed).toEqual([]);
+	} finally {
+		await rm(manifestFile, { force: true });
+	}
+}
 
-			const failure = await failureOf(
-				executeReplay(
-					replayConfigFor("any-name-corpus-linked", root),
-					benchmarkRunPaths(recordsDirectory(), "any-name-corpus-linked"),
-					recordOutput().output,
-					100,
-				),
-			);
+async function printsTheReplayRecordSExactBytesOnStdout(): Promise<void> {
+	const directory = await workspace.createDirectory("rehearse-replay-json-");
+	const recordPath = join(directory, "replay.json");
+	const recordText = `${JSON.stringify({ schemaVersion: 1, stage: "shape" }, null, RECORD_JSON_INDENT_SPACES)}\n`;
+	await Bun.write(recordPath, recordText);
+	workspace.track(await writeReplayableRunManifest("any-name-json"));
+	const { output, stdout } = recordOutput();
 
-			expect(failure).toBeInstanceOf(RefusedPreconditionError);
-			expect(failure.message).not.toContain("SECRET BYTES");
-		} finally {
-			await rm(manifestFile, { force: true });
-			await rm(root, { force: true, recursive: true });
-			await rm(outside, { force: true, recursive: true });
-		}
-	});
+	await runReplayCommand(
+		{
+			args: ["--run", "any-name-json", "--stage", "shape", ...sessionArgs],
+			json: true,
+			stdinIsTerminal: false,
+		},
+		{
+			execute: async (_replay, { output: commandOutput }) => {
+				commandOutput.stderr("Replay progress\n");
+
+				return await Promise.resolve({
+					evidence: { lineage: "lineage-1", recordPath },
+					kind: "debug" as const,
+				});
+			},
+			output,
+			probeModel: passingProbe,
+			requireSpendCeiling: storedCeiling,
+			resolveRunDirectory: async () => await Promise.resolve("/runs/any-name"),
+		},
+	);
+
+	expect(stdout.join("")).toBe(recordText);
+	expect(stdout.join("")).toBe(await Bun.file(recordPath).text());
+}
+
+describe(runReplayCommand.name, () => {
+	it(
+		"refuses a confirmation without --yes before resolving the run, when stdin is not a terminal",
+		refusesAConfirmationWithoutYesBeforeResolvingTheRun,
+	);
+	it(
+		"does not check for a terminal when --yes answers the approval",
+		doesNotCheckForATerminalWhenYesAnswers,
+	);
+	it(
+		"does not check for a terminal for a single debug rep",
+		doesNotCheckForATerminalForASingle,
+	);
+	it(
+		"halts before executing when the declared model is not available",
+		haltsBeforeExecutingWhenTheDeclaredModelIsNot,
+	);
+	it(
+		"prints the replay record's exact bytes on stdout with --json",
+		printsTheReplayRecordSExactBytesOnStdout,
+	);
 });

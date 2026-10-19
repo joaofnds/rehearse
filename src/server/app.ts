@@ -1,19 +1,20 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import type { ApiDependencies } from "./api";
-import { createApiApp } from "./api";
-import { createConfirmationArchiveApp } from "./confirmation-archives";
-import { createCalibrationApp } from "./calibration";
-import type { LaunchDependencies } from "./launches";
-import { createLaunchApp } from "./launches";
-import { requestGuard } from "./request-guard";
+
 import {
 	RecordParseCache,
 	withRecordParseCache,
 } from "#benchmark/record-parse-cache";
 
-export interface AppServerDependencies
-	extends ApiDependencies, LaunchDependencies {
+import type { ApiDependencies } from "./api";
+import createApiApp from "./api";
+import createCalibrationApp from "./calibration";
+import createConfirmationArchiveApp from "./confirmation-archives";
+import type { LaunchDependencies } from "./launches";
+import createLaunchApp from "./launches";
+import requestGuard from "./request-guard";
+
+interface AppServerDependencies extends ApiDependencies, LaunchDependencies {
 	readonly clientDistDirectory: string;
 	readonly port: number;
 	readonly recordParseCache?: Readonly<Pick<RecordParseCache, "parse">>;
@@ -26,30 +27,36 @@ export interface AppServerDependencies
  * path read with GET so the client-side router owns its own routes. A write
  * to a path no route declares answers 404 rather than the client page.
  */
-export function createAppServer(dependencies: AppServerDependencies): Hono {
+function createAppServer(dependencies: AppServerDependencies): Hono {
 	const app = new Hono();
 	const records = dependencies.recordParseCache ?? new RecordParseCache();
 
 	app.use("*", requestGuard(dependencies.port));
-	app.use("*", (_context, next) => withRecordParseCache(records, next));
-	app.route("/", createApiApp(dependencies));
-	app.route("/", createLaunchApp(dependencies));
-	app.route("/", createCalibrationApp(dependencies));
-	app.route("/", createConfirmationArchiveApp(dependencies));
+	app.use("*", async (_context, next) => {
+		await withRecordParseCache(records, next);
+	});
+	app
+		.route("/", createApiApp(dependencies))
+		.route("/", createLaunchApp(dependencies))
+		.route("/", createCalibrationApp(dependencies))
+		.route("/", createConfirmationArchiveApp(dependencies));
 	app.get(
 		"*",
 		serveStatic({
-			root: dependencies.clientDistDirectory,
 			rewriteRequestPath: (path) => (path === "/" ? "/index.html" : path),
+			root: dependencies.clientDistDirectory,
 		}),
 	);
 	app.get(
 		"*",
 		serveStatic({
-			root: dependencies.clientDistDirectory,
 			path: "index.html",
+			root: dependencies.clientDistDirectory,
 		}),
 	);
 
 	return app;
 }
+
+export { createAppServer as default };
+export type { AppServerDependencies };

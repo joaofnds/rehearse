@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	newestFirst,
 	oldestFirst,
-	startedAtSchema,
 	startTime,
+	startedAtSchema,
 } from "./recorded-time";
 
 describe(newestFirst.name, () => {
@@ -50,7 +51,8 @@ describe(oldestFirst.name, () => {
 
 describe("the start time a record keeps", () => {
 	it("accepts the instant a writer records", () => {
-		const time = startTime(() => Date.UTC(2026, 9, 8, 10, 15));
+		const RECORDED_EPOCH_MS = 1_791_454_500_000;
+		const time = startTime(() => RECORDED_EPOCH_MS);
 
 		expect(startedAtSchema.parse(time)).toBe("2026-10-08T10:15:00.000Z");
 	});

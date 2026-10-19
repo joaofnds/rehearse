@@ -1,11 +1,13 @@
 /** The key a shortcut answers to, beside the action it triggers. Assistive tech reads `aria-keyshortcuts` instead. */
-export function KeyHint({
-	letter,
-	decorative = true,
-}: {
+interface KeyHintProps {
 	readonly letter: string;
 	readonly decorative?: boolean;
-}): React.JSX.Element {
+}
+
+function KeyHint({
+	letter,
+	decorative = true,
+}: KeyHintProps): React.JSX.Element {
 	return (
 		<kbd
 			aria-hidden={decorative}
@@ -15,3 +17,5 @@ export function KeyHint({
 		</kbd>
 	);
 }
+
+export { KeyHint as default };

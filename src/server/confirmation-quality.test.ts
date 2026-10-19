@@ -1,109 +1,129 @@
 import { expect, it } from "bun:test";
+
+import { GIT_SHA1_HEX_DIGITS } from "#server/digest-test-support";
+
 import { qualityFailureCount } from "./confirmation-group-summary";
 
+const QUALITY_FAILURE_REPS = [
+	{
+		finalOutcome: {
+			evidence: {
+				recordFile: "final.json",
+				resultSha: "b".repeat(GIT_SHA1_HEX_DIGITS),
+			},
+			status: "JUDGED",
+			verdict: "FAIL",
+		},
+		stages: [
+			{
+				elapsedMs: 10,
+				evidence: {
+					recordFile: "scorecard.json",
+					resultSha: "a".repeat(GIT_SHA1_HEX_DIGITS),
+				},
+				grade: "D",
+				stage: "build",
+				status: "JUDGED",
+				verdict: "STOP",
+			},
+		],
+	},
+	{
+		finalOutcome: { status: "NOT_APPLICABLE" },
+		stages: [
+			{
+				elapsedMs: 10,
+				evidence: {
+					recordFile: "scorecard.json",
+					resultSha: "a".repeat(GIT_SHA1_HEX_DIGITS),
+				},
+				grade: "F",
+				stage: "checks",
+				status: "JUDGED",
+				verdict: "STOP",
+			},
+		],
+	},
+	{
+		finalOutcome: {
+			evidence: {
+				recordFile: "final.json",
+				resultSha: "b".repeat(GIT_SHA1_HEX_DIGITS),
+			},
+			status: "JUDGED",
+			verdict: "FAIL",
+		},
+		stages: [
+			{
+				elapsedMs: 10,
+				evidence: {
+					recordFile: "scorecard.json",
+					resultSha: "a".repeat(GIT_SHA1_HEX_DIGITS),
+				},
+				grade: "A",
+				stage: "build",
+				status: "JUDGED",
+				verdict: "CONTINUE",
+			},
+		],
+	},
+] as const;
+
+const NON_QUALITY_FAILURE_REPS = [
+	{
+		finalOutcome: { status: "NOT_APPLICABLE" },
+		stages: [{ reason: "stopped", stage: "build", status: "NOT_REACHED" }],
+	},
+	{
+		finalOutcome: {
+			error: "Judge unavailable",
+			status: "EXECUTION_FAILED",
+		},
+		stages: [
+			{
+				error: "provider unavailable",
+				stage: "build",
+				status: "EXECUTION_FAILED",
+			},
+		],
+	},
+	{
+		finalOutcome: {
+			evidence: {
+				recordFile: "final.json",
+				resultSha: "b".repeat(GIT_SHA1_HEX_DIGITS),
+			},
+			status: "JUDGED",
+			verdict: "PASS",
+		},
+		stages: [
+			{
+				elapsedMs: 10,
+				evidence: {
+					recordFile: "scorecard.json",
+					resultSha: "a".repeat(GIT_SHA1_HEX_DIGITS),
+				},
+				grade: "A",
+				stage: "build",
+				status: "JUDGED",
+				verdict: "CONTINUE",
+			},
+		],
+	},
+] as const;
+
 it("counts recorded rejected steps, failed session checks and final failures once per rep", () => {
-	expect(
-		qualityFailureCount([
-			{
-				stages: [
-					{
-						stage: "build",
-						status: "JUDGED",
-						grade: "D",
-						verdict: "STOP",
-						elapsedMs: 10,
-						evidence: {
-							recordFile: "scorecard.json",
-							resultSha: "a".repeat(40),
-						},
-					},
-				],
-				finalOutcome: {
-					status: "JUDGED",
-					verdict: "FAIL",
-					evidence: { recordFile: "final.json", resultSha: "b".repeat(40) },
-				},
-			},
-			{
-				stages: [
-					{
-						stage: "checks",
-						status: "JUDGED",
-						grade: "F",
-						verdict: "STOP",
-						elapsedMs: 10,
-						evidence: {
-							recordFile: "scorecard.json",
-							resultSha: "a".repeat(40),
-						},
-					},
-				],
-				finalOutcome: { status: "NOT_APPLICABLE" },
-			},
-			{
-				stages: [
-					{
-						stage: "build",
-						status: "JUDGED",
-						grade: "A",
-						verdict: "CONTINUE",
-						elapsedMs: 10,
-						evidence: {
-							recordFile: "scorecard.json",
-							resultSha: "a".repeat(40),
-						},
-					},
-				],
-				finalOutcome: {
-					status: "JUDGED",
-					verdict: "FAIL",
-					evidence: { recordFile: "final.json", resultSha: "b".repeat(40) },
-				},
-			},
-		]),
-	).toBe(3);
+	const expectedQualityFailureCount = 3;
+
+	expect(qualityFailureCount(QUALITY_FAILURE_REPS)).toBe(
+		expectedQualityFailureCount,
+	);
 });
 
 it("does not turn missing judgments or execution failures into quality failures", () => {
-	expect(
-		qualityFailureCount([
-			{
-				stages: [{ stage: "build", status: "NOT_REACHED", reason: "stopped" }],
-				finalOutcome: { status: "NOT_APPLICABLE" },
-			},
-			{
-				stages: [
-					{
-						stage: "build",
-						status: "EXECUTION_FAILED",
-						error: "provider unavailable",
-					},
-				],
-				finalOutcome: {
-					status: "EXECUTION_FAILED",
-					error: "Judge unavailable",
-				},
-			},
-			{
-				stages: [
-					{
-						stage: "build",
-						status: "JUDGED",
-						grade: "A",
-						verdict: "CONTINUE",
-						elapsedMs: 10,
-						evidence: {
-							recordFile: "scorecard.json",
-							resultSha: "a".repeat(40),
-						},
-					},
-				],
-				finalOutcome: {
-					status: "JUDGED",
-					verdict: "PASS",
-					evidence: { recordFile: "final.json", resultSha: "b".repeat(40) },
-				},
-			},
-		]),
-	).toBe(0);
+	const expectedQualityFailureCount = 0;
+
+	expect(qualityFailureCount(NON_QUALITY_FAILURE_REPS)).toBe(
+		expectedQualityFailureCount,
+	);
 });

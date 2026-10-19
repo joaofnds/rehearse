@@ -1,0 +1,189 @@
+import { Link } from "@tanstack/react-router";
+
+import ActionGroup from "#client/system/components/action-group";
+import EmptyState from "#client/system/components/empty-state";
+import Notice from "#client/system/components/notice";
+import { Button } from "#client/system/ui/button";
+
+import { ExportTaskDialog, ImportTaskDialog } from "./task-bundle-dialogs";
+import type { ListedTask } from "./task-card";
+import TaskCard from "./task-card";
+import type { WorkflowListing } from "./use-workflow-listing";
+
+const EMPTY_ITEM_COUNT = 0;
+
+const NO_UNREADABLE_RECORDS = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+interface WorkflowEmptyStateProps {
+	readonly loaded: boolean;
+	readonly count: number;
+	readonly caseId: string | undefined;
+	readonly unreadable: number;
+}
+
+function WorkflowEmptyState({
+	loaded,
+	count,
+	caseId,
+	unreadable,
+}: WorkflowEmptyStateProps): React.JSX.Element | null {
+	if (!loaded || count > EMPTY_ITEM_COUNT) {
+		return null;
+	}
+
+	if (caseId !== undefined) {
+		return (
+			<p className="text-14 text-muted-foreground">
+				No workflow definition is recorded for this case.
+			</p>
+		);
+	}
+
+	if (unreadable > NO_UNREADABLE_RECORDS) {
+		return null;
+	}
+
+	return (
+		<EmptyState heading="No workflows yet">
+			<p>
+				Workflow cases supply reusable steps and judges. Browse cases to declare
+				one, or import a workflow bundle above.
+			</p>
+			<Button asChild variant="outline">
+				<Link to="/cases" search={{}}>
+					Browse cases
+				</Link>
+			</Button>
+		</EmptyState>
+	);
+}
+
+interface WorkflowListingContentProps {
+	readonly embedded: boolean;
+	readonly caseId: string | undefined;
+	readonly listing: WorkflowListing;
+	readonly importedPath: string | undefined;
+	readonly setImportedPath: (path: string) => void;
+}
+
+function WorkflowListingContent({
+	embedded,
+	caseId,
+	listing,
+	importedPath,
+	setImportedPath,
+}: WorkflowListingContentProps): React.JSX.Element {
+	return (
+		<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
+			{embedded ? (
+				<EmbeddedWorkflowHeading
+					caseId={caseId}
+					tasks={listing.visibleTasks}
+					setImportedPath={setImportedPath}
+				/>
+			) : null}
+			<p className="max-w-prose text-14 text-muted-foreground">
+				A workflow defines steps and their judges. Its final judge evaluates the
+				whole output. Export a definition with its judges to import it as a case
+				in another checkout.
+			</p>
+
+			{importedPath === undefined ? null : (
+				<p role="status" className="text-14 text-secondary-foreground">
+					{`Imported ${importedPath}. It is uncommitted: review and commit it to keep the case.`}
+				</p>
+			)}
+
+			<WorkflowRecords listing={listing} caseId={caseId} />
+		</div>
+	);
+}
+
+interface EmbeddedWorkflowHeadingProps {
+	readonly caseId: string | undefined;
+	readonly tasks: readonly ListedTask[];
+	readonly setImportedPath: (path: string) => void;
+}
+
+function EmbeddedWorkflowHeading({
+	caseId,
+	tasks,
+	setImportedPath,
+}: EmbeddedWorkflowHeadingProps): React.JSX.Element {
+	return (
+		<div className="flex flex-wrap items-center justify-between gap-3">
+			<div className="min-w-0 wrap-anywhere">
+				<h2 className="text-16 font-semibold">Workflow definitions</h2>
+				{caseId === undefined ? null : (
+					<p className="text-12 text-muted-foreground">
+						Showing workflows used by{" "}
+						<span className="font-mono">{caseId}</span>
+						{" · "}
+						<Link
+							to="/cases"
+							search={{ view: "workflows" }}
+							className="text-link hover:underline"
+						>
+							All workflows
+						</Link>
+					</p>
+				)}
+			</div>
+			<ActionGroup>
+				<ImportTaskDialog onImported={setImportedPath} />
+				<ExportTaskDialog tasks={tasks} />
+			</ActionGroup>
+		</div>
+	);
+}
+
+interface WorkflowRecordsProps {
+	readonly listing: WorkflowListing;
+	readonly caseId: string | undefined;
+}
+
+function WorkflowRecords({
+	listing,
+	caseId,
+}: WorkflowRecordsProps): React.JSX.Element {
+	return (
+		<>
+			{listing.loading ? (
+				<p className="text-muted-foreground">Loading…</p>
+			) : null}
+			{listing.failed ? (
+				<p role="alert" className="text-attention">
+					<span aria-hidden="true">⚠ </span>
+					Could not load the workflows.
+				</p>
+			) : null}
+
+			{listing.unreadable.length > EMPTY_COLLECTION_LENGTH ? (
+				<Notice
+					message="These records could not be read, so no card shows what they hold:"
+					items={listing.unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
+				/>
+			) : null}
+			<WorkflowEmptyState
+				loaded={listing.loaded}
+				count={listing.visibleTasks.length}
+				caseId={caseId}
+				unreadable={listing.unreadable.length}
+			/>
+
+			{listing.visibleTasks.map((task) => (
+				<TaskCard
+					key={task.path}
+					task={task}
+					runInFlight={
+						listing.inFlight.find(({ run }) => task.runs.includes(run))?.run
+					}
+				/>
+			))}
+		</>
+	);
+}
+
+export { WorkflowListingContent as default };

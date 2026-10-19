@@ -1,22 +1,22 @@
 import { z } from "zod";
-import { CommandError, runCommand } from "./command";
-import type { Effort } from "./config";
-import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
-import {
-	claudeCallMetricsSchema,
-	claudeEnvelopeSchema,
-	claudeJsonSchema,
-} from "./contracts";
 
-export interface SessionSettings {
+import { ClaudeSessionError, failedCommandEnvelope } from "./claude-response";
+import { CommandError, runCommand } from "./command";
+import type { CommandOptions } from "./command";
+import type { Effort } from "./config";
+import type { SchemaPropertyOrder } from "./contracts";
+import { claudeJsonSchema } from "./contracts";
+
+interface SessionSettings {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly budgetUsd: number;
 }
 
-export interface ClaudeInvocation {
+interface ClaudeInvocation {
 	readonly settings: SessionSettings;
 	readonly schema: z.ZodType;
+	readonly schemaOrder?: SchemaPropertyOrder;
 	readonly access: "unrestricted" | "sealed";
 	readonly systemPrompt?: string | undefined;
 	readonly session?:
@@ -46,10 +46,11 @@ function outputFormat(output: ClaudeInvocation["output"]): string[] {
 	return ["json"];
 }
 
-export function claudeArgs(invocation: ClaudeInvocation): string[] {
+function claudeArgs(invocation: ClaudeInvocation): string[] {
 	const {
 		settings,
 		schema,
+		schemaOrder,
 		access,
 		systemPrompt,
 		session,
@@ -72,7 +73,7 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 		"--output-format",
 		...outputFormat(output),
 		"--json-schema",
-		claudeJsonSchema(schema),
+		claudeJsonSchema(schema, schemaOrder),
 		...(access === "sealed"
 			? ["--tools", ""]
 			: ["--dangerously-skip-permissions"]),
@@ -85,55 +86,6 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 			: ["--setting-sources", settingSources]),
 		...(settingsOverlay === undefined ? [] : ["--settings", settingsOverlay]),
 	];
-}
-
-/**
- * The provider names why it stopped in `terminal_reason`, and a budget halt
- * reports what it spent getting there while carrying no `result` at all, only
- * its `errors`. Callers that need the cause or the spend narrow on this type
- * rather than reading the message. A halt that states neither keeps the failed
- * command's message, which carries its exit code and stderr.
- */
-export class ClaudeSessionError extends Error {
-	public readonly terminalReason: string | undefined;
-	public readonly costUsd: number | undefined;
-	/** What the failed call reported, so its spend can be recorded as a call's. */
-	public readonly envelope: ClaudeEnvelope;
-
-	public constructor(
-		envelope: ClaudeEnvelope,
-		failure?: Readonly<CommandError>,
-	) {
-		super(
-			statedFailure(envelope) ?? failure?.message ?? "Claude session failed",
-			{ cause: failure },
-		);
-		this.name = "ClaudeSessionError";
-		this.terminalReason = envelope.terminal_reason;
-		this.costUsd = envelope.total_cost_usd;
-		this.envelope = envelope;
-	}
-}
-
-/**
- * A provider spend measures in thousandths of a dollar, so it keeps every digit
- * the provider reported rather than rounding to cents like the rest of this
- * project's money: `$0.02` against a `$0.10` cap tells the operator nothing
- * about how close the cap is. Plain interpolation would render a
- * sub-microdollar spend as `$1e-7`, which is not an amount anyone can read.
- */
-export function spendUsd(costUsd: number): string {
-	return costUsd.toFixed(8).replace(/0+$/u, "").replace(/\.$/u, "");
-}
-
-export function statedFailure(envelope: ClaudeEnvelope): string | undefined {
-	if (envelope.result !== undefined && envelope.result !== "") {
-		return envelope.result;
-	}
-
-	const errors = envelope.errors?.join("; ") ?? "";
-
-	return errors === "" ? undefined : errors;
 }
 
 const streamLineSchema = z.looseObject({ type: z.string() });
@@ -149,7 +101,7 @@ function streamResultLine(output: string): string | undefined {
 	});
 }
 
-export function readStreamResult(output: string): string {
+function readStreamResult(output: string): string {
 	const result = streamResultLine(output);
 	if (result === undefined) {
 		throw new Error("Claude stream ended without a result");
@@ -163,22 +115,21 @@ export function readStreamResult(output: string): string {
  * failed session reports its result line as its output rather than every
  * streamed line, as a json session reports its one envelope.
  */
-export async function runStreamedSession(
+async function runStreamedSession(
 	command: readonly string[],
 	cwd: string,
-	options: Parameters<typeof runCommand>[2] = {},
+	options: CommandOptions = {},
 ): Promise<string> {
 	try {
 		return readStreamResult(await runCommand(command, cwd, options));
 	} catch (error) {
 		if (error instanceof CommandError) {
 			throw sessionFailure(
-				new CommandError(
-					error.command,
-					error.exitCode,
-					streamResultLine(error.stdout) ?? "",
-					error.stderr,
-				),
+				new CommandError(error.command, {
+					exitCode: error.exitCode,
+					stderr: error.stderr,
+					stdout: streamResultLine(error.stdout) ?? "",
+				}),
 			);
 		}
 
@@ -187,10 +138,10 @@ export async function runStreamedSession(
 }
 
 /** Runs a session whose output is its one json envelope. */
-export async function runJsonSession(
+async function runJsonSession(
 	command: readonly string[],
 	cwd: string,
-	options: Parameters<typeof runCommand>[2] = {},
+	options: CommandOptions = {},
 ): Promise<string> {
 	try {
 		return await runCommand(command, cwd, options);
@@ -217,86 +168,14 @@ function sessionFailure(
 		: error;
 }
 
-/** The envelope a failed command wrote, whatever its `is_error` says. */
-export function failedCommandEnvelope(
-	error: Readonly<CommandError>,
-): ClaudeEnvelope | undefined {
-	let output: unknown;
-	try {
-		output = JSON.parse(error.stdout);
-	} catch {
-		return undefined;
-	}
-
-	const envelope = claudeEnvelopeSchema.safeParse(output);
-
-	return envelope.success ? envelope.data : undefined;
-}
-
-/** The envelope a session wrote, read without judging its `is_error`. */
-export function parseClaudeEnvelope(output: string): ClaudeEnvelope {
-	return claudeEnvelopeSchema.parse(JSON.parse(output));
-}
-
-export function readClaudeEnvelope(output: string): ClaudeEnvelope {
-	const envelope = parseClaudeEnvelope(output);
-	if (envelope.is_error === true) {
-		throw new ClaudeSessionError(envelope);
-	}
-
-	return envelope;
-}
-
-export function readClaudeCallMetrics(
-	envelope: ClaudeEnvelope,
-): ClaudeCallMetrics | undefined {
-	const metrics = claudeCallMetricsSchema.safeParse({
-		costUsd: envelope.total_cost_usd,
-		inputTokens: envelope.usage?.input_tokens,
-		outputTokens: envelope.usage?.output_tokens,
-		cacheReadTokens: envelope.usage?.cache_read_input_tokens,
-		cacheWriteTokens: envelope.usage?.cache_creation_input_tokens,
-		turns: envelope.num_turns,
-		durationMs: envelope.duration_ms,
-		apiDurationMs: envelope.duration_api_ms,
-		modelUsage: envelope.modelUsage,
-	});
-	if (!metrics.success) {
-		return undefined;
-	}
-
-	return withoutAbsentModelUsage(metrics.data);
-}
-
-/**
- * A key carrying `undefined` would serialize into a saved record as an empty
- * per-model block, which reads as a call that used no model rather than a CLI
- * that reported none.
- */
-function withoutAbsentModelUsage(
-	metrics: ClaudeCallMetrics,
-): ClaudeCallMetrics {
-	if (metrics.modelUsage !== undefined) {
-		return metrics;
-	}
-
-	const rest = { ...metrics };
-	delete rest.modelUsage;
-
-	return rest;
-}
-
-export function readStructuredOutput<T>(
-	envelope: ClaudeEnvelope,
-	schema: z.ZodType<T>,
-): T {
-	if (envelope.structured_output !== undefined) {
-		return schema.parse(envelope.structured_output);
-	}
-
-	if (envelope.result !== undefined && envelope.result !== "") {
-		return schema.parse(JSON.parse(envelope.result));
-	}
-
-	throw new Error("Claude response did not contain structured output");
-}
+export { claudeArgs, readStreamResult, runStreamedSession, runJsonSession };
+export type { SessionSettings, ClaudeInvocation };
+export {
+	ClaudeSessionError,
+	statedFailure,
+	failedCommandEnvelope,
+	parseClaudeEnvelope,
+	readClaudeEnvelope,
+	readStructuredOutput,
+} from "./claude-response";
+export { spendUsd, readClaudeCallMetrics } from "./claude-metrics";

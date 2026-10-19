@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
 
 /**
@@ -9,14 +10,15 @@ import type { Immutable } from "./contracts";
  * Records written before versions existed carry neither, so every record
  * field holding one is optional and reads as not recorded when absent.
  */
-export const corpusMeasurementSchema = z.discriminatedUnion("kind", [
+const corpusMeasurementSchema = z.discriminatedUnion("kind", [
 	z.object({
-		kind: z.literal("version"),
 		digest: z.string().regex(/^[0-9a-f]{64}$/u),
+		kind: z.literal("version"),
 	}),
-	z.object({ kind: z.literal("refused"), refusal: z.string().min(1) }),
+	z.object({ kind: z.literal("refused"), refusal: z.string().nonempty() }),
 ]);
 
-export type CorpusMeasurement = Immutable<
-	z.infer<typeof corpusMeasurementSchema>
->;
+type CorpusMeasurement = Immutable<z.infer<typeof corpusMeasurementSchema>>;
+
+export { corpusMeasurementSchema as default };
+export type { CorpusMeasurement };

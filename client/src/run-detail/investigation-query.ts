@@ -1,17 +1,24 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const stageOutput = apiClient.api.runs[":run"].stages[":stage"].output;
+
 const finalAssessment = apiClient.api.runs[":run"].final.assessment;
-export const STAGE_OUTPUT_KEY = "stage-output";
-export const FINAL_ASSESSMENT_KEY = "final-assessment";
-export type StageOutputResponse = InferResponseType<
+
+const STAGE_OUTPUT_KEY = "stage-output";
+
+const FINAL_ASSESSMENT_KEY = "final-assessment";
+
+type StageOutputResponse = InferResponseType<
 	typeof stageOutput.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
-export type FinalAssessmentResponse = InferResponseType<
+
+type FinalAssessmentResponse = InferResponseType<
 	typeof finalAssessment.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
 interface StageOutputQuery {
@@ -19,9 +26,8 @@ interface StageOutputQuery {
 	readonly queryFn: () => Promise<StageOutputResponse>;
 }
 
-export function stageOutputQuery(run: string, stage: string): StageOutputQuery {
+function stageOutputQuery(run: string, stage: string): StageOutputQuery {
 	return {
-		queryKey: [STAGE_OUTPUT_KEY, run, stage],
 		queryFn: async (): Promise<StageOutputResponse> => {
 			const response = await stageOutput.$get({
 				param: {
@@ -32,8 +38,9 @@ export function stageOutputQuery(run: string, stage: string): StageOutputQuery {
 			if (!response.ok) {
 				throw new Error("Could not read saved step output");
 			}
-			return response.json();
+			return await response.json();
 		},
+		queryKey: [STAGE_OUTPUT_KEY, run, stage],
 	} as const;
 }
 
@@ -42,9 +49,8 @@ interface FinalAssessmentQuery {
 	readonly queryFn: () => Promise<FinalAssessmentResponse>;
 }
 
-export function finalAssessmentQuery(run: string): FinalAssessmentQuery {
+function finalAssessmentQuery(run: string): FinalAssessmentQuery {
 	return {
-		queryKey: [FINAL_ASSESSMENT_KEY, run],
 		queryFn: async (): Promise<FinalAssessmentResponse> => {
 			const response = await finalAssessment.$get({
 				param: { run: encodeURIComponent(run) },
@@ -52,7 +58,16 @@ export function finalAssessmentQuery(run: string): FinalAssessmentQuery {
 			if (!response.ok) {
 				throw new Error("Could not read saved final criteria");
 			}
-			return response.json();
+			return await response.json();
 		},
+		queryKey: [FINAL_ASSESSMENT_KEY, run],
 	} as const;
 }
+
+export {
+	FINAL_ASSESSMENT_KEY,
+	finalAssessmentQuery,
+	STAGE_OUTPUT_KEY,
+	stageOutputQuery,
+};
+export type { FinalAssessmentResponse, StageOutputResponse };

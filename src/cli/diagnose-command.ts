@@ -1,15 +1,17 @@
 import type { AnalysisInvoker } from "#benchmark/root-cause-analysis";
 import {
-	analyzeRun,
 	DEFAULT_ANALYSIS_BUDGET_USD,
+	analyzeRun,
 } from "#benchmark/root-cause-analysis";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { UsageError } from "#cli/commands";
+import { UsageError } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeRecord } from "#cli/output";
 import { parseRunRecordId } from "#cli/record-id";
 
-export interface DiagnoseRequest {
+const POSITIVE_SPENDING_BOUNDARY_USD = 0;
+
+interface DiagnoseRequest {
 	readonly id: string | undefined;
 	readonly runsDirectory: string;
 	readonly model: string | undefined;
@@ -17,7 +19,7 @@ export interface DiagnoseRequest {
 	readonly json: boolean;
 }
 
-export interface DiagnoseDependencies {
+interface DiagnoseDependencies {
 	readonly output: CommandOutput;
 	readonly invokerFor: (model: string) => AnalysisInvoker;
 	readonly now: () => Date;
@@ -32,7 +34,7 @@ export interface DiagnoseDependencies {
  * one call the operator approved. An unavailable model ends in a failed
  * record instead.
  */
-export async function runDiagnose(
+async function runDiagnose(
 	request: DiagnoseRequest,
 	dependencies: DiagnoseDependencies,
 ): Promise<void> {
@@ -46,17 +48,17 @@ export async function runDiagnose(
 	const { run } = parseRunRecordId(request.id);
 	const { file, record } = await analyzeRun(
 		{
-			runsDirectory: request.runsDirectory,
-			run,
-			model: request.model,
 			capUsd: budgetUsd(request.budgetUsd),
+			model: request.model,
+			run,
+			runsDirectory: request.runsDirectory,
 		},
 		{
 			invoke: dependencies.invokerFor(request.model),
-			now: dependencies.now,
 			liveness: dependencies.liveness,
-			requireSpendCeiling: dependencies.requireSpendCeiling,
+			now: dependencies.now,
 			progress: diagnosticWriter(dependencies.output),
+			requireSpendCeiling: dependencies.requireSpendCeiling,
 		},
 	);
 
@@ -74,7 +76,10 @@ function budgetUsd(text: string | undefined): number {
 	if (text === undefined) {
 		return DEFAULT_ANALYSIS_BUDGET_USD;
 	}
-	if (!/^\d+(?:\.\d+)?(?:e-?\d+)?$/u.test(text) || Number(text) <= 0) {
+	if (
+		!/^\d+(?:\.\d+)?(?:e-?\d+)?$/u.test(text) ||
+		Number(text) <= POSITIVE_SPENDING_BOUNDARY_USD
+	) {
 		throw new UsageError(
 			`The budget is a positive number of USD, not ${JSON.stringify(text)}`,
 		);
@@ -82,3 +87,6 @@ function budgetUsd(text: string | undefined): number {
 
 	return Number(text);
 }
+
+export { runDiagnose as default };
+export type { DiagnoseDependencies, DiagnoseRequest };

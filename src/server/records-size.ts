@@ -1,7 +1,9 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-export class RecordsSizeError extends Error {
+const NO_STORED_BYTES = 0;
+
+class RecordsSizeError extends Error {
 	public override name = "RecordsSizeError";
 }
 
@@ -11,7 +13,7 @@ async function unlessRemoved(size: Promise<number>): Promise<number> {
 		return await size;
 	} catch (error) {
 		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return 0;
+			return NO_STORED_BYTES;
 		}
 
 		throw error;
@@ -31,19 +33,19 @@ async function fileSize(path: string): Promise<number> {
 async function treeSize(directory: string): Promise<number> {
 	const entries = await readdir(directory, { withFileTypes: true });
 	const sizes = await Promise.all(
-		entries.map((entry) => {
+		entries.map(async (entry) => {
 			const path = join(directory, entry.name);
 			if (entry.isDirectory()) {
-				return unlessRemoved(treeSize(path));
+				return await unlessRemoved(treeSize(path));
 			}
 
-			return entry.isFile()
+			return await (entry.isFile()
 				? unlessRemoved(fileSize(path))
-				: Promise.resolve(0);
+				: Promise.resolve(NO_STORED_BYTES));
 		}),
 	);
 
-	return sizes.reduce((total, size) => total + size, 0);
+	return sizes.reduce((total, size) => total + size, NO_STORED_BYTES);
 }
 
 /**
@@ -51,7 +53,7 @@ async function treeSize(directory: string): Promise<number> {
  * symlink is not followed, because what it points at is not stored there.
  * A directory not created yet holds nothing.
  */
-export async function recordsSize(directory: string): Promise<number> {
+async function recordsSize(directory: string): Promise<number> {
 	try {
 		return await treeSize(directory);
 	} catch (error) {
@@ -62,7 +64,7 @@ export async function recordsSize(directory: string): Promise<number> {
 		const path = String(error.path);
 		const code = String(error.code);
 		if (code === "ENOENT" && path === directory) {
-			return 0;
+			return NO_STORED_BYTES;
 		}
 
 		throw new RecordsSizeError(
@@ -70,3 +72,5 @@ export async function recordsSize(directory: string): Promise<number> {
 		);
 	}
 }
+
+export { RecordsSizeError, recordsSize };

@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, it } from "bun:test";
+
+import { operatorStopRecord } from "./operator-stop";
 import {
 	CORPUS_BODIES,
 	RUN,
@@ -12,23 +11,13 @@ import {
 } from "./root-cause-analysis-test-support";
 import type { BundleCorpusFile } from "./root-cause-bundle";
 import { assembleRootCauseBundle } from "./root-cause-bundle";
-import { operatorStopRecord } from "./operator-stop";
+import serializeRootCauseBundle from "./root-cause-bundle-format";
+import RootCauseBundleWorkspace from "./root-cause-bundle-workspace-test-fixture";
 import { benchmarkRunPaths } from "./run-layout";
+import { TestResources } from "./test-support";
 
-const roots: string[] = [];
-
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-	);
-});
-
-async function runsDirectory(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-root-cause-bundle-"));
-	roots.push(root);
-
-	return root;
-}
+const SHA256_HEX_DIGITS = 64;
+const workspace = new RootCauseBundleWorkspace(TestResources.forEachTest());
 
 function sha256(text: string): string {
 	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
@@ -39,66 +28,80 @@ function corpusFile(
 	readBy: readonly string[],
 ): BundleCorpusFile {
 	return {
-		path,
-		sha256: sha256(CORPUS_BODIES[path]),
 		body: CORPUS_BODIES[path],
+		path,
 		readBy,
+		sha256: sha256(CORPUS_BODIES[path]),
 	};
 }
 
-describe(assembleRootCauseBundle.name, () => {
-	it("holds each stage's grade, the outcome and the corpus each stage read", async () => {
-		const directory = await runsDirectory();
+const assembleRootCauseBundleRetainsTheHistoricalProviderBundleDigest =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
+		await runStoppedAtBuild(directory);
+
+		const bundle = await assembleRootCauseBundle(directory, RUN);
+		const text = serializeRootCauseBundle(bundle);
+
+		expect(sha256(text)).toBe(
+			"a732a6ed230d8d84111896f41dcb541266d14561b975395c40ff96b0e0222148",
+		);
+	};
+
+const assembleRootCauseBundleHoldsEachStagesGradeTheOutcomeAndTheCorpusEachStageRead =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
 		await runStoppedAtBuild(directory);
 
 		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle).toEqual({
-			run: RUN,
 			caseId: "audit-log",
-			task: "add an audit log module",
-			productBrief: "the brief",
-			declaredStages: ["shape", "build", "review"],
-			stages: [
-				{
-					stage: "shape",
-					grade: { grade: "B", verdict: "CONTINUE", summary: "shape held" },
-					stopped: null,
-					commitSubjects: ["feat: shape the audit log"],
-					changedPaths: ["src/shape.ts"],
-					corpusReads: ["CLAUDE.md", "skills/shape/SKILL.md"],
-				},
-				{
-					stage: "build",
-					grade: { grade: "D", verdict: "STOP", summary: "build missed" },
-					stopped: "build stage graded D; minimum grade is B",
-					commitSubjects: ["feat: build the audit log"],
-					changedPaths: ["src/build.ts"],
-					corpusReads: ["CLAUDE.md", "skills/build/SKILL.md"],
-				},
-			],
-			outcome: {
-				status: "STAGE_JUDGE_FAILED",
-				stage: "build",
-				error: "build stage graded D; minimum grade is B",
-			},
 			corpusFiles: [
 				corpusFile("CLAUDE.md", ["shape", "build"]),
 				corpusFile("skills/shape/SKILL.md", ["shape"]),
 				corpusFile("skills/build/SKILL.md", ["build"]),
 			],
+			declaredStages: ["shape", "build", "review"],
+			outcome: {
+				error: "build stage graded D; minimum grade is B",
+				stage: "build",
+				status: "STAGE_JUDGE_FAILED",
+			},
+			productBrief: "the brief",
+			run: RUN,
+			stages: [
+				{
+					changedPaths: ["src/shape.ts"],
+					commitSubjects: ["feat: shape the audit log"],
+					corpusReads: ["CLAUDE.md", "skills/shape/SKILL.md"],
+					grade: { grade: "B", summary: "shape held", verdict: "CONTINUE" },
+					stage: "shape",
+					stopped: null,
+				},
+				{
+					changedPaths: ["src/build.ts"],
+					commitSubjects: ["feat: build the audit log"],
+					corpusReads: ["CLAUDE.md", "skills/build/SKILL.md"],
+					grade: { grade: "D", summary: "build missed", verdict: "STOP" },
+					stage: "build",
+					stopped: "build stage graded D; minimum grade is B",
+				},
+			],
+			task: "add an audit log module",
 		});
-	});
+	};
 
-	it("takes the outcome of a completed run from its final record", async () => {
-		const directory = await runsDirectory();
+const assembleRootCauseBundleTakesTheOutcomeOfACompletedRunFromItsFinalRecord =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
 		await runStoppedAtBuild(directory);
 		await Bun.write(
 			benchmarkRunPaths(directory, RUN).artifactFile,
 			JSON.stringify({
-				status: "AWAITING_HUMAN_REVIEW",
-				grade: { verdict: "PASS", summary: "the task held", requirements: [] },
+				grade: { requirements: [], summary: "the task held", verdict: "PASS" },
 				judgePrompt: "a prompt the bundle leaves out",
+				status: "AWAITING_HUMAN_REVIEW",
 			}),
 		);
 
@@ -106,13 +109,14 @@ describe(assembleRootCauseBundle.name, () => {
 
 		expect(bundle.outcome).toEqual({
 			status: "AWAITING_HUMAN_REVIEW",
-			verdict: "PASS",
 			summary: "the task held",
+			verdict: "PASS",
 		});
-	});
+	};
 
-	it("takes the outcome of a run the operator stopped from its stop record", async () => {
-		const directory = await runsDirectory();
+const assembleRootCauseBundleTakesTheOutcomeOfARunTheOperatorStoppedFromItsStopRecord =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
 		await runWithOneGradedStage(directory);
 		await Bun.write(
 			benchmarkRunPaths(directory, RUN).operatorStopFile,
@@ -122,90 +126,141 @@ describe(assembleRootCauseBundle.name, () => {
 		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "OPERATOR_STOPPED" });
-	});
+	};
 
-	it("tells a run whose process died before an outcome from a stopped run", async () => {
-		const directory = await runsDirectory();
+const assembleRootCauseBundleTellsARunWhoseProcessDiedBeforeAnOutcomeFromAStoppedRun =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
 		await runWithOneGradedStage(directory);
 
 		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "NO_OUTCOME_RECORDED" });
-	});
+	};
+
+const assembleRootCauseBundleWhenTheSpendCeilingRefusedAStageBeforeItsSessionLeavesThatStageOutOf =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
+		await runWithOneGradedStage(directory);
+		await Bun.write(
+			benchmarkRunPaths(directory, RUN).stageFile("build"),
+			JSON.stringify({
+				ceilingStop: { ceilingUsd: 30, spentUsd: 30 },
+				error: "spend ceiling reached",
+				stage: "build",
+				status: "STAGE_JUDGE_FAILED",
+			}),
+		);
+
+		const bundle = await assembleRootCauseBundle(directory, RUN);
+
+		expect(bundle.stages.map(({ stage }) => stage)).toEqual(["shape"]);
+		expect(bundle.outcome).toMatchObject({ stage: "build" });
+	};
+
+const assembleRootCauseBundleWhenAStageReadACorpusFileItsCorpusVersionDoesNotHoldNamesThe =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
+		const corpusVersion = await runWithOneGradedStage(directory);
+		await writeStage(
+			directory,
+			stoppedStage(
+				"build",
+				["CLAUDE.md", "output-styles/Explanatory.md"],
+				corpusVersion,
+			),
+		);
+
+		const bundle = await assembleRootCauseBundle(directory, RUN);
+
+		const [, observedSecondStage] = bundle.stages;
+
+		expect(observedSecondStage?.corpusReads).toEqual([
+			"CLAUDE.md",
+			"output-styles/Explanatory.md",
+		]);
+		expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([
+			"CLAUDE.md",
+			"skills/shape/SKILL.md",
+		]);
+	};
+
+const assembleRootCauseBundleWhenAStagesRecordPredatesTheReadManifestReadsTheCorpusFilesTheStageWas =
+	async (): Promise<void> => {
+		const directory = await workspace.createDirectory();
+		await runWithOneGradedStage(directory);
+		await writeStage(directory, {
+			corpusFiles: [
+				{ path: "CLAUDE.md", sha256: "e".repeat(SHA256_HEX_DIGITS) },
+			],
+			grade: { grade: "C", summary: "build missed", verdict: "STOP" },
+			input: {
+				changedPaths: [],
+				commitSubjects: [],
+				diff: "",
+			},
+			prompt: "",
+			stage: "build",
+		});
+
+		const bundle = await assembleRootCauseBundle(directory, RUN);
+
+		const [, observedSecondStage] = bundle.stages;
+
+		expect(observedSecondStage).toMatchObject({
+			corpusReads: ["CLAUDE.md"],
+			stage: "build",
+		});
+		expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([
+			"CLAUDE.md",
+			"skills/shape/SKILL.md",
+		]);
+	};
+
+describe(assembleRootCauseBundle.name, () => {
+	it(
+		"retains the historical provider bundle digest",
+		assembleRootCauseBundleRetainsTheHistoricalProviderBundleDigest,
+	);
+
+	it(
+		"holds each stage's grade, the outcome and the corpus each stage read",
+		assembleRootCauseBundleHoldsEachStagesGradeTheOutcomeAndTheCorpusEachStageRead,
+	);
+
+	it(
+		"takes the outcome of a completed run from its final record",
+		assembleRootCauseBundleTakesTheOutcomeOfACompletedRunFromItsFinalRecord,
+	);
+
+	it(
+		"takes the outcome of a run the operator stopped from its stop record",
+		assembleRootCauseBundleTakesTheOutcomeOfARunTheOperatorStoppedFromItsStopRecord,
+	);
+
+	it(
+		"tells a run whose process died before an outcome from a stopped run",
+		assembleRootCauseBundleTellsARunWhoseProcessDiedBeforeAnOutcomeFromAStoppedRun,
+	);
 
 	describe("when the spend ceiling refused a stage before its session", () => {
-		it("leaves that stage out of the stages that ran", async () => {
-			const directory = await runsDirectory();
-			await runWithOneGradedStage(directory);
-			await Bun.write(
-				benchmarkRunPaths(directory, RUN).stageFile("build"),
-				JSON.stringify({
-					status: "STAGE_JUDGE_FAILED",
-					stage: "build",
-					error: "spend ceiling reached",
-					ceilingStop: { ceilingUsd: 30, spentUsd: 30 },
-				}),
-			);
-
-			const bundle = await assembleRootCauseBundle(directory, RUN);
-
-			expect(bundle.stages.map(({ stage }) => stage)).toEqual(["shape"]);
-			expect(bundle.outcome).toMatchObject({ stage: "build" });
-		});
+		it(
+			"leaves that stage out of the stages that ran",
+			assembleRootCauseBundleWhenTheSpendCeilingRefusedAStageBeforeItsSessionLeavesThatStageOutOf,
+		);
 	});
 
 	describe("when a stage read a corpus file its corpus version does not hold", () => {
-		it("names the read and carries no body for it", async () => {
-			const directory = await runsDirectory();
-			const corpusVersion = await runWithOneGradedStage(directory);
-			await writeStage(
-				directory,
-				stoppedStage(
-					"build",
-					["CLAUDE.md", "output-styles/Explanatory.md"],
-					corpusVersion,
-				),
-			);
-
-			const bundle = await assembleRootCauseBundle(directory, RUN);
-
-			expect(bundle.stages[1]?.corpusReads).toEqual([
-				"CLAUDE.md",
-				"output-styles/Explanatory.md",
-			]);
-			expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([
-				"CLAUDE.md",
-				"skills/shape/SKILL.md",
-			]);
-		});
+		it(
+			"names the read and carries no body for it",
+			assembleRootCauseBundleWhenAStageReadACorpusFileItsCorpusVersionDoesNotHoldNamesThe,
+		);
 	});
 
 	describe("when a stage's record predates the read manifest", () => {
-		it("reads the corpus files the stage was given, without their bodies", async () => {
-			const directory = await runsDirectory();
-			await runWithOneGradedStage(directory);
-			await writeStage(directory, {
-				stage: "build",
-				grade: { grade: "C", verdict: "STOP", summary: "build missed" },
-				input: {
-					commitSubjects: [],
-					changedPaths: [],
-					diff: "",
-				},
-				prompt: "",
-				corpusFiles: [{ path: "CLAUDE.md", sha256: "e".repeat(64) }],
-			});
-
-			const bundle = await assembleRootCauseBundle(directory, RUN);
-
-			expect(bundle.stages[1]).toMatchObject({
-				stage: "build",
-				corpusReads: ["CLAUDE.md"],
-			});
-			expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([
-				"CLAUDE.md",
-				"skills/shape/SKILL.md",
-			]);
-		});
+		it(
+			"reads the corpus files the stage was given, without their bodies",
+			assembleRootCauseBundleWhenAStagesRecordPredatesTheReadManifestReadsTheCorpusFilesTheStageWas,
+		);
 	});
 });

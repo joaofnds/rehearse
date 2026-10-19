@@ -1,0 +1,56 @@
+{
+	"statuses": ["To Do", "Done"],
+	"commitSubjectPattern": "^feat:",
+	"target": {
+		"services": [
+			{
+				"name": "db",
+				"image": "postgres",
+				"port": 5432,
+				"env": {
+					"Z_LAST": "z",
+					"A_FIRST": "a"
+				},
+				"ready": ["pg_isready"],
+				"exports": {
+					"DATABASE_URL": "postgres://localhost:{port}/app"
+				}
+			}
+		],
+		"setup": [
+			{
+				"command": ["bun", "install"],
+				"env": {
+					"Z_LAST": "z",
+					"A_FIRST": "a"
+				}
+			}
+		],
+		"checks": [
+			{
+				"command": ["bun", "test"],
+				"env": {
+					"Z_LAST": "z",
+					"A_FIRST": "a"
+				}
+			}
+		],
+		"integrityFiles": ["package.json"]
+	},
+	"stages": [
+		{
+			"name": "shape",
+			"kind": "planning",
+			"skill": "shape",
+			"artifact": "plan.md",
+			"rubric": "shape.json",
+			"requiresAcceptanceCriteria": true
+		},
+		{
+			"name": "build",
+			"kind": "delivery",
+			"skill": "build",
+			"rubric": "build.json"
+		}
+	]
+}

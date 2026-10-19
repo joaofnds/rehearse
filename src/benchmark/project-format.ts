@@ -1,7 +1,9 @@
 import { join } from "node:path";
+
 import { format } from "oxfmt";
 import type { FormatConfig } from "oxfmt";
 import { z } from "zod";
+
 import { CONTROL_DIR } from "#benchmark/config";
 
 /** The project's formatter settings, which the formatter itself validates. */
@@ -12,10 +14,7 @@ const FORMAT_CONFIG = z.looseObject({});
  * project's formatter would, so the change an operator reviews is the only
  * diff and the format check still passes. `file` picks the language.
  */
-export async function projectFormatted(
-	file: string,
-	text: string,
-): Promise<string> {
+async function projectFormatted(file: string, text: string): Promise<string> {
 	const config: FormatConfig = FORMAT_CONFIG.parse(
 		await Bun.file(join(CONTROL_DIR, ".oxfmtrc.json")).json(),
 	);
@@ -27,3 +26,5 @@ export async function projectFormatted(
 
 	return result.code;
 }
+
+export { projectFormatted as default };

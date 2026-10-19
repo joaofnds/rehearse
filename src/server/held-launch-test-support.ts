@@ -1,5 +1,5 @@
 /** A launch the fake keeps from finishing until the test releases it. */
-export class HeldLaunch {
+class HeldLaunch {
 	readonly #reached = Promise.withResolvers<undefined>();
 	readonly #released = Promise.withResolvers<undefined>();
 
@@ -9,11 +9,13 @@ export class HeldLaunch {
 	}
 
 	public release(): void {
-		this.#released.resolve(undefined);
+		this.#released.resolve();
 	}
 
 	public async hold(): Promise<void> {
-		this.#reached.resolve(undefined);
+		this.#reached.resolve();
 		await this.#released.promise;
 	}
 }
+
+export { HeldLaunch as default };

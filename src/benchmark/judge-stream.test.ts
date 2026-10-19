@@ -1,31 +1,50 @@
 import { describe, expect, it } from "bun:test";
+
 import type { ClosedItem } from "./judge-stream";
-import { StructuredOutputStream } from "./judge-stream";
+import StructuredOutputStream from "./judge-stream";
+
+const DEFAULT_STREAM_CHUNK_CODE_UNITS = 7;
+
+const INITIAL_CONTENT_BLOCK_INDEX = 0;
+const OMITTED_JSON_CLOSING_CHARACTER_OFFSET = -1;
+const LATER_CONTENT_BLOCK_INDEX = 1;
+
+const PREFIX_START_INDEX = 0;
+
+const STREAM_RESTART_COUNT_INCREMENT = 1;
+
+const SINGLE_ITEM_COUNT = 1;
 
 function blockStart(index: number, name = "StructuredOutput"): string {
 	return JSON.stringify({
-		type: "stream_event",
 		event: {
-			type: "content_block_start",
+			content_block: { id: "toolu_1", input: {}, name, type: "tool_use" },
 			index,
-			content_block: { type: "tool_use", id: "toolu_1", name, input: {} },
+			type: "content_block_start",
 		},
+		type: "stream_event",
 	});
 }
 
-function delta(partialJson: string, index = 0): string {
+function delta(
+	partialJson: string,
+	index = INITIAL_CONTENT_BLOCK_INDEX,
+): string {
 	return JSON.stringify({
-		type: "stream_event",
 		event: {
-			type: "content_block_delta",
+			delta: { partial_json: partialJson, type: "input_json_delta" },
 			index,
-			delta: { type: "input_json_delta", partial_json: partialJson },
+			type: "content_block_delta",
 		},
+		type: "stream_event",
 	});
 }
 
 /** The output split into chunks of a few characters, as the CLI streams it. */
-function chunked(json: string, size = 7): string[] {
+function chunked(
+	json: string,
+	size = DEFAULT_STREAM_CHUNK_CODE_UNITS,
+): string[] {
 	const chunks: string[] = [];
 	for (let start = 0; start < json.length; start += size) {
 		chunks.push(delta(json.slice(start, start + size)));
@@ -52,80 +71,92 @@ function watched(): Watched {
 		},
 	});
 
-	return { stream, items, restarts };
+	return { items, restarts, stream };
 }
 
-describe(StructuredOutputStream.name, () => {
-	it("reports each section item as it closes, in the order the model wrote them", () => {
+const StructuredOutputStreamReportsEachSectionItemAsItClosesInTheOrderTheModelWroteThem =
+	(): void => {
 		const { stream, items } = watched();
 		const output = JSON.stringify({
 			dimensions: [
-				{ id: "d1", grade: "B", note: 'a } and a ] inside "quotes"' },
-				{ id: "d2", grade: "A", evidence: [{ path: "x" }] },
+				{ grade: "B", id: "d1", note: 'a } and a ] inside "quotes"' },
+				{ evidence: [{ path: "x" }], grade: "A", id: "d2" },
 			],
 			hardBlockers: [{ id: "b1", status: "PASS" }],
 			summary: "{not an item}",
 		});
 
 		// The output never closes, so each item is reported on its own close.
-		for (const line of [blockStart(0), ...chunked(output.slice(0, -1))]) {
+		for (const line of [
+			blockStart(INITIAL_CONTENT_BLOCK_INDEX),
+			...chunked(
+				output.slice(PREFIX_START_INDEX, OMITTED_JSON_CLOSING_CHARACTER_OFFSET),
+			),
+		]) {
 			stream.line(line);
 		}
 
 		expect(items).toEqual([
 			{
+				item: { grade: "B", id: "d1", note: 'a } and a ] inside "quotes"' },
 				section: "dimensions",
-				item: { id: "d1", grade: "B", note: 'a } and a ] inside "quotes"' },
 			},
 			{
+				item: { evidence: [{ path: "x" }], grade: "A", id: "d2" },
 				section: "dimensions",
-				item: { id: "d2", grade: "A", evidence: [{ path: "x" }] },
 			},
-			{ section: "hardBlockers", item: { id: "b1", status: "PASS" } },
+			{ item: { id: "b1", status: "PASS" }, section: "hardBlockers" },
 		]);
-	});
+	};
 
-	it("ignores lines that are not structured output deltas", () => {
+const StructuredOutputStreamIgnoresLinesThatAreNotStructuredOutputDeltas =
+	(): void => {
 		const { stream, items } = watched();
 
 		stream.line("not json");
-		stream.line(JSON.stringify({ type: "system", subtype: "init" }));
-		stream.line(blockStart(0, "Bash"));
+		stream.line(JSON.stringify({ subtype: "init", type: "system" }));
+		stream.line(blockStart(INITIAL_CONTENT_BLOCK_INDEX, "Bash"));
 		stream.line(delta('{"dimensions":[{"id":"d1"}]}'));
-		stream.line(JSON.stringify({ type: "result", structured_output: {} }));
+		stream.line(JSON.stringify({ structured_output: {}, type: "result" }));
 
 		expect(items).toEqual([]);
-	});
+	};
 
-	it("starts over when the model begins a new structured output", () => {
+const StructuredOutputStreamStartsOverWhenTheModelBeginsANewStructuredOutput =
+	(): void => {
+		const expectedStructuredOutputRestartCount = 1;
+
 		const { stream, items, restarts } = watched();
 
-		stream.line(blockStart(0));
+		stream.line(blockStart(INITIAL_CONTENT_BLOCK_INDEX));
 		stream.line(delta('{"dimensions":[{"id":"d1"},'));
-		stream.line(blockStart(0));
+		stream.line(blockStart(INITIAL_CONTENT_BLOCK_INDEX));
 		stream.line(delta('{"dimensions":[{"id":"d2"}]}'));
 
 		expect(items.map(({ item }) => item)).toEqual([{ id: "d1" }, { id: "d2" }]);
-		expect(restarts).toEqual([1]);
-	});
+		expect(restarts).toEqual([expectedStructuredOutputRestartCount]);
+	};
 
-	it("keeps reporting after a listener fails on one item", () => {
+const StructuredOutputStreamKeepsReportingAfterAListenerFailsOnOneItem =
+	(): void => {
+		const expectedRestarts = 0;
+
 		const items: ClosedItem[] = [];
 		let restarts = 0;
 		const stream = new StructuredOutputStream({
 			itemClosed: (item) => {
 				items.push(item);
-				if (items.length === 1) {
+				if (items.length === SINGLE_ITEM_COUNT) {
 					throw new Error("report failed");
 				}
 			},
 			restarted: () => {
-				restarts += 1;
+				restarts += STREAM_RESTART_COUNT_INCREMENT;
 			},
 		});
 
 		for (const line of [
-			blockStart(0),
+			blockStart(INITIAL_CONTENT_BLOCK_INDEX),
 			...chunked(
 				'{"dimensions":[{"id":"d1"},{"id":"d2"}],"hardBlockers":[{"id":"b1"}]}',
 			),
@@ -142,16 +173,47 @@ describe(StructuredOutputStream.name, () => {
 			{ id: "d2" },
 			{ id: "b1" },
 		]);
-		expect(restarts).toBe(0);
-	});
+		expect(restarts).toBe(expectedRestarts);
+	};
 
-	it("reads only the structured output block's own deltas", () => {
+const StructuredOutputStreamReadsOnlyTheStructuredOutputBlocksOwnDeltas =
+	(): void => {
 		const { stream, items } = watched();
 
-		stream.line(blockStart(1));
-		stream.line(delta('{"dimensions":[{"id":"other"}]}', 0));
-		stream.line(delta('{"dimensions":[{"id":"d1"}]}', 1));
+		stream.line(blockStart(LATER_CONTENT_BLOCK_INDEX));
+		stream.line(
+			delta('{"dimensions":[{"id":"other"}]}', INITIAL_CONTENT_BLOCK_INDEX),
+		);
+		stream.line(
+			delta('{"dimensions":[{"id":"d1"}]}', LATER_CONTENT_BLOCK_INDEX),
+		);
 
 		expect(items.map(({ item }) => item)).toEqual([{ id: "d1" }]);
-	});
+	};
+
+describe(StructuredOutputStream.name, () => {
+	it(
+		"reports each section item as it closes, in the order the model wrote them",
+		StructuredOutputStreamReportsEachSectionItemAsItClosesInTheOrderTheModelWroteThem,
+	);
+
+	it(
+		"ignores lines that are not structured output deltas",
+		StructuredOutputStreamIgnoresLinesThatAreNotStructuredOutputDeltas,
+	);
+
+	it(
+		"starts over when the model begins a new structured output",
+		StructuredOutputStreamStartsOverWhenTheModelBeginsANewStructuredOutput,
+	);
+
+	it(
+		"keeps reporting after a listener fails on one item",
+		StructuredOutputStreamKeepsReportingAfterAListenerFailsOnOneItem,
+	);
+
+	it(
+		"reads only the structured output block's own deltas",
+		StructuredOutputStreamReadsOnlyTheStructuredOutputBlocksOwnDeltas,
+	);
 });

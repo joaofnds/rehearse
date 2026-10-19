@@ -1,18 +1,80 @@
 import { Hono } from "hono";
+
 import {
-	archiveConfirmation,
 	ConfirmationArchiveRefusalError,
+	archiveConfirmation,
 	listConfirmationArchives,
 	restoreConfirmation,
 } from "#benchmark/confirmation-archive";
 import type { ConfirmationArchives } from "#benchmark/confirmation-archive";
+
 import { redactAbsolutePaths } from "./redact-path";
 
-export interface ConfirmationArchiveDependencies {
+const INTERNAL_SERVER_ERROR = 500;
+
+interface ConfirmationArchiveDependencies {
 	readonly runsDirectory: string;
 }
 
-export const createConfirmationArchiveApp = ((
+function redactedArchiveIssue({
+	id,
+	reason,
+	groupId,
+}: ConfirmationArchives["unreadable"][number]): ConfirmationArchives["unreadable"][number] {
+	const redacted = redactAbsolutePaths(reason);
+
+	return groupId === undefined
+		? { id, reason: redacted }
+		: { groupId, id, reason: redacted };
+}
+
+interface ArchiveErrorResponse {
+	readonly error: string;
+}
+
+function archiveError(message: string): ArchiveErrorResponse {
+	return { error: redactAbsolutePaths(message) };
+}
+
+const confirmationArchiveWrites = ((
+	dependencies: ConfirmationArchiveDependencies,
+) =>
+	new Hono()
+		.post("/api/confirmation-archives/:groupId/archive", async (context) => {
+			try {
+				const archived = await archiveConfirmation({
+					archivedAt: new Date().toISOString(),
+					groupId: context.req.param("groupId"),
+					runsDirectory: dependencies.runsDirectory,
+				});
+				return context.json(archived);
+			} catch (error) {
+				return context.json(
+					archiveError(error instanceof Error ? error.message : String(error)),
+					error instanceof ConfirmationArchiveRefusalError
+						? error.status
+						: INTERNAL_SERVER_ERROR,
+				);
+			}
+		})
+		.post("/api/confirmation-archives/:groupId/restore", async (context) => {
+			try {
+				await restoreConfirmation({
+					groupId: context.req.param("groupId"),
+					runsDirectory: dependencies.runsDirectory,
+				});
+				return context.json({ restored: true });
+			} catch (error) {
+				return context.json(
+					archiveError(error instanceof Error ? error.message : String(error)),
+					error instanceof ConfirmationArchiveRefusalError
+						? error.status
+						: INTERNAL_SERVER_ERROR,
+				);
+			}
+		})) satisfies (dependencies: ConfirmationArchiveDependencies) => Hono;
+
+const createConfirmationArchiveApp = ((
 	dependencies: ConfirmationArchiveDependencies,
 ) =>
 	new Hono()
@@ -23,68 +85,22 @@ export const createConfirmationArchiveApp = ((
 				);
 				return context.json({
 					...listing,
-					unreadable: listing.unreadable.map(
-						({
-							id,
-							reason,
-							groupId,
-						}): ConfirmationArchives["unreadable"][number] => {
-							const redacted = redactAbsolutePaths(reason);
-							return groupId === undefined
-								? { id, reason: redacted }
-								: { id, reason: redacted, groupId };
-						},
-					),
+					unreadable: listing.unreadable.map(redactedArchiveIssue),
 				});
 			} catch (error) {
 				return context.json(
-					{
-						error: redactAbsolutePaths(
-							error instanceof Error ? error.message : String(error),
-						),
-					},
-					500,
+					archiveError(error instanceof Error ? error.message : String(error)),
+					INTERNAL_SERVER_ERROR,
 				);
 			}
 		})
-		.post("/api/confirmation-archives/:groupId/archive", async (context) => {
-			try {
-				const archived = await archiveConfirmation({
-					runsDirectory: dependencies.runsDirectory,
-					groupId: context.req.param("groupId"),
-					archivedAt: new Date().toISOString(),
-				});
-				return context.json(archived);
-			} catch (error) {
-				return context.json(
-					{
-						error: redactAbsolutePaths(
-							error instanceof Error ? error.message : String(error),
-						),
-					},
-					error instanceof ConfirmationArchiveRefusalError ? error.status : 500,
-				);
-			}
-		})
-		.post("/api/confirmation-archives/:groupId/restore", async (context) => {
-			try {
-				await restoreConfirmation({
-					runsDirectory: dependencies.runsDirectory,
-					groupId: context.req.param("groupId"),
-				});
-				return context.json({ restored: true });
-			} catch (error) {
-				return context.json(
-					{
-						error: redactAbsolutePaths(
-							error instanceof Error ? error.message : String(error),
-						),
-					},
-					error instanceof ConfirmationArchiveRefusalError ? error.status : 500,
-				);
-			}
-		})) satisfies (dependencies: ConfirmationArchiveDependencies) => Hono;
+		.route("/", confirmationArchiveWrites(dependencies))) satisfies (
+	dependencies: ConfirmationArchiveDependencies,
+) => Hono;
 
-export type ConfirmationArchiveRoutes = ReturnType<
+type ConfirmationArchiveRoutes = ReturnType<
 	typeof createConfirmationArchiveApp
 >;
+
+export { createConfirmationArchiveApp as default };
+export type { ConfirmationArchiveDependencies, ConfirmationArchiveRoutes };

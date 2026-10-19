@@ -1,319 +1,26 @@
-import { caseDeclarationPath, casesRoot } from "#benchmark/case";
-import { parseComparisonReport } from "#benchmark/comparison-record";
-import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
-import type { ParsedConfirmationGroupRecord } from "#benchmark/confirmation-record";
-import { CorpusConfigurationError } from "#benchmark/corpus-file";
-import { displayPath } from "#benchmark/config";
-import {
-	CorpusSourceError,
-	resolveCorpusSource,
-} from "#benchmark/corpus-source";
-import type {
-	CorpusSourceResolver,
-	ResolvedCorpusSource,
-} from "#benchmark/corpus-source";
-import { unhandled } from "#benchmark/contracts";
-import type { Immutable } from "#benchmark/contracts";
-import {
-	comparisonSummary,
-	groupSummary,
-	parseGroupReportSummaryRecord,
-	runSummary,
-	runSummarySchema,
-} from "#benchmark/record-summary";
-import type { RepReadsSummary } from "#benchmark/record-summary";
-import {
-	benchmarkRunPaths,
-	checkpointRecordFile,
-	comparisonReportPaths,
-	confirmationGroupPaths,
-	replayRecordFile,
-	sessionAttemptPaths,
-} from "#benchmark/run-layout";
-import { stoppedStage } from "#benchmark/run-outcome";
-import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
-import { groupRepReads, recordedRepReads } from "#benchmark/staleness-report";
-import { exists } from "node:fs/promises";
-import { z } from "zod";
-import { repositoryHolding } from "#benchmark/run-repositories";
-import { addWorktree, git, refExists, retentionRef } from "#benchmark/target";
-import { UsageError } from "#cli/commands";
-import { RefusedPreconditionError } from "#cli/interactive-stdin";
+import type { CorpusSourceResolver } from "#benchmark/corpus-source";
+import { resolveCorpusSource } from "#benchmark/corpus-source";
+import { UsageError } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
-import { controlRelative } from "#cli/output";
-import type { RecordId, RunRecordId, ShortIdReference } from "#cli/record-id";
-import { frozenStages } from "#cli/short-id-column";
-import {
-	parseRecordId,
-	parseRecordReference,
-	parseRunRecordId,
-	recordIdForms,
-} from "#cli/record-id";
+import { recordIdForms } from "#cli/record-id";
 
-/**
- * A run that stopped at a stage never writes an artifact, so its id resolves
- * to the stopped stage's own file instead: that file is the record that
- * exists on disk, and printing it is what tells `show` from a run that simply
- * has no record at all, which resolves to nothing here and is refused by
- * `recordText` the same way an absent artifact always was.
- */
-async function runRecordFile(
-	id: { readonly run: string },
-	runsDirectory: string,
-): Promise<string | undefined> {
-	const paths = benchmarkRunPaths(runsDirectory, id.run);
-	if (await Bun.file(paths.artifactFile).exists()) {
-		return paths.artifactFile;
-	}
+import { recordFileFor, recordText } from "./record-file-location";
+import recordIdFor from "./record-reference-resolution";
+import summaryOf from "./record-summary-output";
+import checkoutRetainedCandidate from "./retained-candidate-checkout";
 
-	const stopped = await stoppedStage(runsDirectory, id.run);
-
-	return stopped === undefined ? undefined : paths.stageFile(stopped.stage);
-}
-
-export async function recordFileFor(
-	id: RecordId,
-	runsDirectory: string,
-): Promise<string> {
-	switch (id.kind) {
-		case "case": {
-			return caseDeclarationPath(id.caseId, casesRoot());
-		}
-		case "run": {
-			return (
-				(await runRecordFile(id, runsDirectory)) ??
-				benchmarkRunPaths(runsDirectory, id.run).artifactFile
-			);
-		}
-		case "checkpoint": {
-			const paths = benchmarkRunPaths(runsDirectory, id.run);
-
-			return checkpointRecordFile(paths.checkpointDirectory(id.stage));
-		}
-		case "attempt:session": {
-			return sessionAttemptPaths(runsDirectory, id).recordFile;
-		}
-		case "attempt:stage": {
-			return replayRecordFile(runsDirectory, id.lineage, id.timestamp);
-		}
-		case "group": {
-			return confirmationGroupPaths(runsDirectory, id.groupId).groupFile;
-		}
-		case "rep:stage": {
-			return confirmationGroupPaths(runsDirectory, id.groupId)
-				.rep(id.repId)
-				.stageFile(id.stage);
-		}
-		case "rep:session": {
-			return confirmationGroupPaths(runsDirectory, id.groupId).rep(id.repId)
-				.attemptFile;
-		}
-		case "comparison": {
-			return comparisonReportPaths(runsDirectory, id.manifestDigest).reportFile;
-		}
-		default: {
-			return unhandled(id, "record id kind");
-		}
-	}
-}
-
-/**
- * A well-formed id naming no record is a precondition the command refuses, not
- * a malformed command line: the same distinction `case show` already draws.
- * The path is named the way a session can paste it onto a card, which is what
- * the README tells one to do with this output.
- */
-async function recordText(id: string, file: string): Promise<string> {
-	const record = Bun.file(file);
-	if (!(await record.exists())) {
-		throw new RefusedPreconditionError(
-			`No record ${id} at ${displayPath(file)}`,
-		);
-	}
-
-	return record.text();
-}
-
-/**
- * A record whose kind has no summary prints its own bytes: the markdown exists
- * for the three records a session pastes onto a card, and inventing a summary
- * for a case declaration or a checkpoint would render less than the record it
- * replaced.
- */
-async function summaryOf(
-	id: RecordId,
-	text: string,
-	runsDirectory: string,
-	resolveCorpus: CorpusSourceResolver,
-): Promise<string> {
-	if (id.kind === "group") {
-		const summary = await groupSummaryOf(
-			id.groupId,
-			text,
-			runsDirectory,
-			resolveCorpus,
-		);
-
-		return summary;
-	}
-	if (id.kind === "run") {
-		const record = runSummarySchema.safeParse(JSON.parse(text));
-
-		return record.success ? runSummary(id.run, record.data) : text;
-	}
-	if (id.kind === "comparison") {
-		return comparisonSummary(id.manifestDigest, parseComparisonReport(text));
-	}
-
-	return text;
-}
-
-/**
- * The reliability half of a group's summary lives in the report it writes
- * beside its record, so a group whose record reads but whose report does not
- * is a missing report, not a missing group: saying "No record group:<id>"
- * would deny a group that is there and that `--json` prints.
- */
-async function groupSummaryOf(
-	groupId: string,
-	text: string,
-	runsDirectory: string,
-	resolveCorpus: CorpusSourceResolver,
-): Promise<string> {
-	const { reportFile } = confirmationGroupPaths(runsDirectory, groupId);
-	const file = Bun.file(reportFile);
-	if (!(await file.exists())) {
-		throw new RefusedPreconditionError(
-			`No report for group:${groupId} at ${displayPath(reportFile)}; its record reads, so --json prints it`,
-		);
-	}
-
-	const record = parseConfirmationGroupRecord(text);
-	const { reads, judgedAgainst } = await groupRepReadsOf(
-		runsDirectory,
-		record,
-		resolveCorpus,
-	);
-
-	return groupSummary(
-		record,
-		parseGroupReportSummaryRecord(await file.text()),
-		{
-			reads: { ...reads, reasons: reads.reasons.map(controlRelative) },
-			judgedAgainst,
-		},
-	);
-}
-
-/**
- * The reps' reads are judged against the corpus `stale` judges them against,
- * the linked corpus, and a corpus that does not resolve leaves them listed
- * unjudged rather than refusing the rest of the summary.
- */
-async function groupRepReadsOf(
-	runsDirectory: string,
-	record: Immutable<ParsedConfirmationGroupRecord>,
-	resolveCorpus: CorpusSourceResolver,
-): Promise<RepReadsSummary> {
-	let source: ResolvedCorpusSource;
-	try {
-		source = await resolveCorpus(undefined);
-	} catch (error) {
-		if (
-			error instanceof CorpusSourceError ||
-			error instanceof CorpusConfigurationError ||
-			error instanceof RefusedPreconditionError
-		) {
-			const recorded = await recordedRepReads(
-				runsDirectory,
-				record.groupId,
-				record,
-			);
-
-			return {
-				reads: {
-					reps: recorded.reps,
-					reasons: [...recorded.reasons, `Reads not judged: ${error.message}`],
-				},
-				judgedAgainst: undefined,
-			};
-		}
-
-		throw error;
-	}
-
-	return {
-		reads: await groupRepReads(runsDirectory, record.groupId, source),
-		judgedAgainst:
-			source.kind === "live"
-				? "the live install"
-				: `the corpus at ${displayPath(source.root)}`,
-	};
-}
-
-/**
- * The Record ID a short id names, read from the registry and, for a
- * checkpoint, from the stages the run froze into its manifest. A short id that
- * names nothing is refused the way a Record ID naming no file is.
- */
-async function resolvedShortId(
-	given: string,
-	reference: ShortIdReference,
-	runsDirectory: string,
-): Promise<RecordId> {
-	const record = await resolveShortId(runsDirectory, {
-		caseId: reference.caseId,
-		kind: reference.shortKind,
-		number: reference.number,
-	});
-	if (record === undefined) {
-		throw new RefusedPreconditionError(`No record holds short id ${given}`);
-	}
-	if (reference.stage === undefined) {
-		return record;
-	}
-
-	if (record.kind !== "run") {
-		throw new RefusedPreconditionError(
-			`No checkpoint holds short id ${given}: it numbers a ${record.kind} record, not a run`,
-		);
-	}
-	const stages = await frozenStages(runsDirectory, record.run);
-	if (stages === undefined) {
-		throw new RefusedPreconditionError(
-			`No checkpoint holds short id ${given}: its run's manifest cannot be read`,
-		);
-	}
-	const stage = checkpointStageAt(stages, reference.stage);
-	if (stage === undefined) {
-		throw new RefusedPreconditionError(
-			`No checkpoint holds short id ${given}: its run has no stage ${String(reference.stage)}`,
-		);
-	}
-
-	return { kind: "checkpoint", run: record.run, stage };
-}
-
-function recordIdFor(given: string, runsDirectory: string): Promise<RecordId> {
-	const reference = parseRecordReference(given);
-
-	return reference.kind === "short"
-		? resolvedShortId(given, reference, runsDirectory)
-		: Promise.resolve(reference);
-}
-
-export interface ShowRequest {
+interface ShowRequest {
 	readonly id: string | undefined;
 	readonly json: boolean;
 	readonly runsDirectory: string;
 	readonly checkout?: string | undefined;
 }
 
-export interface ShowDependencies {
+interface ShowDependencies {
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 }
 
-export async function runShow(
+async function runShow(
 	request: ShowRequest,
 	output: CommandOutput,
 	dependencies: ShowDependencies = {},
@@ -323,6 +30,7 @@ export async function runShow(
 			`Provide the record id: rehearse show <${recordIdForms().join(" | ")}>`,
 		);
 	}
+
 	if (request.checkout !== undefined) {
 		output.stdout(
 			`${await checkoutRetainedCandidate(request.id, request.checkout, request.runsDirectory)}\n`,
@@ -331,137 +39,27 @@ export async function runShow(
 		return;
 	}
 
-	const id = await recordIdFor(request.id, request.runsDirectory);
-	const text = await recordText(
-		request.id,
-		await recordFileFor(id, request.runsDirectory),
-	);
+	const id = await recordIdFor({
+		given: request.id,
+		runsDirectory: request.runsDirectory,
+	});
+	const text = await recordText({
+		file: await recordFileFor(id, request.runsDirectory),
+		id: request.id,
+	});
 
 	output.stdout(
 		request.json
 			? text
-			: await summaryOf(
-					id,
-					text,
-					request.runsDirectory,
-					dependencies.resolveCorpus ?? resolveCorpusSource,
-				),
+			: await summaryOf(id, text, {
+					resolveCorpus: dependencies.resolveCorpus ?? resolveCorpusSource,
+					runsDirectory: request.runsDirectory,
+				}),
 	);
 }
 
-const retainedRunSchema = z
-	.object({
-		sourceRoot: z.string().min(1),
-		targetRoot: z.string().min(1).optional(),
-	})
-	.loose();
+export { recordFileFor } from "./record-file-location";
 
-/**
- * The run recorded which repositories it worked in, so `--checkout` takes no
- * target of its own: a second answer could disagree with the first. The
- * candidate is the commit the run's retention ref names, and the worktree
- * goes where a replay reads the run's commits from.
- */
-async function checkoutRetainedCandidate(
-	given: string,
-	directory: string,
-	runsDirectory: string,
-): Promise<string> {
-	const id = parseCheckoutRunId(given);
-	const { artifactFile } = benchmarkRunPaths(runsDirectory, id.run);
-	const text = await recordText(given, artifactFile);
-	const run = retainedRunSchema.parse(JSON.parse(text));
-	await refuseExistingDirectory(directory);
-	const candidate = await retainedCandidate(run, id.run);
-	const repository = await repositoryHolding(
-		{ target: run.targetRoot, checkout: run.sourceRoot, declared: undefined },
-		candidate,
-	);
-	await addWorktree(repository, candidate, directory);
+export { runShow };
 
-	return directory;
-}
-
-/**
- * The commit the run's retention ref names, read from the run's checkout while
- * it remains: the target receives only what the checkout pinned, so a copy
- * that failed leaves the target's ref behind the checkout's. A repository
- * that is gone is not one that retained nothing, so when every one is gone
- * the caller is sent to find them rather than to re-run the benchmark.
- */
-async function retainedCandidate(
-	run: Readonly<z.infer<typeof retainedRunSchema>>,
-	name: string,
-): Promise<string> {
-	const reference = retentionRef(name);
-	const recorded = [run.sourceRoot, run.targetRoot].filter(
-		(repository) => repository !== undefined,
-	);
-	const remaining: string[] = [];
-	for (const repository of recorded) {
-		if (await exists(repository)) {
-			remaining.push(repository);
-		}
-	}
-	if (remaining.length === 0) {
-		throw new RefusedPreconditionError(
-			`Cannot read ${recorded.join(" or ")}, which this run recorded; the candidate may still be retained wherever it is now`,
-		);
-	}
-
-	for (const repository of remaining) {
-		if (await retainsCandidate(repository, reference)) {
-			return git(repository, "rev-parse", reference);
-		}
-	}
-
-	throw new RefusedPreconditionError(
-		`No ${reference} in ${remaining.join(" or ")}; run ${name} retained no candidate there`,
-	);
-}
-
-/**
- * `--checkout` names one thing to materialize, and only a run retains a
- * candidate. A prefixed id of another kind is refused by name, so the caller
- * is told which id to give rather than failing later on a missing ref.
- */
-function parseCheckoutRunId(given: string): RunRecordId {
-	const parsed = given.includes(":")
-		? parseRecordId(given)
-		: parseRunRecordId(given);
-	if (parsed.kind !== "run") {
-		throw new UsageError(
-			"--checkout takes a run id: rehearse show run:<name> --checkout <dir>",
-		);
-	}
-
-	return parsed;
-}
-
-/**
- * The caller owns the directory they named and the harness never removes one,
- * so writing into a directory that is already there could bury work. Git would
- * refuse a non-empty one anyway; refusing here says why.
- */
-async function refuseExistingDirectory(directory: string): Promise<void> {
-	if (!(await exists(directory))) {
-		return;
-	}
-
-	throw new RefusedPreconditionError(
-		`${directory} already exists; --checkout writes a worktree into a new directory`,
-	);
-}
-
-async function retainsCandidate(
-	repository: string,
-	reference: string,
-): Promise<boolean> {
-	try {
-		return await refExists(repository, reference);
-	} catch (error) {
-		throw new RefusedPreconditionError(
-			`Cannot read the repository at ${repository} this run recorded; the candidate may still be retained wherever it is now: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-}
+export type { ShowDependencies, ShowRequest };

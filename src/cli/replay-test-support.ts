@@ -1,12 +1,13 @@
 import { parseArgs, recordsDirectory } from "#benchmark/config";
 import { writeRunManifest } from "#benchmark/manifest";
 import { loadPipeline } from "#benchmark/pipeline";
-import { buildRunManifest } from "#benchmark/run";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
+import buildRunManifest from "#benchmark/run-manifest";
 import {
 	AUDIT_LOG_PIPELINE_PATH,
 	AUDIT_LOG_RUBRICS_PATH,
 } from "#benchmark/test-support";
+import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
 
 const sessionArgs = [
 	"--model",
@@ -22,7 +23,7 @@ const sessionArgs = [
  * test claiming a run resolved must leave a real manifest at the path replay
  * computes for it, not just a Fake resolveRunDirectory.
  */
-export async function writeReplayableRunManifest(
+async function writeReplayableRunManifest(
 	runName: string,
 	runsDirectory: string = recordsDirectory(),
 ): Promise<string> {
@@ -41,24 +42,26 @@ export async function writeReplayableRunManifest(
 		AUDIT_LOG_RUBRICS_PATH,
 	);
 	const manifest = buildRunManifest({
-		timestamp: "2026-09-02T00:00:00.000Z",
+		config,
 		controlSha: "control-sha",
+		corpusVersion: { digest: "0".repeat(SHA256_HEX_DIGITS), kind: "version" },
+		pipeline,
+		productBrief: "Brief",
 		source: {
 			root: "/tmp/checkout",
 			sha: "source-sha",
 			targetRoot: "/tmp/target",
 		},
+		spendCeilingUsd: 100,
+		task: "Task",
 		taskId: "TASK-1",
 		taskSha: "task-sha",
-		task: "Task",
-		productBrief: "Brief",
-		config,
-		pipeline,
-		spendCeilingUsd: 100,
-		corpusVersion: { kind: "version", digest: "0".repeat(64) },
+		timestamp: "2026-09-02T00:00:00.000Z",
 	});
 
 	await writeRunManifest(paths.manifestFile, manifest);
 
 	return paths.manifestFile;
 }
+
+export { writeReplayableRunManifest as default };

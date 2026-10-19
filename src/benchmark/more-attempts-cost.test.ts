@@ -1,8 +1,15 @@
 import { describe, expect, it } from "bun:test";
+
 import type { ArmResources } from "./more-attempts-cost";
 import { moreAttemptsCost } from "./more-attempts-cost";
 
-function costing(perAttemptUsd: number): ArmResources {
+const ADDITIONAL_ATTEMPTS_PER_ARM = 2;
+
+interface CostingFixtureInput {
+	readonly perAttemptUsd: number;
+}
+
+function costing({ perAttemptUsd }: CostingFixtureInput): ArmResources {
 	return { status: "AVAILABLE", total: { costUsd: { mean: perAttemptUsd } } };
 }
 
@@ -10,33 +17,33 @@ describe(moreAttemptsCost.name, () => {
 	it("costs each added attempt at its arm's recorded cost per attempt", () => {
 		const cost = moreAttemptsCost(
 			{
-				baseline: costing(1.5),
-				candidate: costing(3),
-				control: costing(0.5),
+				baseline: costing({ perAttemptUsd: 1.5 }),
+				candidate: costing({ perAttemptUsd: 3 }),
+				control: costing({ perAttemptUsd: 0.5 }),
 			},
-			2,
+			ADDITIONAL_ATTEMPTS_PER_ARM,
 		);
 
-		expect(cost).toEqual({ state: "available", attemptsPerArm: 2, usd: 10 });
+		expect(cost).toEqual({ attemptsPerArm: 2, state: "available", usd: 10 });
 	});
 
 	describe("when an arm recorded no cost for an attempt", () => {
 		it("states no cost and names each attempt that lacks one", () => {
 			const cost = moreAttemptsCost(
 				{
-					baseline: costing(1.5),
+					baseline: costing({ perAttemptUsd: 1.5 }),
 					candidate: {
+						missingEvidence: [{ missing: ["worker cost"], repId: "rep-2" }],
 						status: "UNAVAILABLE",
-						missingEvidence: [{ repId: "rep-2", missing: ["worker cost"] }],
 					},
-					control: costing(1),
+					control: costing({ perAttemptUsd: 1 }),
 				},
-				2,
+				ADDITIONAL_ATTEMPTS_PER_ARM,
 			);
 
 			expect(cost).toEqual({
-				state: "unavailable",
 				reasons: ["rep-2 lacks worker cost"],
+				state: "unavailable",
 			});
 		});
 	});

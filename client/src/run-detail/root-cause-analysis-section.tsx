@@ -1,229 +1,33 @@
-import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
-import type {
-	MonitoredStage,
-	RunRecordResponse,
-} from "#client/monitor/run-record-query";
-import { plural } from "#client/plural";
-import { elapsedReading, spendReading } from "#client/run-history/run-progress";
-import { Notice } from "#client/system/components/notice";
-import { Button } from "#client/system/ui/button";
-import type {
-	AnalysisReadingResponse,
-	AnalyzedStage,
-	RecordedAnalysis,
-} from "./analysis-query";
+
+import type { RunRecordResponse } from "#client/monitor/run-record-query";
+import Notice from "#client/system/components/notice";
+
+import type { AnalysisReadingResponse } from "./analysis-query";
+import RecordedReading from "./analysis-recorded-reading";
 import { RequestAnalysisButton, requestWords } from "./analysis-request";
-import { RoleMark } from "./analysis-role";
-import { momentReading } from "./moment-reading";
-import { ReplayButton } from "./replay-button";
 
-const DISCLAIMER =
-	"This is one agent's reading of the evidence, not a measurement. The way to confirm it is a paired rerun with that block changed and nothing else.";
+const EMPTY_COLLECTION_LENGTH = 0;
 
-function provenance(analysis: RecordedAnalysis): string {
-	return [
-		"an agent read the recorded steps",
-		analysis.costUsd === undefined
-			? "cost not recorded"
-			: spendReading(analysis.costUsd),
-		elapsedReading(analysis.durationMs),
-		momentReading(Date.parse(analysis.startedAt)),
-	].join(" · ");
-}
-
-function rootCauseWords(rootCause: RecordedAnalysis["rootCause"]): string {
-	if (rootCause === null) {
-		return "no root cause named";
-	}
-
-	return rootCause.lines === undefined
-		? `root cause: ${rootCause.file}`
-		: `root cause: ${rootCause.file} · lines ${String(rootCause.lines.start)}–${String(rootCause.lines.end)}`;
-}
-
-/** Where a letter sits on the harness's grade scale, as a row of cells. */
-function gradeTrack({ grade }: MonitoredStage): string {
-	const letter = grade.state === "available" ? grade.letter : undefined;
-
-	return STAGE_LETTER_GRADES.map((axis) => (axis === letter ? "▮" : "▯")).join(
-		"",
-	);
-}
-
-function StepRow({
-	run,
-	stage,
-	index,
-	analysed,
-}: {
-	readonly run: string;
-	readonly stage: MonitoredStage;
-	readonly index: number;
-	readonly analysed: AnalyzedStage | undefined;
-}): React.JSX.Element {
-	return (
-		<li className="grid grid-cols-analysis-rows items-center gap-3 border-t border-divider py-2.5 text-12">
-			<span>
-				<span className="font-mono text-dim">{index + 1} </span>
-				<span>{stage.stage}</span>
-			</span>
-			<span className="flex flex-col font-mono">
-				<span>
-					{stage.grade.state === "available" ? stage.grade.letter : "—"}{" "}
-					<span aria-hidden="true" className="text-dim">
-						{gradeTrack(stage)}
-					</span>
-				</span>
-				<span aria-hidden="true" className="text-12 text-faint">
-					{STAGE_LETTER_GRADES.join(" ")}
-				</span>
-			</span>
-			<span>
-				{analysed === undefined ? (
-					<span className="text-dim">not read</span>
-				) : (
-					<RoleMark role={analysed.role} words="shown" />
-				)}
-			</span>
-			<span className="text-14 leading-reading text-secondary-foreground">
-				{analysed === undefined || analysed.role === "never ran"
-					? null
-					: analysed.note}
-			</span>
-			<Button asChild variant="outline" size="xs">
-				<Link
-					to="/runs/$run"
-					params={{ run }}
-					search={{ view: "results", step: stage.stage }}
-				>
-					Step report
-				</Link>
-			</Button>
-		</li>
-	);
-}
-
-const NO_ROOT_CAUSE = "the analysis named no root cause";
-
-function RecordedReading({
-	run,
-	record,
-	analysis,
-	earlierCount,
-	rerun,
-}: {
-	readonly run: string;
-	readonly record: RunRecordResponse;
-	readonly analysis: RecordedAnalysis;
-	readonly earlierCount: number;
-	readonly rerun: ReactNode;
-}): React.JSX.Element {
-	const { rootCause } = analysis;
-	const analysed = new Map(analysis.stages.map((each) => [each.stage, each]));
-
-	return (
-		<>
-			<p className="mt-1 text-12 text-dim">{provenance(analysis)}</p>
-			<p className="mt-1 font-mono text-12 text-pale">
-				{rootCauseWords(rootCause)}
-			</p>
-			<p className="mt-3 max-w-prose text-14 leading-reading">
-				{analysis.narrative}
-			</p>
-			<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
-				{DISCLAIMER}
-			</p>
-			<p className="mt-2 max-w-prose text-14 leading-reading">
-				<span className="text-dim">Paired rerun: </span>
-				{analysis.pairedRerun}
-			</p>
-			{earlierCount === 0 ? null : (
-				<p className="mt-1 text-12 text-dim">
-					{plural(earlierCount, "earlier analysis", "earlier analyses")}{" "}
-					recorded
-				</p>
-			)}
-			<div className="mt-3 flex flex-wrap gap-2">
-				{rootCause === null ? (
-					<>
-						<Button
-							variant="default"
-							size="compact"
-							aria-disabled="true"
-							aria-label={`Set up the paired rerun: ${NO_ROOT_CAUSE}`}
-						>
-							Set up the paired rerun
-						</Button>
-						<Button
-							variant="outline"
-							size="compact"
-							aria-disabled="true"
-							aria-label={`Open the block it names: ${NO_ROOT_CAUSE}`}
-						>
-							Open the block it names
-						</Button>
-					</>
-				) : (
-					<>
-						<ReplayButton
-							run={run}
-							record={record}
-							stage={rootCause.stage}
-							label="Set up the paired rerun"
-						/>
-						<Button asChild variant="outline" size="compact">
-							<Link
-								to="/corpus"
-								search={{
-									file: rootCause.file,
-									sourceRun: run,
-									sourceStep: rootCause.stage,
-									start: rootCause.lines?.start,
-									end: rootCause.lines?.end,
-								}}
-							>
-								Open the block it names
-							</Link>
-						</Button>
-					</>
-				)}
-				{rerun}
-			</div>
-			<ol
-				aria-label="Steps as the analysis read them"
-				className="mt-4 overflow-x-auto"
-			>
-				{record.stages.map((stage, index) => (
-					<StepRow
-						key={stage.stage}
-						run={run}
-						stage={stage}
-						index={index}
-						analysed={analysed.get(stage.stage)}
-					/>
-				))}
-			</ol>
-		</>
-	);
-}
+const JSON_INDENT_SPACES = 2;
 
 /**
  * SPEC.md 4c item 3: the newest root-cause analysis, disclosed as one agent's
  * reading of the recorded steps rather than a measurement.
  */
-export function RootCauseAnalysisSection({
-	run,
-	record,
-	reading,
-	wait,
-}: {
+interface RootCauseAnalysisSectionProps {
 	readonly run: string;
 	readonly record: RunRecordResponse;
 	readonly reading: AnalysisReadingResponse | "unreadable" | undefined;
 	readonly wait: string | null;
-}): React.JSX.Element {
+}
+
+function RootCauseAnalysisSection({
+	run,
+	record,
+	reading,
+	wait,
+}: RootCauseAnalysisSectionProps): React.JSX.Element {
 	return (
 		<section
 			aria-labelledby="root-cause-analysis-heading"
@@ -250,18 +54,20 @@ export function RootCauseAnalysisSection({
 	);
 }
 
+interface AnalysisReadingProps {
+	readonly run: string;
+	readonly record: RunRecordResponse;
+	readonly reading: AnalysisReadingResponse;
+	readonly wait: string | null;
+}
+
 function AnalysisReading({
 	run,
 	record,
 	reading,
 	wait,
-}: {
-	readonly run: string;
-	readonly record: RunRecordResponse;
-	readonly reading: AnalysisReadingResponse;
-	readonly wait: string | null;
-}): React.JSX.Element {
-	const { newest, request, unreadable } = reading;
+}: AnalysisReadingProps): React.JSX.Element {
+	const { request, unreadable } = reading;
 	const rerun = (
 		<RequestAnalysisButton
 			run={run}
@@ -271,59 +77,9 @@ function AnalysisReading({
 		/>
 	);
 
-	function newestReading(): React.JSX.Element {
-		if (newest === null) {
-			const offered = requestWords(request);
-
-			return (
-				<div className="mt-2 flex flex-col gap-2 text-12">
-					<p className="text-muted-foreground">
-						No root-cause analysis is recorded for this run.
-					</p>
-					{offered === undefined ? null : (
-						<p className="text-secondary-foreground">{offered}</p>
-					)}
-					<div>
-						<RequestAnalysisButton
-							run={run}
-							request={request}
-							wait={wait}
-							label="Request a root-cause analysis"
-						/>
-					</div>
-				</div>
-			);
-		}
-		if (newest.outcome === "failed") {
-			return (
-				<div className="mt-2 flex flex-col gap-2 text-12">
-					<p className="text-secondary-foreground">
-						The newest analysis failed: {newest.reason}
-					</p>
-					{newest.payload === undefined ? null : (
-						<pre className="max-h-60 overflow-auto rounded-md bg-raised p-2.5 font-mono leading-transcript text-13 whitespace-pre-wrap">
-							{JSON.stringify(newest.payload, null, 2)}
-						</pre>
-					)}
-					<div>{rerun}</div>
-				</div>
-			);
-		}
-
-		return (
-			<RecordedReading
-				run={run}
-				record={record}
-				analysis={newest}
-				earlierCount={reading.earlierCount}
-				rerun={rerun}
-			/>
-		);
-	}
-
 	return (
 		<>
-			{unreadable.length === 0 ? null : (
+			{unreadable.length === EMPTY_COLLECTION_LENGTH ? null : (
 				<div className="mt-2">
 					<Notice
 						message="Some analysis records could not be read"
@@ -331,7 +87,115 @@ function AnalysisReading({
 					/>
 				</div>
 			)}
-			{newestReading()}
+			<NewestAnalysis
+				run={run}
+				record={record}
+				reading={reading}
+				wait={wait}
+				rerun={rerun}
+			/>
 		</>
 	);
 }
+
+interface NewestAnalysisProps extends AnalysisReadingProps {
+	readonly rerun: ReactNode;
+}
+
+function NewestAnalysis({
+	run,
+	record,
+	reading,
+	wait,
+	rerun,
+}: NewestAnalysisProps): React.JSX.Element {
+	const { newest, request } = reading;
+	if (newest === null) {
+		const offered = requestWords(request);
+
+		return (
+			<NoRecordedAnalysis
+				offered={offered}
+				run={run}
+				request={request}
+				wait={wait}
+			/>
+		);
+	}
+
+	if (newest.outcome === "failed") {
+		return <FailedAnalysisReading newest={newest} rerun={rerun} />;
+	}
+
+	return (
+		<RecordedReading
+			run={run}
+			record={record}
+			analysis={newest}
+			earlierCount={reading.earlierCount}
+			rerun={rerun}
+		/>
+	);
+}
+
+interface NoRecordedAnalysisProps {
+	readonly offered: string | undefined;
+	readonly run: string;
+	readonly request: AnalysisReadingResponse["request"];
+	readonly wait: string | null;
+}
+
+function NoRecordedAnalysis({
+	offered,
+	run,
+	request,
+	wait,
+}: NoRecordedAnalysisProps): React.JSX.Element {
+	return (
+		<div className="mt-2 flex flex-col gap-2 text-12">
+			<p className="text-muted-foreground">
+				No root-cause analysis is recorded for this run.
+			</p>
+			{offered === undefined ? null : (
+				<p className="text-secondary-foreground">{offered}</p>
+			)}
+			<div>
+				<RequestAnalysisButton
+					run={run}
+					request={request}
+					wait={wait}
+					label="Request a root-cause analysis"
+				/>
+			</div>
+		</div>
+	);
+}
+
+interface FailedAnalysisReadingProps {
+	readonly newest: Extract<
+		NonNullable<AnalysisReadingResponse["newest"]>,
+		{ outcome: "failed" }
+	>;
+	readonly rerun: ReactNode;
+}
+
+function FailedAnalysisReading({
+	newest,
+	rerun,
+}: FailedAnalysisReadingProps): React.JSX.Element {
+	return (
+		<div className="mt-2 flex flex-col gap-2 text-12">
+			<p className="text-secondary-foreground">
+				The newest analysis failed: {newest.reason}
+			</p>
+			{newest.payload === undefined ? null : (
+				<pre className="max-h-60 overflow-auto rounded-md bg-raised p-2.5 font-mono leading-transcript text-13 whitespace-pre-wrap">
+					{JSON.stringify(newest.payload, null, JSON_INDENT_SPACES)}
+				</pre>
+			)}
+			<div>{rerun}</div>
+		</div>
+	);
+}
+
+export { RootCauseAnalysisSection as default };

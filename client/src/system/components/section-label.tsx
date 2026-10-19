@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 
-export function SectionLabel({
-	children,
-}: {
+interface SectionLabelProps {
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function SectionLabel({ children }: SectionLabelProps): React.JSX.Element {
 	return (
 		<span className="text-12 tracking-label text-dim uppercase">
 			{children}
 		</span>
 	);
 }
+
+export { SectionLabel as default };

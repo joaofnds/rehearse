@@ -1,30 +1,10 @@
-import { DEFAULT_ANALYSIS_BUDGET_USD } from "#benchmark/root-cause-analysis";
-import { DEFAULT_CASE_ID } from "#benchmark/config";
-import { CommandFailureError } from "#benchmark/command-failure-error";
-import { EXIT_CODES } from "#benchmark/exit-codes";
+import { COMMANDS } from "#cli/command-catalog";
+import type { CommandDefinition, FlagDefinition } from "#cli/command-contract";
+import { UsageError } from "#cli/command-usage";
 
-export interface FlagDefinition {
-	readonly name: string;
-	readonly kind: "value" | "switch";
-	readonly envVar?: string | undefined;
-	readonly defaultValue?: string | undefined;
-	readonly help: string;
-}
-
-/**
- * Whether a command's process runs inside the sandbox that keeps its sessions
- * from signalling the operator's other processes: always, never, or as the
- * case it runs decides, for `run`, whose session cases may hold no tool.
- */
-export type Confinement = "always" | "never" | "by case";
-
-export interface CommandDefinition {
-	readonly name: string;
-	readonly summary: string;
-	readonly confinement: Confinement;
-	readonly argument?: string | undefined;
-	readonly flags: readonly FlagDefinition[];
-}
+const EMPTY_COLLECTION_LENGTH = 0;
+const HELP_NAME_COLUMN_PADDING = 2;
+const PREFIX_START_INDEX = 0;
 
 function flagLine(flag: FlagDefinition): string {
 	const qualifiers = [
@@ -33,452 +13,37 @@ function flagLine(flag: FlagDefinition): string {
 			: `default ${flag.defaultValue}`,
 		flag.envVar === undefined ? undefined : `env ${flag.envVar}`,
 	].filter((qualifier) => qualifier !== undefined);
-	const suffix = qualifiers.length === 0 ? "" : ` (${qualifiers.join(", ")})`;
+	const suffix =
+		qualifiers.length === EMPTY_COLLECTION_LENGTH
+			? ""
+			: ` (${qualifiers.join(", ")})`;
 
 	return `  ${flag.name}${flag.kind === "value" ? " <value>" : ""}: ${flag.help}${suffix}`;
 }
 
-export function commandHelp(command: CommandDefinition): string {
+function commandHelp(command: CommandDefinition): string {
 	const usage = [
 		"rehearse",
 		command.name,
 		command.argument === undefined ? undefined : `<${command.argument}>`,
-		command.flags.length === 0 ? undefined : "[flags]",
+		command.flags.length === EMPTY_COLLECTION_LENGTH ? undefined : "[flags]",
 	]
 		.filter((part) => part !== undefined)
 		.join(" ");
 
 	const flags =
-		command.flags.length === 0
+		command.flags.length === EMPTY_COLLECTION_LENGTH
 			? []
 			: ["", "Flags:", ...command.flags.map((flag) => flagLine(flag))];
 
 	return [`Usage: ${usage}`, "", command.summary, ...flags, ""].join("\n");
 }
 
-const sessionFlags: readonly FlagDefinition[] = [
-	{
-		name: "--model",
-		kind: "value",
-		envVar: "BENCHMARK_MODEL",
-		help: "Model every workflow session and the Product Owner use",
-	},
-	{
-		name: "--effort",
-		kind: "value",
-		envVar: "BENCHMARK_EFFORT",
-		help: "Reasoning effort for the workflow: low, medium, high, xhigh, or max",
-	},
-	{
-		name: "--judge-model",
-		kind: "value",
-		envVar: "BENCHMARK_JUDGE_MODEL",
-		defaultValue: "opus, or sonnet when the workflow model is opus",
-		help: "Model the stage and final Judges use",
-	},
-	{
-		name: "--judge-effort",
-		kind: "value",
-		envVar: "BENCHMARK_JUDGE_EFFORT",
-		defaultValue: "the workflow effort",
-		help: "Reasoning effort for the Judges",
-	},
-	{
-		name: "--session-budget-usd",
-		kind: "value",
-		envVar: "BENCHMARK_SESSION_BUDGET_USD",
-		help: "Spend limit enforced for each session",
-	},
-	{
-		name: "--minimum-grade",
-		kind: "value",
-		envVar: "BENCHMARK_MINIMUM_GRADE",
-		defaultValue: "B",
-		help: "Lowest stage grade a run continues past; the Judge still grades and records as it does now",
-	},
-];
-
-const corpusFlag: FlagDefinition = {
-	name: "--corpus",
-	kind: "value",
-	defaultValue: "the linked corpus, or the live install when none is linked",
-	help: "Corpus under test: a directory in corpus layout",
-};
-
-const confirmationFlags: readonly FlagDefinition[] = [
-	{
-		name: "--confirm",
-		kind: "switch",
-		help: "Run a confirmation group instead of one debug rep",
-	},
-	{
-		name: "--reps",
-		kind: "value",
-		defaultValue: "5",
-		help: "Reps in the confirmation group; at least 2, only with --confirm",
-	},
-	{
-		name: "--yes",
-		kind: "switch",
-		help: "Approve the projected cost without a prompt, only with --confirm",
-	},
-	{
-		name: "--approved-in-browser",
-		kind: "switch",
-		help: "Record the --yes approval as given in the browser's launch dialog",
-	},
-];
-
-const jsonFlag: FlagDefinition = {
-	name: "--json",
-	kind: "switch",
-	help: "Print the record's own bytes on stdout instead of its path",
-};
-
-export const COMMANDS: readonly CommandDefinition[] = [
-	{
-		name: "run",
-		confinement: "by case",
-		summary: "Run the pipeline against the target repository and grade it",
-		flags: [
-			{
-				name: "--case",
-				kind: "value",
-				envVar: "BENCHMARK_CASE",
-				defaultValue: DEFAULT_CASE_ID,
-				help: "Declared benchmark case under cases/ the run executes",
-			},
-			{
-				name: "--target",
-				kind: "value",
-				envVar: "BENCHMARK_TARGET_DIR",
-				help: "Target repository the pipeline runs in; defaults to the case's declared target",
-			},
-			...sessionFlags,
-			corpusFlag,
-			{
-				name: "--pipeline",
-				kind: "value",
-				envVar: "BENCHMARK_PIPELINE",
-				defaultValue: "the case's declared pipeline",
-				help: "Pipeline definition the run executes, overriding the case's",
-			},
-			{
-				name: "--pause",
-				kind: "switch",
-				help: "Stop with the candidate in the target for an interactive review; needs a terminal",
-			},
-			...confirmationFlags,
-			jsonFlag,
-		],
-	},
-	{
-		name: "replay",
-		confinement: "always",
-		summary: "Replay one stage of a recorded run against the current corpus",
-		flags: [
-			{
-				name: "--run",
-				kind: "value",
-				help: "Name of the recorded run to replay from",
-			},
-			{
-				name: "--stage",
-				kind: "value",
-				help: "Stage to replay from that run's checkpoint",
-			},
-			...sessionFlags,
-			corpusFlag,
-			...confirmationFlags,
-			{
-				name: "--without-stage-skill",
-				kind: "switch",
-				help: "Replay the stage on a corpus without its own skill, as a comparison's baseline arm; only with --confirm",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "review",
-		confinement: "never",
-		summary: "Record the human or agent review of a run's Judge result",
-		argument: "run",
-		flags: [
-			{
-				name: "--file",
-				kind: "value",
-				help: "Path to a review JSON file, instead of describing one with the flags below",
-			},
-			{
-				name: "--verdict",
-				kind: "value",
-				help: "ACCEPT or REJECT",
-			},
-			{
-				name: "--summary",
-				kind: "value",
-				help: "One-line summary of the review",
-			},
-			{
-				name: "--finding",
-				kind: "value",
-				help: "One finding as a JSON object; repeat the flag for each finding, in order",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "diagnose",
-		confinement: "never",
-		summary:
-			"Ask one sealed session which corpus file an ended run's outcome traces to, and record its answer",
-		argument: "run",
-		flags: [
-			{
-				name: "--model",
-				kind: "value",
-				help: "Model the analysis session uses; required",
-			},
-			{
-				name: "--budget-usd",
-				kind: "value",
-				defaultValue: String(DEFAULT_ANALYSIS_BUDGET_USD),
-				help: "Most the analysis call may spend, held under the stored spend ceiling",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "calibrate",
-		confinement: "never",
-		summary:
-			"Rejudge a run's frozen evidence with the current rubrics and record the result",
-		argument: "run",
-		flags: [
-			{
-				name: "--confirm-rejudge",
-				kind: "switch",
-				help: "Record a revised Judge result; required when the rejudge changed a grade",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "compare",
-		confinement: "never",
-		summary: "Report over completed confirmation evidence; runs no session",
-		argument: "comparison-manifest.json",
-		flags: [jsonFlag],
-	},
-	{
-		name: "compare attempts",
-		confinement: "always",
-		summary:
-			"Compare two replay confirmation groups at one checkpoint, running only a baseline arm derived from arm A",
-		flags: [
-			{
-				name: "--arm-a",
-				kind: "value",
-				help: "Group id of the attempt that stands as arm A, the baseline role",
-			},
-			{
-				name: "--arm-b",
-				kind: "value",
-				help: "Group id of the attempt that stands as arm B, the candidate role",
-			},
-			{
-				name: "--yes",
-				kind: "switch",
-				help: "Approve the baseline group's projected cost without a prompt",
-			},
-			{
-				name: "--approved-in-browser",
-				kind: "switch",
-				help: "Record the --yes approval as given in the browser's launch dialog",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "compare extend",
-		confinement: "always",
-		summary:
-			"Add attempts to every arm of a comparison compare attempts saved, at a stated cost, as a new comparison",
-		flags: [
-			{
-				name: "--comparison",
-				kind: "value",
-				help: "The saved comparison to extend, as `list comparisons` names it or by its manifest digest",
-			},
-			{
-				name: "--attempts",
-				kind: "value",
-				help: "How many attempts to add to each arm",
-			},
-			{
-				name: "--yes",
-				kind: "switch",
-				help: "Approve the stated cost without a prompt",
-			},
-			{
-				name: "--approved-in-browser",
-				kind: "switch",
-				help: "Record the --yes approval as given in the browser's launch dialog",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "list",
-		confinement: "never",
-		summary:
-			"List recorded cases, runs, checkpoints, attempts, groups, archived groups, or comparisons",
-		argument:
-			"cases|runs|checkpoints|attempts|groups|archived-groups|comparisons",
-		flags: [],
-	},
-	{
-		name: "show",
-		confinement: "never",
-		summary: "Print one record by its id, as its bytes or as a card summary",
-		argument: "record-id",
-		flags: [
-			{
-				name: "--checkout",
-				kind: "value",
-				help: "Materialize a run's retained candidate as a detached worktree in the new directory named, and print its path",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "regrade",
-		confinement: "never",
-		summary:
-			"Re-evaluate a saved attempt's evidence against its case as it stands now; runs no session",
-		argument: "record-id",
-		flags: [jsonFlag],
-	},
-	{
-		name: "stale",
-		confinement: "never",
-		summary:
-			"List the checkpoints, stopped stages, session attempts, stage replays and confirmation groups an edit invalidated",
-		flags: [
-			corpusFlag,
-			{
-				name: "--model",
-				kind: "value",
-				envVar: "BENCHMARK_MODEL",
-				defaultValue: "the model each run recorded, asserting nothing",
-				help: "Model a replay would use, compared against every recorded checkpoint, stopped stage, replay and group",
-			},
-			{
-				name: "--effort",
-				kind: "value",
-				envVar: "BENCHMARK_EFFORT",
-				defaultValue: "the effort each run recorded, asserting nothing",
-				help: "Reasoning effort a replay would use: low, medium, high, xhigh, or max",
-			},
-		],
-	},
-	{
-		name: "corpus versions",
-		confinement: "never",
-		summary: "List the versions a corpus source was measured at, oldest first",
-		flags: [corpusFlag],
-	},
-	{
-		name: "corpus invalidation",
-		confinement: "never",
-		summary:
-			"Count the run-history rows that read each corpus file, and list the rows the last edit invalidated",
-		flags: [corpusFlag],
-	},
-	{
-		name: "corpus show",
-		confinement: "never",
-		summary:
-			"Print a recorded corpus version's files, or one file as that version held it",
-		argument: "corpus-version",
-		flags: [
-			{
-				name: "--file",
-				kind: "value",
-				help: "Corpus layout path to print, such as output-styles/brief.md",
-			},
-		],
-	},
-	{
-		name: "settings",
-		confinement: "never",
-		summary:
-			"Show the stored spend ceiling, the linked corpus and the records location, or store a new ceiling or link",
-		flags: [
-			{
-				name: "--spend-ceiling-usd",
-				kind: "value",
-				help: "The most a run, replay or session attempt may spend in USD; a confirmation group may spend its attempts times this",
-			},
-			{
-				name: "--link-corpus",
-				kind: "value",
-				help: "Directory in corpus layout that commands measure when no --corpus is given; a pipeline run refuses while one is linked",
-			},
-			{
-				name: "--unlink-corpus",
-				kind: "switch",
-				help: "Remove the linked corpus, so the live install is measured again",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "case list",
-		confinement: "never",
-		summary: "List active benchmark cases under cases/",
-		flags: [
-			{
-				name: "--all",
-				kind: "switch",
-				help: "Include archived cases",
-			},
-			jsonFlag,
-		],
-	},
-	{
-		name: "case show",
-		confinement: "never",
-		summary: "Print one declared benchmark case's declaration",
-		argument: "case-id",
-		flags: [jsonFlag],
-	},
-	{
-		name: "case capture",
-		confinement: "never",
-		summary:
-			"Capture a session file truncated at a cut as a case's transcript prefix",
-		argument: "case-id",
-		flags: [
-			{
-				name: "--session",
-				kind: "value",
-				help: "Session id, or a prefix of one, naming a session this machine recorded: one of the provider's own or one a saved harness attempt holds",
-			},
-			{
-				name: "--cut",
-				kind: "value",
-				help: "0-based index of the first record to drop; the prefix keeps lines [0, cut)",
-			},
-			jsonFlag,
-		],
-	},
-];
-
 const COMMAND_NAME_COLUMN =
-	Math.max(...COMMANDS.map((command) => command.name.length)) + 2;
+	Math.max(...COMMANDS.map((command) => command.name.length)) +
+	HELP_NAME_COLUMN_PADDING;
 
-export function topLevelHelp(): string {
+function topLevelHelp(): string {
 	return [
 		"Usage: rehearse <command> [flags]",
 		"",
@@ -499,23 +64,7 @@ export function topLevelHelp(): string {
 	].join("\n");
 }
 
-export interface CommandLine {
-	readonly helpRequested: boolean;
-	readonly argument: string | undefined;
-	readonly json: boolean;
-	readonly flags: readonly string[];
-}
-
-export class UsageError extends CommandFailureError {
-	public readonly exitCode = EXIT_CODES.usageError;
-
-	public constructor(message: string) {
-		super(message);
-		this.name = "UsageError";
-	}
-}
-
-export interface FoundCommand {
+interface FoundCommand {
 	readonly command: CommandDefinition;
 	readonly args: readonly string[];
 }
@@ -525,14 +74,14 @@ export interface FoundCommand {
  * `case list` and not a command itself, so the longer declared name is tried
  * first.
  */
-export function findCommand(argv: readonly string[]): FoundCommand {
+function findCommand(argv: readonly string[]): FoundCommand {
 	const candidates = COMMANDS.toSorted(
 		(left, right) => right.name.length - left.name.length,
 	);
 	for (const command of candidates) {
 		const tokens = command.name.split(" ");
 		if (tokens.every((token, index) => argv[index] === token)) {
-			return { command, args: argv.slice(tokens.length) };
+			return { args: argv.slice(tokens.length), command };
 		}
 	}
 
@@ -541,113 +90,25 @@ export function findCommand(argv: readonly string[]): FoundCommand {
 	);
 
 	throw new UsageError(
-		`Unknown command ${argv.slice(0, longestName).join(" ")}`,
+		`Unknown command ${argv.slice(PREFIX_START_INDEX, longestName).join(" ")}`,
 	);
 }
 
-const HELP_FLAG = "--help";
-const JSON_FLAG = "--json";
+export { commandHelp, findCommand, topLevelHelp };
 
-function takesValue(command: CommandDefinition, name: string): boolean {
-	return command.flags.some(
-		(flag) => flag.name === name && flag.kind === "value",
-	);
-}
+export type {
+	CommandDefinition,
+	CommandLine,
+	Confinement,
+	FlagDefinition,
+} from "#cli/command-contract";
+export type { FoundCommand };
 
-function declares(command: CommandDefinition, name: string): boolean {
-	return command.flags.some((flag) => flag.name === name);
-}
+export { COMMANDS } from "#cli/command-catalog";
+export {
+	asUsageError,
+	asUsageErrorAsync,
+	UsageError,
+} from "#cli/command-usage";
 
-export function parseCommandLine(
-	command: CommandDefinition,
-	args: readonly string[],
-): CommandLine {
-	if (args.includes(HELP_FLAG)) {
-		return {
-			helpRequested: true,
-			argument: undefined,
-			json: false,
-			flags: [...args],
-		};
-	}
-
-	let argument: string | undefined;
-	let json = false;
-	const flags: string[] = [];
-
-	for (let index = 0; index < args.length;) {
-		const token = args[index];
-		if (token === undefined) {
-			break;
-		}
-		if (!token.startsWith("-")) {
-			if (command.argument === undefined || argument !== undefined) {
-				throw new UsageError(
-					`Unexpected argument ${token} for rehearse ${command.name}`,
-				);
-			}
-			argument = token;
-			index += 1;
-			continue;
-		}
-		if (!declares(command, token)) {
-			throw new UsageError(
-				`Unknown flag ${token} for rehearse ${command.name}`,
-			);
-		}
-		if (token === JSON_FLAG) {
-			json = true;
-			index += 1;
-			continue;
-		}
-
-		flags.push(token);
-		if (takesValue(command, token)) {
-			const value = args[index + 1];
-			if (value === undefined || declares(command, value)) {
-				throw new UsageError(
-					`Flag ${token} needs a value for rehearse ${command.name}`,
-				);
-			}
-			flags.push(value);
-			index += 2;
-			continue;
-		}
-
-		index += 1;
-	}
-
-	return { helpRequested: false, argument, json, flags };
-}
-
-/**
- * Configuration parsing rejects a missing or unparseable flag value with a
- * plain error; at this boundary that is a usage error, and the exit code has
- * to say so.
- */
-export function asUsageError<Parsed>(parse: () => Parsed): Parsed {
-	try {
-		return parse();
-	} catch (error) {
-		throw new UsageError(
-			error instanceof Error ? error.message : String(error),
-		);
-	}
-}
-
-/**
- * Parsing a corpus source reads the filesystem to tell whether the directory
- * holds a corpus, so its rejection arrives as a rejected promise rather than a
- * throw; at this boundary it is the same usage error.
- */
-export async function asUsageErrorAsync<Parsed>(
-	parse: () => Promise<Parsed>,
-): Promise<Parsed> {
-	try {
-		return await parse();
-	} catch (error) {
-		throw new UsageError(
-			error instanceof Error ? error.message : String(error),
-		);
-	}
-}
+export { default as parseCommandLine } from "#cli/command-arguments";

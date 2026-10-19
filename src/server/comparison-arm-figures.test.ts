@@ -1,224 +1,237 @@
 import { describe, expect, it } from "bun:test";
-import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+
 import type { OutputWords } from "#benchmark/output-words";
+import ReliabilitySummaryBuilder from "#server/comparison-quality-test-fixture";
+import ComparisonSourceRepBuilder from "#server/comparison-source-rep-test-builder";
+import ComparisonSourceBuilder from "#server/comparison-source-test-builder";
+
 import type { ArmWords } from "./comparison-arm-figures";
-import { armFigures, NO_RECORDED_WORDS_REASON } from "./comparison-arm-figures";
+import { NO_RECORDED_WORDS_REASON, armFigures } from "./comparison-arm-figures";
 import { NO_GRADED_REP_REASON } from "./confirmation-group-summary";
 
-function buildSummary(
-	gradeDistribution: Readonly<Record<string, number>>,
-): ReliabilitySummary {
-	return {
-		name: "build",
-		requested: 4,
-		attempted: 4,
-		notReached: 0,
-		failed: 4,
-		successful: 0,
-		gradeDistribution,
-		successRate: 0,
-		standardError: 0,
-		passK: 0,
-	};
-}
+const ORDINAL_BASE = 1;
 
 const lettersEverywhere = () => "letters" as const;
 
 const unavailableCost = {
-	status: "UNAVAILABLE",
 	completeReps: 0,
+	missingEvidence: [{ missing: ["worker cost"], ordinal: 1, repId: "rep-1" }],
 	missingMetricReps: 1,
-	missingEvidence: [{ repId: "rep-1", ordinal: 1, missing: ["worker cost"] }],
+	status: "UNAVAILABLE",
 } as const;
-
-type ArmSource = Parameters<typeof armFigures>[0]["source"];
-type ArmSourceRep = ArmSource["reps"][number];
-
-function repWith(index: number, words: OutputWords | undefined): ArmSourceRep {
-	const rep = {
-		repId: `rep-${String(index + 1)}`,
-		ordinal: index + 1,
-		path: `rep-${String(index + 1)}.json`,
-		sha256: "b".repeat(64),
-		attempt: { path: "attempt.json", sha256: "c".repeat(64) },
-		outcomes: [
-			{ name: "checks", status: "JUDGED", grade: "A", successful: true },
-		],
-	} as const;
-	if (words === undefined) {
-		return rep;
-	}
-
-	return { ...rep, words };
-}
-
-function sourceOf(words: readonly (OutputWords | undefined)[]): ArmSource {
-	return {
-		group: { path: "group.json", sha256: "a".repeat(64) },
-		reps: words.map((count, index) => repWith(index, count)),
-	};
-}
 
 function wordsOf(words: readonly (OutputWords | undefined)[]): ArmWords {
 	return armFigures(
-		{ quality: [], source: sourceOf(words), resources: unavailableCost },
+		{
+			quality: [],
+			resources: unavailableCost,
+			source: new ComparisonSourceBuilder({
+				reps: words.map((count, index) =>
+					new ComparisonSourceRepBuilder({
+						ordinal: index + ORDINAL_BASE,
+						path: `rep-${index + ORDINAL_BASE}.json`,
+						repId: `rep-${index + ORDINAL_BASE}`,
+						words: count,
+					}).build(),
+				),
+			}).build(),
+		},
 		lettersEverywhere,
 	).words;
 }
 
 describe(armFigures.name, () => {
-	it("reads cost as unavailable, naming each rep that lacks it", () => {
-		const figures = armFigures(
-			{
-				quality: [buildSummary(Object.fromEntries([["C", 4]]))],
-				source: sourceOf([]),
-				resources: {
-					status: "UNAVAILABLE",
-					completeReps: 2,
-					missingMetricReps: 2,
-					missingEvidence: [
-						{ repId: "rep-2", ordinal: 2, missing: ["worker cost"] },
-						{
-							repId: "rep-4",
-							ordinal: 4,
-							missing: ["worker cost", "stage-judge cost"],
-						},
-					],
-				},
-			},
-			lettersEverywhere,
-		);
+	it(
+		"reads cost as unavailable, naming each rep that lacks it",
+		verifyArmFiguresNameReadsCostAsUnavailableNamingEachRepThatLacksIt,
+	);
 
-		expect(figures.cost).toEqual({
-			state: "unavailable",
-			reasons: [
-				"rep-2 lacks worker cost",
-				"rep-4 lacks worker cost, stage-judge cost",
-			],
-		});
-	});
+	it(
+		"counts a rep that never reached the measure as a failed attempt",
+		verifyArmFiguresNameCountsARepThatNeverReachedTheMeasureAsAFailedAttempt,
+	);
 
-	it("counts a rep that never reached the measure as a failed attempt", () => {
-		const figures = armFigures(
-			{
-				quality: [
-					{
-						...buildSummary({ PASS: 2, FAIL: 0 }),
-						name: "final",
-						attempted: 2,
-						notReached: 2,
-						failed: 2,
-						successful: 2,
-					},
-				],
-				source: sourceOf([]),
-				resources: {
-					status: "UNAVAILABLE",
-					completeReps: 0,
-					missingMetricReps: 4,
-					missingEvidence: [
-						{ repId: "rep-1", ordinal: 1, missing: ["worker cost"] },
-					],
-				},
-			},
-			() => "successRate",
-		);
+	it(
+		"counts the graded attempts its median is taken over",
+		verifyArmFiguresNameCountsTheGradedAttemptsItsMedianIsTakenOver,
+	);
 
-		expect(figures.measures["final"]).toEqual({
-			scale: "successRate",
-			successful: 2,
-			attempts: 4,
-		});
-	});
-
-	it("counts the graded attempts its median is taken over", () => {
-		const figures = armFigures(
-			{
-				quality: [
-					buildSummary(
-						Object.fromEntries([
-							["B", 2],
-							["C", 1],
-						]),
-					),
-				],
-				source: sourceOf([]),
-				resources: unavailableCost,
-			},
-			lettersEverywhere,
-		);
-
-		expect(figures.measures["build"]).toEqual({
-			scale: "letters",
-			grades: {
-				state: "available",
-				median: "B",
-				lowest: "C",
-				highest: "B",
-				graded: 3,
-			},
-		});
-	});
-
-	it("reads a stage no rep was graded at as unavailable rather than a letter", () => {
-		const figures = armFigures(
-			{
-				quality: [buildSummary({})],
-				source: sourceOf([]),
-				resources: {
-					status: "UNAVAILABLE",
-					completeReps: 0,
-					missingMetricReps: 4,
-					missingEvidence: [
-						{ repId: "rep-1", ordinal: 1, missing: ["worker cost"] },
-					],
-				},
-			},
-			lettersEverywhere,
-		);
-
-		expect(figures.measures["build"]).toEqual({
-			scale: "letters",
-			grades: { state: "unavailable", reasons: [NO_GRADED_REP_REASON] },
-		});
-	});
+	it(
+		"reads a stage no rep was graded at as unavailable rather than a letter",
+		verifyArmFiguresNameReadsAStageNoRepWasGradedAtAsUnavailableRatherThanALetter,
+	);
 
 	describe("average words", () => {
-		it("averages the words of the attempts that recorded a count", () => {
-			expect(
-				wordsOf([
-					{ state: "available", words: 10 },
-					{ state: "available", words: 21 },
-					{ state: "unavailable", reason: "the attempt recorded no reply" },
-				]),
-			).toEqual({
-				state: "available",
-				averageWords: 15.5,
-				counted: 2,
-				attempts: 3,
-			});
-		});
+		it(
+			"averages the words of the attempts that recorded a count",
+			verifyArmFiguresNameAverageWordsAveragesTheWordsOfTheAttemptsThatRecordedACount,
+		);
 
-		it("reads unavailable with each rep's reason when no attempt has a count", () => {
-			expect(
-				wordsOf([
-					{ state: "unavailable", reason: "the attempt recorded no reply" },
-					{ state: "unavailable", reason: "the stage's only output is a diff" },
-				]),
-			).toEqual({
-				state: "unavailable",
-				reasons: [
-					"rep-1: the attempt recorded no reply",
-					"rep-2: the stage's only output is a diff",
-				],
-			});
-		});
+		it(
+			"reads unavailable with each rep's reason when no attempt has a count",
+			verifyArmFiguresNameAverageWordsReadsUnavailableWithEachRepSReasonWhenNoAttemptHasACount,
+		);
 
-		it("reads unavailable, not zero, for a report written before word counts", () => {
-			expect(wordsOf([undefined, undefined])).toEqual({
-				state: "unavailable",
-				reasons: [NO_RECORDED_WORDS_REASON],
-			});
-		});
+		it(
+			"reads unavailable, not zero, for a report written before word counts",
+			verifyArmFiguresNameAverageWordsReadsUnavailableNotZeroForAReportWrittenBeforeWordCounts,
+		);
 	});
 });
+
+function verifyArmFiguresNameReadsCostAsUnavailableNamingEachRepThatLacksIt(): void {
+	const gradeDistribution = Object.fromEntries(
+		[{ count: 4, grade: "C" }].map(({ grade, count }) => [grade, count]),
+	);
+	const figures = armFigures(
+		{
+			quality: [new ReliabilitySummaryBuilder({ gradeDistribution }).build()],
+			resources: {
+				completeReps: 2,
+				missingEvidence: [
+					{ missing: ["worker cost"], ordinal: 2, repId: "rep-2" },
+					{
+						missing: ["worker cost", "stage-judge cost"],
+						ordinal: 4,
+						repId: "rep-4",
+					},
+				],
+				missingMetricReps: 2,
+				status: "UNAVAILABLE",
+			},
+			source: new ComparisonSourceBuilder().build(),
+		},
+		lettersEverywhere,
+	);
+
+	expect(figures.cost).toEqual({
+		reasons: [
+			"rep-2 lacks worker cost",
+			"rep-4 lacks worker cost, stage-judge cost",
+		],
+		state: "unavailable",
+	});
+}
+
+function verifyArmFiguresNameCountsARepThatNeverReachedTheMeasureAsAFailedAttempt(): void {
+	const figures = armFigures(
+		{
+			quality: [
+				{
+					...new ReliabilitySummaryBuilder({
+						gradeDistribution: { FAIL: 0, PASS: 2 },
+					}).build(),
+					attempted: 2,
+					failed: 2,
+					name: "final",
+					notReached: 2,
+					successful: 2,
+				},
+			],
+			resources: {
+				completeReps: 0,
+				missingEvidence: [
+					{ missing: ["worker cost"], ordinal: 1, repId: "rep-1" },
+				],
+				missingMetricReps: 4,
+				status: "UNAVAILABLE",
+			},
+			source: new ComparisonSourceBuilder().build(),
+		},
+		() => "successRate",
+	);
+
+	expect(figures.measures["final"]).toEqual({
+		attempts: 4,
+		scale: "successRate",
+		successful: 2,
+	});
+}
+
+function verifyArmFiguresNameCountsTheGradedAttemptsItsMedianIsTakenOver(): void {
+	const gradeDistribution = Object.fromEntries(
+		[
+			{ count: 2, grade: "B" },
+			{ count: 1, grade: "C" },
+		].map(({ grade, count }) => [grade, count]),
+	);
+	const figures = armFigures(
+		{
+			quality: [new ReliabilitySummaryBuilder({ gradeDistribution }).build()],
+			resources: unavailableCost,
+			source: new ComparisonSourceBuilder().build(),
+		},
+		lettersEverywhere,
+	);
+
+	expect(figures.measures["build"]).toEqual({
+		grades: {
+			graded: 3,
+			highest: "B",
+			lowest: "C",
+			median: "B",
+			state: "available",
+		},
+		scale: "letters",
+	});
+}
+
+function verifyArmFiguresNameReadsAStageNoRepWasGradedAtAsUnavailableRatherThanALetter(): void {
+	const figures = armFigures(
+		{
+			quality: [new ReliabilitySummaryBuilder().build()],
+			resources: {
+				completeReps: 0,
+				missingEvidence: [
+					{ missing: ["worker cost"], ordinal: 1, repId: "rep-1" },
+				],
+				missingMetricReps: 4,
+				status: "UNAVAILABLE",
+			},
+			source: new ComparisonSourceBuilder().build(),
+		},
+		lettersEverywhere,
+	);
+
+	expect(figures.measures["build"]).toEqual({
+		grades: { reasons: [NO_GRADED_REP_REASON], state: "unavailable" },
+		scale: "letters",
+	});
+}
+
+function verifyArmFiguresNameAverageWordsAveragesTheWordsOfTheAttemptsThatRecordedACount(): void {
+	expect(
+		wordsOf([
+			{ state: "available", words: 10 },
+			{ state: "available", words: 21 },
+			{ reason: "the attempt recorded no reply", state: "unavailable" },
+		]),
+	).toEqual({
+		attempts: 3,
+		averageWords: 15.5,
+		counted: 2,
+		state: "available",
+	});
+}
+
+function verifyArmFiguresNameAverageWordsReadsUnavailableWithEachRepSReasonWhenNoAttemptHasACount(): void {
+	expect(
+		wordsOf([
+			{ reason: "the attempt recorded no reply", state: "unavailable" },
+			{ reason: "the stage's only output is a diff", state: "unavailable" },
+		]),
+	).toEqual({
+		reasons: [
+			"rep-1: the attempt recorded no reply",
+			"rep-2: the stage's only output is a diff",
+		],
+		state: "unavailable",
+	});
+}
+
+function verifyArmFiguresNameAverageWordsReadsUnavailableNotZeroForAReportWrittenBeforeWordCounts(): void {
+	expect(wordsOf([undefined, undefined])).toEqual({
+		reasons: [NO_RECORDED_WORDS_REASON],
+		state: "unavailable",
+	});
+}

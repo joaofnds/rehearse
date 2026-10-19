@@ -1,5 +1,9 @@
 import { homedir, tmpdir } from "node:os";
 
+const FINAL_PATH_SEGMENT_OFFSET = -1;
+
+const SINGLE_ITEM_COUNT = 1;
+
 function escapeRegExp(literal: string): string {
 	return literal.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 }
@@ -13,7 +17,9 @@ function escapeRegExp(literal: string): string {
  * exist to preserve.
  */
 function usableRoots(roots: readonly string[]): readonly string[] {
-	return roots.filter((root) => root.startsWith("/") && root.length > 1);
+	return roots.filter(
+		(root) => root.startsWith("/") && root.length > SINGLE_ITEM_COUNT,
+	);
 }
 
 /**
@@ -56,9 +62,7 @@ function absolutePathPattern(roots: readonly string[]): RegExp {
  * `redactAbsolutePaths` against roots the caller names, for a test that cannot
  * change what the process reports as its home or temp directory.
  */
-export function redactorFor(
-	roots: readonly string[],
-): (message: string) => string {
+function redactorFor(roots: readonly string[]): (message: string) => string {
 	const pattern = absolutePathPattern(roots);
 
 	return (message) => message.replaceAll(pattern, "<path>");
@@ -81,7 +85,7 @@ const redact = redactorFor([homedir(), tmpdir()]);
  * would need the message's producer to mark its paths rather than the redactor
  * to find them.
  */
-export function redactAbsolutePaths(message: string): string {
+function redactAbsolutePaths(message: string): string {
 	return redact(message);
 }
 
@@ -97,13 +101,15 @@ export function redactAbsolutePaths(message: string): string {
  * (GLOSSARY.md, Instruction load), and replacing the whole path leaves every
  * load in a list reading alike, which is no evidence about which file loaded.
  */
-export function redactedFilePath(path: string): string {
+function redactedFilePath(path: string): string {
 	const separator = /[/\\]/u;
 	if (!/^(?:\/|\\\\|[A-Za-z]:[/\\])/u.test(path)) {
 		return path;
 	}
 	const segments = path.split(separator).filter((segment) => segment !== "");
-	const name = segments.at(-1);
+	const name = segments.at(FINAL_PATH_SEGMENT_OFFSET);
 
 	return name === undefined ? "<path>" : `<path>/${name}`;
 }
+
+export { redactorFor, redactAbsolutePaths, redactedFilePath };

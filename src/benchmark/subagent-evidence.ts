@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { SubagentEvidence } from "./agent-tree";
 import type { Immutable } from "./contracts";
 import {
@@ -7,13 +8,14 @@ import {
 	readdirIfPresent,
 	textIfPresent,
 } from "./file-presence";
+import serialMap from "./serial-map";
 import type { TranscriptLine } from "./transcript";
 
 /**
  * The provider's name for a session's sub-agent directory, which the record
  * keeps under the same name beside its transcript.
  */
-export const SUBAGENTS_DIRECTORY = "subagents";
+const SUBAGENTS_DIRECTORY = "subagents";
 
 /** The ids the provider gives its agents, and so the names their files carry. */
 const PROVIDER_AGENT_ID = "[a-z0-9]+";
@@ -38,7 +40,7 @@ const UNREADABLE = Symbol("unreadable");
  * and outside the directory the session ran in, so they survive only if the
  * record copies them.
  */
-export function providerSessionDirectory(sessionTranscript: string): string {
+function providerSessionDirectory(sessionTranscript: string): string {
 	return sessionTranscript.replace(/\.jsonl$/u, "");
 }
 
@@ -62,7 +64,6 @@ async function subagentFiles(
 ): Promise<SubagentFiles> {
 	const sessionDirectory = providerSessionDirectory(sessionTranscript);
 	const source = join(sessionDirectory, SUBAGENTS_DIRECTORY);
-	const empty = { source, names: [], complete: true };
 	const directories = await readable(async () => {
 		const session = await lstatIfPresent(sessionDirectory);
 		const subagents =
@@ -72,32 +73,39 @@ async function subagentFiles(
 
 		return subagents?.isDirectory() === true;
 	});
-	if (directories === UNREADABLE) {
-		return { ...empty, complete: false };
-	}
-	if (!directories) {
-		return empty;
+	if (directories !== true) {
+		return { complete: directories !== UNREADABLE, names: [], source };
 	}
 
-	const entries = await readable(() => readdirIfPresent(source));
+	const entries = await readable(async () => await readdirIfPresent(source));
 	if (entries === UNREADABLE) {
-		return { ...empty, complete: false };
+		return { complete: false, names: [], source };
 	}
 
+	return await regularSubagentFiles(source, entries ?? []);
+}
+
+async function regularSubagentFiles(
+	source: string,
+	entries: readonly string[],
+): Promise<SubagentFiles> {
 	const names: string[] = [];
 	let complete = true;
-	for (const name of (entries ?? []).filter((each) =>
-		SUBAGENT_FILE.test(each),
-	)) {
-		const entry = await readable(() => lstatIfPresent(join(source, name)));
-		if (entry === UNREADABLE) {
-			complete = false;
-		} else if (entry?.isFile() === true) {
-			names.push(name);
-		}
-	}
+	await Array.fromAsync(
+		entries.filter((each) => SUBAGENT_FILE.test(each)),
+		async (name) => {
+			const entry = await readable(
+				async () => await lstatIfPresent(join(source, name)),
+			);
+			if (entry === UNREADABLE) {
+				complete = false;
+			} else if (entry?.isFile() === true) {
+				names.push(name);
+			}
+		},
+	);
 
-	return { source, names, complete };
+	return { complete, names, source };
 }
 
 /**
@@ -123,20 +131,22 @@ async function readable<T>(
  * stays out of the record, and the agent it belongs to then reads as
  * unavailable there.
  */
-export async function preserveSubagentFiles(
+async function preserveSubagentFiles(
 	sessionTranscript: string,
 	recordDirectory: string,
 ): Promise<void> {
 	const { source, names } = await subagentFiles(sessionTranscript);
 	const destination = join(recordDirectory, SUBAGENTS_DIRECTORY);
 
-	for (const name of names) {
-		const bytes = await readable(() => Bun.file(join(source, name)).bytes());
+	await Array.fromAsync(names, async (name) => {
+		const bytes = await readable(
+			async () => await Bun.file(join(source, name)).bytes(),
+		);
 		if (bytes !== UNREADABLE) {
 			await mkdir(destination, { recursive: true });
 			await Bun.write(join(destination, name), bytes);
 		}
-	}
+	});
 }
 
 /**
@@ -144,7 +154,7 @@ export async function preserveSubagentFiles(
  * the provider's copies loses nothing. A directory or file the walk could not
  * read, or a copy the recording never made because it failed first, says no.
  */
-export async function subagentFilesRetained(
+async function subagentFilesRetained(
 	sessionTranscript: string,
 	recordDirectory: string,
 ): Promise<boolean> {
@@ -152,9 +162,12 @@ export async function subagentFilesRetained(
 	if (!complete) {
 		return false;
 	}
-	for (const name of names) {
-		const copy = join(recordDirectory, SUBAGENTS_DIRECTORY, name);
-		if (!(await Bun.file(copy).exists())) {
+	for await (const exists of serialMap(
+		names.values(),
+		async (name) =>
+			await Bun.file(join(recordDirectory, SUBAGENTS_DIRECTORY, name)).exists(),
+	)) {
+		if (!exists) {
 			return false;
 		}
 	}
@@ -169,7 +182,7 @@ export async function subagentFilesRetained(
  * Saying so lets a reader mark the session's sub-agent coverage incomplete,
  * where silence would read as an agent that ran nothing and cost nothing.
  */
-export async function unavailableSubagents(
+async function unavailableSubagents(
 	lines: Immutable<readonly TranscriptLine[]>,
 	recordDirectory: string,
 ): Promise<readonly string[]> {
@@ -177,7 +190,7 @@ export async function unavailableSubagents(
 		lines.map((line) => line.namedAgent).filter((id) => id !== undefined),
 	);
 	const unavailable: string[] = [];
-	for (const agentId of named) {
+	await Array.fromAsync(named, async (agentId) => {
 		const transcript = join(
 			recordDirectory,
 			SUBAGENTS_DIRECTORY,
@@ -186,7 +199,7 @@ export async function unavailableSubagents(
 		if (!AGENT_ID.test(agentId) || !(await Bun.file(transcript).exists())) {
 			unavailable.push(agentId);
 		}
-	}
+	});
 
 	return unavailable;
 }
@@ -199,7 +212,7 @@ export async function unavailableSubagents(
  * unavailable rather than failing the read or following a link out of the
  * record.
  */
-export async function recordedSubagents(
+async function recordedSubagents(
 	recordDirectory: string,
 ): Promise<readonly SubagentEvidence[]> {
 	const directory = join(recordDirectory, SUBAGENTS_DIRECTORY);
@@ -209,15 +222,16 @@ export async function recordedSubagents(
 		.filter((agentId) => agentId !== undefined)
 		.toSorted();
 	const subagents = await Promise.all(
-		agentIds.map(async (agentId) => ({
-			agentId,
-			transcript: await regularFileText(
+		agentIds.map(async (agentId) => {
+			const transcript = await regularFileText(
 				join(directory, `agent-${agentId}.jsonl`),
-			),
-			meta: await regularFileText(
+			);
+			const meta = await regularFileText(
 				join(directory, `agent-${agentId}.meta.json`),
-			),
-		})),
+			);
+
+			return { agentId, meta, transcript };
+		}),
 	);
 
 	return subagents.filter(
@@ -226,12 +240,23 @@ export async function recordedSubagents(
 }
 
 /** The agent a sub-agent transcript's file name names, if it names one. */
-export function subagentTranscriptAgentId(name: string): string | undefined {
-	return SUBAGENT_TRANSCRIPT.exec(name)?.[1];
+function subagentTranscriptAgentId(name: string): string | undefined {
+	const [, agentId] = SUBAGENT_TRANSCRIPT.exec(name) ?? [];
+	return agentId;
 }
 
 async function regularFileText(path: string): Promise<string | undefined> {
 	const entry = await lstatIfPresent(path);
 
-	return entry?.isFile() === true ? textIfPresent(path) : undefined;
+	return entry?.isFile() === true ? await textIfPresent(path) : undefined;
 }
+
+export {
+	SUBAGENTS_DIRECTORY,
+	providerSessionDirectory,
+	preserveSubagentFiles,
+	subagentFilesRetained,
+	unavailableSubagents,
+	recordedSubagents,
+	subagentTranscriptAgentId,
+};

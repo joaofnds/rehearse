@@ -1,38 +1,46 @@
 import { z } from "zod";
-import { stageLetterGradeSchema } from "./contracts";
+
 import type { Immutable } from "./contracts";
+import { stageLetterGradeSchema } from "./contracts";
 import type { OutputWords } from "./output-words";
 import { recordedFinalReplySchema, stageOutputWords } from "./output-words";
+
+const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
+
+const recordedArtifactSchema = z
+	.looseObject({ content: z.string() })
+	.optional();
+
+const recordedBlockerSchema = z.looseObject({
+	id: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	status: z.enum(["PASS", "FAIL"]),
+});
+
+const recordedDimensionSchema = z.looseObject({
+	grade: stageLetterGradeSchema,
+	id: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+});
 
 /**
  * Only the parts of a stage scorecard a comparison reads: the blockers that
  * fired, the dimension grades and the output they judged. Loose, so a
  * scorecard carrying fields a later card adds still reads.
  */
-export const stageGradingRecordSchema = z.looseObject({
-	stage: z.string().min(1),
+const stageGradingRecordSchema = z.looseObject({
+	grade: z.looseObject({
+		dimensions: z.array(recordedDimensionSchema),
+		hardBlockers: z.array(recordedBlockerSchema),
+	}),
 	input: z.looseObject({
-		artifact: z.looseObject({ content: z.string() }).optional(),
+		artifact: recordedArtifactSchema,
 		transcript: recordedFinalReplySchema.optional(),
 	}),
-	grade: z.looseObject({
-		hardBlockers: z.array(
-			z.looseObject({
-				id: z.string().min(1),
-				status: z.enum(["PASS", "FAIL"]),
-			}),
-		),
-		dimensions: z.array(
-			z.looseObject({ id: z.string().min(1), grade: stageLetterGradeSchema }),
-		),
-	}),
+	stage: z.string().nonempty(),
 });
 
-export type StageGradingRecord = Immutable<
-	z.infer<typeof stageGradingRecordSchema>
->;
+type StageGradingRecord = Immutable<z.infer<typeof stageGradingRecordSchema>>;
 
-export interface StageGrading {
+interface StageGrading {
 	readonly stage: string;
 	readonly hardBlockers: readonly {
 		readonly id: string;
@@ -46,17 +54,20 @@ export interface StageGrading {
 }
 
 /** A hard blocker's FAIL means its condition occurred, so it fired. */
-export function stageGrading(record: StageGradingRecord): StageGrading {
+function stageGrading(record: StageGradingRecord): StageGrading {
 	return {
-		stage: record.stage,
-		hardBlockers: record.grade.hardBlockers.map(({ id, status }) => ({
-			id,
-			fired: status === "FAIL",
-		})),
 		dimensions: record.grade.dimensions.map(({ id, grade }) => ({
-			id,
 			grade,
+			id,
 		})),
+		hardBlockers: record.grade.hardBlockers.map(({ id, status }) => ({
+			fired: status === "FAIL",
+			id,
+		})),
+		stage: record.stage,
 		words: stageOutputWords(record.input),
 	};
 }
+
+export { stageGrading, stageGradingRecordSchema };
+export type { StageGrading, StageGradingRecord };

@@ -1,9 +1,13 @@
 import { Link } from "@tanstack/react-router";
+
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
-import { plural } from "#client/plural";
+import plural from "#client/plural";
 import { invalidatedByValue } from "#client/run-history/invalidated-by";
-import { SectionLabel } from "#client/system/components/section-label";
+import SectionLabel from "#client/system/components/section-label";
+
 import type { CorpusResponse } from "./corpus-query";
+
+const NO_INVALIDATED_RESULTS = 0;
 
 type LastEdit = CorpusResponse["lastEdit"];
 
@@ -13,7 +17,7 @@ function reading(lastEdit: LastEdit): React.JSX.Element {
 			<span className="text-dim">{`Not recorded: ${lastEdit.reason}`}</span>
 		);
 	}
-	if (lastEdit.count === 0) {
+	if (lastEdit.count === NO_INVALIDATED_RESULTS) {
 		return (
 			<span>
 				<span aria-hidden="true">✓ </span>
@@ -38,11 +42,11 @@ function reading(lastEdit: LastEdit): React.JSX.Element {
 }
 
 /** How many recorded results the last edit made stale, beside the corpus it edited. */
-export function LastEditCard({
-	lastEdit,
-}: {
+interface LastEditCardProps {
 	readonly lastEdit: LastEdit;
-}): React.JSX.Element {
+}
+
+function LastEditCard({ lastEdit }: LastEditCardProps): React.JSX.Element {
 	return (
 		<section
 			aria-labelledby="last-edit-heading"
@@ -59,3 +63,5 @@ export function LastEditCard({
 		</section>
 	);
 }
+
+export { LastEditCard as default };

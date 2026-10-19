@@ -1,12 +1,18 @@
 import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
-import type { ReplayableRun, ReplayChoice } from "#client/launch/launch-dialog";
+import type { ReplayChoice, ReplayableRun } from "#client/launch/launch-dialog";
+
 import type { RunHistoryResponse } from "./run-history-query";
 
+const FIRST_REPLAYABLE_RUN_INDEX = 0;
+
+const FINAL_PIPELINE_STAGE_OFFSET = -1;
+
 type HistoryRow = RunHistoryResponse["rows"][number];
+
 type PipelineRunRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 /** What the header's Replay a step can offer, or why it offers nothing. */
-export type ReplayOffer =
+type ReplayOffer =
 	| {
 			readonly state: "available";
 			/** Newest first. */
@@ -15,7 +21,7 @@ export type ReplayOffer =
 	  }
 	| { readonly state: "unavailable"; readonly reason: string };
 
-export const NO_REPLAYABLE_STEP_REASON =
+const NO_REPLAYABLE_STEP_REASON =
 	"No recorded run has a step whose starting checkpoint is recorded";
 
 function stoppedStage(row: PipelineRunRow): string | undefined {
@@ -25,7 +31,7 @@ function stoppedStage(row: PipelineRunRow): string | undefined {
 /** A run opens on the step it stopped at when that step is offered, else on its last. */
 function replayableRun(row: PipelineRunRow): ReplayableRun | undefined {
 	const stages = row.replayableStages;
-	const last = stages.at(-1);
+	const last = stages.at(FINAL_PIPELINE_STAGE_OFFSET);
 	if (last === undefined) {
 		return undefined;
 	}
@@ -33,11 +39,11 @@ function replayableRun(row: PipelineRunRow): ReplayableRun | undefined {
 	const stopped = stoppedStage(row);
 
 	return {
-		run: row.run,
 		caseId: row.caseId,
-		stages,
 		openingStage:
 			stopped !== undefined && stages.includes(stopped) ? stopped : last,
+		run: row.run,
+		stages,
 	};
 }
 
@@ -47,7 +53,7 @@ function replayableRun(row: PipelineRunRow): ReplayableRun | undefined {
  * step is offered, the step an operator most likely wants to replay, else on
  * the newest run that offers a step.
  */
-export function replayOffer(rows: readonly HistoryRow[]): ReplayOffer {
+function replayOffer(rows: readonly HistoryRow[]): ReplayOffer {
 	const pipelineRuns = rows.filter(
 		(row): row is PipelineRunRow => row.kind === "run",
 	);
@@ -64,14 +70,17 @@ export function replayOffer(rows: readonly HistoryRow[]): ReplayOffer {
 			run === newestStopped?.run &&
 			openingStage === stoppedStage(newestStopped),
 	);
-	const opening = stoppedOpening ?? runs[0];
+	const opening = stoppedOpening ?? runs[FIRST_REPLAYABLE_RUN_INDEX];
 	if (opening === undefined) {
-		return { state: "unavailable", reason: NO_REPLAYABLE_STEP_REASON };
+		return { reason: NO_REPLAYABLE_STEP_REASON, state: "unavailable" };
 	}
 
 	return {
-		state: "available",
-		runs,
 		opensOn: { run: opening.run, stage: opening.openingStage },
+		runs,
+		state: "available",
 	};
 }
+
+export { NO_REPLAYABLE_STEP_REASON, replayOffer };
+export type { ReplayOffer };

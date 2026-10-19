@@ -1,15 +1,13 @@
 import type { ClaudeCallMetrics, ProviderCall } from "./contracts";
 import type { JudgeAttempt } from "./judge-attempt";
 
-export function judgeProviderCalls(
-	attempts: readonly JudgeAttempt[],
-): ProviderCall[] {
+function judgeProviderCalls(attempts: readonly JudgeAttempt[]): ProviderCall[] {
 	return attempts.map(({ metrics }) =>
 		metrics === undefined ? {} : { metrics },
 	);
 }
 
-export class JudgeExecutionError extends Error {
+class JudgeExecutionError extends Error {
 	public readonly prompt: string;
 	public readonly attempts: readonly JudgeAttempt[];
 	public readonly providerCalls: readonly ProviderCall[];
@@ -41,3 +39,5 @@ export class JudgeExecutionError extends Error {
 		this.costUsd = props.costUsd;
 	}
 }
+
+export { judgeProviderCalls, JudgeExecutionError };

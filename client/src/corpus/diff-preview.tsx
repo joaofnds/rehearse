@@ -1,12 +1,12 @@
 import type { DiffLine } from "./line-diff";
-import { lineDiff } from "./line-diff";
+import lineDiff from "./line-diff";
 
-const DIFF_MARK = { same: " ", removed: "−", added: "+" } as const;
+const DIFF_MARK = { added: "+", removed: "−", same: " " } as const;
 
 const DIFF_BACKGROUND = {
-	same: "",
-	removed: "bg-diff-removed",
 	added: "bg-diff-added",
+	removed: "bg-diff-removed",
+	same: "",
 } as const;
 
 function lineNumber(line: DiffLine): number {
@@ -14,17 +14,19 @@ function lineNumber(line: DiffLine): number {
 }
 
 /** Each changed line carries its mark as text, so colour is never the only sign. */
-export function DiffPreview({
-	path,
-	original,
-	text,
-	unchanged,
-}: {
+interface DiffPreviewProps {
 	readonly path: string;
 	readonly original: string;
 	readonly text: string;
 	readonly unchanged: string;
-}): React.JSX.Element {
+}
+
+function DiffPreview({
+	path,
+	original,
+	text,
+	unchanged,
+}: DiffPreviewProps): React.JSX.Element {
 	const lines = lineDiff(original, text);
 	if (lines === undefined) {
 		return (
@@ -63,3 +65,5 @@ export function DiffPreview({
 		</ol>
 	);
 }
+
+export { DiffPreview as default };

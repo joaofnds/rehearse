@@ -1,13 +1,14 @@
-import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type {
 	ComparisonArm,
 	ComparisonReport,
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
+import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
 import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
 import { moreAttemptsCost } from "#benchmark/more-attempts-cost";
-import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
+
 import { armPairNames } from "./comparison-arm-pair";
 import type {
 	QualityReading,
@@ -19,6 +20,16 @@ import { meterReading } from "./comparison-what-moved";
 import { NO_GRADED_REP_REASON } from "./confirmation-group-summary";
 import type { Reading } from "./run-record";
 
+const BINARY_SUCCESS_STANDING_FAILED = 0;
+const BINARY_SUCCESS_STANDING_SUCCESSFUL = 1;
+
+const NO_GRADED_OUTCOMES = 0;
+
+const HIGHER_GRADE_COUNT_INCREMENT = 1;
+const LOWER_GRADE_COUNT_INCREMENT = 1;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
 type ReportCase = (ComparisonReport | LegacyComparisonReport)["cases"][number];
 
 /**
@@ -26,19 +37,19 @@ type ReportCase = (ComparisonReport | LegacyComparisonReport)["cases"][number];
  * one attempt from each, since no record ties an attempt of one arm to an
  * attempt of the other (doc-180 decision 1).
  */
-export type AttemptCombinations = Reading<{
+type AttemptCombinations = Reading<{
 	readonly higher: number;
 	readonly equal: number;
 	readonly lower: number;
 	readonly of: number;
 }>;
 
-export interface MeasureContrast {
+interface MeasureContrast {
 	readonly verdict: QualityVerdict;
 	readonly combinations: AttemptCombinations;
 }
 
-export interface CaseSummary {
+interface CaseSummary {
 	readonly contrasts: Readonly<
 		Record<string, Readonly<Record<string, MeasureContrast>>>
 	>;
@@ -55,17 +66,20 @@ function standings(
 ): readonly number[] {
 	if (scale === "successRate") {
 		return [
-			...Array.from({ length: summary.successful }, () => 1),
+			...Array.from(
+				{ length: summary.successful },
+				() => BINARY_SUCCESS_STANDING_SUCCESSFUL,
+			),
 			...Array.from(
 				{ length: summary.requested - summary.successful },
-				() => 0,
+				() => BINARY_SUCCESS_STANDING_FAILED,
 			),
 		];
 	}
 
 	return STAGE_LETTER_GRADES.flatMap((grade, index) =>
 		Array.from(
-			{ length: summary.gradeDistribution[grade] ?? 0 },
+			{ length: summary.gradeDistribution[grade] ?? NO_GRADED_OUTCOMES },
 			() => STAGE_LETTER_GRADES.length - index,
 		),
 	);
@@ -75,31 +89,41 @@ function combinations(
 	minuend: readonly number[],
 	subtrahend: readonly number[],
 ): AttemptCombinations {
-	if (minuend.length === 0 || subtrahend.length === 0) {
-		return { state: "unavailable", reasons: [NO_GRADED_REP_REASON] };
+	if (
+		minuend.length === EMPTY_COLLECTION_LENGTH ||
+		subtrahend.length === EMPTY_COLLECTION_LENGTH
+	) {
+		return { reasons: [NO_GRADED_REP_REASON], state: "unavailable" };
 	}
 
-	let higher = 0;
-	let lower = 0;
+	const counts = { higher: 0, lower: 0 };
 	for (const left of minuend) {
 		for (const right of subtrahend) {
 			if (left > right) {
-				higher += 1;
+				counts.higher += HIGHER_GRADE_COUNT_INCREMENT;
 			} else if (left < right) {
-				lower += 1;
+				counts.lower += LOWER_GRADE_COUNT_INCREMENT;
 			}
 		}
 	}
 	const of = minuend.length * subtrahend.length;
 
-	return { state: "available", higher, equal: of - higher - lower, lower, of };
+	return {
+		...counts,
+		equal: of - counts.higher - counts.lower,
+		of,
+		state: "available",
+	};
+}
+interface ContrastMeasurement {
+	readonly measure: { readonly name: string; readonly scale: QualityScale };
+	readonly reading: QualityReading;
 }
 
 function measureContrast(
 	benchmarkCase: ReportCase,
 	arms: { readonly minuend: ComparisonArm; readonly subtrahend: ComparisonArm },
-	measure: { readonly name: string; readonly scale: QualityScale },
-	reading: QualityReading,
+	{ measure, reading }: ContrastMeasurement,
 ): MeasureContrast {
 	const standingsOf = (arm: ComparisonArm): readonly number[] =>
 		standings(
@@ -108,11 +132,11 @@ function measureContrast(
 		);
 
 	return {
-		verdict: reading.verdict,
 		combinations: combinations(
 			standingsOf(arms.minuend),
 			standingsOf(arms.subtrahend),
 		),
+		verdict: reading.verdict,
 	};
 }
 
@@ -132,7 +156,7 @@ function armBReplyLength(rows: readonly WhatMovedRow[]): MeterReading {
  * How arm B compares with arm A and each with the baseline arm, per overall
  * measure: the reading's verdict beside how the attempts compare.
  */
-export function caseSummary(
+function caseSummary(
 	benchmarkCase: ReportCase,
 	readings: {
 		readonly quality: Readonly<
@@ -149,17 +173,14 @@ export function caseSummary(
 				Object.fromEntries(
 					Object.entries(byMeasure).map(([name, reading]) => [
 						name,
-						measureContrast(
-							benchmarkCase,
-							armPairNames(pair),
-							{ name, scale: scaleFor(name) },
+						measureContrast(benchmarkCase, armPairNames(pair), {
+							measure: { name, scale: scaleFor(name) },
 							reading,
-						),
+						}),
 					]),
 				),
 			]),
 		),
-		replyLength: armBReplyLength(readings.whatMoved),
 		moreAttempts: moreAttemptsCost(
 			{
 				baseline: benchmarkCase.arms.baseline.resources,
@@ -168,5 +189,9 @@ export function caseSummary(
 			},
 			benchmarkCase.arms.baseline.source.reps.length,
 		),
+		replyLength: armBReplyLength(readings.whatMoved),
 	};
 }
+
+export { caseSummary as default };
+export type { AttemptCombinations, MeasureContrast, CaseSummary };

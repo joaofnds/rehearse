@@ -1,14 +1,17 @@
 import { z } from "zod";
-import type { Immutable } from "./contracts";
-import type { ToolUse } from "./transcript";
-import type { CheckResult } from "./session-check-result";
 
-export const toolCallsCheckSchema = z
+import type { Immutable } from "./contracts";
+import type { CheckResult } from "./session-check-result";
+import type { ToolUse } from "./transcript";
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const toolCallsCheckSchema = z
 	.object({
 		kind: z.literal("tool-calls"),
-		min: z.number().int().nonnegative().optional(),
 		max: z.number().int().nonnegative().optional(),
-		names: z.array(z.string().min(1)).min(1).optional(),
+		min: z.number().int().nonnegative().optional(),
+		names: z.array(z.string().nonempty()).nonempty().optional(),
 	})
 	.strict()
 	.refine(
@@ -19,7 +22,7 @@ export const toolCallsCheckSchema = z
 		"A tool-calls check declares at least one of min, max, and names",
 	);
 
-export type ToolCallsCheck = z.infer<typeof toolCallsCheckSchema>;
+type ToolCallsCheck = z.infer<typeof toolCallsCheckSchema>;
 
 function countFailure(
 	check: Immutable<ToolCallsCheck>,
@@ -51,24 +54,27 @@ function undeclaredNames(
 	];
 }
 
-export function evaluateToolCalls(
+function evaluateToolCalls(
 	check: Immutable<ToolCallsCheck>,
 	toolUses: Immutable<readonly ToolUse[]>,
 ): CheckResult {
 	const offending = undeclaredNames(check, toolUses);
-	if (offending.length > 0) {
+	if (offending.length > EMPTY_COLLECTION_LENGTH) {
 		return {
+			detail: `undeclared tool called: ${offending.join(", ")}`,
 			kind: check.kind,
 			status: "FAIL",
-			detail: `undeclared tool called: ${offending.join(", ")}`,
 		};
 	}
 
 	const failure = countFailure(check, toolUses.length);
 
 	return {
+		detail: failure ?? `${String(toolUses.length)} tool calls`,
 		kind: check.kind,
 		status: failure === undefined ? "PASS" : "FAIL",
-		detail: failure ?? `${String(toolUses.length)} tool calls`,
 	};
 }
+
+export { toolCallsCheckSchema, evaluateToolCalls };
+export type { ToolCallsCheck };

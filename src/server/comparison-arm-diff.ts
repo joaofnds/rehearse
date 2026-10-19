@@ -1,14 +1,17 @@
 import { dirname, join } from "node:path";
+
 import type {
 	ComparisonArm,
 	ComparisonReport,
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
+import serialMap from "#benchmark/serial-map";
+
 import { comparisonAttribution, layoutPath } from "./comparison-attribution";
 import { redactAbsolutePaths } from "./redact-path";
 import {
-	readRecordedEvidenceFile,
 	SessionHistoryReaderError,
+	readRecordedEvidenceFile,
 } from "./session-history-reader";
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
@@ -16,18 +19,18 @@ type ReportCase = AnyComparisonReport["cases"][number];
 type ReportArm = ReportCase["arms"][ComparisonArm];
 
 /** A file's text at one arm's version, or why the arm shows none. */
-export type ArmFileText =
+type ArmFileText =
 	| { readonly state: "available"; readonly text: string }
 	| { readonly state: "absent" }
 	| { readonly state: "unavailable"; readonly reasons: readonly string[] };
 
-export interface ArmFileDiff {
+interface ArmFileDiff {
 	readonly path: string;
 	readonly baseline: ArmFileText;
 	readonly candidate: ArmFileText;
 }
 
-export const MISMATCHED_FROZEN_COPY_REASON =
+const MISMATCHED_FROZEN_COPY_REASON =
 	"its frozen copy no longer matches the digest the comparison recorded, or is not UTF-8 text";
 
 function sha256(text: string): string {
@@ -53,27 +56,30 @@ async function frozenText(
 
 		return sha256(text) === file.sha256
 			? { state: "available", text }
-			: { state: "unavailable", reasons: [MISMATCHED_FROZEN_COPY_REASON] };
+			: { reasons: [MISMATCHED_FROZEN_COPY_REASON], state: "unavailable" };
 	} catch (error) {
 		if (!(error instanceof SessionHistoryReaderError)) {
 			throw error;
 		}
 
 		return {
-			state: "unavailable",
 			reasons: [
 				`its frozen copy cannot be read: ${redactAbsolutePaths(error.message)}`,
 			],
+			state: "unavailable",
 		};
 	}
+}
+interface ArmFileRequest {
+	readonly arm: ReportArm;
+	readonly path: string;
+	readonly mode: AnyComparisonReport["mode"];
 }
 
 /** The text an arm ran at a corpus-layout path, from the copy its group froze. */
 async function armFileText(
 	runsDirectory: string,
-	arm: ReportArm,
-	path: string,
-	mode: AnyComparisonReport["mode"],
+	{ arm, path, mode }: ArmFileRequest,
 ): Promise<ArmFileText> {
 	const file = arm.executedCorpus.find(
 		(executed) => layoutPath(executed.path, mode) === path,
@@ -83,11 +89,14 @@ async function armFileText(
 	}
 
 	let text: ArmFileText = {
-		state: "unavailable",
 		reasons: ["the arm records no group"],
+		state: "unavailable",
 	};
-	for (const groupPath of groupPaths(arm.source)) {
-		text = await frozenText(runsDirectory, groupPath, file);
+	for await (const frozen of serialMap(
+		groupPaths(arm.source).values(),
+		async (groupPath) => await frozenText(runsDirectory, groupPath, file),
+	)) {
+		text = frozen;
 		if (text.state === "available") {
 			return text;
 		}
@@ -100,7 +109,7 @@ async function armFileText(
  * Each case's files that differ between arms A and B, with the text each arm
  * ran, so the operator reads the edit the attribution claim rests on.
  */
-export async function comparisonArmDiff(
+async function comparisonArmDiff(
 	report: AnyComparisonReport,
 	runsDirectory: string,
 ): Promise<Readonly<Record<string, readonly ArmFileDiff[]>>> {
@@ -115,19 +124,17 @@ export async function comparisonArmDiff(
 				attribution.claim === "identical" ? [] : attribution.differingPaths;
 			const files = await Promise.all(
 				paths.map(async (path) => ({
+					baseline: await armFileText(runsDirectory, {
+						arm: arms.baseline,
+						mode: report.mode,
+						path,
+					}),
+					candidate: await armFileText(runsDirectory, {
+						arm: arms.candidate,
+						mode: report.mode,
+						path,
+					}),
 					path,
-					baseline: await armFileText(
-						runsDirectory,
-						arms.baseline,
-						path,
-						report.mode,
-					),
-					candidate: await armFileText(
-						runsDirectory,
-						arms.candidate,
-						path,
-						report.mode,
-					),
 				})),
 			);
 
@@ -137,3 +144,6 @@ export async function comparisonArmDiff(
 
 	return Object.fromEntries(entries);
 }
+
+export { MISMATCHED_FROZEN_COPY_REASON, comparisonArmDiff };
+export type { ArmFileText, ArmFileDiff };

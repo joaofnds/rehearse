@@ -1,603 +1,145 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { renderAppWithStub } from "#client/test-support/render-app";
-import { recordStage } from "#client/test-support/run-record";
-import { runRow } from "#client/test-support/runs-in-flight";
-import type { RunRecord, RunRecordStage } from "#server/run-record";
-import {
-	INTERRUPTED_REASON,
-	RUN_FAILED_REASON,
-	UNEXPLAINED_END_REASON,
-} from "#server/run-record";
-import type { StageJudge } from "#server/stage-judge";
-import type { StageSession } from "#server/stage-session";
-import {
-	ANALYSES,
-	CORPUS,
-	history,
-	noAnalysis,
-	RUN,
-	renderRunDetail,
-	stoppedAtBuild,
-} from "#client/test-support/run-detail";
 
-const originalFetch = globalThis.fetch;
+import { within } from "@testing-library/react";
+
+import ClosedStageSessionBuilder from "#client/test-support/closed-stage-session-test-builder";
+import {
+	FIRST_STEP_SESSION,
+	STOPPED_STEP_JUDGE,
+	judged,
+	ledgerCard,
+	ledgerCards,
+	ledgerFooter,
+	originalFetch,
+	renderLedger,
+	stoppedByVerdict,
+} from "#client/test-support/run-detail/ledger-test-fixtures";
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-const LEDGER = `/runs/${RUN}?layout=ledger`;
+describe("Record ledger", () => {
+	it(
+		"shows one card per stage with a record, in pipeline order",
+		showsOneCardPerStageWithARecordInPipelineOrder,
+	);
 
-/** The stopped run with shape's figures and both recorded stages' corpus recorded. */
-function stoppedWithFigures(): RunRecord {
-	const record = stoppedAtBuild();
-	const corpus: Partial<RunRecordStage> = {
-		corpusVersion: { kind: "version", digest: CORPUS },
-	};
-	const figures: Partial<RunRecordStage> = {
-		...corpus,
-		checkpointShortId: { state: "available", shortId: "c-0147-1" },
-		wallTime: { state: "available", ms: 82_000 },
-		sessionCost: { state: "available", usd: 0.3 },
-		judgeCost: { state: "available", usd: 0.04 },
-	};
-	const [first, second, ...later] = record.stages;
+	it(
+		"heads each card with its number, name, status, meta, corpus and grade",
+		headsEachCardWithItsNumberNameStatusMetaCorpusAndGrade,
+	);
 
-	return {
-		...record,
-		stages:
-			first === undefined || second === undefined
-				? []
-				: [{ ...first, ...figures }, { ...second, ...corpus }, ...later],
-	};
+	it(
+		"marks the stage the run stopped at with the accent and no error colour",
+		marksTheStageTheRunStoppedAtWithTheAccentAndNoErrorColour,
+	);
+
+	it(
+		"heads a stage its judge stopped above the minimum as stopped alone",
+		headsAStageItsJudgeStoppedAboveTheMinimumAsStoppedAlone,
+	);
+
+	it(
+		"preserves the stage's hard blockers and dimensions in rubric order",
+		preservesTheStageSHardBlockersAndDimensionsInRubricOrder,
+	);
+
+	it(
+		"states whether each stage kept its checkpoint",
+		statesWhetherEachStageKeptItsCheckpoint,
+	);
+});
+
+async function showsOneCardPerStageWithARecordInPipelineOrder(): Promise<void> {
+	renderLedger();
+
+	const cards = await ledgerCards();
+
+	expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+		"Step 1 · shape",
+		"Step 2 · build",
+	]);
 }
 
-/** The stopped run with build stopped by its judge's verdict at a letter that reaches the minimum. */
-function stoppedByVerdict(): RunRecord {
-	const record = stoppedWithFigures();
-	const [first, second, ...later] = record.stages;
-	const verdict: Partial<RunRecordStage> = {
-		grade: {
-			state: "available",
-			letter: "B",
-			verdict: "STOP",
-			reachesMinimum: true,
-		},
-	};
+async function headsEachCardWithItsNumberNameStatusMetaCorpusAndGrade(): Promise<void> {
+	renderLedger(
+		new Map([
+			[
+				FIRST_STEP_SESSION,
+				new ClosedStageSessionBuilder({ lineCount: 402 }).build(),
+			],
+		]),
+	);
 
-	return {
-		...record,
-		stages:
-			first === undefined || second === undefined
-				? []
-				: [first, { ...second, ...verdict }, ...later],
-	};
-}
+	const firstStep = await ledgerCard("Step 1 · shape");
 
-const FIRST_STEP_SESSION = `/api/runs/${RUN}/stages/shape/session`;
-
-function closedSession(lineCount: number): StageSession {
-	return {
-		state: "closed",
-		spans: [],
-		lineCount,
-		transcriptPath: `.benchmark-runs/${RUN}.shape.session/transcript.jsonl`,
-	};
-}
-
-const STOPPED_STEP_SESSION = `/api/runs/${RUN}/stages/build/session`;
-
-const STOPPED_STEP_JUDGE = `/api/runs/${RUN}/stages/build/judge`;
-
-function judged(): StageJudge {
-	return {
-		state: "judged",
-		hardBlockers: [
-			{
-				id: "scope-declared-before-edit",
-				status: "FAIL",
-				evidence: [
-					{
-						source: "transcript",
-						path: "transcript",
-						claim: "The agent chose a scope without asking",
-						quote: "I'll take the small scope",
-						place: "exchange 3 message, characters 0-25",
-					},
-				],
-			},
-			{ id: "no-secrets-in-diff", status: "PASS", evidence: [] },
-		],
-		dimensions: [
-			{
-				id: "scope-discipline",
-				grade: "C",
-				evidence: [
-					{
-						source: "diff",
-						path: "src/a.ts",
-						claim: "Edits files outside the declared scope",
-					},
-				],
-			},
-			{ id: "test-quality", grade: "B", evidence: [] },
-		],
-	};
-}
-
-function renderLedger(
-	routes: ReadonlyMap<string, unknown> = new Map(),
-	record: RunRecord = stoppedWithFigures(),
-): void {
-	renderRunDetail(
-		new Map<string, unknown>([[`/api/runs/${RUN}`, record], ...routes]),
-		[],
-		LEDGER,
+	expect(
+		within(firstStep).getByRole("heading", { level: 2 }).parentElement,
+	).toHaveTextContent(
+		/^01shape✓Continued at minimum B1m22s · \$0\.34 · 402 linescorpus@a41c7eA$/u,
 	);
 }
 
-async function ledgerCards(): Promise<readonly HTMLElement[]> {
-	const ledger = await screen.findByRole("region", { name: "Record ledger" });
+async function marksTheStageTheRunStoppedAtWithTheAccentAndNoErrorColour(): Promise<void> {
+	renderLedger();
 
-	return within(ledger).getAllByRole("article");
+	const firstStep = await ledgerCard("Step 1 · shape");
+	const stoppedStep = await ledgerCard("Step 2 · build");
+
+	expect(stoppedStep).toHaveClass("border-deeper");
+	expect(stoppedStep.firstElementChild).toHaveClass("bg-fired");
+	expect(stoppedStep).toHaveTextContent("◼below minimum B · run stopped");
+	expect(stoppedStep.outerHTML).not.toMatch(/destructive|danger|red-/u);
+	expect(firstStep).not.toHaveClass("border-deeper");
 }
 
-/** The ledger card a step's name labels, failing when it is not drawn. */
-async function ledgerCard(step: string): Promise<HTMLElement> {
-	const ledger = await screen.findByRole("region", { name: "Record ledger" });
+async function headsAStageItsJudgeStoppedAboveTheMinimumAsStoppedAlone(): Promise<void> {
+	renderLedger(new Map(), stoppedByVerdict());
 
-	return within(ledger).findByRole("article", { name: step });
+	const stoppedStep = await ledgerCard("Step 2 · build");
+
+	expect(
+		within(stoppedStep).getByRole("heading", { level: 2 }).parentElement,
+	).toHaveTextContent(/^02build◼stopped— · /u);
 }
 
-/** The footer of the ledger card a step's name labels. */
-async function ledgerFooter(step: string): Promise<HTMLElement> {
-	const card = await ledgerCard(step);
-	const footer = card.querySelector("footer");
-	if (!(footer instanceof HTMLElement)) {
-		throw new Error(`${step} has no footer`);
-	}
+async function preservesTheStageSHardBlockersAndDimensionsInRubricOrder(): Promise<void> {
+	renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
 
-	return footer;
+	const stoppedStep = await ledgerCard("Step 2 · build");
+	const blockers = await within(stoppedStep).findByRole("list", {
+		name: "Hard blockers",
+	});
+	const dimensions = within(stoppedStep).getByRole("list", {
+		name: "Quality dimensions",
+	});
+
+	expect(
+		within(blockers)
+			.getAllByRole("listitem")
+			.map((item) => item.textContent),
+	).toEqual(["✕scope-declared-before-editfired", "✓no-secrets-in-diffclear"]);
+	expect(
+		within(dimensions)
+			.getAllByRole("listitem")
+			.map((item) => item.textContent),
+	).toEqual(["scope-discipline▮▮▮▯▯C", "test-quality▮▮▮▮▯B"]);
+	expect(blockers.parentElement?.nextElementSibling).toContainElement(
+		dimensions,
+	);
 }
 
-describe("Record ledger", () => {
-	it("shows one card per stage with a record, in pipeline order", async () => {
-		renderLedger();
-
-		const cards = await ledgerCards();
-
-		expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
-			"Step 1 · shape",
-			"Step 2 · build",
-		]);
-	});
-
-	it("heads each card with its number, name, status, meta, corpus and grade", async () => {
-		renderLedger(new Map([[FIRST_STEP_SESSION, closedSession(402)]]));
-
-		const firstStep = await ledgerCard("Step 1 · shape");
-
-		expect(
-			within(firstStep).getByRole("heading", { level: 2 }).parentElement,
-		).toHaveTextContent(
-			/^01shape✓Continued at minimum B1m22s · \$0\.34 · 402 linescorpus@a41c7eA$/u,
-		);
-	});
-
-	it("marks the stage the run stopped at with the accent and no error colour", async () => {
-		renderLedger();
-
-		const firstStep = await ledgerCard("Step 1 · shape");
-		const stoppedStep = await ledgerCard("Step 2 · build");
-
-		expect(stoppedStep).toHaveClass("border-deeper");
-		expect(stoppedStep.firstElementChild).toHaveClass("bg-fired");
-		expect(stoppedStep).toHaveTextContent("◼below minimum B · run stopped");
-		expect(stoppedStep.outerHTML).not.toMatch(/destructive|danger|red-/u);
-		expect(firstStep).not.toHaveClass("border-deeper");
-	});
-
-	it("heads a stage its judge stopped above the minimum as stopped alone", async () => {
-		renderLedger(new Map(), stoppedByVerdict());
-
-		const stoppedStep = await ledgerCard("Step 2 · build");
-
-		expect(
-			within(stoppedStep).getByRole("heading", { level: 2 }).parentElement,
-		).toHaveTextContent(/^02build◼stopped— · /u);
-	});
-
-	it("preserves the stage's hard blockers and dimensions in rubric order", async () => {
-		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
-
-		const stoppedStep = await ledgerCard("Step 2 · build");
-		const blockers = await within(stoppedStep).findByRole("list", {
-			name: "Hard blockers",
-		});
-		const dimensions = within(stoppedStep).getByRole("list", {
-			name: "Quality dimensions",
-		});
-
-		expect(
-			within(blockers)
-				.getAllByRole("listitem")
-				.map((item) => item.textContent),
-		).toEqual(["✕scope-declared-before-editfired", "✓no-secrets-in-diffclear"]);
-		expect(
-			within(dimensions)
-				.getAllByRole("listitem")
-				.map((item) => item.textContent),
-		).toEqual(["scope-discipline▮▮▮▯▯C", "test-quality▮▮▮▮▯B"]);
-		expect(blockers.parentElement?.nextElementSibling).toContainElement(
-			dimensions,
-		);
-	});
-
-	it("states whether each stage kept its checkpoint", async () => {
-		renderLedger();
-
-		const firstStep = await ledgerFooter("Step 1 · shape");
-		const stoppedStep = await ledgerFooter("Step 2 · build");
-
-		expect(
-			within(firstStep).getByText("c-0147-1 · frozen state retained"),
-		).toBeInTheDocument();
-		expect(
-			within(stoppedStep).getByText("no checkpoint saved"),
-		).toBeInTheDocument();
-	});
-
-	it("offers a replay from each stage", async () => {
-		renderLedger();
-
-		const footers = [
-			await ledgerFooter("Step 1 · shape"),
-			await ledgerFooter("Step 2 · build"),
-		];
-
-		expect(
-			footers.map((footer) =>
-				within(footer)
-					.getByRole("button", { name: /^Replay from here/u })
-					.getAttribute("aria-disabled"),
-			),
-		).toEqual([null, null]);
-	});
-
-	it("disables the replay with its reason when the checkpoint the stage started from is missing", async () => {
-		renderLedger(new Map(), stoppedAtBuild("missing"));
-
-		const stoppedStep = await ledgerFooter("Step 2 · build");
-
-		expect(
-			within(stoppedStep).getByRole("button", {
-				name: "Replay from here: build has no checkpoint to replay from",
-			}),
-		).toHaveAttribute("aria-disabled", "true");
-	});
-
-	it("counts the stage's cited evidence on its toggle", async () => {
-		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
-
-		const stoppedStep = await ledgerFooter("Step 2 · build");
-
-		expect(
-			await within(stoppedStep).findByRole("button", {
-				name: "2 cited",
-			}),
-		).toHaveAttribute("aria-expanded", "false");
-	});
-
-	it("offers no evidence toggle for a judge it could not read", async () => {
-		renderLedger();
-
-		const stoppedStep = await ledgerCard("Step 2 · build");
-		const card = stoppedStep;
-
-		expect(
-			await within(card).findByText("Could not read this step's judge."),
-		).toBeInTheDocument();
-		expect(
-			within(card).queryByRole("button", { name: /evidence|cited/u }),
-		).not.toBeInTheDocument();
-	});
-
-	describe("expanded evidence", () => {
-		async function openEvidence(session: StageSession): Promise<HTMLElement> {
-			renderLedger(
-				new Map<string, unknown>([
-					[STOPPED_STEP_JUDGE, judged()],
-					[STOPPED_STEP_SESSION, session],
-				]),
-			);
-			const stoppedStep = await ledgerCard("Step 2 · build");
-			const card = stoppedStep;
-
-			fireEvent.click(
-				await within(card).findByRole("button", { name: "2 cited" }),
-			);
-
-			return within(card).getByRole("region", { name: "Cited evidence" });
-		}
-
-		it("preserves each item's source, locator, supported criterion and quote", async () => {
-			const evidence = await openEvidence(closedSession(1284));
-
-			const items = within(evidence).getAllByRole("listitem");
-
-			expect(items.map((item) => item.textContent)).toEqual([
-				"transcriptexchange 3 message, characters 0-25supports scope-declared-before-editI'll take the small scope",
-				"diffsrc/a.tssupports scope-discipline",
-			]);
-			expect(
-				within(evidence).getByRole("link", {
-					name: "exchange 3 message, characters 0-25",
-				}),
-			).toHaveAttribute(
-				"href",
-				`/runs/${RUN}/stages/build/evidence/hardBlockers/scope-declared-before-edit/0`,
-			);
-			expect(
-				within(evidence).getByRole("link", { name: "src/a.ts" }),
-			).toHaveAttribute(
-				"href",
-				`/runs/${RUN}/stages/build/evidence/dimensions/scope-discipline/0`,
-			);
-		});
-
-		it("closes with a link to the session on disk", async () => {
-			const evidence = await openEvidence(closedSession(1284));
-
-			expect(evidence).toHaveTextContent(
-				/Uncited spans are not stored here\. Open the full session on disk$/u,
-			);
-			expect(
-				within(evidence).getByRole("link", {
-					name: "Open the full session on disk",
-				}),
-			).toHaveAttribute("href", `/runs/${RUN}/stages/build`);
-		});
-
-		it("says why there is no session to open when no transcript was kept", async () => {
-			const evidence = await openEvidence({
-				state: "closed",
-				spans: [],
-			});
-
-			expect(evidence).toHaveTextContent(
-				"Uncited spans are not stored here. The full session is not recorded: Rehearse kept no copy of this step's session",
-			);
-		});
-	});
-
-	describe("a stage awaiting judgment", () => {
-		/** The run, ended or in flight, with shape's record awaiting its judge. */
-		function renderAwaitingFirstStep(
-			status: string,
-			finalOutcome: RunRecord["finalOutcome"],
-		): void {
-			const record = stoppedAtBuild();
-			renderAppWithStub(
-				LEDGER,
-				new Map<string, unknown>([
-					[
-						"/api/runs",
-						history([runRow({ run: RUN, status, stage: "shape" })]),
-					],
-					[
-						`/api/runs/${RUN}`,
-						{
-							...record,
-							status: { state: "available", status },
-							finalOutcome,
-							stages: record.stages.map((stage) =>
-								recordStage(
-									stage.stage,
-									stage.stage === "shape"
-										? { status: "awaiting-judgment" }
-										: {},
-								),
-							),
-						},
-					],
-					[`/api/runs/${RUN}/stages/shape/judge`, { state: "waiting" }],
-					[ANALYSES, noAnalysis()],
-				]),
-			);
-		}
-
-		const ENDED: RunRecord["finalOutcome"] = {
-			status: "NOT_REACHED",
-			stage: "shape",
-			reason: INTERRUPTED_REASON,
-		};
-
-		it.each([
-			[
-				"once the run ended",
-				"INTERRUPTED",
-				ENDED,
-				"This step's judge never returned: the run ended while this stage awaited judgment.",
-				"no evidence",
-			],
-			[
-				"while the run is in flight",
-				"RUNNING",
-				{ status: "PENDING", stage: "shape" },
-				"This step's judge has not returned its blockers and dimensions yet.",
-				"evidence pending",
-			],
-		] as const)(
-			"says %s whether its judge can still return",
-			async (_when, status, finalOutcome, body, toggle) => {
-				renderAwaitingFirstStep(status, finalOutcome);
-
-				const firstStep = await ledgerCard("Step 1 · shape");
-				const card = firstStep;
-
-				expect(await within(card).findByText(body)).toBeInTheDocument();
-				expect(
-					within(card).getByRole("button", { name: toggle }),
-				).toBeInTheDocument();
-			},
-		);
-
-		it("heads the stage of an ended run as its judge never returning", async () => {
-			renderAwaitingFirstStep("INTERRUPTED", ENDED);
-
-			const firstStep = await ledgerCard("Step 1 · shape");
-
-			expect(
-				within(firstStep).getByRole("heading", { level: 2 }).parentElement,
-			).toHaveTextContent("⊘judge never returned");
-		});
-	});
-
-	describe("stages the run never reached", () => {
-		/** The run ended or in flight at build, with shape's record alone. */
-		function renderReachedFirstStep(
-			status: string,
-			finalOutcome: RunRecord["finalOutcome"],
-		): void {
-			const record = stoppedAtBuild();
-			renderAppWithStub(
-				LEDGER,
-				new Map<string, unknown>([
-					[
-						"/api/runs",
-						history([
-							runRow({
-								run: RUN,
-								status,
-								stage: "build",
-								corpusVersion: { kind: "version", digest: CORPUS },
-							}),
-						]),
-					],
-					[
-						`/api/runs/${RUN}`,
-						{
-							...record,
-							status: { state: "available", status },
-							finalOutcome,
-							stages: record.stages.map((stage) =>
-								stage.stage === "shape" ? stage : recordStage(stage.stage),
-							),
-						},
-					],
-					[ANALYSES, noAnalysis()],
-				]),
-			);
-		}
-
-		function unreached(): Promise<HTMLElement> {
-			return screen.findByRole("list", { name: "Stages without a record" });
-		}
-
-		it("notes on a stopped run that each one never ran, as a recorded outcome", async () => {
-			renderLedger();
-
-			const note = within(await unreached()).getByRole("listitem");
-
-			expect(note).toHaveTextContent(
-				"Step 3 · verify never ran. The run stopped after step 2 fell below the minimum. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
-			);
-			expect(note).toHaveClass("border-dashed");
-		});
-
-		it("names a stop its judge made without the minimum", async () => {
-			renderLedger(new Map(), stoppedByVerdict());
-
-			expect(await unreached()).toHaveTextContent(
-				"Step 3 · verify never ran. The run stopped after step 2. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
-			);
-		});
-
-		it.each([
-			[
-				"its ceiling refused the stage's session",
-				{ state: "unavailable", reasons: ["the stage stopped the run"] },
-			],
-			[
-				"it stopped after the stage passed its judge",
-				{
-					state: "available",
-					letter: "A",
-					verdict: "CONTINUE",
-					reachesMinimum: true,
-				},
-			],
-		] as const)(
-			"states the run's own reason when %s",
-			async (_cause, grade) => {
-				const record = stoppedWithFigures();
-				const [first, second, ...later] = record.stages;
-				const reason = "Reached maximum budget ($0.004872600000000116)";
-				renderLedger(new Map(), {
-					...record,
-					stages:
-						first === undefined || second === undefined
-							? []
-							: [first, { ...second, grade }, ...later],
-					finalOutcome: { status: "NOT_REACHED", stage: "build", reason },
-				});
-
-				const note = within(await unreached()).getByRole("listitem");
-
-				expect(note).toHaveTextContent(
-					`Step 3 · verify did not run: ${reason}.`,
-				);
-				expect(note).not.toHaveClass("border-dashed");
-			},
-		);
-
-		it("states the ending a paused run recorded rather than showing them queued", async () => {
-			renderReachedFirstStep("PAUSED:shape", {
-				status: "NOT_REACHED",
-				stage: "shape",
-				reason: UNEXPLAINED_END_REASON,
-			});
-
-			const items = within(await unreached()).getAllByRole("listitem");
-
-			expect(items.map((item) => item.textContent)).toEqual([
-				`Step 2 · build did not run: ${UNEXPLAINED_END_REASON}.`,
-				`Step 3 · verify did not run: ${UNEXPLAINED_END_REASON}.`,
-			]);
-		});
-
-		it("shows them as running or queued while the run is in flight", async () => {
-			renderReachedFirstStep("RUNNING", { status: "PENDING", stage: "build" });
-
-			const items = within(await unreached()).getAllByRole("listitem");
-
-			expect(items.map((item) => item.textContent)).toEqual([
-				"Step 2 · build●session running",
-				"Step 3 · verify○queued",
-			]);
-		});
-
-		it.each([
-			["FAILED", RUN_FAILED_REASON],
-			["INTERRUPTED", INTERRUPTED_REASON],
-		])(
-			"states a %s run's own reason and no recorded outcome",
-			async (status, reason) => {
-				renderReachedFirstStep(status, {
-					status: "NOT_REACHED",
-					stage: "build",
-					reason,
-				});
-
-				const items = within(await unreached()).getAllByRole("listitem");
-
-				expect(items.map((item) => item.textContent)).toEqual([
-					`Step 2 · build ended without a record: ${reason}.`,
-					`Step 3 · verify did not run: ${reason}.`,
-				]);
-				expect(items[0]).not.toHaveClass("border-dashed");
-			},
-		);
-	});
-});
+async function statesWhetherEachStageKeptItsCheckpoint(): Promise<void> {
+	renderLedger();
+
+	const firstStep = await ledgerFooter("Step 1 · shape");
+	const stoppedStep = await ledgerFooter("Step 2 · build");
+
+	expect(
+		within(firstStep).getByText("c-0147-1 · frozen state retained"),
+	).toBeInTheDocument();
+	expect(
+		within(stoppedStep).getByText("no checkpoint saved"),
+	).toBeInTheDocument();
+}

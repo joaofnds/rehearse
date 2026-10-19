@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
-import { RecordNotFoundError } from "#client/record-not-found";
+
+import RecordNotFoundError from "#client/record-not-found";
 
 const MAX_ATTEMPTS = 3;
 
@@ -12,7 +13,7 @@ const MAX_ATTEMPTS = 3;
  * backoff, which reads as a blank page. Everything else keeps its retries,
  * where a second attempt can still win.
  */
-export function createQueryClient(): QueryClient {
+function createQueryClient(): QueryClient {
 	return new QueryClient({
 		defaultOptions: {
 			queries: {
@@ -23,3 +24,5 @@ export function createQueryClient(): QueryClient {
 		},
 	});
 }
+
+export { createQueryClient as default };

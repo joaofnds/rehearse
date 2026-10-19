@@ -9,19 +9,19 @@ import {
 } from "#benchmark/corpus-source";
 import type { RecordStaleness } from "#benchmark/staleness-report";
 import {
+	checkpointStaleness,
 	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
-	checkpointStaleness,
 } from "#benchmark/staleness-report";
+import corpusRefusal from "#cli/corpus-failures";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
-import { corpusRefusal } from "#cli/corpus-failures";
 import type { CommandOutput } from "#cli/output";
 import { writeUnreadable } from "#cli/output";
 import { parseRecordId } from "#cli/record-id";
 import {
-	checkpointShortId,
 	NO_SHORT_ID,
+	checkpointShortId,
 	shortIdsByRecordId,
 } from "#cli/short-id-column";
 
@@ -31,11 +31,11 @@ import {
  * so the model and effort come from the flags and the environment the way
  * `replay` reads them.
  */
-export interface StaleRequest extends StaleCliConfig {
+interface StaleRequest extends StaleCliConfig {
 	readonly runsDirectory: string;
 }
 
-export interface StaleDependencies {
+interface StaleDependencies {
 	readonly output: CommandOutput;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 }
@@ -90,7 +90,10 @@ async function shortIdOf(
 	const id = parseRecordId(record.id);
 	const shortId =
 		id.kind === "checkpoint"
-			? await checkpointShortId(runsDirectory, shortIds, id.run, id.stage)
+			? await checkpointShortId(runsDirectory, shortIds, {
+					run: id.run,
+					stage: id.stage,
+				})
 			: shortIds.get(record.id);
 
 	return shortId ?? NO_SHORT_ID;
@@ -102,17 +105,18 @@ async function shortIdOf(
  * make exists because a project-level skill cannot shadow a user-level one,
  * and hashing a skill needs no install at all.
  */
-export async function runStale(
+async function runStale(
 	request: StaleRequest,
 	dependencies: StaleDependencies,
 ): Promise<void> {
-	const source = await refusingCorpusFailures(() =>
-		(dependencies.resolveCorpus ?? resolveCorpusSource)(request.corpus),
+	const source = await refusingCorpusFailures(
+		async () =>
+			await (dependencies.resolveCorpus ?? resolveCorpusSource)(request.corpus),
 	);
 
-	await refusingCorpusFailures(() =>
-		report(request, source, dependencies.output),
-	);
+	await refusingCorpusFailures(async () => {
+		await report(request, source, dependencies.output);
+	});
 }
 
 async function report(
@@ -150,9 +154,12 @@ async function report(
 		...groups.unreadable,
 		...unreadable,
 	]);
-	for (const record of stale) {
+	await Array.fromAsync(stale, async (record) => {
 		output.stdout(
 			line(record, await shortIdOf(record, request.runsDirectory, shortIds)),
 		);
-	}
+	});
 }
+
+export { runStale as default };
+export type { StaleDependencies, StaleRequest };

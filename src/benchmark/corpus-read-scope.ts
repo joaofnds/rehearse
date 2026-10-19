@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+
 import type { HashedFile, StageCorpus } from "./checkpoint";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import type { HashedLayout } from "./corpus-layout";
@@ -12,25 +13,27 @@ interface CorpusReadScope {
 
 const scope = new AsyncLocalStorage<CorpusReadScope>();
 
-export function currentCorpusReadScope(): CorpusReadScope | undefined {
+function currentCorpusReadScope(): CorpusReadScope | undefined {
 	return scope.getStore();
 }
 
 /** Reuse reads within one report, including nested reports, never across requests. */
-export function withCorpusReadScope<Value>(
+async function withCorpusReadScope<Value>(
 	read: () => Promise<Value>,
 ): Promise<Value> {
 	if (scope.getStore() !== undefined) {
-		return read();
+		return await read();
 	}
 
-	return scope.run(
+	return await scope.run(
 		{
 			files: new Map(),
-			stages: new Map(),
 			layouts: new Map(),
+			stages: new Map(),
 			versions: new Map(),
 		},
 		read,
 	);
 }
+
+export { currentCorpusReadScope, withCorpusReadScope };

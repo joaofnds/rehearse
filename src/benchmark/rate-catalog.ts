@@ -10,42 +10,45 @@ import { contextRateCatalogSchema } from "./context-evidence-contract";
  * corpus does exercise holds at 2x for both models, so the ratio is plausible
  * rather than verified.
  */
-export const committedRateCatalog: ContextRateCatalog =
-	contextRateCatalogSchema.parse({
-		schemaVersion: 1,
-		source: "corpus-fit-with-tier-inferred-5m",
-		version: "2026-09-15",
+const committedRateCatalog: ContextRateCatalog = contextRateCatalogSchema.parse(
+	{
 		currency: "USD",
+		models: [
+			{
+				cacheReadUsdPerMillion: 0.2,
+				cacheWrite1hUsdPerMillion: 4,
+				cacheWrite5mUsdPerMillion: 2.5,
+				inputUsdPerMillion: 2,
+				model: "claude-sonnet-5",
+				outputUsdPerMillion: 10,
+			},
+			{
+				cacheReadUsdPerMillion: 0.5,
+				cacheWrite1hUsdPerMillion: 10,
+				cacheWrite5mUsdPerMillion: 6.25,
+				inputUsdPerMillion: 5,
+				model: "claude-opus-5",
+				outputUsdPerMillion: 25,
+			},
+		],
 		provenance: {
-			inputUsdPerMillion: "corpus-measured",
-			outputUsdPerMillion: "corpus-measured",
 			cacheReadUsdPerMillion: "corpus-measured",
 			cacheWrite1hUsdPerMillion: "corpus-measured",
 			cacheWrite5mUsdPerMillion: "tier-inferred",
+			inputUsdPerMillion: "corpus-measured",
+			outputUsdPerMillion: "corpus-measured",
 		},
-		models: [
-			{
-				model: "claude-sonnet-5",
-				inputUsdPerMillion: 2,
-				outputUsdPerMillion: 10,
-				cacheReadUsdPerMillion: 0.2,
-				cacheWrite5mUsdPerMillion: 2.5,
-				cacheWrite1hUsdPerMillion: 4,
-			},
-			{
-				model: "claude-opus-5",
-				inputUsdPerMillion: 5,
-				outputUsdPerMillion: 25,
-				cacheReadUsdPerMillion: 0.5,
-				cacheWrite5mUsdPerMillion: 6.25,
-				cacheWrite1hUsdPerMillion: 10,
-			},
-		],
-	});
+		schemaVersion: 1,
+		source: "corpus-fit-with-tier-inferred-5m",
+		version: "2026-09-15",
+	},
+);
 
-export function rateFor(
+function rateFor(
 	catalog: ContextRateCatalog,
 	model: string,
 ): ContextRateCatalog["models"][number] | undefined {
 	return catalog.models.find((rate) => rate.model === model);
 }
+
+export { committedRateCatalog, rateFor };

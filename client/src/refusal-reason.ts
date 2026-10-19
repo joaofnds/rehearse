@@ -19,10 +19,12 @@ function declaredError(text: string): string | undefined {
  * the body. Anything else, the request guard's plain-text 403 included, is
  * shown as the server sent it.
  */
-export async function refusalReason(
+async function refusalReason(
 	response: Readonly<{ text: () => Promise<string> }>,
 ): Promise<string> {
 	const text = await response.text();
 
 	return declaredError(text) ?? text;
 }
+
+export { refusalReason as default };

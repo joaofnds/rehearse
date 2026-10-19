@@ -1,5 +1,5 @@
-import { Box, GitCompare, List, Scroll, SlidersHorizontal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Box, GitCompare, List, Scroll, SlidersHorizontal } from "lucide-react";
 
 /**
  * Which collection a nav item's badge counts, the one the screen behind the
@@ -7,20 +7,20 @@ import type { LucideIcon } from "lucide-react";
  * (SPEC.md:78). Run history's badge reads the run listing rather than the
  * screen's full report, and the two answer the same records and launches.
  */
-export type BadgeSource = "runs" | "corpus" | "comparisons";
+type BadgeSource = "runs" | "corpus" | "comparisons";
 
 /**
  * One count per badge source, so a source named on a nav item always has a
  * place to read its number from.
  */
-export type BadgeCounts = Readonly<Record<BadgeSource, number | undefined>>;
+type BadgeCounts = Readonly<Record<BadgeSource, number | undefined>>;
 
 /**
  * The router is not registered for typed paths, so a `path` naming no route
  * would compile and ship as a link onto the not-found page. A test checks
  * each one against the route tree instead.
  */
-export interface NavItem {
+interface NavItem {
 	readonly label: string;
 	readonly icon: LucideIcon;
 	readonly path: string;
@@ -30,15 +30,18 @@ export interface NavItem {
 /**
  * The desktop workspace groups secondary tools under Cases and Settings.
  */
-export const NAV_ITEMS: readonly NavItem[] = [
-	{ label: "Runs", icon: List, path: "/", badge: "runs" },
+const NAV_ITEMS: readonly NavItem[] = [
+	{ badge: "runs", icon: List, label: "Runs", path: "/" },
 	{
-		label: "Comparisons",
-		icon: GitCompare,
-		path: "/comparisons",
 		badge: "comparisons",
+		icon: GitCompare,
+		label: "Comparisons",
+		path: "/comparisons",
 	},
-	{ label: "Cases", icon: Box, path: "/cases" },
-	{ label: "Corpus", icon: Scroll, path: "/corpus", badge: "corpus" },
-	{ label: "Settings", icon: SlidersHorizontal, path: "/settings" },
+	{ icon: Box, label: "Cases", path: "/cases" },
+	{ badge: "corpus", icon: Scroll, label: "Corpus", path: "/corpus" },
+	{ icon: SlidersHorizontal, label: "Settings", path: "/settings" },
 ];
+
+export { NAV_ITEMS as default };
+export type { BadgeCounts, BadgeSource, NavItem };

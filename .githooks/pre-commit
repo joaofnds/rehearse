@@ -1,5 +1,7 @@
 #!/bin/sh
 
+bun run quality:policy || exit 1
+
 staged_paths() {
 	git diff --cached --name-only --diff-filter=d -z
 }
@@ -17,11 +19,11 @@ fi
 status=0
 
 staged_paths |
-	xargs -0 -r bunx --no-install oxlint --no-error-on-unmatched-pattern -- ||
+	xargs -0 -r bunx --no-install oxlint --config .oxlintrc.json --disable-nested-config --deny-warnings --no-error-on-unmatched-pattern -- ||
 	status=1
 
 staged_paths |
-	xargs -0 -r bunx --no-install oxfmt --check --no-error-on-unmatched-pattern -- ||
+	xargs -0 -r bunx --no-install oxfmt --config .oxfmtrc.json --disable-nested-config --check --no-error-on-unmatched-pattern -- ||
 	status=1
 
 exit "$status"

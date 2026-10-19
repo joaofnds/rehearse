@@ -1,207 +1,290 @@
 import { describe, expect, it } from "bun:test";
-import type { CaseAttempts, ComparisonAttempt } from "./comparison-attempts";
-import { comparisonSessionAssessment } from "./comparison-session-assessment";
 
-function scored(passed: number, declared = 19): ComparisonAttempt {
-	return {
-		repId: "rep-1",
-		ordinal: 1,
-		outcomes: {
-			state: "available",
-			outcomes: [
-				{ name: "checks", status: "JUDGED", grade: "A", successful: true },
-			],
-		},
-		checks: { passed: 1, declared: 1, failing: [] },
-		stateChecks: {
-			passed,
-			declared,
-			failing:
-				passed === declared
-					? []
-					: [{ name: "history-preserved", detail: "history changed" }],
-		},
-		blockersFired: { state: "unavailable", reason: "not applicable" },
-		words: { state: "unavailable", reason: "not recorded" },
-	};
-}
+import ComparisonAttemptBuilder from "#server/comparison-attempt-test-builder";
+import CaseAttemptsBuilder from "#server/comparison-case-attempts-test-builder";
 
-function sixEach(): CaseAttempts {
-	return {
-		baseline: Array.from({ length: 6 }, () => scored(12)),
-		candidate: Array.from({ length: 6 }, () => scored(19)),
-		control: Array.from({ length: 6 }, () => scored(12)),
-	};
-}
+import comparisonSessionAssessment from "./comparison-session-assessment";
+
+const EXPECTED_BOUNDS_PRECISION = 4;
+
+const EXPECTED_BOUNDS_CANDIDATE_LOW_PERCENT = 60.96657;
+
+const EXPECTED_BOUNDS_BASELINE_HIGH_PERCENT = 39.03343;
+
+const STATE_CHECK_FIXTURE_DECLARED = 19;
+const PARTIAL_STATE_CHECKS_PASSED = 12;
+const NO_STATE_CHECKS = 0;
 
 describe(comparisonSessionAssessment.name, () => {
-	it("reports when fewer candidate attempts pass saved state checks", () => {
-		const attempts = {
-			baseline: [scored(19), scored(19)],
-			candidate: [scored(19), scored(12)],
-			control: [scored(19), scored(19)],
-		};
+	it(
+		"reports when fewer candidate attempts pass saved state checks",
+		verifyComparisonSessionAssessmentNameReportsWhenFewerCandidateAttemptsPassSavedStateChecks,
+	);
 
-		const reading = comparisonSessionAssessment(attempts);
+	it(
+		"leaves both layers unavailable when no check assessments were saved",
+		verifyComparisonSessionAssessmentNameLeavesBothLayersUnavailableWhenNoCheckAssessmentsWereSaved,
+	);
 
-		expect(reading.title).toBe(
-			"Candidate passed saved state checks less often in this sample",
-		);
-		expect(reading.basis).toBe("stateChecks");
-	});
+	it(
+		"separates saved state success from reply checks and preserves the recorded outcomes",
+		verifyComparisonSessionAssessmentNameSeparatesSavedStateSuccessFromReplyChecksAndPreservesTheRecordedOutcomes,
+	);
 
-	it("leaves both layers unavailable when no check assessments were saved", () => {
-		const missing = { ...scored(0), checks: undefined, stateChecks: undefined };
+	it(
+		"projects observed rates and Wilson confidence bounds for the assessed attempts",
+		verifyComparisonSessionAssessmentNameProjectsObservedRatesAndWilsonConfidenceBoundsForTheAssessedAttempts,
+	);
 
-		const reading = comparisonSessionAssessment({
-			baseline: [missing],
-			candidate: [missing],
-			control: [missing],
-		});
+	it(
+		"keeps absent state measurements outside the assessed denominator",
+		verifyComparisonSessionAssessmentNameKeepsAbsentStateMeasurementsOutsideTheAssessedDenominator,
+	);
 
-		expect(reading.title).toBe("No recorded check assessments to compare");
-		expect(reading.basis).toBe("unavailable");
-		expect(reading.checks.baseline.passRate).toEqual({ state: "unavailable" });
-	});
-	it("separates saved state success from reply checks and preserves the recorded outcomes", () => {
-		const attempts = sixEach();
-		const recorded = JSON.stringify(attempts);
+	it(
+		"uses reply checks for its headline when no state checks were declared",
+		verifyComparisonSessionAssessmentNameUsesReplyChecksForItsHeadlineWhenNoStateChecksWereDeclared,
+	);
 
-		const reading = comparisonSessionAssessment(attempts);
+	it(
+		"uses available reply checks while retaining missing state coverage",
+		verifyComparisonSessionAssessmentNameUsesAvailableReplyChecksWhileRetainingMissingStateCoverage,
+	);
 
-		expect(reading.title).toBe(
-			"Candidate passed saved state checks more often in this sample",
-		);
-		expect(reading.basis).toBe("stateChecks");
-		expect(reading.stateChecks.baseline).toMatchObject({
-			passed: 0,
-			assessed: 6,
-			total: 6,
-			missing: 0,
-			undeclared: 0,
-			declared: [19],
-		});
-		expect(reading.stateChecks.candidate).toMatchObject({
-			passed: 6,
-			assessed: 6,
-			total: 6,
-		});
-		expect(reading.stateChecks.control).toMatchObject({
-			passed: 0,
-			assessed: 6,
-			total: 6,
-		});
-		expect(reading.checks.baseline.passed).toBe(6);
-		expect(reading.checks.candidate.passed).toBe(6);
-		expect(reading.checks.control.passed).toBe(6);
-		expect(JSON.stringify(attempts)).toBe(recorded);
-	});
-
-	it("projects observed rates and Wilson confidence bounds for the assessed attempts", () => {
-		const attempts = sixEach();
-
-		const reading = comparisonSessionAssessment(attempts);
-
-		const baseline = reading.stateChecks.baseline.passRate;
-		const candidate = reading.stateChecks.candidate.passRate;
-		expect(baseline).toMatchObject({ state: "available", value: 0, low: 0 });
-		expect(candidate).toMatchObject({
-			state: "available",
-			value: 100,
-			high: 100,
-		});
-		if (baseline.state !== "available" || candidate.state !== "available") {
-			throw new Error("the assessed attempts have no pass-rate bounds");
-		}
-
-		expect(baseline.high).toBeCloseTo(39.03343, 4);
-		expect(candidate.low).toBeCloseTo(60.96657, 4);
-	});
-
-	it("keeps absent state measurements outside the assessed denominator", () => {
-		const missing = { ...scored(0), stateChecks: undefined };
-		const attempts = { ...sixEach(), candidate: [scored(19), missing] };
-
-		const reading = comparisonSessionAssessment(attempts);
-
-		expect(reading.title).toBe(
-			"Saved state comparison has incomplete coverage",
-		);
-		expect(reading.stateChecks.candidate).toMatchObject({
-			passed: 1,
-			assessed: 1,
-			total: 2,
-			missing: 1,
-			declared: [19],
-		});
-		expect(reading.stateChecks.candidate.passRate).toMatchObject({
-			state: "available",
-			value: 100,
-		});
-	});
-
-	it("uses reply checks for its headline when no state checks were declared", () => {
-		const attempts = {
-			baseline: [scored(0, 0)],
-			candidate: [scored(0, 0)],
-			control: [scored(0, 0)],
-		};
-
-		const reading = comparisonSessionAssessment(attempts);
-
-		expect(reading.title).toBe(
-			"No observed difference in reply / transcript pass rates",
-		);
-		expect(reading.basis).toBe("checks");
-		expect(reading.stateChecks.baseline).toEqual({
-			passed: 0,
-			assessed: 0,
-			total: 1,
-			missing: 0,
-			undeclared: 1,
-			declared: [],
-			passRate: { state: "unavailable" },
-		});
-	});
-
-	it("uses available reply checks while retaining missing state coverage", () => {
-		const missing = { ...scored(0), stateChecks: undefined };
-		const attempts = {
-			baseline: [missing],
-			candidate: [missing],
-			control: [missing],
-		};
-
-		const reading = comparisonSessionAssessment(attempts);
-
-		expect(reading.title).toBe(
-			"No observed difference in reply / transcript pass rates",
-		);
-		expect(reading.stateChecks.baseline).toMatchObject({
-			assessed: 0,
-			total: 1,
-			missing: 1,
-			undeclared: 0,
-			passRate: { state: "unavailable" },
-		});
-	});
-
-	it("requires every declared check to pass with no recorded failures", () => {
-		const inconsistent = {
-			...scored(19),
-			stateChecks: {
-				passed: 19,
-				declared: 19,
-				failing: [{ name: "history-preserved", detail: "history changed" }],
-			},
-		};
-		const attempts = { ...sixEach(), candidate: [inconsistent] };
-
-		const reading = comparisonSessionAssessment(attempts);
-
-		expect(reading.stateChecks.candidate).toMatchObject({
-			passed: 0,
-			assessed: 1,
-		});
-	});
+	it(
+		"requires every declared check to pass with no recorded failures",
+		verifyComparisonSessionAssessmentNameRequiresEveryDeclaredCheckToPassWithNoRecordedFailures,
+	);
 });
+
+function verifyComparisonSessionAssessmentNameReportsWhenFewerCandidateAttemptsPassSavedStateChecks(): void {
+	const passingAttemptBuilder = new ComparisonAttemptBuilder().withStateChecks({
+		passed: STATE_CHECK_FIXTURE_DECLARED,
+	});
+	const attempts = {
+		baseline: [passingAttemptBuilder.build(), passingAttemptBuilder.build()],
+		candidate: [
+			passingAttemptBuilder.build(),
+			new ComparisonAttemptBuilder()
+				.withStateChecks({ passed: PARTIAL_STATE_CHECKS_PASSED })
+				.build(),
+		],
+		control: [passingAttemptBuilder.build(), passingAttemptBuilder.build()],
+	};
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.title).toBe(
+		"Candidate passed saved state checks less often in this sample",
+	);
+	expect(reading.basis).toBe("stateChecks");
+}
+
+function verifyComparisonSessionAssessmentNameLeavesBothLayersUnavailableWhenNoCheckAssessmentsWereSaved(): void {
+	const missing = {
+		...new ComparisonAttemptBuilder()
+			.withStateChecks({ passed: NO_STATE_CHECKS })
+			.build(),
+		checks: undefined,
+		stateChecks: undefined,
+	};
+
+	const reading = comparisonSessionAssessment({
+		baseline: [missing],
+		candidate: [missing],
+		control: [missing],
+	});
+
+	expect(reading.title).toBe("No recorded check assessments to compare");
+	expect(reading.basis).toBe("unavailable");
+	expect(reading.checks.baseline.passRate).toEqual({ state: "unavailable" });
+}
+
+function verifyComparisonSessionAssessmentNameSeparatesSavedStateSuccessFromReplyChecksAndPreservesTheRecordedOutcomes(): void {
+	const attempts = new CaseAttemptsBuilder().build();
+	const recorded = JSON.stringify(attempts);
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.title).toBe(
+		"Candidate passed saved state checks more often in this sample",
+	);
+	expect(reading.basis).toBe("stateChecks");
+	expect(reading.stateChecks.baseline).toMatchObject({
+		assessed: 6,
+		declared: [STATE_CHECK_FIXTURE_DECLARED],
+		missing: 0,
+		passed: 0,
+		total: 6,
+		undeclared: 0,
+	});
+	expect(reading.stateChecks.candidate).toMatchObject({
+		assessed: 6,
+		passed: 6,
+		total: 6,
+	});
+	expect(reading.stateChecks.control).toMatchObject({
+		assessed: 6,
+		passed: 0,
+		total: 6,
+	});
+	expect(reading.checks).toMatchObject({
+		baseline: { passed: 6 },
+		candidate: { passed: 6 },
+		control: { passed: 6 },
+	});
+	expect(JSON.stringify(attempts)).toBe(recorded);
+}
+
+function verifyComparisonSessionAssessmentNameProjectsObservedRatesAndWilsonConfidenceBoundsForTheAssessedAttempts(): void {
+	const attempts = new CaseAttemptsBuilder().build();
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	const {
+		baseline: { passRate: baseline },
+		candidate: { passRate: candidate },
+	} = reading.stateChecks;
+
+	expect(baseline).toMatchObject({ low: 0, state: "available", value: 0 });
+	expect(candidate).toMatchObject({
+		high: 100,
+		state: "available",
+		value: 100,
+	});
+
+	expect(baseline).toHaveProperty(
+		"high",
+		expect.closeTo(
+			EXPECTED_BOUNDS_BASELINE_HIGH_PERCENT,
+			EXPECTED_BOUNDS_PRECISION,
+		),
+	);
+	expect(candidate).toHaveProperty(
+		"low",
+		expect.closeTo(
+			EXPECTED_BOUNDS_CANDIDATE_LOW_PERCENT,
+			EXPECTED_BOUNDS_PRECISION,
+		),
+	);
+}
+
+function verifyComparisonSessionAssessmentNameKeepsAbsentStateMeasurementsOutsideTheAssessedDenominator(): void {
+	const missing = {
+		...new ComparisonAttemptBuilder()
+			.withStateChecks({ passed: NO_STATE_CHECKS })
+			.build(),
+		stateChecks: undefined,
+	};
+	const attempts = {
+		...new CaseAttemptsBuilder().build(),
+		candidate: [
+			new ComparisonAttemptBuilder()
+				.withStateChecks({ passed: STATE_CHECK_FIXTURE_DECLARED })
+				.build(),
+			missing,
+		],
+	};
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.title).toBe("Saved state comparison has incomplete coverage");
+	expect(reading.stateChecks.candidate).toMatchObject({
+		assessed: 1,
+		declared: [STATE_CHECK_FIXTURE_DECLARED],
+		missing: 1,
+		passed: 1,
+		total: 2,
+	});
+	expect(reading.stateChecks.candidate.passRate).toMatchObject({
+		state: "available",
+		value: 100,
+	});
+}
+
+function verifyComparisonSessionAssessmentNameUsesReplyChecksForItsHeadlineWhenNoStateChecksWereDeclared(): void {
+	const attempts = {
+		baseline: [
+			new ComparisonAttemptBuilder()
+				.withStateChecks({ declared: NO_STATE_CHECKS, passed: NO_STATE_CHECKS })
+				.build(),
+		],
+		candidate: [
+			new ComparisonAttemptBuilder()
+				.withStateChecks({ declared: NO_STATE_CHECKS, passed: NO_STATE_CHECKS })
+				.build(),
+		],
+		control: [
+			new ComparisonAttemptBuilder()
+				.withStateChecks({ declared: NO_STATE_CHECKS, passed: NO_STATE_CHECKS })
+				.build(),
+		],
+	};
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.title).toBe(
+		"No observed difference in reply / transcript pass rates",
+	);
+	expect(reading.basis).toBe("checks");
+	expect(reading.stateChecks.baseline).toEqual({
+		assessed: 0,
+		declared: [],
+		missing: 0,
+		passRate: { state: "unavailable" },
+		passed: 0,
+		total: 1,
+		undeclared: 1,
+	});
+}
+
+function verifyComparisonSessionAssessmentNameUsesAvailableReplyChecksWhileRetainingMissingStateCoverage(): void {
+	const missing = {
+		...new ComparisonAttemptBuilder()
+			.withStateChecks({ passed: NO_STATE_CHECKS })
+			.build(),
+		stateChecks: undefined,
+	};
+	const attempts = {
+		baseline: [missing],
+		candidate: [missing],
+		control: [missing],
+	};
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.title).toBe(
+		"No observed difference in reply / transcript pass rates",
+	);
+	expect(reading.stateChecks.baseline).toMatchObject({
+		assessed: 0,
+		missing: 1,
+		passRate: { state: "unavailable" },
+		total: 1,
+		undeclared: 0,
+	});
+}
+
+function verifyComparisonSessionAssessmentNameRequiresEveryDeclaredCheckToPassWithNoRecordedFailures(): void {
+	const inconsistent = {
+		...new ComparisonAttemptBuilder()
+			.withStateChecks({ passed: STATE_CHECK_FIXTURE_DECLARED })
+			.build(),
+		stateChecks: {
+			declared: 19,
+			failing: [{ detail: "history changed", name: "history-preserved" }],
+			passed: 19,
+		},
+	};
+	const attempts = {
+		...new CaseAttemptsBuilder().build(),
+		candidate: [inconsistent],
+	};
+
+	const reading = comparisonSessionAssessment(attempts);
+
+	expect(reading.stateChecks.candidate).toMatchObject({
+		assessed: 1,
+		passed: 0,
+	});
+}

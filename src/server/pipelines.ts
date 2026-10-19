@@ -1,442 +1,46 @@
-import { readdir } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
-import { caseRelative, CaseDeclarationError, listCases } from "#benchmark/case";
-import type { PipelineCaseDeclaration } from "#benchmark/case";
-import { CONTROL_DIR } from "#benchmark/config";
-import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
-import { loadRunManifest } from "#benchmark/manifest";
-import type { RunManifest } from "#benchmark/manifest";
-import { parsePipeline, PipelineDefinitionError } from "#benchmark/pipeline";
-import { newestFirst } from "#benchmark/recorded-time";
-import type { PipelineDefinition } from "#benchmark/pipeline";
+import { CaseDeclarationError } from "#benchmark/case";
+import { PipelineDefinitionError } from "#benchmark/pipeline";
 import {
-	benchmarkRunPaths,
-	confirmationGroupIds,
-	confirmationGroupPaths,
-	recordedRunNames,
-} from "#benchmark/run-layout";
-import { atLatestCorpusVersion } from "./latest-corpus-version";
-import { parseStageRubric } from "#benchmark/stage-grading";
-import { redactAbsolutePaths } from "./redact-path";
+	declaredPipelines,
+	readDeclaredPipeline,
+} from "#server/pipeline-declaration-reading";
+import {
+	listedPipeline,
+	newestRecords,
+	stageNames,
+} from "#server/pipeline-presentation";
+import { recordedGroups, recordedRuns } from "#server/pipeline-source-records";
+import type {
+	DeclaredCases,
+	DeclaredPipeline,
+	ListedPipeline,
+	PipelineReport,
+	PlacedRan,
+	Reading,
+	RecordedGroup,
+	RecordedRun,
+	UnreadablePipelineRecord,
+} from "#server/pipelines-contract";
+import { redactAbsolutePaths } from "#server/redact-path";
 
-/** The case whose declaration names a pipeline as its default. */
-export interface DeclaringCase {
-	readonly id: string;
-	readonly title: string;
-	readonly target: string;
+interface PipelineRecordSources {
+	readonly declared: DeclaredCases;
+	readonly recorded: Reading<RecordedRun>;
+	readonly grouped: Reading<RecordedGroup>;
 }
 
-/**
- * A task's runs as one corpus version produced them (doc-193 decision 4):
- * the runs at the latest version any of them recorded, and how many ran
- * under another version or recorded none. A pipeline confirmation group's
- * reps count as runs each. When no run recorded a version, every run is
- * counted and the version is null.
- */
-export interface PipelineFigures {
-	readonly counted: number;
-	readonly corpusVersion: string | null;
-	readonly leftOut: number;
-}
-
-/**
- * One pipeline file the harness can run or has run, the design's task, named
- * by its control-relative path (decision-5 keeps the route in pipeline and
- * stage words).
- */
-export interface ListedPipeline {
+interface PipelineListingSource {
+	readonly declaration: DeclaredPipeline | undefined;
 	readonly path: string;
-	readonly stages: readonly string[];
-	readonly stageJudges: number;
-	readonly taskJudges: number;
-	/** Null for a pipeline only a run's override named. */
-	readonly declaredBy: DeclaringCase | null;
-	readonly cases: readonly string[];
-	/**
-	 * The targets of those cases that are still declared, so a pipeline only
-	 * an override chose still names what it ran against.
-	 */
-	readonly targets: readonly string[];
-	/** Every run that recorded this pipeline, newest first. */
-	readonly runs: readonly string[];
-	readonly figures: PipelineFigures;
-}
-
-export interface UnreadablePipelineRecord {
-	readonly id: string;
-	readonly reason: string;
-}
-
-export interface PipelineReport {
-	readonly pipelines: readonly ListedPipeline[];
-	readonly unreadable: readonly UnreadablePipelineRecord[];
-}
-
-interface RecordedRun {
-	readonly name: string;
-	readonly manifest: RunManifest;
-}
-
-type CorpusMeasurement = RunManifest["corpusVersion"];
-
-/**
- * A pipeline confirmation group: reps that each ran the whole pipeline at the
- * corpus version the group froze.
- */
-interface RecordedGroup {
-	readonly caseId: string;
-	readonly pipelinePath: string;
-	readonly stages: readonly string[];
-	readonly reps: number;
-	readonly corpusVersion: CorpusMeasurement;
-	readonly startedAt: string | undefined;
-}
-
-interface Reading<T> {
-	readonly found: readonly T[];
-	readonly unreadable: readonly UnreadablePipelineRecord[];
-}
-
-async function recordedRuns(
-	runsDirectory: string,
-): Promise<Reading<RecordedRun>> {
-	const found: RecordedRun[] = [];
-	const unreadable: UnreadablePipelineRecord[] = [];
-	const recorded = await recordedRunNames(runsDirectory);
-	const names = recorded.toSorted((left, right) => right.localeCompare(left));
-	for (const name of names) {
-		const { manifestFile } = benchmarkRunPaths(runsDirectory, name);
-		if (!(await Bun.file(manifestFile).exists())) {
-			continue;
-		}
-
-		try {
-			found.push({ name, manifest: await loadRunManifest(manifestFile) });
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({ id: name, reason: redactAbsolutePaths(message) });
-		}
-	}
-
-	return { found, unreadable };
-}
-
-/** Pipeline groups in group id order; the task orders them by start time. */
-async function recordedGroups(
-	runsDirectory: string,
-): Promise<Reading<RecordedGroup>> {
-	const found: RecordedGroup[] = [];
-	const unreadable: UnreadablePipelineRecord[] = [];
-	const recorded = await confirmationGroupIds(runsDirectory);
-	for (const groupId of recorded.toSorted((left, right) =>
-		left.localeCompare(right),
-	)) {
-		const file = Bun.file(
-			confirmationGroupPaths(runsDirectory, groupId).groupFile,
-		);
-		if (!(await file.exists())) {
-			continue;
-		}
-
-		try {
-			const record = parseConfirmationGroupRecord(await file.text());
-			if (record.mode !== "pipeline") {
-				continue;
-			}
-
-			found.push({
-				caseId: record.caseId,
-				pipelinePath: record.inputs.pipelinePath,
-				stages: record.declaredStages,
-				reps: record.reps,
-				corpusVersion: record.inputs.corpusVersion,
-				startedAt: record.startedAt,
-			});
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({ id: groupId, reason: redactAbsolutePaths(message) });
-		}
-	}
-
-	return { found, unreadable };
-}
-
-interface DeclaredPipeline {
-	readonly path: string;
-	readonly declaration: PipelineCaseDeclaration;
-}
-
-interface DeclaredCases extends Reading<DeclaredPipeline> {
+	readonly ran: PlacedRan;
 	readonly targets: ReadonlyMap<string, string>;
 }
 
-async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
-	const listing = await listCases(casesRoot, { includeArchived: false });
-	const found: DeclaredPipeline[] = [];
-	const targets = new Map<string, string>();
-	const unreadable = listing.unreadable.map(({ id, reason }) => ({
-		id,
-		reason: redactAbsolutePaths(reason),
-	}));
-
-	for (const declaration of listing.declarations) {
-		if (declaration.kind !== "pipeline") {
-			continue;
-		}
-
-		targets.set(declaration.id, declaration.target.path);
-		try {
-			found.push({
-				path: relative(
-					CONTROL_DIR,
-					caseRelative(declaration, declaration.pipeline),
-				),
-				declaration,
-			});
-		} catch (error) {
-			if (!(error instanceof CaseDeclarationError)) {
-				throw error;
-			}
-
-			unreadable.push({
-				id: declaration.id,
-				reason: redactAbsolutePaths(error.message),
-			});
-		}
-	}
-
-	return { found, unreadable, targets };
-}
-
-/**
- * The rubrics a case's stages may name, control-relative as the stages name
- * them, in file name order.
- */
-export async function caseRubrics(
-	casesRoot: string,
-	declaration: PipelineCaseDeclaration,
-): Promise<readonly string[]> {
-	const rubricsDirectory = caseRelative(
-		declaration,
-		declaration.rubrics,
-		casesRoot,
-	);
-	let rubricEntries: readonly string[];
-	try {
-		rubricEntries = await readdir(rubricsDirectory);
-	} catch {
-		throw new PipelineDefinitionError(
-			`Rubrics directory cannot be read: ${declaration.rubrics}`,
-		);
-	}
-
-	return rubricEntries
-		.toSorted((left, right) => left.localeCompare(right))
-		.map((entry) =>
-			relative(
-				CONTROL_DIR,
-				caseRelative(declaration, join(declaration.rubrics, entry)),
-			),
-		);
-}
-
-/**
- * A case's pipeline text through the harness's own parse and rubric fit, so
- * text the harness would refuse to run throws rather than reads.
- */
-export async function checkedPipeline(
-	casesRoot: string,
-	declaration: PipelineCaseDeclaration,
-	text: string,
-): Promise<PipelineDefinition> {
-	const pipeline = parsePipeline(
-		text,
-		await caseRubrics(casesRoot, declaration),
-	);
-	for (const stage of pipeline.stages) {
-		const rubric = Bun.file(
-			caseRelative(
-				declaration,
-				join(declaration.rubrics, basename(stage.rubric)),
-				casesRoot,
-			),
-		);
-		try {
-			parseStageRubric(await rubric.text(), stage.kind);
-		} catch (error) {
-			throw new PipelineDefinitionError(
-				`Pipeline stage ${stage.name} names a rubric it cannot use: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
-	}
-
-	return pipeline;
-}
-
-/** The file a case's pipeline is declared in. */
-export function declaredPipelineFile(
-	casesRoot: string,
-	declaration: PipelineCaseDeclaration,
-): string {
-	return caseRelative(declaration, declaration.pipeline, casesRoot);
-}
-
-/**
- * A case's declared pipeline, read from its file through `checkedPipeline`,
- * and a path outside the case directory throws before anything opens it.
- */
-export async function readDeclaredPipeline(
-	casesRoot: string,
-	declaration: PipelineCaseDeclaration,
-): Promise<PipelineDefinition> {
-	const file = Bun.file(declaredPipelineFile(casesRoot, declaration));
-	if (!(await file.exists())) {
-		throw new PipelineDefinitionError(
-			`Pipeline definition not found: ${declaration.pipeline}`,
-		);
-	}
-
-	let text: string;
-	try {
-		text = await file.text();
-	} catch (error) {
-		throw new PipelineDefinitionError(
-			`Pipeline definition cannot be read: ${declaration.pipeline}: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-
-	return checkedPipeline(casesRoot, declaration, text);
-}
-
-function stageNames(pipeline: PipelineDefinition): readonly string[] {
-	return pipeline.stages.map(({ name }) => name);
-}
-
-/**
- * A run or a pipeline group as the task reads it: the steps it ran, the
- * corpus version it ran at, and how many runs it counts as, one per rep.
- */
-interface RanRecord {
-	readonly time: string | undefined;
-	readonly stages: readonly string[];
-	readonly countedRuns: number;
-	readonly corpusVersion: CorpusMeasurement;
-}
-
-/**
- * Every run and group of a task, newest first by the time each recorded, a
- * run's being its name. Groups written before groups recorded a start time
- * follow in id order.
- */
-function newestRecords({ runs, groups }: Ran): readonly RanRecord[] {
-	return newestFirst(
-		[
-			...runs.map(({ name, manifest }) => ({
-				time: name,
-				stages: stageNames(manifest.pipeline),
-				countedRuns: 1,
-				corpusVersion: manifest.corpusVersion,
-			})),
-			...groups.map(({ startedAt, stages, reps, corpusVersion }) => ({
-				time: startedAt,
-				stages,
-				countedRuns: reps,
-				corpusVersion,
-			})),
-		],
-		({ time }) => time,
-	);
-}
-
-/** The digest each record counts once per run, newest record first. */
-function digestsOf(
-	records: readonly RanRecord[],
-): readonly (string | undefined)[] {
-	const digest = (measurement: CorpusMeasurement): string | undefined =>
-		measurement?.kind === "version" ? measurement.digest : undefined;
-
-	return records.flatMap(({ countedRuns, corpusVersion }) =>
-		Array.from({ length: countedRuns }, () => digest(corpusVersion)),
-	);
-}
-
-function figuresOf(digests: readonly (string | undefined)[]): PipelineFigures {
-	const { counted, corpusVersion, leftOut } = atLatestCorpusVersion(
-		digests,
-		(digest) => digest,
-	);
-
-	return { counted: counted.length, corpusVersion, leftOut };
-}
-
-interface Ran {
-	readonly runs: readonly RecordedRun[];
-	readonly groups: readonly RecordedGroup[];
-}
-
-/** What a task ran, with its runs and groups placed newest first once. */
-interface PlacedRan extends Ran {
-	readonly newest: readonly RanRecord[];
-}
-
-function listedPipeline(
-	path: string,
-	stages: readonly string[],
-	declared: DeclaredPipeline | undefined,
-	{ runs, groups, newest }: PlacedRan,
-	caseTargets: ReadonlyMap<string, string>,
-): ListedPipeline {
-	const cases = new Set([
-		...runs.map(({ manifest }) => manifest.caseId),
-		...groups.map(({ caseId }) => caseId),
-	]);
-	if (declared !== undefined) {
-		cases.add(declared.declaration.id);
-	}
-
-	const sortedCases = [...cases].toSorted((left, right) =>
-		left.localeCompare(right),
-	);
-	const targets = new Set(
-		sortedCases.flatMap((id) => caseTargets.get(id) ?? []),
-	);
-
-	return {
-		path,
-		stages,
-		stageJudges: stages.length,
-		taskJudges: declared === undefined ? 0 : 1,
-		declaredBy:
-			declared === undefined
-				? null
-				: {
-						id: declared.declaration.id,
-						title: declared.declaration.title,
-						target: declared.declaration.target.path,
-					},
-		cases: sortedCases,
-		targets: [...targets],
-		runs: runs.map(({ name }) => name),
-		figures: figuresOf(digestsOf(newest)),
-	};
-}
-
-/**
- * Every pipeline a pipeline case declares as its default and every pipeline a
- * run manifest or pipeline confirmation group recorded, since a run may
- * override its case's default (doc-193 decision 1). A declared task's steps
- * are read from its file, as the design's task card shows its declaration. A
- * pipeline no case declares reads as its newest run or group ran it.
- */
-export async function pipelineReport(
-	casesRoot: string,
-	runsDirectory: string,
-): Promise<PipelineReport> {
-	const [declared, recorded, grouped] = await Promise.all([
-		declaredPipelines(casesRoot),
-		recordedRuns(runsDirectory),
-		recordedGroups(runsDirectory),
-	]);
+function pipelineListingSources({
+	declared,
+	recorded,
+	grouped,
+}: PipelineRecordSources): readonly PipelineListingSource[] {
 	const declaredByPath = new Map(
 		declared.found.map((pipeline) => [pipeline.path, pipeline]),
 	);
@@ -454,59 +58,139 @@ export async function pipelineReport(
 		...groupsByPath.keys(),
 	]);
 
-	const pipelines: ListedPipeline[] = [];
-	const unreadable = [
-		...declared.unreadable,
-		...recorded.unreadable,
-		...grouped.unreadable,
-	];
-	for (const path of [...paths].toSorted((left, right) =>
-		left.localeCompare(right),
-	)) {
-		const runs = runsByPath.get(path) ?? [];
-		const groups = groupsByPath.get(path) ?? [];
-		const ran = { runs, groups, newest: newestRecords({ runs, groups }) };
-		const declaration = declaredByPath.get(path);
-		if (declaration === undefined) {
-			const recordedStages = ran.newest[0]?.stages;
-			if (recordedStages !== undefined) {
-				pipelines.push(
-					listedPipeline(
-						path,
-						recordedStages,
-						declaration,
-						ran,
-						declared.targets,
-					),
-				);
-			}
+	return [...paths]
+		.toSorted((left, right) => left.localeCompare(right))
+		.map((path) => {
+			const runs = runsByPath.get(path) ?? [];
+			const groups = groupsByPath.get(path) ?? [];
 
-			continue;
-		}
+			return {
+				declaration: declaredByPath.get(path),
+				path,
+				ran: { groups, newest: newestRecords({ groups, runs }), runs },
+				targets: declared.targets,
+			};
+		});
+}
 
-		try {
-			pipelines.push(
-				listedPipeline(
-					path,
-					stageNames(
-						await readDeclaredPipeline(casesRoot, declaration.declaration),
-					),
-					declaration,
-					ran,
-					declared.targets,
-				),
-			);
-		} catch (error) {
-			if (
-				!(error instanceof PipelineDefinitionError) &&
-				!(error instanceof CaseDeclarationError)
-			) {
-				throw error;
-			}
+const NEWEST_RECORD_INDEX = 0;
 
-			unreadable.push({ id: path, reason: redactAbsolutePaths(error.message) });
-		}
+interface PipelineEntryInput {
+	readonly casesRoot: string;
+	readonly source: PipelineListingSource;
+}
+
+type PipelineEntry =
+	| { readonly kind: "listed"; readonly pipeline: ListedPipeline }
+	| { readonly kind: "unreadable"; readonly problem: UnreadablePipelineRecord }
+	| { readonly kind: "absent" };
+
+async function readPipelineEntry({
+	casesRoot,
+	source,
+}: PipelineEntryInput): Promise<PipelineEntry> {
+	const { declaration, path, ran, targets } = source;
+	if (declaration === undefined) {
+		return recordedPipelineEntry(source);
 	}
 
-	return { pipelines, unreadable };
+	try {
+		const pipeline = await readDeclaredPipeline(
+			casesRoot,
+			declaration.declaration,
+		);
+		return {
+			kind: "listed",
+			pipeline: listedPipeline(
+				{ declared: declaration, path, stages: stageNames(pipeline) },
+				ran,
+				targets,
+			),
+		};
+	} catch (error) {
+		if (
+			!(error instanceof PipelineDefinitionError) &&
+			!(error instanceof CaseDeclarationError)
+		) {
+			throw error;
+		}
+
+		return {
+			kind: "unreadable",
+			problem: { id: path, reason: redactAbsolutePaths(error.message) },
+		};
+	}
 }
+
+function recordedPipelineEntry({
+	declaration,
+	path,
+	ran,
+	targets,
+}: PipelineListingSource): PipelineEntry {
+	const stages = ran.newest[NEWEST_RECORD_INDEX]?.stages;
+	return stages === undefined
+		? { kind: "absent" }
+		: {
+				kind: "listed",
+				pipeline: listedPipeline(
+					{ declared: declaration, path, stages },
+					ran,
+					targets,
+				),
+			};
+}
+
+/**
+ * Every pipeline a pipeline case declares as its default and every pipeline a
+ * run manifest or pipeline confirmation group recorded, since a run may
+ * override its case's default (doc-193 decision 1). A declared task's steps
+ * are read from its file, as the design's task card shows its declaration. A
+ * pipeline no case declares reads as its newest run or group ran it.
+ */
+async function pipelineReport(
+	casesRoot: string,
+	runsDirectory: string,
+): Promise<PipelineReport> {
+	const [declared, recorded, grouped] = await Promise.all([
+		declaredPipelines(casesRoot),
+		recordedRuns(runsDirectory),
+		recordedGroups(runsDirectory),
+	]);
+	const sources = pipelineListingSources({ declared, grouped, recorded });
+	const entries = await Array.fromAsync(
+		sources,
+		async (source) => await readPipelineEntry({ casesRoot, source }),
+	);
+
+	return {
+		pipelines: entries.flatMap((entry) =>
+			entry.kind === "listed" ? [entry.pipeline] : [],
+		),
+		unreadable: [
+			...declared.unreadable,
+			...recorded.unreadable,
+			...grouped.unreadable,
+			...entries.flatMap((entry) =>
+				entry.kind === "unreadable" ? [entry.problem] : [],
+			),
+		],
+	};
+}
+
+export { pipelineReport };
+
+export {
+	caseRubrics,
+	checkedPipeline,
+	declaredPipelineFile,
+	readDeclaredPipeline,
+} from "#server/pipeline-declaration-reading";
+
+export type {
+	DeclaringCase,
+	PipelineFigures,
+	ListedPipeline,
+	UnreadablePipelineRecord,
+	PipelineReport,
+} from "#server/pipelines-contract";

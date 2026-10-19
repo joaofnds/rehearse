@@ -2,11 +2,12 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TestResources } from "#benchmark/test-support";
+
 import {
 	gradeStateEvidence,
 	parseStateScorerOutput,
 } from "#benchmark/session-state-check";
+import { TestResources } from "#benchmark/test-support";
 
 const resources = TestResources.forEachTest();
 
@@ -18,10 +19,21 @@ async function evidenceDirectory(): Promise<string> {
 	return path;
 }
 
-describe(parseStateScorerOutput.name, () => {
-	const declared = ["cards-archived", "tree-clean"] as const;
+const declared = ["cards-archived", "tree-clean"] as const;
 
-	it("pairs each declared outcome with the result the scorer named", () => {
+const parseStateScorerOutputReportsAnAbsentResultNameBeforeAnAbsentStatusOrDetail =
+	(): void => {
+		const parsed = parseStateScorerOutput('{"results":[{}]}', ["expected"]);
+
+		expect(parsed).toEqual({
+			detail:
+				"scorer stdout does not match the state result schema: results.0.name: Invalid input: expected string, received undefined",
+			kind: "error",
+		});
+	};
+
+const parseStateScorerOutputPairsEachDeclaredOutcomeWithTheResultTheScorerNamed =
+	(): void => {
 		const parsed = parseStateScorerOutput(
 			`{"results":[{"name":"tree-clean","status":"FAIL","detail":"2 untracked"},{"name":"cards-archived","status":"PASS","detail":"3 archived"}]}`,
 			declared,
@@ -30,28 +42,31 @@ describe(parseStateScorerOutput.name, () => {
 		expect(parsed).toEqual({
 			kind: "results",
 			results: [
-				{ name: "cards-archived", status: "PASS", detail: "3 archived" },
-				{ name: "tree-clean", status: "FAIL", detail: "2 untracked" },
+				{ detail: "3 archived", name: "cards-archived", status: "PASS" },
+				{ detail: "2 untracked", name: "tree-clean", status: "FAIL" },
 			],
 		});
-	});
+	};
 
-	it("reads stdout that is not JSON as a grading error", () => {
+const parseStateScorerOutputReadsStdoutThatIsNotJSONAsAGradingError =
+	(): void => {
 		expect(parseStateScorerOutput("not json", declared)).toMatchObject({
 			kind: "error",
 		});
-	});
+	};
 
-	it("reads a result the schema rejects as a grading error", () => {
+const parseStateScorerOutputReadsAResultTheSchemaRejectsAsAGradingError =
+	(): void => {
 		expect(
 			parseStateScorerOutput(
 				`{"results":[{"name":"tree-clean","status":"MAYBE","detail":"x"}]}`,
 				declared,
 			),
 		).toMatchObject({ kind: "error" });
-	});
+	};
 
-	it("reads a declared outcome the scorer omitted as a grading error", () => {
+const parseStateScorerOutputReadsADeclaredOutcomeTheScorerOmittedAsAGradingError =
+	(): void => {
 		const parsed = parseStateScorerOutput(
 			`{"results":[{"name":"tree-clean","status":"PASS","detail":"clean"}]}`,
 			declared,
@@ -61,65 +76,78 @@ describe(parseStateScorerOutput.name, () => {
 		expect(parsed.kind === "error" ? parsed.detail : "").toContain(
 			"cards-archived",
 		);
-	});
-});
+	};
 
-describe(gradeStateEvidence.name, () => {
-	const outcomes = ["left-behind"] as const;
+const outcomes = ["left-behind"] as const;
 
-	it("records the results a scorer reported over the evidence", async () => {
+const gradeStateEvidenceRecordsTheResultsAScorerReportedOverTheEvidence =
+	async (): Promise<void> => {
+		const evidence = await evidenceDirectory();
+		const restoreDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-state-graderoot-"),
+		);
+		resources.track(restoreDirectory);
+
 		const graded = await gradeStateEvidence({
-			evidenceDirectory: await evidenceDirectory(),
-			restoreDirectory: await mkdtemp(
-				join(tmpdir(), "rehearse-state-graderoot-"),
-			),
-			scorerSource: undefined,
 			command: [
 				"sh",
 				"-c",
 				'printf \'{"results":[{"name":"left-behind","status":"%s","detail":"%s"}]}\' "$(test -f left-behind.txt && echo PASS || echo FAIL)" "read from the restore"',
 			],
+			evidenceDirectory: evidence,
 			outcomes,
+			restoreDirectory,
+			scorerSource: undefined,
 		});
 
 		expect(graded).toEqual({
 			kind: "results",
 			results: [
 				{
+					detail: "read from the restore",
 					name: "left-behind",
 					status: "PASS",
-					detail: "read from the restore",
 				},
 			],
 		});
-	});
+	};
 
-	it("reads a scorer that cannot be run at all as a grading error", async () => {
+const gradeStateEvidenceReadsAScorerThatCannotBeRunAtAllAsAGradingError =
+	async (): Promise<void> => {
+		const evidence = await evidenceDirectory();
+		const restoreDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-state-graderoot-"),
+		);
+		resources.track(restoreDirectory);
+
 		const graded = await gradeStateEvidence({
-			evidenceDirectory: await evidenceDirectory(),
-			restoreDirectory: await mkdtemp(
-				join(tmpdir(), "rehearse-state-graderoot-"),
-			),
-			scorerSource: undefined,
 			command: ["/nonexistent/scorer-binary"],
+			evidenceDirectory: evidence,
 			outcomes,
+			restoreDirectory,
+			scorerSource: undefined,
 		});
 
 		expect(graded).toMatchObject({ kind: "error" });
 		expect(graded.kind === "error" ? graded.detail : "").toContain(
 			"/nonexistent/scorer-binary",
 		);
-	});
+	};
 
-	it("names a scorer that outlived its deadline as timed out", async () => {
+const gradeStateEvidenceNamesAScorerThatOutlivedItsDeadlineAsTimedOut =
+	async (): Promise<void> => {
+		const evidence = await evidenceDirectory();
+		const restoreDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-state-graderoot-"),
+		);
+		resources.track(restoreDirectory);
+
 		const graded = await gradeStateEvidence({
-			evidenceDirectory: await evidenceDirectory(),
-			restoreDirectory: await mkdtemp(
-				join(tmpdir(), "rehearse-state-graderoot-"),
-			),
-			scorerSource: undefined,
 			command: ["sh", "-c", "sleep 5"],
+			evidenceDirectory: evidence,
 			outcomes,
+			restoreDirectory,
+			scorerSource: undefined,
 			timeoutMs: 200,
 		});
 
@@ -127,20 +155,73 @@ describe(gradeStateEvidence.name, () => {
 		expect(graded.kind === "error" ? graded.detail : "").toContain(
 			"timed out after 200ms",
 		);
-	});
+	};
 
-	it("reads a scorer that exits non-zero as a grading error", async () => {
+const gradeStateEvidenceReadsAScorerThatExitsNonzeroAsAGradingError =
+	async (): Promise<void> => {
+		const evidence = await evidenceDirectory();
+		const restoreDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-state-graderoot-"),
+		);
+		resources.track(restoreDirectory);
+
 		const graded = await gradeStateEvidence({
-			evidenceDirectory: await evidenceDirectory(),
-			restoreDirectory: await mkdtemp(
-				join(tmpdir(), "rehearse-state-graderoot-"),
-			),
-			scorerSource: undefined,
 			command: ["sh", "-c", "echo broken >&2; exit 3"],
+			evidenceDirectory: evidence,
 			outcomes,
+			restoreDirectory,
+			scorerSource: undefined,
 		});
 
 		expect(graded).toMatchObject({ kind: "error" });
 		expect(graded.kind === "error" ? graded.detail : "").toContain("3");
-	});
+	};
+
+describe(parseStateScorerOutput.name, () => {
+	it(
+		"reports an absent result name before an absent status or detail",
+		parseStateScorerOutputReportsAnAbsentResultNameBeforeAnAbsentStatusOrDetail,
+	);
+
+	it(
+		"pairs each declared outcome with the result the scorer named",
+		parseStateScorerOutputPairsEachDeclaredOutcomeWithTheResultTheScorerNamed,
+	);
+
+	it(
+		"reads stdout that is not JSON as a grading error",
+		parseStateScorerOutputReadsStdoutThatIsNotJSONAsAGradingError,
+	);
+
+	it(
+		"reads a result the schema rejects as a grading error",
+		parseStateScorerOutputReadsAResultTheSchemaRejectsAsAGradingError,
+	);
+
+	it(
+		"reads a declared outcome the scorer omitted as a grading error",
+		parseStateScorerOutputReadsADeclaredOutcomeTheScorerOmittedAsAGradingError,
+	);
+});
+
+describe(gradeStateEvidence.name, () => {
+	it(
+		"records the results a scorer reported over the evidence",
+		gradeStateEvidenceRecordsTheResultsAScorerReportedOverTheEvidence,
+	);
+
+	it(
+		"reads a scorer that cannot be run at all as a grading error",
+		gradeStateEvidenceReadsAScorerThatCannotBeRunAtAllAsAGradingError,
+	);
+
+	it(
+		"names a scorer that outlived its deadline as timed out",
+		gradeStateEvidenceNamesAScorerThatOutlivedItsDeadlineAsTimedOut,
+	);
+
+	it(
+		"reads a scorer that exits non-zero as a grading error",
+		gradeStateEvidenceReadsAScorerThatExitsNonzeroAsAGradingError,
+	);
 });

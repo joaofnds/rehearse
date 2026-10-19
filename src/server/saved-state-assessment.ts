@@ -1,8 +1,11 @@
-import type { SessionAttemptState } from "#benchmark/session-record";
 import type { Immutable } from "#benchmark/contracts";
+import type { SessionAttemptState } from "#benchmark/session-record";
+
 import { redactAbsolutePaths } from "./redact-path";
 
-export type SavedStateAssessment =
+const EMPTY_COLLECTION_LENGTH = 0;
+
+type SavedStateAssessment =
 	| {
 			readonly state: "assessed";
 			readonly passed: number;
@@ -11,34 +14,37 @@ export type SavedStateAssessment =
 	  }
 	| { readonly state: "unavailable"; readonly reason: string };
 
-export function savedStateAssessment(
+function savedStateAssessment(
 	record: Immutable<SessionAttemptState>,
 ): SavedStateAssessment {
 	if ("stateGradingError" in record && record.stateGradingError !== undefined) {
 		return {
-			state: "unavailable",
 			reason: redactAbsolutePaths(record.stateGradingError),
+			state: "unavailable",
 		};
 	}
 	if (!("stateResults" in record) || record.stateResults === undefined) {
 		return {
-			state: "unavailable",
 			reason: "No saved state assessment was recorded; declaration is unknown.",
+			state: "unavailable",
 		};
 	}
-	if (record.stateResults.length === 0) {
+	if (record.stateResults.length === EMPTY_COLLECTION_LENGTH) {
 		return {
-			state: "unavailable",
 			reason: "No saved state check outcomes were recorded.",
+			state: "unavailable",
 		};
 	}
 	const passed = record.stateResults.filter(
 		({ status }) => status === "PASS",
 	).length;
 	return {
-		state: "assessed",
-		passed,
 		failed: record.stateResults.length - passed,
+		passed,
+		state: "assessed",
 		total: record.stateResults.length,
 	};
 }
+
+export { savedStateAssessment as default };
+export type { SavedStateAssessment };

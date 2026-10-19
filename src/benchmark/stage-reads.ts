@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { basename, join } from "node:path";
+
 import type { HashedFile, StageTranscriptSource } from "./checkpoint";
 import { stageTranscriptFile } from "./checkpoint";
 import {
@@ -12,12 +12,12 @@ import {
 	projectEntries,
 } from "./context-manifest";
 import type { ContextManifest, CorpusReadRoots } from "./context-manifest";
+import type { Immutable } from "./contracts";
 import type { CorpusRoot } from "./corpus-file";
+import { statIfExists } from "./file-presence";
 import type { ReadManifestEntry } from "./read-manifest";
 import { PROJECT_INSTRUCTION_FILES, stageReadManifest } from "./read-manifest";
-import { runCommand } from "./command";
-import { statIfExists } from "./file-presence";
-import type { Immutable } from "./contracts";
+import hashesAtStart from "./stage-read-target-hashes";
 import type { TranscriptLine } from "./transcript";
 import { parseTranscriptFile } from "./transcript";
 
@@ -26,7 +26,7 @@ import { parseTranscriptFile } from "./transcript";
  * The provider may record the target under a link-resolved path, so both
  * spellings of its root are tried.
  */
-export async function loadedProjectInstructions(
+async function loadedProjectInstructions(
 	lines: Immutable<readonly TranscriptLine[]>,
 	targetDir: string,
 ): Promise<readonly string[]> {
@@ -34,15 +34,13 @@ export async function loadedProjectInstructions(
 	const paths: string[] = [];
 	for (const path of loadedFiles(lines)) {
 		if (
-			isCorpusLoad(path) ||
-			!PROJECT_INSTRUCTION_FILES.includes(basename(path))
+			!isCorpusLoad(path) &&
+			PROJECT_INSTRUCTION_FILES.includes(basename(path))
 		) {
-			continue;
-		}
-
-		const inside = pathInsideAny(path, roots);
-		if (inside !== undefined) {
-			paths.push(inside);
+			const inside = pathInsideAny(path, roots);
+			if (inside !== undefined) {
+				paths.push(inside);
+			}
 		}
 	}
 
@@ -53,7 +51,7 @@ export async function loadedProjectInstructions(
  * The directories a corpus source reads from. A live install may resolve
  * into the tree backing it, so a load there is the corpus's too.
  */
-export function corpusSourceDirectories(source: CorpusRoot): readonly string[] {
+function corpusSourceDirectories(source: CorpusRoot): readonly string[] {
 	return source.kind === "live"
 		? [source.root, source.backingRoot]
 		: [source.root];
@@ -64,18 +62,18 @@ export function corpusSourceDirectories(source: CorpusRoot): readonly string[] {
  * record a load under either. A directory that does not exist is kept as
  * given.
  */
-export async function spellings(
+async function spellings(
 	directories: readonly string[],
 ): Promise<readonly string[]> {
 	const found: string[] = [];
-	for (const directory of directories) {
+	await Array.fromAsync(directories, async (directory) => {
 		found.push(
 			directory,
 			(await statIfExists(directory)) === undefined
 				? directory
 				: await realpath(directory),
 		);
-	}
+	});
 
 	return [...new Set(found)];
 }
@@ -105,57 +103,7 @@ function loadedTargetClaudeFiles(
 	return [...new Set(paths)];
 }
 
-async function blobBytes(
-	targetDir: string,
-	objectId: string,
-): Promise<Uint8Array> {
-	const child = Bun.spawn(["git", "cat-file", "blob", objectId], {
-		cwd: targetDir,
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	const [bytes, exitCode] = await Promise.all([
-		new Response(child.stdout).bytes(),
-		child.exited,
-	]);
-	if (exitCode !== 0) {
-		throw new Error(`git cat-file blob ${objectId} exited ${exitCode}`);
-	}
-
-	return bytes;
-}
-
-/**
- * A stage can write an instruction file after reading it, so its hash is the
- * one the stage started from, and a file absent there carries none.
- */
-async function hashesAtStart(
-	targetDir: string,
-	startSha: string,
-	paths: readonly string[],
-): Promise<readonly HashedFile[]> {
-	const files: HashedFile[] = [];
-	for (const path of paths) {
-		const listing = await runCommand(
-			["git", "ls-tree", "-z", startSha, "--", path],
-			targetDir,
-		);
-		const objectId = /^\d+ blob (?<objectId>[0-9a-f]+)\t/u.exec(listing)
-			?.groups?.["objectId"];
-		if (objectId !== undefined) {
-			files.push({
-				path,
-				sha256: createHash("sha256")
-					.update(await blobBytes(targetDir, objectId))
-					.digest("hex"),
-			});
-		}
-	}
-
-	return files;
-}
-
-export interface StageReadsRequest {
+interface StageReadsRequest {
 	readonly targetDir: string;
 	readonly startSha: string;
 	readonly transcript: StageTranscriptSource | undefined;
@@ -174,7 +122,7 @@ export interface StageReadsRequest {
 }
 
 /** The read manifest of a stage session that has ended, from its transcript. */
-export async function recordStageReads(
+async function recordStageReads(
 	request: StageReadsRequest,
 ): Promise<readonly ReadManifestEntry[]> {
 	const lines =
@@ -185,9 +133,9 @@ export async function recordStageReads(
 				);
 	const targetRoots = await spellings([request.targetDir]);
 	const corpusRoots: CorpusReadRoots = {
-		sources: await spellings(request.corpusSources),
 		shadow: targetRoots.map((root) => join(root, ".claude")),
 		shadowed: request.corpusFiles.map((file) => file.path),
+		sources: await spellings(request.corpusSources),
 	};
 	const projectPaths = [
 		...(await loadedProjectInstructions(lines, request.targetDir)),
@@ -201,15 +149,23 @@ export async function recordStageReads(
 	};
 
 	return stageReadManifest({
-		skill: request.skill,
 		corpusFiles: request.corpusFiles,
-		versionFiles: request.versionFiles,
+		observed,
+		rubric: request.rubric,
+		skill: request.skill,
 		targetFiles: await hashesAtStart(
 			request.targetDir,
 			request.startSha,
 			projectPaths,
 		),
-		rubric: request.rubric,
-		observed,
+		versionFiles: request.versionFiles,
 	});
 }
+
+export {
+	loadedProjectInstructions,
+	corpusSourceDirectories,
+	spellings,
+	recordStageReads,
+};
+export type { StageReadsRequest };

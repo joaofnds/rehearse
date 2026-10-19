@@ -1,10 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import {
-	captureTranscriptPrefix,
-	CaptureError,
 	projectSlug,
 	resolveSessionFile,
 	transcriptsUnder,
@@ -12,54 +10,16 @@ import {
 import { TestResources } from "#benchmark/test-support";
 import { failureOf } from "#cli/cli-test-support";
 
+import SessionProjectsBuilder from "./session-projects-test-builder";
+
+const FIRST_SESSION_ID = "11111111-1111-1111-1111-111111111111";
+const SECOND_SESSION_ID = "11111111-2222-2222-2222-222222222222";
 const testResources = TestResources.forEachTest();
-
-/**
- * A session file lives under a project slug directory, and the source session
- * of a capture may be any of them, so the fixture puts each session under its
- * own slug the way the provider does, each record carrying the session's id the
- * way a real transcript's records do.
- */
-async function projectsDirectory(...names: readonly string[]): Promise<string> {
-	const directory = await mkdtemp(join(tmpdir(), "rehearse-projects-"));
-	testResources.track(directory);
-	for (const [index, name] of names.entries()) {
-		const slug = join(directory, `-private-tmp-project-${String(index)}`);
-		await mkdir(slug, { recursive: true });
-		await writeFile(
-			join(slug, `${name}.jsonl`),
-			`${JSON.stringify({ sessionId: name })}\n`,
-		);
-	}
-
-	return directory;
-}
-
-describe(resolveSessionFile.name, () => {
-	const first = "11111111-1111-1111-1111-111111111111";
-	const second = "11111111-2222-2222-2222-222222222222";
-
-	it("identifies a session by the id its records carry, not by its file name", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
-		testResources.track(directory);
-		await writeFile(
-			join(directory, "transcript.jsonl"),
-			`${JSON.stringify({ type: "queue-operation", sessionId: first })}\n`,
-		);
-
-		const resolved = await resolveSessionFile(
-			await transcriptsUnder(directory),
-			first,
-		);
-
-		expect(resolved).toEqual({
-			sessionId: first,
-			path: join(directory, "transcript.jsonl"),
-		});
-	});
-
-	it("resolves a prefix that matches exactly one session file", async () => {
-		const directory = await projectsDirectory(first, second);
+const resolvesAPrefixThatMatchesExactlyOneSessionFile =
+	async (): Promise<void> => {
+		const directory = await new SessionProjectsBuilder({
+			names: [FIRST_SESSION_ID, SECOND_SESSION_ID],
+		}).build(testResources);
 
 		const resolved = await resolveSessionFile(
 			await transcriptsUnder(directory),
@@ -67,157 +27,61 @@ describe(resolveSessionFile.name, () => {
 		);
 
 		expect(resolved).toEqual({
-			sessionId: first,
-			path: join(directory, "-private-tmp-project-0", `${first}.jsonl`),
+			path: join(
+				directory,
+				"-private-tmp-project-0",
+				`${FIRST_SESSION_ID}.jsonl`,
+			),
+			sessionId: FIRST_SESSION_ID,
 		});
-	});
+	};
+const resolvesAFullSessionId = async (): Promise<void> => {
+	const directory = await new SessionProjectsBuilder({
+		names: [FIRST_SESSION_ID, SECOND_SESSION_ID],
+	}).build(testResources);
 
-	it("resolves a full session id", async () => {
-		const directory = await projectsDirectory(first, second);
+	const resolved = await resolveSessionFile(
+		await transcriptsUnder(directory),
+		SECOND_SESSION_ID,
+	);
 
-		const resolved = await resolveSessionFile(
-			await transcriptsUnder(directory),
-			second,
-		);
-
-		expect(resolved.sessionId).toBe(second);
-	});
-
-	it("refuses a prefix that matches more than one file, naming both", async () => {
-		const directory = await projectsDirectory(first, second);
+	expect(resolved.sessionId).toBe(SECOND_SESSION_ID);
+};
+const refusesAPrefixThatMatchesMoreThanOneFileNaming =
+	async (): Promise<void> => {
+		const directory = await new SessionProjectsBuilder({
+			names: [FIRST_SESSION_ID, SECOND_SESSION_ID],
+		}).build(testResources);
 
 		expect(
 			resolveSessionFile(await transcriptsUnder(directory), "11111111"),
 		).rejects.toThrow(
-			`Session prefix 11111111 matches 2 session files: ${first}, ${second}`,
+			`Session prefix 11111111 matches 2 session files: ${FIRST_SESSION_ID}, ${SECOND_SESSION_ID}`,
 		);
-	});
+	};
+const namesAReadableSampleAndTheCountWhenAPrefix = async (): Promise<void> => {
+	const many = Array.from(
+		{ length: 12 },
+		(_value, index) => `2222222${index}-0000-0000-0000-000000000000`,
+	);
+	const directory = await new SessionProjectsBuilder({
+		names: [...many],
+	}).build(testResources);
 
-	it("names a readable sample and the count when a prefix matches many", async () => {
-		const many = Array.from(
-			{ length: 12 },
-			(_value, index) => `2222222${index}-0000-0000-0000-000000000000`,
-		);
-		const directory = await projectsDirectory(...many);
+	const failure = await failureOf(
+		resolveSessionFile(await transcriptsUnder(directory), "2"),
+	);
 
-		const failure = await failureOf(
-			resolveSessionFile(await transcriptsUnder(directory), "2"),
-		);
-
-		expect(failure.message).toStartWith(
-			"Session prefix 2 matches 12 session files: ",
-		);
-		expect(failure.message).toEndWith(
-			" and 7 more; give more of the session id",
-		);
-	});
-
-	it("refuses a transcript whose records carry no session id, naming the file", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
-		testResources.track(directory);
-		const path = join(directory, "transcript.jsonl");
-		await writeFile(path, '{"type":"queue-operation"}\n');
-
-		const failure = await failureOf(
-			resolveSessionFile(await transcriptsUnder(directory), "1111"),
-		);
-
-		expect(failure.message).toBe(
-			`No record in ${path} carries a session id, so it names no session to capture`,
-		);
-	});
-
-	/**
-	 * A subagent's transcript lives under the session directory and carries the
-	 * session's own id, so a store holds several files claiming one identity and
-	 * only one of them is the session the operator can capture.
-	 */
-	it("resolves the session's own file when a subagent transcript carries the same id", async () => {
-		const directory = await projectsDirectory(first);
-		const subagents = join(
-			directory,
-			"-private-tmp-project-0",
-			first,
-			"subagents",
-		);
-		await mkdir(subagents, { recursive: true });
-		await writeFile(
-			join(subagents, "agent-a1b2c3.jsonl"),
-			`${JSON.stringify({ sessionId: first })}\n`,
-		);
-
-		const resolved = await resolveSessionFile(
-			await transcriptsUnder(directory),
-			first,
-		);
-
-		expect(resolved.path).toBe(
-			join(directory, "-private-tmp-project-0", `${first}.jsonl`),
-		);
-	});
-
-	it("refuses, naming the files, when several transcripts claim one session and none is the session's own", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
-		testResources.track(directory);
-		const record = `${JSON.stringify({ sessionId: first })}\n`;
-		await writeFile(join(directory, "transcript.jsonl"), record);
-		await writeFile(join(directory, "another.jsonl"), record);
-
-		const failure = await failureOf(
-			resolveSessionFile(await transcriptsUnder(directory), first),
-		);
-
-		expect(failure.message).toBe(
-			`Session ${first} is claimed by 2 transcripts and named by none of them: ${join(directory, "another.jsonl")}, ${join(directory, "transcript.jsonl")}`,
-		);
-	});
-
-	it("refuses a transcript whose records carry more than one session id, naming them", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
-		testResources.track(directory);
-		const path = join(directory, "transcript.jsonl");
-		await writeFile(
-			path,
-			`${JSON.stringify({ sessionId: first })}\n${JSON.stringify({
-				sessionId: second,
-			})}\n`,
-		);
-
-		const failure = await failureOf(
-			resolveSessionFile(await transcriptsUnder(directory), "1111"),
-		);
-
-		expect(failure.message).toBe(
-			`Records in ${path} carry 2 session ids: ${first}, ${second}, so it names no single session to capture`,
-		);
-	});
-
-	/**
-	 * A resumed session's transcript carries the id it inherited as well as its
-	 * own, and the store named the file for the session that owns it, so the name
-	 * settles which of the two ids that is.
-	 */
-	it("resolves a transcript carrying several ids when its file name is one of them", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-projects-"));
-		testResources.track(directory);
-		const path = join(directory, `${second}.jsonl`);
-		await writeFile(
-			path,
-			`${JSON.stringify({ sessionId: first })}\n${JSON.stringify({
-				sessionId: second,
-			})}\n`,
-		);
-
-		const resolved = await resolveSessionFile(
-			await transcriptsUnder(directory),
-			second,
-		);
-
-		expect(resolved).toEqual({ sessionId: second, path });
-	});
-
-	it("names the prefix, not an unrelated unidentifiable transcript, when nothing matches", async () => {
-		const directory = await projectsDirectory(first);
+	expect(failure.message).toStartWith(
+		"Session prefix 2 matches 12 session files: ",
+	);
+	expect(failure.message).toEndWith(" and 7 more; give more of the session id");
+};
+const namesThePrefixNotAnUnrelatedUnidentifiableTranscriptWhenNothing =
+	async (): Promise<void> => {
+		const directory = await new SessionProjectsBuilder({
+			names: [FIRST_SESSION_ID],
+		}).build(testResources);
 		const nameless = join(directory, "-private-tmp-project-9");
 		await mkdir(nameless, { recursive: true });
 		await writeFile(
@@ -232,170 +96,66 @@ describe(resolveSessionFile.name, () => {
 		expect(failure.message).toBe(
 			"Session prefix deadbeef matches no session file",
 		);
-	});
-
-	it("refuses a prefix that matches no file, naming the prefix", async () => {
-		const directory = await projectsDirectory(first);
+	};
+const refusesAPrefixThatMatchesNoFileNamingThePrefix =
+	async (): Promise<void> => {
+		const directory = await new SessionProjectsBuilder({
+			names: [FIRST_SESSION_ID],
+		}).build(testResources);
 
 		expect(
 			resolveSessionFile(await transcriptsUnder(directory), "deadbeef"),
 		).rejects.toThrow("Session prefix deadbeef matches no session file");
-	});
-});
-
-describe(transcriptsUnder.name, () => {
-	it("reads a directory that is not there as holding no sessions", async () => {
-		expect(await transcriptsUnder("/no/such/projects")).toEqual([]);
-	});
-});
-
-describe(captureTranscriptPrefix.name, () => {
-	async function source(lines: number): Promise<string> {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-source-"));
-		testResources.track(directory);
-		const path = join(directory, "source.jsonl");
-		await writeFile(
-			path,
-			`${Array.from({ length: lines }, (_value, index) =>
-				JSON.stringify({ ordinal: index, filler: "x".repeat(4096) }),
-			).join("\n")}\n`,
-		);
-
-		return path;
-	}
-
-	async function destination(): Promise<string> {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-capture-"));
-		testResources.track(directory);
-
-		return join(directory, "prefix.jsonl");
-	}
-
-	it("writes exactly the source's first cut lines", async () => {
-		const path = await source(5);
-		const target = await destination();
-
-		await captureTranscriptPrefix(path, target, 3);
-
-		const written = await Bun.file(target).text();
-		const original = await Bun.file(path).text();
-		expect(written).toBe(`${original.split("\n").slice(0, 3).join("\n")}\n`);
-	});
-
-	it("counts JSONL records rather than blank physical lines at the cut", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-source-"));
-		testResources.track(directory);
-		const path = join(directory, "source.jsonl");
-		await writeFile(path, '{"ordinal":0}\n\n{"ordinal":1}\n{"ordinal":2}\n');
-		const target = await destination();
-
-		const captured = await captureTranscriptPrefix(path, target, 2);
-
-		expect(captured.lines).toBe(2);
-		expect(await Bun.file(target).text()).toBe(
-			'{"ordinal":0}\n\n{"ordinal":1}\n',
-		);
-	});
-
-	it("writes a prefix byte-identical to the source's first lines when the source exceeds one read buffer", async () => {
-		const path = await source(400);
-		const target = await destination();
-
-		await captureTranscriptPrefix(path, target, 399);
-
-		const written = await Bun.file(target).text();
-		const original = await Bun.file(path).text();
-		expect(written.length).toBeGreaterThan(1024 * 1024);
-		expect(written).toBe(`${original.split("\n").slice(0, 399).join("\n")}\n`);
-	});
-
-	/**
-	 * A bound relative to the source passes for a subject that never streams at
-	 * all, because an observer that is never called leaves the widest carry at
-	 * zero. The bound is absolute and the call count is asserted, so reading the
-	 * source as one string fails on both counts.
-	 */
-	const ONE_CHUNK_AND_A_LINE = 768 * 1024;
-
-	it("never holds the whole source, only one read chunk and a partial line", async () => {
-		const path = await source(400);
-		const sourceBytes = Bun.file(path).size;
-		let widest = 0;
-		let observations = 0;
-
-		await captureTranscriptPrefix(path, await destination(), 399, {
-			carry: (characters) => {
-				observations += 1;
-				widest = Math.max(widest, characters);
-			},
-		});
-
-		expect(sourceBytes).toBeGreaterThan(1024 * 1024);
-		expect(observations).toBeGreaterThan(1);
-		expect(widest).toBeLessThan(ONE_CHUNK_AND_A_LINE);
-	});
-
-	it("returns the digest of the bytes it wrote", async () => {
-		const path = await source(4);
-		const target = await destination();
-
-		const result = await captureTranscriptPrefix(path, target, 2);
-
-		expect(result.sha256).toBe(
-			new Bun.CryptoHasher("sha256")
-				.update(await Bun.file(target).bytes())
-				.digest("hex"),
-		);
-	});
-
-	it.each([0, -1])(
-		"refuses a cut of %p, naming the index and the line count",
-		async (cut) => {
-			const path = await source(4);
-
-			expect(
-				captureTranscriptPrefix(path, await destination(), cut),
-			).rejects.toThrow(`Cut ${String(cut)} is outside the source's 4 lines`);
-		},
-	);
-
-	it("refuses a cut past the source's line count, naming both", async () => {
-		const path = await source(4);
-
-		expect(
-			captureTranscriptPrefix(path, await destination(), 5),
-		).rejects.toThrow("Cut 5 is outside the source's 4 lines");
-	});
-
-	it("writes nothing when it refuses the cut", async () => {
-		const path = await source(4);
-		const target = await destination();
-
-		const failure = await failureOf(captureTranscriptPrefix(path, target, 99));
-		const exists = await Bun.file(target).exists();
-
-		expect(failure).toBeInstanceOf(CaptureError);
-		expect(exists).toBe(false);
-	});
-
-	it("refuses with a CaptureError so the CLI can map it to an exit code", async () => {
-		const path = await source(2);
-
-		expect(
-			captureTranscriptPrefix(path, await destination(), 0),
-		).rejects.toBeInstanceOf(CaptureError);
-	});
-});
-
-describe(projectSlug.name, () => {
-	it("replaces every path separator with a dash", () => {
-		expect(projectSlug("/private/tmp/x")).toBe("-private-tmp-x");
-	});
-
-	it("names a path through the /tmp symlink differently from its real path", async () => {
+	};
+const readsADirectoryThatIsNotThereAsHoldingNo = async (): Promise<void> => {
+	expect(await transcriptsUnder("/no/such/projects")).toEqual([]);
+};
+const replacesEveryPathSeparatorWithADash = (): void => {
+	expect(projectSlug("/private/tmp/x")).toBe("-private-tmp-x");
+};
+const namesAPathThroughTheTmpSymlinkDifferentlyFromIts =
+	async (): Promise<void> => {
 		const real = await realpath("/tmp");
 
 		expect(projectSlug(real)).not.toBe(projectSlug("/tmp"));
 		expect(projectSlug(`${real}/x`)).toBe(`${real.replaceAll("/", "-")}-x`);
-	});
+	};
+describe(resolveSessionFile.name, () => {
+	it(
+		"resolves a prefix that matches exactly one session file",
+		resolvesAPrefixThatMatchesExactlyOneSessionFile,
+	);
+	it("resolves a full session id", resolvesAFullSessionId);
+	it(
+		"refuses a prefix that matches more than one file, naming both",
+		refusesAPrefixThatMatchesMoreThanOneFileNaming,
+	);
+	it(
+		"names a readable sample and the count when a prefix matches many",
+		namesAReadableSampleAndTheCountWhenAPrefix,
+	);
+	it(
+		"names the prefix, not an unrelated unidentifiable transcript, when nothing matches",
+		namesThePrefixNotAnUnrelatedUnidentifiableTranscriptWhenNothing,
+	);
+	it(
+		"refuses a prefix that matches no file, naming the prefix",
+		refusesAPrefixThatMatchesNoFileNamingThePrefix,
+	);
+});
+describe(transcriptsUnder.name, () => {
+	it(
+		"reads a directory that is not there as holding no sessions",
+		readsADirectoryThatIsNotThereAsHoldingNo,
+	);
+});
+describe(projectSlug.name, () => {
+	it(
+		"replaces every path separator with a dash",
+		replacesEveryPathSeparatorWithADash,
+	);
+	it(
+		"names a path through the /tmp symlink differently from its real path",
+		namesAPathThroughTheTmpSymlinkDifferentlyFromIts,
+	);
 });

@@ -1,6 +1,10 @@
 import type { ClaudeCallMetrics } from "./contracts";
 
-export class SpendCeilingReachedError extends Error {
+const EXHAUSTED_BUDGET_USD = 0;
+
+const SPEND_DECIMAL_PLACES = 4;
+
+class SpendCeilingReachedError extends Error {
 	public readonly ceilingUsd: number;
 	public readonly spentUsd: number;
 
@@ -9,7 +13,7 @@ export class SpendCeilingReachedError extends Error {
 		readonly spentUsd: number;
 	}) {
 		super(
-			`The spend ceiling of USD ${String(props.ceilingUsd)} is reached, with USD ${props.spentUsd.toFixed(4)} spent`,
+			`The spend ceiling of USD ${String(props.ceilingUsd)} is reached, with USD ${props.spentUsd.toFixed(SPEND_DECIMAL_PLACES)} spent`,
 		);
 		this.name = "SpendCeilingReachedError";
 		this.ceilingUsd = props.ceilingUsd;
@@ -23,7 +27,7 @@ export class SpendCeilingReachedError extends Error {
  * flight. A rep of a confirmation group sits within the group's ceiling and is
  * held to both.
  */
-export interface SpendCeiling {
+interface SpendCeiling {
 	readonly ceilingUsd: number;
 	readonly spentUsd: () => number;
 	/** The tokens of the calls charged so far, those reporting their usage. */
@@ -42,17 +46,17 @@ export interface SpendCeiling {
  * The tokens a run's calls have used. Input counts every token the model
  * read, cache reads and writes included, as a call's total input does.
  */
-export interface RunTokens {
+interface RunTokens {
 	readonly input: number;
 	readonly output: number;
 }
 
-export interface CeilingReached {
+interface CeilingReached {
 	readonly ceilingUsd: number;
 	readonly spentUsd: number;
 }
 
-export function createSpendCeiling(props: {
+function createSpendCeiling(props: {
 	readonly ceilingUsd: number;
 	readonly within?: SpendCeiling | undefined;
 }): SpendCeiling {
@@ -61,12 +65,9 @@ export function createSpendCeiling(props: {
 	let tokens: RunTokens = { input: 0, output: 0 };
 
 	return {
-		ceilingUsd,
-		spentUsd: () => spentUsd,
-		tokens: () => tokens,
 		budgetFor: (sessionBudgetUsd) => {
 			const leftUsd = ceilingUsd - spentUsd;
-			if (leftUsd <= 0) {
+			if (leftUsd <= EXHAUSTED_BUDGET_USD) {
 				throw new SpendCeilingReachedError({ ceilingUsd, spentUsd });
 			}
 
@@ -74,6 +75,7 @@ export function createSpendCeiling(props: {
 
 			return within === undefined ? budgetUsd : within.budgetFor(budgetUsd);
 		},
+		ceilingUsd,
 		charge: (costUsd, metrics) => {
 			spentUsd += costUsd;
 			if (metrics !== undefined) {
@@ -90,11 +92,13 @@ export function createSpendCeiling(props: {
 		},
 		reached: () =>
 			spentUsd >= ceilingUsd ? { ceilingUsd, spentUsd } : within?.reached(),
+		spentUsd: () => spentUsd,
+		tokens: () => tokens,
 	};
 }
 
 /** A confirmation group's ceiling: the reps times the ceiling each rep holds. */
-export function groupSpendCeilingUsd(props: {
+function groupSpendCeilingUsd(props: {
 	readonly spendCeilingUsd: number;
 	readonly reps: number;
 }): number {
@@ -105,7 +109,7 @@ export function groupSpendCeilingUsd(props: {
  * A confirmation group's reps run at once, each held to the stored ceiling and
  * all of them together to the group ceiling.
  */
-export function repSpendCeilings(props: {
+function repSpendCeilings(props: {
 	readonly spendCeilingUsd: number;
 	readonly reps: number;
 }): () => SpendCeiling {
@@ -122,5 +126,14 @@ export function repSpendCeilings(props: {
  * flight costs when the ceiling is reached, so every surface that states the
  * ceiling states this beside it.
  */
-export const CEILING_OVERRUN_STATEMENT =
+const CEILING_OVERRUN_STATEMENT =
 	"The ceiling can be overrun by the calls in flight when it is reached: one per running session, so one for a run and one per running attempt for a group.";
+
+export {
+	SpendCeilingReachedError,
+	createSpendCeiling,
+	groupSpendCeilingUsd,
+	repSpendCeilings,
+	CEILING_OVERRUN_STATEMENT,
+};
+export type { SpendCeiling, RunTokens, CeilingReached };

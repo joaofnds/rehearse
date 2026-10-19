@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import { useRef, useState } from "react";
+
+import ActionGroup from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
-import { ActionGroup } from "#client/system/components/action-group";
 import {
 	Dialog,
 	DialogClose,
@@ -11,8 +12,11 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "#client/system/ui/dialog";
+
+import EvidenceSourcePage from "./evidence-source-page";
 import type { EvidenceSourceIdentity } from "./evidence-source-query";
-import { EvidenceSourcePage } from "./evidence-source-page";
+
+const PRIMARY_POINTER_BUTTON = 0;
 
 function evidenceHref(identity: EvidenceSourceIdentity): string {
 	const run = encodeURIComponent(identity.run);
@@ -25,21 +29,87 @@ function evidenceHref(identity: EvidenceSourceIdentity): string {
 }
 
 /** A primary click inspects the citation beside its source run; the href remains shareable. */
-export function EvidenceDialogLink({
-	identity,
-	children,
-}: {
+interface EvidenceDialogLinkProps {
 	readonly identity: EvidenceSourceIdentity;
 	readonly children: ReactNode;
-}): React.JSX.Element {
-	const [open, setOpen] = useState(false);
-	const suppressTriggerOpen = useRef(false);
+}
+
+function EvidenceDialogLink({
+	identity,
+	children,
+}: EvidenceDialogLinkProps): React.JSX.Element {
+	const { open, clicked, onOpenChange } = useEvidenceOpening();
 	const href = evidenceHref(identity);
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogTrigger asChild>
+				<a href={href} onClick={clicked}>
+					{children}
+				</a>
+			</DialogTrigger>
+			<DialogContent width="wide">
+				<EvidenceDialogHeader identity={identity} href={href} />
+				<EvidenceSourcePage identity={identity} embedded />
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+interface EvidenceDialogHeaderProps {
+	readonly identity: EvidenceSourceIdentity;
+	readonly href: string;
+}
+
+function EvidenceDialogHeader({
+	identity,
+	href,
+}: EvidenceDialogHeaderProps): React.JSX.Element {
 	const label =
 		identity.kind === "stage"
 			? `${identity.stage} Judge · ${identity.item}`
 			: `Final Judge · ${identity.item}`;
+	return (
+		<div className="flex flex-none flex-wrap items-start justify-between gap-3 border-b border-divider px-6 py-4">
+			<div className="min-w-0 wrap-anywhere">
+				<DialogTitle>Cited source</DialogTitle>
+				<DialogDescription>{label}</DialogDescription>
+			</div>
+			<ActionGroup>
+				<Button asChild variant="quiet" size="compact">
+					<Link to={href}>Open full page</Link>
+				</Button>
+				<DialogClose asChild>
+					<Button variant="outline" size="compact">
+						Close
+					</Button>
+				</DialogClose>
+			</ActionGroup>
+		</div>
+	);
+}
 
+interface EvidenceOpening {
+	readonly open: boolean;
+	readonly clicked: (
+		event: Readonly<
+			Pick<
+				MouseEvent<HTMLAnchorElement>,
+				| "button"
+				| "metaKey"
+				| "ctrlKey"
+				| "shiftKey"
+				| "altKey"
+				| "preventDefault"
+			>
+		>,
+	) => void;
+	readonly onOpenChange: (next: boolean) => void;
+}
+
+function useEvidenceOpening(): EvidenceOpening {
+	const [open, setOpen] = useState(false);
+	const suppressTriggerOpen = useRef(false);
 	function clicked(
 		event: Readonly<
 			Pick<
@@ -54,7 +124,7 @@ export function EvidenceDialogLink({
 		>,
 	): void {
 		if (
-			event.button !== 0 ||
+			event.button !== PRIMARY_POINTER_BUTTON ||
 			event.metaKey ||
 			event.ctrlKey ||
 			event.shiftKey ||
@@ -67,41 +137,16 @@ export function EvidenceDialogLink({
 		suppressTriggerOpen.current = false;
 		setOpen(true);
 	}
-
-	return (
-		<Dialog
-			open={open}
-			onOpenChange={(next) => {
-				if (!next || !suppressTriggerOpen.current) {
-					setOpen(next);
-				}
-				suppressTriggerOpen.current = false;
-			}}
-		>
-			<DialogTrigger asChild>
-				<a href={href} onClick={clicked}>
-					{children}
-				</a>
-			</DialogTrigger>
-			<DialogContent width="wide">
-				<div className="flex flex-none flex-wrap items-start justify-between gap-3 border-b border-divider px-6 py-4">
-					<div className="min-w-0 wrap-anywhere">
-						<DialogTitle>Cited source</DialogTitle>
-						<DialogDescription>{label}</DialogDescription>
-					</div>
-					<ActionGroup>
-						<Button asChild variant="quiet" size="compact">
-							<Link to={href}>Open full page</Link>
-						</Button>
-						<DialogClose asChild>
-							<Button variant="outline" size="compact">
-								Close
-							</Button>
-						</DialogClose>
-					</ActionGroup>
-				</div>
-				<EvidenceSourcePage identity={identity} embedded />
-			</DialogContent>
-		</Dialog>
-	);
+	return {
+		clicked,
+		onOpenChange: (next) => {
+			if (!next || !suppressTriggerOpen.current) {
+				setOpen(next);
+			}
+			suppressTriggerOpen.current = false;
+		},
+		open,
+	};
 }
+
+export { EvidenceDialogLink as default };

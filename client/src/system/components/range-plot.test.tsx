@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { RangePlot } from "./range-plot";
+
+import RangePlot from "./range-plot";
+
+const LABEL_DECIMAL_PLACES = 2;
 
 describe("range plot", () => {
 	it("keeps the unit and each arm's exact range available alongside the drawing", () => {
@@ -9,20 +13,20 @@ describe("range plot", () => {
 				label="Cost per attempt · observed range"
 				minimum={0}
 				maximum={2}
-				formatValue={(value) => `$${value.toFixed(2)}`}
+				formatValue={(value) => `$${value.toFixed(LABEL_DECIMAL_PLACES)}`}
 				rows={[
 					{
+						high: 1.74,
 						id: "baseline",
 						label: "Baseline",
 						low: 0.31,
-						high: 1.74,
 						value: 1.1,
 					},
 					{
+						high: 1.59,
 						id: "candidate",
 						label: "Candidate",
 						low: 0.42,
-						high: 1.59,
 						value: 1.16,
 					},
 				]}
@@ -43,7 +47,7 @@ describe("range plot", () => {
 				minimum={0}
 				maximum={0}
 				formatValue={String}
-				rows={[{ id: "control", label: "Control", low: 0, high: 0, value: 0 }]}
+				rows={[{ high: 0, id: "control", label: "Control", low: 0, value: 0 }]}
 			/>,
 		);
 

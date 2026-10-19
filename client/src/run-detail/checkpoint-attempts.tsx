@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import type { MonitoredStage } from "#client/monitor/run-record-query";
-import { plural } from "#client/plural";
-import { isClean } from "#client/run-history/clean-record";
+import plural from "#client/plural";
+import isClean from "#client/run-history/clean-record";
 import { Grade } from "#client/system/components/grade";
+
 import type { StageAttemptsResponse } from "./stage-attempts-query";
 import { stageAttemptsQuery } from "./stage-attempts-query";
 
@@ -12,8 +14,8 @@ type StageAttempt = StageAttemptsResponse["attempts"][number];
 
 const KIND_WORDS = {
 	original: "original run",
-	replay: "replay",
 	rep: "confirmation rep",
+	replay: "replay",
 } as const satisfies Record<StageAttempt["kind"], string>;
 
 /**
@@ -52,25 +54,24 @@ function attemptFigures(
 ): AttemptFigures {
 	if (attempt.kind === "original") {
 		return {
+			corpus: corpusMeasurementReading(stage.corpusVersion),
 			letter:
 				stage.grade.state === "available" ? stage.grade.letter : undefined,
-			corpus: corpusMeasurementReading(stage.corpusVersion),
 		};
 	}
 
 	return {
-		letter: attempt.grade,
 		corpus: corpusMeasurementReading(attempt.corpusVersion),
+		letter: attempt.grade,
 	};
 }
 
-function AttemptItem({
-	attempt,
-	stage,
-}: {
+interface AttemptItemProps {
 	readonly attempt: StageAttempt;
 	readonly stage: MonitoredStage;
-}): React.JSX.Element {
+}
+
+function AttemptItem({ attempt, stage }: AttemptItemProps): React.JSX.Element {
 	const { letter, corpus } = attemptFigures(attempt, stage);
 
 	return (
@@ -108,13 +109,15 @@ function AttemptItem({
  * 4a): the original run, replays and judged confirmation reps, each with its
  * grade, corpus version and whether that corpus is still the one under test.
  */
-export function CheckpointAttempts({
-	run,
-	stage,
-}: {
+interface CheckpointAttemptsProps {
 	readonly run: string;
 	readonly stage: MonitoredStage;
-}): React.JSX.Element {
+}
+
+function CheckpointAttempts({
+	run,
+	stage,
+}: CheckpointAttemptsProps): React.JSX.Element {
 	const { data, isError } = useQuery(stageAttemptsQuery(run, stage.stage));
 
 	return (
@@ -148,3 +151,5 @@ export function CheckpointAttempts({
 		</section>
 	);
 }
+
+export { CheckpointAttempts as default };

@@ -5,14 +5,14 @@ import {
 	useStop,
 } from "#client/run-history/run-controls";
 import type { PipelineRow } from "#client/shell/run-in-flight";
-import { ActionGroup } from "#client/system/components/action-group";
+import ActionGroup from "#client/system/components/action-group";
 import { Button } from "#client/system/ui/button";
 
-export function HeaderControls({
-	row,
-}: {
+interface HeaderControlsProps {
 	readonly row: PipelineRow;
-}): React.JSX.Element {
+}
+
+function HeaderControls({ row }: HeaderControlsProps): React.JSX.Element {
 	const pause = usePauseRun();
 	const stop = useStop();
 
@@ -46,3 +46,5 @@ export function HeaderControls({
 		</div>
 	);
 }
+
+export { HeaderControls as default };

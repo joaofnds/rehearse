@@ -1,532 +1,159 @@
-import { afterEach, expect, it } from "bun:test";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "bun:test";
+
+import { screen, within } from "@testing-library/react";
+
 import { runHistoryReplies } from "#client/test-support/fetch-stub";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import {
-	UNREAD_GROUP_FIGURES,
+	UNREAD_REPLAY_FIGURES,
 	UNREAD_RUN_FIGURES,
 	UNREAD_SESSION_ATTEMPT_FIGURES,
-	UNREAD_REPLAY_FIGURES,
 } from "#client/test-support/run-figures";
-import type {
-	ConfirmationGroupRow,
-	PipelineRunRow,
-	SessionAttemptRow,
-	ReplayRow,
-} from "#server/run-history";
-import {
-	matchesDiscovery,
-	recordIdentity,
-	sortDiscoveredRows,
-} from "./run-discovery";
+import type { ReplayRow, SessionAttemptRow } from "#server/run-history";
 
-const originalFetch = globalThis.fetch;
+import { matchesDiscovery } from "./run-discovery";
+import {
+	NO_QUALITY_FAILURES,
+	QUALITY_FAILURE_COUNT,
+	group,
+	originalFetch,
+	run,
+	stopped,
+} from "./run-discovery-test-fixtures";
+
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-function run(
-	id: string,
-	verdict?: "PASS" | "FAIL",
-	current = true,
-): PipelineRunRow {
-	return {
-		...UNREAD_RUN_FIGURES,
-		kind: "run",
-		recordId: `run:${id}`,
-		run: id,
-		shortId: `audit/${id}`,
-		caseId: "audit",
-		status: "COMPLETE",
-		stage: "build",
-		grade: "A",
-		launchId: undefined,
-		checkpoints: [],
-		links: [],
-		corpusVersion: { kind: "version", digest: "abc" },
-		corpusChangedDuringRun: false,
-		staleness: {
-			state: "available",
-			stale: !current,
-			causes: [],
-			changedFiles: [],
-			onlyCorpusFiles: false,
-			distance: { kind: "measured", versions: current ? 0 : 1 },
-		},
-		progress: { state: "recorded" },
-		finalOutcome:
-			verdict === undefined
-				? UNREAD_RUN_FIGURES.finalOutcome
-				: { state: "available", status: "JUDGED", verdict },
-	};
-}
-
-it.each([
-	["SUCCESSFUL", false, true],
-	["UNSUCCESSFUL", true, false],
-	["NO_REPLY", false, false],
-	["EXECUTION_FAILED", false, false],
-] as const)(
-	"separates session %s quality from execution gaps",
-	(status, failed, passed) => {
-		const row: SessionAttemptRow = {
-			...UNREAD_SESSION_ATTEMPT_FIGURES,
-			kind: "session-attempt",
-			recordId: "attempt:session:case:uuid",
-			uuid: "uuid",
-			caseId: "case",
-			shortId: undefined,
-			status,
-			corpusVersion: undefined,
-			staleness: run("reference").staleness,
-			links: [],
-		};
-
-		expect(matchesDiscovery(row, { status: "failed" })).toBe(failed);
-		expect(matchesDiscovery(row, { status: "passed" })).toBe(passed);
-		expect(matchesDiscovery(row, { status: "ended" })).toBe(true);
-	},
-);
-
-it.each([
-	["STOP", true, false],
-	["CONTINUE", false, true],
-] as const)(
-	"classifies replay %s from its recorded verdict",
-	(status, failed, passed) => {
-		const row: ReplayRow = {
-			...UNREAD_REPLAY_FIGURES,
-			kind: "replay",
-			recordId: "attempt:stage:lineage:timestamp",
-			lineage: "lineage",
-			timestamp: "timestamp",
-			shortId: undefined,
-			checkpointShortId: undefined,
-			attempt: undefined,
-			caseId: "case",
-			stage: "build",
-			grade: "C",
-			status,
-			corpusVersion: undefined,
-			staleness: run("reference").staleness,
-			links: [],
-		};
-
-		expect(matchesDiscovery(row, { status: "failed" })).toBe(failed);
-		expect(matchesDiscovery(row, { status: "passed" })).toBe(passed);
-	},
-);
-
-it("keeps stale corpus selection separate from current and unmeasured corpus", () => {
-	const stale = run("old", "PASS", false);
-	const current = run("current", "PASS");
-	const unknown = {
-		...stale,
-		staleness: {
-			state: "unavailable",
-			reasons: ["No corpus measurement"],
-		} as const,
-	};
-
-	expect(matchesDiscovery(stale, { corpus: "stale" })).toBe(true);
-	expect(matchesDiscovery(current, { corpus: "stale" })).toBe(false);
-	expect(matchesDiscovery(unknown, { corpus: "stale" })).toBe(false);
-});
-
-it("intersects Failed and current corpus, searches IDs, and clears an empty result", async () => {
-	renderAppWithStub(
-		"/",
-		runHistoryReplies({
-			rows: [
-				run("failed", "FAIL"),
-				run("old", "FAIL", false),
-				run("missing"),
-				{ ...run("error"), status: "FAILED" },
-				run("passed", "PASS"),
-			],
-			launches: [],
-			unreadable: [],
-		}),
-	);
-	await screen.findByRole("table", { name: "Run history" });
-	fireEvent.click(screen.getByRole("button", { name: "Failed" }));
-	fireEvent.click(screen.getByRole("button", { name: "Current corpus" }));
-	await waitFor(() => {
-		const table = screen.getByRole("table", { name: "Run history" });
-		expect(within(table).getAllByRole("row")).toHaveLength(2);
-		expect(within(table).getByText("failed")).toBeInTheDocument();
-	});
-	fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
-		target: { value: "no-match" },
-	});
-	await screen.findByText("No record matches this filter and search.");
-	fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-	await waitFor(() => {
-		expect(
-			within(screen.getByRole("table", { name: "Run history" })).getAllByRole(
-				"row",
-			),
-		).toHaveLength(6);
-	});
-	fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
-		target: { value: "audit/passed" },
-	});
-	await waitFor(() => {
-		expect(
-			within(screen.getByRole("table", { name: "Run history" })).getAllByRole(
-				"row",
-			),
-		).toHaveLength(2);
-	});
-});
-
-it("restores discovery from the Runs navigation after inspecting a run", async () => {
-	const router = renderAppWithStub(
-		"/",
-		runHistoryReplies({
-			rows: [run("failed", "FAIL"), run("passed", "PASS")],
-			launches: [],
-			unreadable: [],
-		}),
-	);
-	await screen.findByRole("table", { name: "Run history" });
-	fireEvent.click(screen.getByRole("button", { name: "Failed" }));
-	fireEvent.click(screen.getByRole("button", { name: "Current corpus" }));
-	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
-		target: { value: "cost" },
-	});
-	fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
-		target: { value: "audit/failed" },
-	});
-	await waitFor(() => {
-		expect(router.state.location.search).toMatchObject({
-			query: "audit/failed",
-			status: "failed",
-			corpus: "current",
-			sort: "cost",
-		});
-	});
-	fireEvent.click(
-		within(screen.getByRole("table", { name: "Run history" })).getByRole(
-			"link",
-			{ name: "failed" },
-		),
-	);
-	await waitFor(() => {
-		expect(router.state.location.pathname).toBe("/runs/failed");
-	});
-	fireEvent.click(
-		within(screen.getByRole("navigation", { name: "Sections" })).getByRole(
-			"link",
-			{ name: /^Runs/u },
-		),
-	);
-	expect(
-		await screen.findByRole("searchbox", { name: "Search runs" }),
-	).toHaveValue("audit/failed");
-	expect(screen.getByRole("button", { name: "Failed" })).toHaveAttribute(
-		"aria-pressed",
-		"true",
-	);
-	expect(
-		screen.getByRole("button", { name: "Current corpus" }),
-	).toHaveAttribute("aria-pressed", "true");
-	expect(screen.getByRole("combobox", { name: "Sort runs" })).toHaveValue(
-		"cost",
-	);
-});
-
-it("orders mixed record kinds by the instant their records actually name", () => {
-	const pipeline = run("2026-10-01T10-30-00.000Z");
-	const session: SessionAttemptRow = {
-		...UNREAD_SESSION_ATTEMPT_FIGURES,
-		kind: "session-attempt",
-		recordId: "session:timed",
-		uuid: "timed-session",
-		caseId: "audit",
-		shortId: undefined,
-		status: "SUCCESSFUL",
-		startedAt: "2026-10-01T10:45:00.000Z",
-		corpusVersion: undefined,
-		staleness: pipeline.staleness,
-		links: [],
-	};
-	const group: ConfirmationGroupRow = {
-		...UNREAD_GROUP_FIGURES,
-		kind: "group",
-		recordId: "group:timed",
-		groupId: "timed-group",
-		caseId: "audit",
-		shortId: undefined,
-		mode: "session",
-		reps: 1,
-		startedAt: "2026-10-01T10:15:00.000Z",
-		corpusVersion: undefined,
-		staleness: pipeline.staleness,
-		checkpoint: undefined,
-		repAttempts: [],
-		links: [],
-	};
-	const replay: ReplayRow = {
-		...UNREAD_REPLAY_FIGURES,
-		kind: "replay",
-		recordId: "replay:timed",
-		lineage: "lineage",
-		timestamp: "2026-10-01T11-00-00.000Z",
-		shortId: undefined,
-		checkpointShortId: undefined,
-		attempt: undefined,
-		caseId: "audit",
-		stage: "build",
-		grade: "C",
-		status: "STOP",
-		corpusVersion: undefined,
-		staleness: pipeline.staleness,
-		links: [],
-	};
-	const untimed = { ...session, uuid: "legacy-session", startedAt: undefined };
-	const rows = [pipeline, session, group, untimed, replay];
-	expect(
-		sortDiscoveredRows(rows, "newest").map((row) => recordIdentity(row)),
-	).toEqual([
-		replay.timestamp,
-		session.uuid,
-		pipeline.run,
-		group.groupId,
-		untimed.uuid,
-	]);
-	expect(
-		sortDiscoveredRows(rows, "oldest").map((row) => recordIdentity(row)),
-	).toEqual([
-		group.groupId,
-		pipeline.run,
-		session.uuid,
-		replay.timestamp,
-		untimed.uuid,
-	]);
-});
-
-function visibleRunIds(): readonly string[] {
-	return within(screen.getByRole("table", { name: "Run history" }))
-		.getAllByRole("row")
-		.slice(1)
-		.map((row) => {
-			const link = within(within(row).getByRole("rowheader")).getByRole("link");
-			return decodeURIComponent(
-				new URL(link.getAttribute("href") ?? "", "http://localhost").pathname
-					.split("/")
-					.at(-1) ?? "",
-			);
-		});
-}
-
-it("sorts records through the URL with missing dates and incomplete costs last", async () => {
-	const newer = "2026-10-10T12-30-00.000Z";
-	const older = "2026-10-01T10-00-00.000Z";
-	const partial = "2026-10-05T11-00-00.000Z";
-	const router = renderAppWithStub(
-		"/?status=failed&query=audit",
-		runHistoryReplies({
-			rows: [
-				{ ...run("legacy", "FAIL"), caseId: undefined },
-				{
-					...run(older, "FAIL"),
-					caseId: "alpha",
-					cost: { state: "available", usd: 5.25, parts: [], missing: [] },
-				},
-				{
-					...run(newer, "FAIL"),
-					caseId: "zeta",
-					cost: { state: "available", usd: 2.1, parts: [], missing: [] },
-				},
-				{
-					...run(partial, "FAIL"),
-					caseId: "gamma",
-					cost: {
-						state: "available",
-						usd: 100,
-						parts: [],
-						missing: [{ part: "worker", reason: "metrics missing" }],
-					},
-				},
-			],
-			launches: [],
-			unreadable: [],
-		}),
-	);
-	await screen.findByRole("table", { name: "Run history" });
-	expect(visibleRunIds()).toEqual([newer, partial, older, "legacy"]);
-	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
-		target: { value: "oldest" },
-	});
-	await waitFor(() => {
-		expect(visibleRunIds()).toEqual([older, partial, newer, "legacy"]);
-	});
-	expect(router.state.location.search).toMatchObject({
-		status: "failed",
-		query: "audit",
-		sort: "oldest",
-	});
-	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
-		target: { value: "cost" },
-	});
-	await waitFor(() => {
-		expect(visibleRunIds()).toEqual([older, newer, partial, "legacy"]);
-	});
-	expect(
-		screen.getByText(
-			"Cost sorting uses complete reported amounts; partial and missing costs come last.",
-		),
-	).toBeInTheDocument();
-	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
-		target: { value: "case" },
-	});
-	await waitFor(() => {
-		expect(visibleRunIds()).toEqual([older, partial, newer, "legacy"]);
-	});
-});
-
-it("keeps active launches separate and ended launch history accessible with consistent counts", async () => {
-	const launch = {
-		kind: "launch",
-		target: "case",
-		caseId: "audit",
-		run: undefined,
-		stage: undefined,
-		attempts: 1,
-		launchedAt: "2026-10-10T12:00:00.000Z",
-	} as const;
-	renderAppWithStub(
-		"/",
-		runHistoryReplies({
-			rows: [run("saved", "PASS")],
-			launches: [
-				{ ...launch, id: "active-launch", status: "RUNNING" },
-				{ ...launch, id: "ended-launch", status: "OPERATOR_STOPPED" },
-			],
-			unreadable: [],
-		}),
-	);
-	const records = await screen.findByRole("table", { name: "Run history" });
-	expect(within(records).getAllByRole("row")).toHaveLength(2);
-	expect(within(records).queryByText(/launch /u)).not.toBeInTheDocument();
-	expect(
-		screen.getByRole("table", { name: "Active launch queue" }),
-	).toHaveTextContent("launch active-l");
-	expect(screen.getByRole("button", { name: "All 3" })).toBeInTheDocument();
-	expect(
-		screen.getByText(
-			"3 of 3 readable entries match · 1 record · 1 active launch · 1 ended launch",
-		),
-	).toBeInTheDocument();
-	expect(screen.queryByText("launch ended-la")).not.toBeInTheDocument();
-	fireEvent.click(
-		screen.getByRole("button", { name: "Ended launch history (1)" }),
-	);
-	expect(
-		screen.getByRole("table", { name: "Ended launches" }),
-	).toHaveTextContent("launch ended-la");
-	fireEvent.click(screen.getByRole("button", { name: "Ended" }));
-	await waitFor(() => {
-		expect(
-			screen.queryByRole("table", { name: "Active launch queue" }),
-		).not.toBeInTheDocument();
-	});
-	expect(
-		screen.getByText(
-			"2 of 3 readable entries match · 1 record · 0 active launches · 1 ended launch",
-		),
-	).toBeInTheDocument();
-});
-
-it("includes stopped steps only when their recorded grade falls below the run's own minimum", async () => {
-	function stopped(
-		id: string,
-		minimum: string,
-		letter: string,
-		reachesMinimum: boolean,
-	): PipelineRunRow {
-		return {
-			...run(id),
-			status: "STOPPED:build",
-			minimumGrade: { state: "available", letter: minimum },
-			stageGrades: {
-				state: "available",
-				grades: [
-					{
-						stage: "build",
-						status: "stopped",
-						grade: {
-							state: "available",
-							letter,
-							verdict: reachesMinimum ? "STOP" : "CONTINUE",
-							reachesMinimum,
-						},
-					},
-				],
-			},
-		};
-	}
+async function includesStoppedStepsOnlyWhenTheirRecordedGradeFallsBelowTheRunSOwnMinimum(): Promise<void> {
+	const expectedRowCount = 2;
 	renderAppWithStub(
 		"/?status=failed",
 		runHistoryReplies({
+			launches: [],
 			rows: [
-				stopped("below-high-minimum", "A+", "A", false),
-				stopped("above-low-minimum", "D", "C", true),
+				stopped("below-high-minimum", {
+					letter: "A",
+					minimum: "A+",
+					reachesMinimum: false,
+				}),
+				stopped("above-low-minimum", {
+					letter: "C",
+					minimum: "D",
+					reachesMinimum: true,
+				}),
 				{ ...run("unjudged-stop"), status: "STOPPED:build" },
 				{
-					...stopped("missing-minimum", "A+", "A", false),
+					...stopped("missing-minimum", {
+						letter: "A",
+						minimum: "A+",
+						reachesMinimum: false,
+					}),
 					minimumGrade: UNREAD_RUN_FIGURES.minimumGrade,
 				},
 			],
-			launches: [],
 			unreadable: [],
 		}),
 	);
 	const table = await screen.findByRole("table", { name: "Run history" });
-	expect(within(table).getAllByRole("row")).toHaveLength(2);
+	expect(within(table).getAllByRole("row")).toHaveLength(expectedRowCount);
 	expect(within(table).getByText("below-high-minimum")).toBeInTheDocument();
-});
+}
 
-it("finds failed stage and session groups without classifying unjudged errors as quality failures", async () => {
-	function group(
-		groupId: string,
-		mode: "stage" | "session",
-		qualityFailures: number,
-	): ConfirmationGroupRow {
-		return {
-			...UNREAD_GROUP_FIGURES,
-			kind: "group",
-			recordId: `group:${groupId}`,
-			groupId,
-			shortId: undefined,
-			caseId: "audit",
-			mode,
-			reps: 2,
-			corpusVersion: undefined,
-			staleness: run("scope").staleness,
-			checkpoint: undefined,
-			repAttempts: [],
-			links: [],
-			finalOutcomes: { NOT_APPLICABLE: 2 },
-			qualityFailures,
-		};
-	}
+async function findsFailedStageAndSessionGroupsWithoutClassifyingUnjudgedErrorsAsQualityFailures(): Promise<void> {
+	const expectedRowCount = 3;
 	renderAppWithStub(
 		"/?status=failed&kind=group",
 		runHistoryReplies({
-			rows: [
-				group("stage-failure", "stage", 1),
-				group("checks-failure", "session", 1),
-				group("missing-judgment", "stage", 0),
-			],
 			launches: [],
+			rows: [
+				group("stage-failure", "stage", QUALITY_FAILURE_COUNT),
+				group("checks-failure", "session", QUALITY_FAILURE_COUNT),
+				group("missing-judgment", "stage", NO_QUALITY_FAILURES),
+			],
 			unreadable: [],
 		}),
 	);
 	const table = await screen.findByRole("table", { name: "Run history" });
-	expect(within(table).getAllByRole("row")).toHaveLength(3);
+	expect(within(table).getAllByRole("row")).toHaveLength(expectedRowCount);
 	expect(within(table).getByText("stage-failure")).toBeInTheDocument();
 	expect(within(table).getByText("checks-failure")).toBeInTheDocument();
 	expect(within(table).queryByText("missing-judgment")).not.toBeInTheDocument();
+}
+
+describe("discovering saved runs and attempts", () => {
+	it.each([
+		["SUCCESSFUL", false, true],
+		["UNSUCCESSFUL", true, false],
+		["NO_REPLY", false, false],
+		["EXECUTION_FAILED", false, false],
+	] as const)(
+		"separates session %s quality from execution gaps",
+		classifiesSessionQuality,
+	);
+	it.each([
+		["STOP", true, false],
+		["CONTINUE", false, true],
+	] as const)(
+		"classifies replay %s from its recorded verdict",
+		classifiesReplayQuality,
+	);
+	it(
+		"includes stopped steps only when their recorded grade falls below the run's own minimum",
+		includesStoppedStepsOnlyWhenTheirRecordedGradeFallsBelowTheRunSOwnMinimum,
+	);
+	it(
+		"finds failed stage and session groups without classifying unjudged errors as quality failures",
+		findsFailedStageAndSessionGroupsWithoutClassifyingUnjudgedErrorsAsQualityFailures,
+	);
 });
+
+function classifiesSessionQuality(
+	status: SessionAttemptRow["status"],
+	failed: boolean,
+	passed: boolean,
+): void {
+	const row: SessionAttemptRow = {
+		...UNREAD_SESSION_ATTEMPT_FIGURES,
+		caseId: "case",
+		corpusVersion: undefined,
+		kind: "session-attempt",
+		links: [],
+		recordId: "attempt:session:case:uuid",
+		shortId: undefined,
+		staleness: run("reference").staleness,
+		status,
+		uuid: "uuid",
+	};
+
+	expect(matchesDiscovery(row, { status: "failed" })).toBe(failed);
+	expect(matchesDiscovery(row, { status: "passed" })).toBe(passed);
+	expect(matchesDiscovery(row, { status: "ended" })).toBe(true);
+}
+
+function classifiesReplayQuality(
+	status: ReplayRow["status"],
+	failed: boolean,
+	passed: boolean,
+): void {
+	const row: ReplayRow = {
+		...UNREAD_REPLAY_FIGURES,
+		attempt: undefined,
+		caseId: "case",
+		checkpointShortId: undefined,
+		corpusVersion: undefined,
+		grade: "C",
+		kind: "replay",
+		lineage: "lineage",
+		links: [],
+		recordId: "attempt:stage:lineage:timestamp",
+		shortId: undefined,
+		stage: "build",
+		staleness: run("reference").staleness,
+		status,
+		timestamp: "timestamp",
+	};
+
+	expect(matchesDiscovery(row, { status: "failed" })).toBe(failed);
+	expect(matchesDiscovery(row, { status: "passed" })).toBe(passed);
+}

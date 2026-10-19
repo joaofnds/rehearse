@@ -1,10 +1,9 @@
 import type { InferResponseType } from "hono/client";
-import { apiClient } from "#client/api-client";
-import { refusalReason } from "#client/refusal-reason";
 
-export type CorpusResponse = InferResponseType<
-	typeof apiClient.api.corpus.$get
->;
+import { apiClient } from "#client/api-client";
+import refusalReason from "#client/refusal-reason";
+
+type CorpusResponse = InferResponseType<typeof apiClient.api.corpus.$get>;
 
 async function fetchCorpusReport(): Promise<CorpusResponse> {
 	const response = await apiClient.api.corpus.$get();
@@ -14,16 +13,16 @@ async function fetchCorpusReport(): Promise<CorpusResponse> {
 		);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /**
  * The full corpus report for the corpus screen. Sidebar readers use the
  * summary below; both share the corpus invalidation prefix.
  */
-export const corpusQuery = {
-	queryKey: ["corpus"],
+const corpusQuery = {
 	queryFn: fetchCorpusReport,
+	queryKey: ["corpus"],
 } as const;
 
 async function fetchCorpusSummary(): Promise<
@@ -36,11 +35,14 @@ async function fetchCorpusSummary(): Promise<
 		);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /** Shares invalidation with the full report without computing record usage for the sidebar. */
-export const corpusSummaryQuery = {
-	queryKey: [...corpusQuery.queryKey, "summary"],
+const corpusSummaryQuery = {
 	queryFn: fetchCorpusSummary,
+	queryKey: [...corpusQuery.queryKey, "summary"],
 } as const;
+
+export { corpusQuery, corpusSummaryQuery };
+export type { CorpusResponse };

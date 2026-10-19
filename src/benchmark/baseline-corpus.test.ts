@@ -1,12 +1,15 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	deriveBaselineCorpus,
 	needsComparisonManifest,
 } from "./baseline-corpus";
 
+const SHA256_HEX_DIGITS = 64;
+
 const shared = {
-	"CLAUDE.md": "c".repeat(64),
-	"skills/review/SKILL.md": "r".repeat(64),
+	"CLAUDE.md": "c".repeat(SHA256_HEX_DIGITS),
+	"skills/review/SKILL.md": "r".repeat(SHA256_HEX_DIGITS),
 };
 
 function corpus(
@@ -15,79 +18,111 @@ function corpus(
 	return new Map(Object.entries(files));
 }
 
-describe(deriveBaselineCorpus.name, () => {
-	it("removes the whole skill under test from arm A when the arms differ in one skill", () => {
+const deriveBaselineCorpusRemovesTheWholeSkillUnderTestFromArmAWhenTheArmsDifferInOne =
+	(): void => {
 		const derived = deriveBaselineCorpus(
 			corpus({
 				...shared,
-				"skills/build/SKILL.md": "a".repeat(64),
-				"skills/build/reference.md": "b".repeat(64),
+				"skills/build/SKILL.md": "a".repeat(SHA256_HEX_DIGITS),
+				"skills/build/reference.md": "b".repeat(SHA256_HEX_DIGITS),
 			}),
 			corpus({
 				...shared,
-				"skills/build/SKILL.md": "d".repeat(64),
-				"skills/build/reference.md": "b".repeat(64),
+				"skills/build/SKILL.md": "d".repeat(SHA256_HEX_DIGITS),
+				"skills/build/reference.md": "b".repeat(SHA256_HEX_DIGITS),
 			}),
 		);
 
 		expect(derived).toEqual({
+			files: corpus(shared),
 			kind: "derived",
 			skillUnderTest: "skills/build/",
-			files: corpus(shared),
 		});
-	});
+	};
 
-	it("runs arm A's own corpus when the skill under test is new in arm B", () => {
+const deriveBaselineCorpusRunsArmAsOwnCorpusWhenTheSkillUnderTestIsNewInArmB =
+	(): void => {
 		const derived = deriveBaselineCorpus(
 			corpus(shared),
-			corpus({ ...shared, "skills/build/SKILL.md": "d".repeat(64) }),
-		);
-
-		expect(derived).toEqual({
-			kind: "armA",
-			skillUnderTest: "skills/build/",
-			files: corpus(shared),
-		});
-	});
-
-	it("refuses identical arms", () => {
-		expect(deriveBaselineCorpus(corpus(shared), corpus(shared))).toEqual({
-			kind: "refused",
-			reason: "arms A and B hold identical corpora, so nothing is under test",
-			differingUnits: [],
-		});
-	});
-
-	it("refuses and names every unit when the arms differ in more than one", () => {
-		const derived = deriveBaselineCorpus(
-			corpus({ ...shared, "skills/build/SKILL.md": "a".repeat(64) }),
 			corpus({
 				...shared,
-				"skills/build/SKILL.md": "d".repeat(64),
-				"agents/helper.md": "h".repeat(64),
+				"skills/build/SKILL.md": "d".repeat(SHA256_HEX_DIGITS),
 			}),
 		);
 
 		expect(derived).toEqual({
-			kind: "refused",
-			reason: "arms A and B differ in more than one corpus unit",
-			differingUnits: ["agents/helper.md", "skills/build/"],
+			files: corpus(shared),
+			kind: "armA",
+			skillUnderTest: "skills/build/",
 		});
-	});
+	};
 
-	it("refuses a differing unit that is not a skill, which needs a manifest-supplied control", () => {
+const deriveBaselineCorpusRefusesIdenticalArms = (): void => {
+	expect(deriveBaselineCorpus(corpus(shared), corpus(shared))).toEqual({
+		differingUnits: [],
+		kind: "refused",
+		reason: "arms A and B hold identical corpora, so nothing is under test",
+	});
+};
+
+const deriveBaselineCorpusRefusesAndNamesEveryUnitWhenTheArmsDifferInMoreThanOne =
+	(): void => {
 		const derived = deriveBaselineCorpus(
-			corpus(shared),
-			corpus({ ...shared, "CLAUDE.md": "e".repeat(64) }),
+			corpus({
+				...shared,
+				"skills/build/SKILL.md": "a".repeat(SHA256_HEX_DIGITS),
+			}),
+			corpus({
+				...shared,
+				"agents/helper.md": "h".repeat(SHA256_HEX_DIGITS),
+				"skills/build/SKILL.md": "d".repeat(SHA256_HEX_DIGITS),
+			}),
 		);
 
 		expect(derived).toEqual({
+			differingUnits: ["agents/helper.md", "skills/build/"],
+			kind: "refused",
+			reason: "arms A and B differ in more than one corpus unit",
+		});
+	};
+
+const deriveBaselineCorpusRefusesADifferingUnitThatIsNotASkillWhichNeedsAManifestsuppliedControl =
+	(): void => {
+		const derived = deriveBaselineCorpus(
+			corpus(shared),
+			corpus({ ...shared, "CLAUDE.md": "e".repeat(SHA256_HEX_DIGITS) }),
+		);
+
+		expect(derived).toEqual({
+			differingUnits: ["CLAUDE.md"],
 			kind: "refused",
 			reason:
 				"the arms differ in CLAUDE.md, which is not a skill; supply the control through a comparison manifest",
-			differingUnits: ["CLAUDE.md"],
 		});
-	});
+	};
+
+describe(deriveBaselineCorpus.name, () => {
+	it(
+		"removes the whole skill under test from arm A when the arms differ in one skill",
+		deriveBaselineCorpusRemovesTheWholeSkillUnderTestFromArmAWhenTheArmsDifferInOne,
+	);
+
+	it(
+		"runs arm A's own corpus when the skill under test is new in arm B",
+		deriveBaselineCorpusRunsArmAsOwnCorpusWhenTheSkillUnderTestIsNewInArmB,
+	);
+
+	it("refuses identical arms", deriveBaselineCorpusRefusesIdenticalArms);
+
+	it(
+		"refuses and names every unit when the arms differ in more than one",
+		deriveBaselineCorpusRefusesAndNamesEveryUnitWhenTheArmsDifferInMoreThanOne,
+	);
+
+	it(
+		"refuses a differing unit that is not a skill, which needs a manifest-supplied control",
+		deriveBaselineCorpusRefusesADifferingUnitThatIsNotASkillWhichNeedsAManifestsuppliedControl,
+	);
 });
 
 describe(needsComparisonManifest.name, () => {

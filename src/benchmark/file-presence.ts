@@ -1,13 +1,17 @@
 import type { Stats } from "node:fs";
 import { lstat, readdir, rm, stat } from "node:fs/promises";
 
+import serialMap from "./serial-map";
+
+const REMOVAL_PASS_NUMBER_BASE = 1;
+
 /**
  * Only a missing path may read as absent; any other failure (EACCES, EIO) must
  * surface. Reading a permission failure as absence would let a checkpoint
  * record partial state as truth and would refuse an unreadable corpus source
  * for a reason that is not the one it failed for.
  */
-export async function statIfExists(path: string): Promise<Stats | undefined> {
+async function statIfExists(path: string): Promise<Stats | undefined> {
 	try {
 		return await stat(path);
 	} catch (error) {
@@ -26,7 +30,7 @@ export async function statIfExists(path: string): Promise<Stats | undefined> {
  * refuses them, so reading that refusal as absence would drop a real file from
  * a lineage that then reports itself complete.
  */
-export async function lstatIfPresent(path: string): Promise<Stats | undefined> {
+async function lstatIfPresent(path: string): Promise<Stats | undefined> {
 	try {
 		return await lstat(path);
 	} catch (error) {
@@ -39,9 +43,7 @@ export async function lstatIfPresent(path: string): Promise<Stats | undefined> {
 }
 
 /** The same rule as `statIfExists`, for a directory's entry names. */
-export async function readdirIfPresent(
-	path: string,
-): Promise<string[] | undefined> {
+async function readdirIfPresent(path: string): Promise<string[] | undefined> {
 	try {
 		return await readdir(path);
 	} catch (error) {
@@ -54,7 +56,7 @@ export async function readdirIfPresent(
 }
 
 /** The same rule as `statIfExists`, for a file's text. */
-export async function textIfPresent(path: string): Promise<string | undefined> {
+async function textIfPresent(path: string): Promise<string | undefined> {
 	try {
 		return await Bun.file(path).text();
 	} catch (error) {
@@ -66,7 +68,7 @@ export async function textIfPresent(path: string): Promise<string | undefined> {
 	}
 }
 
-export async function pathExists(path: string): Promise<boolean> {
+async function pathExists(path: string): Promise<boolean> {
 	return (await statIfExists(path)) !== undefined;
 }
 
@@ -81,13 +83,19 @@ const REMOVAL_BACKOFF_MS = 50;
  * resolves at once too, so each waits longer than the last. The passes are
  * bounded so a tree that something keeps refilling fails rather than spins.
  */
-export async function removeUntilAbsent(path: string): Promise<void> {
-	for (let pass = 0; pass < REMOVAL_PASSES; pass += 1) {
-		await rm(path, { force: true, recursive: true });
-		if (!(await pathExists(path))) {
+async function removeUntilAbsent(path: string): Promise<void> {
+	for await (const inspection of serialMap(
+		Array.from({ length: REMOVAL_PASSES }, (_value, index) => index).values(),
+		async (pass) => {
+			await rm(path, { force: true, recursive: true });
+			return { pass, present: await pathExists(path) };
+		},
+	)) {
+		const { pass, present } = inspection;
+		if (!present) {
 			return;
 		}
-		await Bun.sleep(REMOVAL_BACKOFF_MS * (pass + 1));
+		await Bun.sleep(REMOVAL_BACKOFF_MS * (pass + REMOVAL_PASS_NUMBER_BASE));
 	}
 
 	throw new Error(
@@ -126,9 +134,9 @@ const REFUSED_READ_REASONS = new Map([
  * path: a recursive listing fails on the entry that broke it, never on the
  * directory it was handed.
  */
-export function refusedEntryReason(
+function refusedEntryReason(
 	error: Readonly<Error>,
-	about: string | undefined,
+	about?: string,
 ): string | undefined {
 	if (!("code" in error)) {
 		return undefined;
@@ -148,12 +156,33 @@ export function refusedEntryReason(
  * `irregular` are states whose meaning is the caller's: a recursive walk skips
  * both, while a declared file refuses them.
  */
-export type ClassifiedEntry =
+type ClassifiedEntry =
 	| { readonly kind: "absent" }
 	| { readonly kind: "file" }
 	| { readonly kind: "directory" }
 	| { readonly kind: "irregular" }
 	| { readonly kind: "refused"; readonly reason: string };
+
+type EntryStatsReading =
+	| { readonly kind: "stats"; readonly stats: Stats | undefined }
+	| { readonly kind: "refused"; readonly reason: string };
+
+async function readEntryStats(
+	path: string,
+	read: (path: string) => Promise<Stats | undefined>,
+): Promise<EntryStatsReading> {
+	try {
+		return { kind: "stats", stats: await read(path) };
+	} catch (error) {
+		const reason =
+			error instanceof Error ? refusedEntryReason(error, path) : undefined;
+		if (reason === undefined) {
+			throw error;
+		}
+
+		return { kind: "refused", reason };
+	}
+}
 
 /**
  * The one place that decides what a path is before anything reads it, so the
@@ -170,35 +199,39 @@ export type ClassifiedEntry =
  * Nothing here opens the path. A pipe with no writer blocks its reader forever,
  * so a report that classified it first returns instead of hanging.
  */
-export async function classifyEntry(path: string): Promise<ClassifiedEntry> {
-	let link: Stats | undefined;
-	try {
-		link = await lstatIfPresent(path);
-	} catch (error) {
-		const reason =
-			error instanceof Error ? refusedEntryReason(error, path) : undefined;
-		if (reason === undefined) {
-			throw error;
-		}
-
-		return { kind: "refused", reason };
+async function classifyEntry(path: string): Promise<ClassifiedEntry> {
+	const linkReading = await readEntryStats(path, lstatIfPresent);
+	if (linkReading.kind === "refused") {
+		return linkReading;
 	}
+	const link = linkReading.stats;
 	if (link === undefined) {
 		return { kind: "absent" };
 	}
 
-	let target: Stats | undefined;
-	try {
-		target = await statIfExists(path);
-	} catch (error) {
-		const reason =
-			error instanceof Error ? refusedEntryReason(error, path) : undefined;
-		if (reason === undefined) {
-			throw error;
-		}
+	const targetReading = await readEntryStats(path, statIfExists);
+	return classifyVisibleTarget({ link, targetReading });
+}
 
-		return { kind: "refused", reason };
+interface VisibleEntryTarget {
+	readonly link: Readonly<Pick<Stats, "isSymbolicLink">>;
+	readonly targetReading:
+		| { readonly kind: "refused"; readonly reason: string }
+		| {
+				readonly kind: "stats";
+				readonly stats:
+					| Readonly<Pick<Stats, "isDirectory" | "isFile">>
+					| undefined;
+		  };
+}
+function classifyVisibleTarget({
+	link,
+	targetReading,
+}: VisibleEntryTarget): ClassifiedEntry {
+	if (targetReading.kind === "refused") {
+		return targetReading;
 	}
+	const target = targetReading.stats;
 	if (target === undefined) {
 		return link.isSymbolicLink()
 			? { kind: "refused", reason: MISSING_TARGET_REASON }
@@ -218,6 +251,19 @@ export async function classifyEntry(path: string): Promise<ClassifiedEntry> {
  * One planted link produces one error type across every surface, so a caller
  * translating it into a refused precondition catches one name.
  */
-export class SymlinkedEntryError extends Error {
+class SymlinkedEntryError extends Error {
 	public override name = "SymlinkedEntryError";
 }
+
+export {
+	statIfExists,
+	lstatIfPresent,
+	readdirIfPresent,
+	textIfPresent,
+	pathExists,
+	removeUntilAbsent,
+	refusedEntryReason,
+	classifyEntry,
+	SymlinkedEntryError,
+};
+export type { ClassifiedEntry };

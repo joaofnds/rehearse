@@ -3,17 +3,22 @@ import { locatorReading } from "#benchmark/record-summary";
 import type { JudgeProgress, RunEvent } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
+
 import type { JudgedGrade } from "./stage-record";
 import { readStageRecord, verifiedStageOfRun } from "./stage-record";
 
-export interface StageJudgeRequest {
+const INITIAL_RUN_EVENT_CURSOR = 0;
+
+const FINAL_RECEIVED_EVENT_OFFSET = -1;
+
+interface StageJudgeRequest {
 	readonly runsDirectory: string;
 	readonly run: string;
 	readonly stage: string;
 }
 
 /** One piece of evidence a judged item cites, its place read as a sentence. */
-export interface JudgedEvidence {
+interface JudgedEvidence {
 	readonly source: RecordedStageEvidence["source"];
 	readonly path: string;
 	readonly claim: string;
@@ -21,13 +26,13 @@ export interface JudgedEvidence {
 	readonly place?: string;
 }
 
-export interface JudgedBlocker {
+interface JudgedBlocker {
 	readonly id: string;
 	readonly status: JudgedGrade["hardBlockers"][number]["status"];
 	readonly evidence: readonly JudgedEvidence[];
 }
 
-export interface JudgedDimension {
+interface JudgedDimension {
 	readonly id: string;
 	readonly grade: JudgedGrade["dimensions"][number]["grade"];
 	readonly evidence: readonly JudgedEvidence[];
@@ -38,7 +43,7 @@ export interface JudgedDimension {
  * with what its rejected attempts have been charged so far, its recorded
  * blockers and dimensions, or a stage record the judge never graded.
  */
-export type StageJudge =
+type StageJudge =
 	| { readonly state: "waiting" }
 	| {
 			readonly state: "returning";
@@ -56,9 +61,9 @@ function judgedEvidence(
 	evidence: JudgedGrade["hardBlockers"][number]["evidence"],
 ): readonly JudgedEvidence[] {
 	return evidence.map(({ source, path, claim, quote, locator }) => ({
-		source,
-		path,
 		claim,
+		path,
+		source,
 		...(quote !== undefined && { quote }),
 		...(locator !== undefined && { place: locatorReading(locator) }),
 	}));
@@ -66,17 +71,17 @@ function judgedEvidence(
 
 function judgedStage(grade: Immutable<JudgedGrade>): StageJudge {
 	return {
-		state: "judged",
+		dimensions: grade.dimensions.map(({ id, grade: letter, evidence }) => ({
+			evidence: judgedEvidence(evidence),
+			grade: letter,
+			id,
+		})),
 		hardBlockers: grade.hardBlockers.map(({ id, status, evidence }) => ({
+			evidence: judgedEvidence(evidence),
 			id,
 			status,
-			evidence: judgedEvidence(evidence),
 		})),
-		dimensions: grade.dimensions.map(({ id, grade: letter, evidence }) => ({
-			id,
-			grade: letter,
-			evidence: judgedEvidence(evidence),
-		})),
+		state: "judged",
 	};
 }
 
@@ -107,7 +112,7 @@ function returningJudge(events: readonly RunEvent[]): StageJudge {
 	}
 
 	const since = events.slice(judgingAt);
-	const latest = since.at(-1) ?? judging;
+	const latest = since.at(FINAL_RECEIVED_EVENT_OFFSET) ?? judging;
 	const progress = since.findLast(
 		({ kind }) => kind === "judge-progress",
 	)?.judge;
@@ -128,15 +133,15 @@ async function stageEvents(
 	const store = await openRunEventStore(runEventsDatabaseFile(runsDirectory));
 
 	try {
-		return store.eventsSince(run, 0).filter((event) => event.stage === stage);
+		return store
+			.eventsSince(run, INITIAL_RUN_EVENT_CURSOR)
+			.filter((event) => event.stage === stage);
 	} finally {
 		store.close();
 	}
 }
 
-export async function readStageJudge(
-	request: StageJudgeRequest,
-): Promise<StageJudge> {
+async function readStageJudge(request: StageJudgeRequest): Promise<StageJudge> {
 	const stageOfRun = await verifiedStageOfRun(request);
 	const record = await readStageRecord(stageOfRun);
 	if (record.state === "judged") {
@@ -150,3 +155,12 @@ export async function readStageJudge(
 		await stageEvents(request.runsDirectory, stageOfRun.run, stageOfRun.stage),
 	);
 }
+
+export { readStageJudge as default };
+export type {
+	StageJudgeRequest,
+	JudgedEvidence,
+	JudgedBlocker,
+	JudgedDimension,
+	StageJudge,
+};

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { SectionLabel } from "./section-label";
+
+import SectionLabel from "./section-label";
 
 describe(SectionLabel.name, () => {
 	it("renders its children as text", () => {

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
+
 import { armPairNames, armPairs, pairKey } from "./comparison-arm-pair";
 
 describe(pairKey.name, () => {
 	it("builds a PascalCase-subtrahend key from two arm names", () => {
-		expect(pairKey("candidate", "baseline")).toBe("candidateMinusBaseline");
+		expect(pairKey({ minuend: "candidate", subtrahend: "baseline" })).toBe(
+			"candidateMinusBaseline",
+		);
 	});
 });
 

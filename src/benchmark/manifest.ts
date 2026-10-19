@@ -1,12 +1,15 @@
-import { parseRecord } from "./record-parse-cache";
-import { scopedRecordReader } from "./record-read-scope";
 import { z } from "zod";
-import { effortSchema, LEGACY_CASE_ID } from "./config";
+
+import { LEGACY_CASE_ID, effortSchema } from "./config";
+import { localCheckResultSchema, stageLetterGradeSchema } from "./contracts";
+import type { Immutable } from "./contracts";
+import corpusMeasurementSchema from "./corpus-measurement";
 import { pipelineDefinitionSchema } from "./pipeline";
 import type { TargetDefinition } from "./pipeline";
-import { localCheckResultSchema, stageLetterGradeSchema } from "./contracts";
-import { corpusMeasurementSchema } from "./corpus-measurement";
-import type { Immutable } from "./contracts";
+import { parseRecord } from "./record-parse-cache";
+import { scopedRecordReader } from "./record-read-scope";
+
+const RECORD_JSON_INDENT_SPACES = 2;
 
 const LEGACY_TARGET_DEFINITION = {
 	checks: [
@@ -33,27 +36,27 @@ const LEGACY_TARGET_DEFINITION = {
  */
 const runManifestSchema = z
 	.object({
-		caseId: z.string().min(1).optional().default(LEGACY_CASE_ID),
-		timestamp: z.string().min(1),
-		controlSha: z.string().min(1),
-		sourceRoot: z.string().min(1),
-		targetRoot: z.string().min(1).optional(),
-		sourceSha: z.string().min(1),
-		taskId: z.string().min(1),
-		taskSha: z.string().min(1),
-		task: z.string().min(1),
-		productBrief: z.string().min(1),
-		model: z.string().min(1),
-		effort: effortSchema.optional(),
-		judgeModel: z.string().min(1),
-		judgeEffort: effortSchema.optional(),
-		sessionBudgetUsd: z.number().positive(),
-		pipelinePath: z.string().min(1),
-		pipeline: pipelineDefinitionSchema,
 		baselineChecks: localCheckResultSchema.optional(),
-		minimumGrade: stageLetterGradeSchema.optional(),
-		spendCeilingUsd: z.number().positive().optional(),
+		caseId: z.string().nonempty().optional().default(LEGACY_CASE_ID),
+		controlSha: z.string().nonempty(),
 		corpusVersion: corpusMeasurementSchema.optional(),
+		effort: effortSchema.optional(),
+		judgeEffort: effortSchema.optional(),
+		judgeModel: z.string().nonempty(),
+		minimumGrade: stageLetterGradeSchema.optional(),
+		model: z.string().nonempty(),
+		pipeline: pipelineDefinitionSchema,
+		pipelinePath: z.string().nonempty(),
+		productBrief: z.string().nonempty(),
+		sessionBudgetUsd: z.number().positive(),
+		sourceRoot: z.string().nonempty(),
+		sourceSha: z.string().nonempty(),
+		spendCeilingUsd: z.number().positive().optional(),
+		targetRoot: z.string().nonempty().optional(),
+		task: z.string().nonempty(),
+		taskId: z.string().nonempty(),
+		taskSha: z.string().nonempty(),
+		timestamp: z.string().nonempty(),
 	})
 	.strict();
 
@@ -61,23 +64,33 @@ const legacyRunManifestSchema = runManifestSchema.extend({
 	pipeline: pipelineDefinitionSchema.omit({ target: true }),
 });
 
-export type RunManifest = Immutable<z.infer<typeof runManifestSchema>>;
+type RunManifest = Immutable<z.infer<typeof runManifestSchema>>;
 
-export async function writeRunManifest(
+class MissingRunManifestError extends Error {
+	public constructor(public readonly path: string) {
+		super(
+			`No run manifest at ${path}; runs recorded before manifests cannot be replayed`,
+		);
+		this.name = "MissingRunManifestError";
+	}
+}
+
+async function writeRunManifest(
 	path: string,
 	manifest: RunManifest,
 ): Promise<void> {
-	await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`);
+	await Bun.write(
+		path,
+		`${JSON.stringify(manifest, null, RECORD_JSON_INDENT_SPACES)}\n`,
+	);
 }
 
-export const loadRunManifest = scopedRecordReader(
+const loadRunManifest = scopedRecordReader(
 	async (path): Promise<RunManifest> => {
 		const file = Bun.file(path);
 
 		if (!(await file.exists())) {
-			throw new Error(
-				`No run manifest at ${path}; runs recorded before manifests cannot be replayed`,
-			);
+			throw new MissingRunManifestError(path);
 		}
 
 		return parseRunManifest(await file.text());
@@ -98,6 +111,14 @@ const readableRunManifestSchema = z.union([
 	),
 ]);
 
-export function parseRunManifest(text: string): RunManifest {
+function parseRunManifest(text: string): RunManifest {
 	return parseRecord(readableRunManifestSchema, text);
 }
+
+export {
+	MissingRunManifestError,
+	writeRunManifest,
+	loadRunManifest,
+	parseRunManifest,
+};
+export type { RunManifest };

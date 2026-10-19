@@ -1,48 +1,41 @@
-import { createHash, randomUUID } from "node:crypto";
-import { cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeReplayableRunManifest } from "#cli/replay-test-support";
+
+import writeReplayableRunManifest from "#cli/replay-test-support";
+
 import type { ArmGroupRequest } from "./compare-attempts";
+import type {
+	Checkpoint,
+	CorpusFiles,
+	Recording,
+} from "./compare-attempts-group-recording-fixture";
+import RecordedComparisonGroupWriter from "./compare-attempts-group-recording-fixture";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
-import type { ConfirmationMode } from "./confirmation-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
-import { measureCorpusVersion } from "./corpus-version";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
-import { claimShortId } from "./short-id";
-import { z } from "zod";
 
-export const CASE_ID = "build-checkpoint";
-export const RUN = "2026-09-29T10-00-00.000Z";
-export const STAGE = "build";
+const FIXTURE_JSON_INDENT_SPACES = 2;
 
-export interface Checkpoint {
-	readonly run: string;
-	readonly stage: string;
-}
+const CASE_ID = "build-checkpoint";
 
-export const REPLAYED: Checkpoint = { run: RUN, stage: STAGE };
+const RUN = "2026-09-29T10-00-00.000Z";
+
+const STAGE = "build";
+
+const REPLAYED: Checkpoint = { run: RUN, stage: STAGE };
 
 const STAGE_RUBRIC_PATH = "cases/audit-log/rubrics/build.json";
 
 /** The rubric the replayed run's pipeline names for its build stage. */
-export const STAGE_RUBRIC = await Bun.file(STAGE_RUBRIC_PATH).text();
+const STAGE_RUBRIC = await Bun.file(STAGE_RUBRIC_PATH).text();
 
-export function groupIdFor(role: ComparisonArm): string {
+function groupIdFor(role: ComparisonArm): string {
 	return `${CASE_ID}-${role}`;
 }
 
 /** The group an extension adds to the arm, beside the arm's first group. */
-export function moreGroupIdFor(role: ComparisonArm): string {
+function moreGroupIdFor(role: ComparisonArm): string {
 	return `${CASE_ID}-${role}-more`;
-}
-
-export type CorpusFiles = Readonly<Record<string, string>>;
-
-interface Recording {
-	readonly corpus?: CorpusFiles;
-	readonly source?: Checkpoint;
-	readonly mode?: ConfirmationMode;
 }
 
 /**
@@ -52,17 +45,25 @@ interface Recording {
  * extension's runner answers each arm with a second group recorded as the
  * arm's first was, reading in its stage what the first read.
  */
-export class RecordedArms {
+class RecordedArms {
 	public readonly baselineRequests: ArmGroupRequest[] = [];
 	public readonly moreRequests: ArmGroupRequest[] = [];
 	private readonly recordings = new Map<ComparisonArm, Recording>();
+	private readonly groupWriter: RecordedComparisonGroupWriter;
 	private readonly stageReads = new Map<string, string[]>();
 
 	private constructor(
 		public readonly runsDirectory: string,
-		private readonly scratchDirectory: string,
+		scratchDirectory: string,
 		private readonly fixture: ComparisonEvidenceFixture,
-	) {}
+	) {
+		this.groupWriter = new RecordedComparisonGroupWriter({
+			caseId: CASE_ID,
+			rubric: STAGE_RUBRIC,
+			runsDirectory,
+			scratchDirectory,
+		});
+	}
 
 	/**
 	 * Records into `runsDirectory`, beside the manifest of the run its arms
@@ -110,8 +111,8 @@ export class RecordedArms {
 	public async recordPipelineArmA(corpus: CorpusFiles): Promise<string> {
 		await this.recordGroup("baseline", {
 			corpus,
-			source: REPLAYED,
 			mode: "pipeline",
+			source: REPLAYED,
 		});
 
 		return groupIdFor("baseline");
@@ -154,44 +155,7 @@ export class RecordedArms {
 		);
 		await Bun.write(
 			groupFile,
-			`${JSON.stringify({ ...group, inputs: { ...group.inputs, files: [...group.inputs.files, read] } }, null, 2)}\n`,
-		);
-	}
-
-	/** Rewrites a recorded arm's worker model, a controlled input. */
-	public async useModel(groupId: string, model: string): Promise<void> {
-		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
-		const group = confirmationGroupRecordSchema.parse(
-			JSON.parse(await Bun.file(groupFile).text()),
-		);
-		await Bun.write(
-			groupFile,
-			`${JSON.stringify({ ...group, inputs: { ...group.inputs, model } }, null, 2)}\n`,
-		);
-	}
-
-	/** Rewrites the rubric a recorded arm froze, as a real rubric file holds it. */
-	public async freezeRubric(groupId: string, content: string): Promise<void> {
-		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
-		const group = confirmationGroupRecordSchema.parse(
-			JSON.parse(await Bun.file(groupFile).text()),
-		);
-		const files = await Promise.all(
-			group.inputs.files.map(async (file) => {
-				if (file.kind !== "rubric") {
-					return file;
-				}
-				await Bun.write(join(dirname(groupFile), file.path), content);
-
-				return {
-					...file,
-					sha256: createHash("sha256").update(content).digest("hex"),
-				};
-			}),
-		);
-		await Bun.write(
-			groupFile,
-			`${JSON.stringify({ ...group, inputs: { ...group.inputs, files } }, null, 2)}\n`,
+			`${JSON.stringify({ ...group, inputs: { ...group.inputs, files: [...group.inputs.files, read] } }, null, FIXTURE_JSON_INDENT_SPACES)}\n`,
 		);
 	}
 
@@ -203,54 +167,6 @@ export class RecordedArms {
 			manifestFile,
 			manifest.replaceAll(`"${STAGE_RUBRIC_PATH}"`, `"${rubric}"`),
 		);
-	}
-
-	/** Points a recorded arm at a corpus version the store never recorded. */
-	public async useUnrecordedCorpusVersion(groupId: string): Promise<void> {
-		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
-		const group = confirmationGroupRecordSchema.parse(
-			JSON.parse(await Bun.file(groupFile).text()),
-		);
-		await Bun.write(
-			groupFile,
-			`${JSON.stringify({ ...group, inputs: { ...group.inputs, corpusVersion: { kind: "version", digest: "0".repeat(64) } } }, null, 2)}\n`,
-		);
-	}
-
-	/**
-	 * Records that the provider reported no metrics for the arm's first
-	 * attempt, which a successful attempt cannot lack.
-	 */
-	public async loseFirstAttemptMetrics(groupId: string): Promise<void> {
-		const { recordFile } = confirmationGroupPaths(
-			this.runsDirectory,
-			groupId,
-		).rep(`${groupId}-rep-1`);
-		const rep = z
-			.looseObject({})
-			.parse(JSON.parse(await Bun.file(recordFile).text()));
-		await Bun.write(
-			recordFile,
-			`${JSON.stringify(
-				{
-					...rep,
-					outcome: "UNSUCCESSFUL",
-					metrics: {
-						status: "MISSING",
-						calls: [],
-						missing: ["worker.costUsd"],
-					},
-				},
-				null,
-				2,
-			)}\n`,
-		);
-	}
-
-	/** Overwrites a recorded arm's group file with a record of another shape. */
-	public async corruptGroup(groupId: string): Promise<void> {
-		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
-		await Bun.write(groupFile, "{}\n");
 	}
 
 	public readonly runBaselineGroup = async (
@@ -269,15 +185,17 @@ export class RecordedArms {
 	): Promise<string> => {
 		this.moreRequests.push(request);
 		const groupId = await this.fixture.addGroup(CASE_ID, request.role);
-		await this.copyGroup(
+		await this.groupWriter.copyGroup({
+			fixtureGroupFile: this.fixture.groupFileOf(groupId),
 			groupId,
-			this.fixture.groupFileOf(groupId),
-			this.recordings.get(request.role) ?? {},
+			recording: this.recordings.get(request.role) ?? {},
+		});
+		await Array.fromAsync(
+			this.stageReads.get(groupIdFor(request.role)) ?? [],
+			async (layoutPath) => {
+				await this.readInStage(groupId, layoutPath);
+			},
 		);
-		for (const layoutPath of this.stageReads.get(groupIdFor(request.role)) ??
-			[]) {
-			await this.readInStage(groupId, layoutPath);
-		}
 
 		return groupId;
 	};
@@ -287,68 +205,21 @@ export class RecordedArms {
 		recording: Recording,
 	): Promise<void> {
 		this.recordings.set(role, recording);
-		await this.copyGroup(
-			groupIdFor(role),
-			this.fixture.groupFile(CASE_ID, role),
+		await this.groupWriter.copyGroup({
+			fixtureGroupFile: this.fixture.groupFile(CASE_ID, role),
+			groupId: groupIdFor(role),
 			recording,
-		);
-	}
-
-	private async copyGroup(
-		groupId: string,
-		fixtureGroupFile: string,
-		recording: Recording,
-	): Promise<void> {
-		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
-		await mkdir(dirname(paths.directory), { recursive: true });
-		await cp(dirname(fixtureGroupFile), paths.directory, {
-			recursive: true,
 		});
-		const group = confirmationGroupRecordSchema.parse(
-			JSON.parse(await Bun.file(paths.groupFile).text()),
-		);
-		const corpusVersion =
-			recording.corpus === undefined
-				? undefined
-				: await this.measure(recording.corpus);
-		await Bun.write(
-			paths.groupFile,
-			`${JSON.stringify(
-				{
-					...group,
-					mode: recording.mode ?? group.mode,
-					inputs: { ...group.inputs, corpusVersion },
-				},
-				null,
-				2,
-			)}\n`,
-		);
-		await this.freezeRubric(groupId, STAGE_RUBRIC);
-		await claimShortId(
-			this.runsDirectory,
-			CASE_ID,
-			recording.source === undefined
-				? { kind: "group", groupId }
-				: { kind: "group", groupId, source: recording.source },
-		);
-	}
-
-	private async measure(
-		corpus: CorpusFiles,
-	): Promise<{ readonly kind: "version"; readonly digest: string }> {
-		const root = join(this.scratchDirectory, "corpora", randomUUID());
-		for (const [path, content] of Object.entries(corpus)) {
-			await mkdir(dirname(join(root, path)), { recursive: true });
-			await Bun.write(join(root, path), content);
-		}
-		const measurement = await measureCorpusVersion(this.runsDirectory, {
-			kind: "directory",
-			root,
-		});
-		if (measurement.kind !== "version") {
-			throw new Error(`Expected a corpus version: ${measurement.refusal}`);
-		}
-
-		return measurement;
 	}
 }
+
+export {
+	CASE_ID,
+	groupIdFor,
+	moreGroupIdFor,
+	RecordedArms,
+	REPLAYED,
+	RUN,
+	STAGE,
+	STAGE_RUBRIC,
+};

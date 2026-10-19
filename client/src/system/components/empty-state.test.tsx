@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { EmptyState } from "./empty-state";
+
+import EmptyState from "./empty-state";
 
 describe(EmptyState.name, () => {
 	it("renders its heading and its children as the body", () => {

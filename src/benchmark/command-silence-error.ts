@@ -1,4 +1,4 @@
-export class CommandSilenceError extends Error {
+class CommandSilenceError extends Error {
 	public override name = "CommandSilenceError";
 
 	public constructor(
@@ -11,3 +11,5 @@ export class CommandSilenceError extends Error {
 		);
 	}
 }
+
+export { CommandSilenceError as default };

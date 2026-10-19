@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
+
 import type { SessionCase } from "./case";
 import { hashDirectory, lineageKey } from "./checkpoint";
+import type { HashedFile } from "./checkpoint";
 import type { SessionSettings } from "./claude";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import type { JsonValue } from "./json-value";
 import { jsonArraySchema, jsonObjectSchema } from "./json-value";
 import { scorerFiles } from "./session-state-check";
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 /**
  * `lineageKey` hashes upstream, corpus files, model, effort, and a stage
@@ -36,23 +40,25 @@ import { scorerFiles } from "./session-state-check";
  * different experiment and must not share a lineage. The key is left out when
  * nothing is withheld, since those sessions saw the same tree as before.
  */
-export async function sessionUpstreamDigest(
+async function sessionUpstreamDigest(
 	sessionCase: SessionCase,
 ): Promise<string> {
 	const { declaration, fixturePath } = sessionCase;
 
-	const hashed = {
-		transcript: declaration.transcript?.sha256 ?? null,
-		fixture:
+	const hashed = Object.fromEntries<JsonValue | readonly HashedFile[]>([
+		["transcript", declaration.transcript?.sha256 ?? null],
+		[
+			"fixture",
 			fixturePath === undefined
 				? null
 				: await hashDirectory(fixturePath, "", { rootMayBeALink: false }),
-		prompt: sessionCase.prompt,
-		tools: sessionCase.tools,
-		settings: canonicalSettings(sessionCase) ?? null,
-		agents: sessionCase.agents ?? null,
-		projectFiles: sessionCase.projectFiles,
-	};
+		],
+		["prompt", sessionCase.prompt],
+		["tools", sessionCase.tools],
+		["settings", canonicalSettings(sessionCase) ?? null],
+		["agents", sessionCase.agents ?? null],
+		["projectFiles", sessionCase.projectFiles],
+	]);
 
 	const withheldScorer =
 		fixturePath === undefined || sessionCase.stateCheck === undefined
@@ -64,7 +70,9 @@ export async function sessionUpstreamDigest(
 			? hashed
 			: { ...hashed, stateCheck: sessionCase.stateCheck };
 	const upstream =
-		withheldScorer.length === 0 ? graded : { ...graded, withheldScorer };
+		withheldScorer.length === EMPTY_COLLECTION_LENGTH
+			? graded
+			: { ...graded, withheldScorer };
 
 	return createHash("sha256").update(JSON.stringify(upstream)).digest("hex");
 }
@@ -78,7 +86,7 @@ export async function sessionUpstreamDigest(
  * member a value is comes from parsing it rather than from a `typeof` on its
  * representation.
  */
-export function orderedForHashing(value: JsonValue): JsonValue {
+function orderedForHashing(value: JsonValue): JsonValue {
 	const array = jsonArraySchema.safeParse(value);
 	if (array.success) {
 		return array.data.map((element) => orderedForHashing(element));
@@ -105,9 +113,7 @@ export function orderedForHashing(value: JsonValue): JsonValue {
  * input with no per-file digest of its own, so without this an operator reading
  * two records sees the lineage differ and nothing that names the reason.
  */
-export function sessionSettingsDigest(
-	sessionCase: SessionCase,
-): string | undefined {
+function sessionSettingsDigest(sessionCase: SessionCase): string | undefined {
 	const settings = canonicalSettings(sessionCase);
 
 	return settings === undefined
@@ -128,15 +134,22 @@ function canonicalSettings(sessionCase: SessionCase): JsonValue | undefined {
 		: orderedForHashing(sessionCase.settings);
 }
 
-export async function sessionLineage(
+async function sessionLineage(
 	sessionCase: SessionCase,
 	corpusFiles: readonly ResolvedCorpusFile[],
 	settings: SessionSettings,
 ): Promise<string> {
 	return lineageKey({
-		upstream: await sessionUpstreamDigest(sessionCase),
 		corpusFiles: corpusFiles.map(({ path, sha256 }) => ({ path, sha256 })),
-		model: settings.model,
 		effort: settings.effort,
+		model: settings.model,
+		upstream: await sessionUpstreamDigest(sessionCase),
 	});
 }
+
+export {
+	sessionUpstreamDigest,
+	orderedForHashing,
+	sessionSettingsDigest,
+	sessionLineage,
+};

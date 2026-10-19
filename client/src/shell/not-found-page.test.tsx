@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
+
 import { screen, waitFor } from "@testing-library/react";
+
 import { renderAppWithStub } from "#client/test-support/render-app";
 
 const originalFetch = globalThis.fetch;

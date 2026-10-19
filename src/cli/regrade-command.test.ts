@@ -1,58 +1,56 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, it } from "bun:test";
+
 import type { LoadedCase, SessionCase } from "#benchmark/case";
 import { CaseDeclarationError } from "#benchmark/case";
+import type { Immutable } from "#benchmark/contracts";
 import { asRefusedPrecondition } from "#benchmark/preflight";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import { parseAssessment } from "#benchmark/session-regrade";
-import { failureOf, recordOutput } from "#cli/cli-test-support";
+import {
+	CliTestWorkspace,
+	failureOf,
+	recordOutput,
+} from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
-import { runRegrade } from "#cli/regrade-command";
+import type { RegradeRequest } from "#cli/regrade-command";
+import runRegrade from "#cli/regrade-command";
+
+import { SessionCaseBuilder } from "./session-case-test-fixture";
+
+const workspace = CliTestWorkspace.forEachTest();
 
 const ATTEMPT = { caseId: "smoke", uuid: "uuid-1" };
 
-const roots: string[] = [];
-
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-	);
-});
-
 async function runsDirectory(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-regrade-cli-"));
-	roots.push(root);
-
-	return root;
+	return await workspace.createDirectory("rehearse-regrade-cli-");
 }
 
-function sessionCase(max: number): SessionCase {
-	const checks = [{ kind: "word-band" as const, max }];
-
-	return {
-		kind: "session",
-		declaration: {
-			kind: "session",
-			id: "smoke",
-			title: "smoke",
-			prompt: "write the reply",
-			tools: [],
-			corpusFiles: ["CLAUDE.md"],
-			projectFiles: [],
-			checks,
-		},
-		fixturePath: undefined,
-		transcriptPath: undefined,
-		prompt: "write the reply",
-		tools: [],
-		settings: undefined,
-		agents: undefined,
+const CORRECTED_CHECKS: SessionCase["checks"] = [{ kind: "word-band", max: 2 }];
+const correctedSessionCase = new SessionCaseBuilder({
+	checks: CORRECTED_CHECKS,
+	corpusFiles: ["CLAUDE.md"],
+	declaration: {
+		...new SessionCaseBuilder().build().declaration,
+		checks: CORRECTED_CHECKS,
 		corpusFiles: ["CLAUDE.md"],
-		projectFiles: [],
-		checks,
-	};
+		prompt: "write the reply",
+		title: "smoke",
+	},
+	prompt: "write the reply",
+}).build();
+
+class RegradeRequestBuilder {
+	public constructor(
+		private readonly overrides: Immutable<Partial<RegradeRequest>> = {},
+	) {}
+	public build(): RegradeRequest {
+		return {
+			id: "attempt:session:smoke/uuid-1",
+			json: false,
+			runsDirectory: "/runs",
+			...this.overrides,
+		};
+	}
 }
 
 async function savedAttempt(directory: string): Promise<void> {
@@ -60,137 +58,138 @@ async function savedAttempt(directory: string): Promise<void> {
 	await Bun.write(
 		paths.recordFile,
 		`${JSON.stringify({
-			schemaVersion: 3,
 			caseId: "smoke",
+			checks: [{ detail: "3 words", kind: "word-band", status: "PASS" }],
+			corpusFiles: [],
+			elapsedMs: 1000,
 			lineage: "session-lineage",
 			model: "sonnet",
-			sessionBudgetUsd: 2,
-			corpusFiles: [],
+			outcome: "SUCCESSFUL",
 			prompt: "write the reply",
 			reply: "one two three",
+			schemaVersion: 3,
+			sessionBudgetUsd: 2,
 			transcriptFile: "transcript.jsonl",
-			outcome: "SUCCESSFUL",
-			checks: [{ kind: "word-band", status: "PASS", detail: "3 words" }],
-			elapsedMs: 1000,
 		})}\n`,
 	);
 }
 
-/**
- * A clock the command reads for the pass's timestamp, so the file a test
- * looks for is the file the command wrote.
- */
 function clockAt(timestamp: string): () => string {
 	return () => timestamp;
 }
 
-describe(runRegrade.name, () => {
-	it("writes an assessment reflecting the case's corrected check", async () => {
-		const directory = await runsDirectory();
-		await savedAttempt(directory);
-		const recorder = recordOutput();
+async function writesAnAssessmentReflectingTheCaseSCorrectedCheck(): Promise<void> {
+	const directory = await runsDirectory();
+	await savedAttempt(directory);
+	const recorder = recordOutput();
 
-		await runRegrade(
+	await runRegrade(
+		new RegradeRequestBuilder({ runsDirectory: directory }).build(),
+		{
+			now: clockAt("2026-09-20T12:00:00.000Z"),
+			output: recorder.output,
+			requireCase: async () =>
+				await Promise.resolve<LoadedCase>(correctedSessionCase),
+		},
+	);
+
+	const written = sessionAttemptPaths(directory, ATTEMPT).gradeFile(
+		"2026-09-20T12:00:00.000Z",
+	);
+	expect(recorder.stdout.join("")).toBe(`${written}\n`);
+	const assessment = parseAssessment(await Bun.file(written).text());
+	expect(assessment.checks).toEqual([
+		{
+			detail: "3 words outside at most 2",
+			kind: "word-band",
+			status: "FAIL",
+		},
+	]);
+}
+
+async function leavesTheAttemptSOwnRecordUntouched(): Promise<void> {
+	const directory = await runsDirectory();
+	await savedAttempt(directory);
+	const { recordFile } = sessionAttemptPaths(directory, ATTEMPT);
+	const before = await Bun.file(recordFile).text();
+
+	await runRegrade(
+		new RegradeRequestBuilder({ runsDirectory: directory }).build(),
+		{
+			now: clockAt("2026-09-20T12:00:00.000Z"),
+			output: recordOutput().output,
+			requireCase: async () =>
+				await Promise.resolve<LoadedCase>(correctedSessionCase),
+		},
+	);
+
+	expect(await Bun.file(recordFile).text()).toBe(before);
+}
+
+async function refusesNamingTheCaseAndTheAttempt(): Promise<void> {
+	const directory = await runsDirectory();
+	await savedAttempt(directory);
+
+	const failure = await failureOf(
+		runRegrade(
+			new RegradeRequestBuilder({ runsDirectory: directory }).build(),
 			{
-				id: "attempt:session:smoke/uuid-1",
-				runsDirectory: directory,
-				json: false,
-			},
-			{
-				output: recorder.output,
-				requireCase: () => Promise.resolve<LoadedCase>(sessionCase(2)),
 				now: clockAt("2026-09-20T12:00:00.000Z"),
-			},
-		);
-
-		const written = sessionAttemptPaths(directory, ATTEMPT).gradeFile(
-			"2026-09-20T12:00:00.000Z",
-		);
-		expect(recorder.stdout.join("")).toBe(`${written}\n`);
-		const assessment = parseAssessment(await Bun.file(written).text());
-		expect(assessment.checks).toEqual([
-			{
-				kind: "word-band",
-				status: "FAIL",
-				detail: "3 words outside at most 2",
-			},
-		]);
-	});
-
-	it("leaves the attempt's own record untouched", async () => {
-		const directory = await runsDirectory();
-		await savedAttempt(directory);
-		const { recordFile } = sessionAttemptPaths(directory, ATTEMPT);
-		const before = await Bun.file(recordFile).text();
-
-		await runRegrade(
-			{
-				id: "attempt:session:smoke/uuid-1",
-				runsDirectory: directory,
-				json: false,
-			},
-			{
 				output: recordOutput().output,
-				requireCase: () => Promise.resolve<LoadedCase>(sessionCase(2)),
-				now: clockAt("2026-09-20T12:00:00.000Z"),
-			},
-		);
-
-		expect(await Bun.file(recordFile).text()).toBe(before);
-	});
-
-	describe("when the attempt's case no longer exists", () => {
-		it("refuses, naming the case and the attempt", async () => {
-			const directory = await runsDirectory();
-			await savedAttempt(directory);
-
-			const failure = await failureOf(
-				runRegrade(
-					{
-						id: "attempt:session:smoke/uuid-1",
-						runsDirectory: directory,
-						json: false,
-					},
-					{
-						output: recordOutput().output,
-						requireCase: (caseId) =>
-							asRefusedPrecondition(() =>
-								Promise.reject(
-									new CaseDeclarationError(`Unknown case ${caseId}`),
-								),
+				requireCase: async (caseId) =>
+					await asRefusedPrecondition(
+						async () =>
+							await Promise.reject(
+								new CaseDeclarationError(`Unknown case ${caseId}`),
 							),
-						now: clockAt("2026-09-20T12:00:00.000Z"),
-					},
-				),
-			);
+					),
+			},
+		),
+	);
 
-			expect(failure).toBeInstanceOf(RefusedPreconditionError);
-			expect(failure.message).toContain("smoke");
-			expect(failure.message).toContain("uuid-1");
-		});
+	expect(failure).toBeInstanceOf(RefusedPreconditionError);
+	expect(failure.message).toContain("smoke");
+	expect(failure.message).toContain("uuid-1");
+}
+
+async function refusesNamingTheRecordItLookedFor(): Promise<void> {
+	const directory = await runsDirectory();
+
+	const failure = await failureOf(
+		runRegrade(
+			new RegradeRequestBuilder({ runsDirectory: directory }).build(),
+			{
+				now: clockAt("2026-09-20T12:00:00.000Z"),
+				output: recordOutput().output,
+				requireCase: async () =>
+					await Promise.resolve<LoadedCase>(correctedSessionCase),
+			},
+		),
+	);
+
+	expect(failure).toBeInstanceOf(RefusedPreconditionError);
+	expect(failure.message).toContain("attempt:session:smoke/uuid-1");
+}
+
+describe(runRegrade.name, () => {
+	it(
+		"writes an assessment reflecting the case's corrected check",
+		writesAnAssessmentReflectingTheCaseSCorrectedCheck,
+	);
+	it(
+		"leaves the attempt's own record untouched",
+		leavesTheAttemptSOwnRecordUntouched,
+	);
+	describe("when the attempt's case no longer exists", () => {
+		it(
+			"refuses, naming the case and the attempt",
+			refusesNamingTheCaseAndTheAttempt,
+		);
 	});
-
 	describe("when no attempt is recorded under the id", () => {
-		it("refuses, naming the record it looked for", async () => {
-			const directory = await runsDirectory();
-
-			const failure = await failureOf(
-				runRegrade(
-					{
-						id: "attempt:session:smoke/uuid-1",
-						runsDirectory: directory,
-						json: false,
-					},
-					{
-						output: recordOutput().output,
-						requireCase: () => Promise.resolve<LoadedCase>(sessionCase(2)),
-						now: clockAt("2026-09-20T12:00:00.000Z"),
-					},
-				),
-			);
-
-			expect(failure).toBeInstanceOf(RefusedPreconditionError);
-			expect(failure.message).toContain("attempt:session:smoke/uuid-1");
-		});
+		it(
+			"refuses, naming the record it looked for",
+			refusesNamingTheRecordItLookedFor,
+		);
 	});
 });

@@ -1,171 +1,208 @@
-import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
 import {
-	claudeArgs,
 	ClaudeSessionError,
-	readClaudeCallMetrics,
+	claudeArgs,
 	readClaudeEnvelope,
 	readStructuredOutput,
-	runJsonSession,
 	runStreamedSession,
 } from "./claude";
-import type { Effort, WorkflowStage } from "./config";
-import {
-	CLAUDE_TIMEOUT_MS,
-	MAX_STAGE_TURNS,
-	STAGE_SILENCE_LIMIT_MS,
-} from "./config";
-import type {
-	ClaudeEnvelope,
-	ProviderCall,
-	StageTranscript,
-} from "./contracts";
-import { productAnswerSchema, stageTurnSchema } from "./contracts";
-import type { RunEventRecorder } from "./run-events";
-import type { SessionSpend, StageSessionFailure } from "./stage-session-error";
-import { StageSessionError } from "./stage-session-error";
-import type { SpendCeiling } from "./spend-ceiling";
-import type { ServiceEnvironment } from "./target-services";
+import { MAX_STAGE_TURNS, STAGE_SILENCE_LIMIT_MS } from "./config";
+import type { ClaudeEnvelope, StageTranscript, StageTurn } from "./contracts";
+import { stageTurnSchema } from "./contracts";
+import serialMap from "./serial-map";
+import { remainingBudget, sessionCalls } from "./session-call-accounting";
+import type { SessionCalls } from "./session-call-accounting";
+import StageSessionError from "./stage-session-error";
+import WorkflowExecutionError from "./workflow-contract";
+import type { ClaudeCommand, WorkflowStageRequest } from "./workflow-contract";
 
-export interface ProductOwnerSnapshot {
-	readonly sessionId: string;
-	readonly spentUsd: number;
-	readonly providerCalls: readonly ProviderCall[];
+const FALLBACK_CLOCK_MS = 0;
+const INITIAL_OWNER_TURN_INDEX = 0;
+
+interface StageConversationConfiguration {
+	readonly request: WorkflowStageRequest;
+	readonly runClaude: ClaudeCommand;
 }
 
-export interface ProductOwner {
-	readonly ask: (stage: WorkflowStage, question: string) => Promise<string>;
-	readonly snapshot: () => ProductOwnerSnapshot;
-}
+class StageConversation {
+	private readonly request: WorkflowStageRequest;
+	private readonly runClaude: ClaudeCommand;
+	private readonly calls: SessionCalls;
+	private readonly elapsedMs: () => number;
+	private readonly exchanges: StageTranscript["exchanges"][number][] = [];
+	private sessionId: string;
+	private prompt: string;
 
-export interface ProductOwnerConfiguration {
-	readonly directory: string;
-	readonly model: string;
-	readonly effort?: Effort | undefined;
-	readonly sessionBudgetUsd: number;
-	readonly spendCeiling: SpendCeiling;
-	readonly task: string;
-	readonly productBrief: string;
-}
+	public constructor({ request, runClaude }: StageConversationConfiguration) {
+		const captured: WorkflowStageRequest = {
+			effort: request.effort,
+			elapsedMs: request.elapsedMs,
+			environment: request.environment,
+			model: request.model,
+			productOwner: request.productOwner,
+			runEvents: request.runEvents,
+			sessionBudgetUsd: request.sessionBudgetUsd,
+			sessionId: request.sessionId,
+			settingSources: request.settingSources,
+			settingsOverlay: request.settingsOverlay,
+			skill: request.skill,
+			spendCeiling: request.spendCeiling,
+			stage: request.stage,
+			targetDir: request.targetDir,
+			taskId: request.taskId,
+		};
 
-export type ClaudeCommand = (
-	command: readonly string[],
-	directory: string,
-	options: (
-		| { readonly timeoutMs: number }
-		| { readonly silenceLimitMs: number }
-	) & { readonly env?: ServiceEnvironment | undefined },
-) => Promise<string>;
-
-export interface WorkflowStageRequest {
-	readonly targetDir: string;
-	/**
-	 * The provider session the stage runs under, chosen before it starts so
-	 * the stage's start can name the transcript it is about to write.
-	 */
-	readonly sessionId: string;
-	readonly model: string;
-	readonly effort?: Effort | undefined;
-	readonly sessionBudgetUsd: number;
-	readonly spendCeiling: SpendCeiling;
-	readonly productOwner: ProductOwner;
-	readonly taskId: string;
-	readonly stage: WorkflowStage;
-	readonly skill: string;
-	readonly settingSources?: "project" | undefined;
-	readonly settingsOverlay?: string | undefined;
-	/** The target's services, for the commands the session runs to reach. */
-	readonly environment?: ServiceEnvironment | undefined;
-	readonly runEvents?: RunEventRecorder | undefined;
-	/**
-	 * Milliseconds elapsed since the run started, not a raw clock: shares its
-	 * shape with run-abort.ts's RunAbortDependencies.elapsedMs so both modules
-	 * report against the one origin the caller owns, rather than each stage
-	 * session capturing its own start time and making elapsed time jump
-	 * backward at every stage boundary.
-	 */
-	readonly elapsedMs?: (() => number) | undefined;
-}
-
-/** A stage session whose own worker call failed or answered out of contract. */
-export class WorkflowExecutionError extends StageSessionError {
-	public constructor(props: StageSessionFailure) {
-		super(props, "Worker execution failed: ");
-		this.name = "WorkflowExecutionError";
-	}
-}
-
-/**
- * A resumed call's envelope reports the session's running total, while its
- * token counts are the call's own.
- */
-function sessionSpendUsd(envelope: ClaudeEnvelope, spentUsd: number): number {
-	return envelope.total_cost_usd ?? spentUsd;
-}
-
-function providerCall(
-	envelope: ClaudeEnvelope,
-	spentUsd: number,
-): ProviderCall {
-	const metrics = readClaudeCallMetrics(envelope);
-	if (metrics === undefined) {
-		return {};
+		this.request = captured;
+		this.runClaude = runClaude;
+		this.calls = sessionCalls(captured.spendCeiling);
+		this.elapsedMs = captured.elapsedMs ?? (() => FALLBACK_CLOCK_MS);
+		this.sessionId = captured.sessionId;
+		this.prompt = stagePrompt(captured.skill, captured.taskId);
 	}
 
-	return {
-		metrics: {
-			...metrics,
-			costUsd: sessionSpendUsd(envelope, spentUsd) - spentUsd,
-		},
-	};
-}
-
-/** The calls one provider session made and the spend they add up to. */
-interface SessionCalls {
-	readonly spentUsd: () => number;
-	readonly providerCalls: () => ProviderCall[];
-	readonly reading: () => SessionSpend;
-	/** Records a call the provider reported, charging the ceiling what it added. */
-	readonly record: (envelope: ClaudeEnvelope) => void;
-	/** Records a call that failed before the provider reported anything. */
-	readonly recordUnreported: () => void;
-}
-
-function sessionCalls(spendCeiling: SpendCeiling): SessionCalls {
-	let spentUsd = 0;
-	let lastReportedTotal = true;
-	const providerCalls: ProviderCall[] = [];
-
-	return {
-		spentUsd: () => spentUsd,
-		providerCalls: () => [...providerCalls],
-		reading: () => ({
-			providerCalls: [...providerCalls],
-			costUsd: lastReportedTotal ? spentUsd : undefined,
-		}),
-		record: (envelope) => {
-			providerCalls.push(providerCall(envelope, spentUsd));
-			spendCeiling.charge(
-				sessionSpendUsd(envelope, spentUsd) - spentUsd,
-				readClaudeCallMetrics(envelope),
+	public async run(): Promise<StageTranscript> {
+		try {
+			const turns = serialMap(
+				Array.from(
+					{ length: MAX_STAGE_TURNS },
+					(_value, index) => index,
+				).values(),
+				async (turn) => await this.invoke(turn),
 			);
-			spentUsd = sessionSpendUsd(envelope, spentUsd);
-			lastReportedTotal = envelope.total_cost_usd !== undefined;
-		},
-		recordUnreported: () => {
-			providerCalls.push({});
-			lastReportedTotal = false;
-		},
-	};
-}
+			for await (const envelope of turns) {
+				const completed = await this.acceptTurn(envelope);
+				if (completed !== undefined) {
+					return completed;
+				}
+			}
 
-function remainingBudget(limitUsd: number, spentUsd: number): number {
-	const remaining = limitUsd - spentUsd;
-	if (remaining <= 0) {
-		throw new Error("Claude session exhausted its budget");
+			throw new Error(
+				`${this.request.stage} exceeded ${MAX_STAGE_TURNS} turns`,
+			);
+		} catch (error) {
+			if (error instanceof StageSessionError) {
+				throw error;
+			}
+
+			throw new StageSessionError({
+				cause: error,
+				...this.calls.reading(),
+			});
+		}
 	}
 
-	return remaining;
+	private argumentsFor(turn: number, budgetUsd: number): readonly string[] {
+		return [
+			...claudeArgs({
+				access: "unrestricted",
+				output: "events",
+				schema: stageTurnSchema,
+				session: {
+					id: this.sessionId,
+					resume: turn > INITIAL_OWNER_TURN_INDEX,
+				},
+				settingSources: this.request.settingSources,
+				settings: {
+					budgetUsd,
+					effort: this.request.effort,
+					model: this.request.model,
+				},
+				settingsOverlay: this.request.settingsOverlay,
+			}),
+			this.prompt,
+		];
+	}
+
+	private async invoke(turn: number): Promise<ClaudeEnvelope> {
+		const budgetUsd = this.request.spendCeiling.budgetFor(
+			remainingBudget(this.request.sessionBudgetUsd, this.calls.spentUsd()),
+		);
+		const { runClaude } = this;
+		try {
+			const output = await runClaude(
+				this.argumentsFor(turn, budgetUsd),
+				this.request.targetDir,
+				{
+					env: this.request.environment,
+					silenceLimitMs: STAGE_SILENCE_LIMIT_MS,
+				},
+			);
+			return readClaudeEnvelope(output);
+		} catch (error) {
+			if (error instanceof ClaudeSessionError) {
+				this.calls.record(error.envelope);
+			} else {
+				this.calls.recordUnreported();
+			}
+
+			throw new WorkflowExecutionError({
+				cause: error,
+				...this.calls.reading(),
+			});
+		}
+	}
+
+	private readTurn(envelope: ClaudeEnvelope): StageTurn {
+		try {
+			return readStructuredOutput(envelope, stageTurnSchema);
+		} catch (error) {
+			throw new WorkflowExecutionError({
+				cause: error,
+				...this.calls.reading(),
+			});
+		}
+	}
+
+	private async acceptTurn(
+		envelope: ClaudeEnvelope,
+	): Promise<StageTranscript | undefined> {
+		this.sessionId = envelope.session_id;
+		this.calls.record(envelope);
+		const agent = this.readTurn(envelope);
+		if (agent.status === "COMPLETE") {
+			return this.complete(agent);
+		}
+
+		const answer = await this.request.productOwner.ask(
+			this.request.stage,
+			agent.message,
+		);
+		this.continueAfterAnswer(agent, answer);
+
+		return undefined;
+	}
+
+	private continueAfterAnswer(
+		agent: StageTurn,
+		productOwnerAnswer: string,
+	): void {
+		this.exchanges.push({ agent, productOwnerAnswer });
+		this.recordTurn();
+		this.prompt = continueStagePrompt(this.request.skill, productOwnerAnswer);
+	}
+
+	private recordTurn(): void {
+		if (this.request.runEvents !== undefined) {
+			const spentUsd = this.calls.spentUsd();
+			const { elapsedMs } = this;
+			this.request.runEvents.record("turn-completed", this.request.stage, {
+				elapsedMs: elapsedMs(),
+				spentUsd,
+			});
+		}
+	}
+
+	private complete(agent: StageTurn): StageTranscript {
+		this.exchanges.push({ agent });
+		this.recordTurn();
+
+		return {
+			costUsd: this.calls.spentUsd(),
+			exchanges: this.exchanges,
+			providerCalls: this.calls.providerCalls(),
+			sessionId: this.sessionId,
+			stage: this.request.stage,
+		};
+	}
 }
 
 function stagePrompt(skill: string, taskId: string): string {
@@ -179,173 +216,19 @@ function continueStagePrompt(
 	return `Product Owner answer:\n\n${productOwnerAnswer}\n\nContinue the native /${skill} skill. Use QUESTION again if another decision is required, or COMPLETE after its durable artifact is saved.`;
 }
 
-/**
- * One Product Owner session answers every question in a run, so later
- * answers retain earlier decisions. The session state lives only in this
- * closure; callers receive answers and a cost snapshot, never the mutation.
- */
-export function createProductOwner(
-	configuration: ProductOwnerConfiguration,
-	runClaude: ClaudeCommand = runJsonSession,
-): ProductOwner {
-	let sessionId: string = randomUUID();
-	const calls = sessionCalls(configuration.spendCeiling);
-	let started = false;
-
-	return {
-		ask: async (stage, question) => {
-			const prompt = started
-				? `The ${stage} session asks:\n\n${question}`
-				: `Feature request:\n\n${configuration.task}\n\nProduct brief:\n\n${configuration.productBrief}\n\nThe ${stage} session asks:\n\n${question}`;
-			const budgetUsd = configuration.spendCeiling.budgetFor(
-				remainingBudget(configuration.sessionBudgetUsd, calls.spentUsd()),
-			);
-			await mkdir(configuration.directory, { recursive: true });
-
-			let envelope;
-			try {
-				const output = await runClaude(
-					[
-						...claudeArgs({
-							settings: {
-								model: configuration.model,
-								effort: configuration.effort,
-								budgetUsd,
-							},
-							schema: productAnswerSchema,
-							access: "sealed",
-							systemPrompt:
-								"You are the Product Owner for one software feature. Answer the current question directly and make a concrete decision. Keep every answer consistent with prior answers in this session. Prefer the smallest coherent product scope, preserve the task's required behavior, and defer implementation mechanics to the engineering agent. Do not discuss evaluation, grading, or this protocol.",
-							session: { id: sessionId, resume: started },
-						}),
-						prompt,
-					],
-					configuration.directory,
-					{ timeoutMs: CLAUDE_TIMEOUT_MS },
-				);
-				envelope = readClaudeEnvelope(output);
-			} catch (error) {
-				if (error instanceof ClaudeSessionError) {
-					calls.record(error.envelope);
-				}
-				throw error;
-			}
-
-			sessionId = envelope.session_id;
-			calls.record(envelope);
-			started = true;
-
-			return readStructuredOutput(envelope, productAnswerSchema).answer;
-		},
-		snapshot: () => ({
-			sessionId,
-			spentUsd: calls.spentUsd(),
-			providerCalls: calls.providerCalls(),
-		}),
-	};
-}
-
-export async function runWorkflowStage(
+async function runWorkflowStage(
 	request: WorkflowStageRequest,
 	runClaude: ClaudeCommand = runStreamedSession,
 ): Promise<StageTranscript> {
-	const {
-		targetDir,
-		model,
-		effort,
-		sessionBudgetUsd,
-		spendCeiling,
-		productOwner,
-		taskId,
-		stage,
-		skill,
-		settingSources,
-		settingsOverlay,
-		environment,
-		runEvents,
-		elapsedMs = () => 0,
-	} = request;
-	let { sessionId } = request;
-	const calls = sessionCalls(spendCeiling);
-	let prompt = stagePrompt(skill, taskId);
-	const exchanges: StageTranscript["exchanges"][number][] = [];
-
-	try {
-		for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
-			const budgetUsd = spendCeiling.budgetFor(
-				remainingBudget(sessionBudgetUsd, calls.spentUsd()),
-			);
-			let envelope;
-			try {
-				const output = await runClaude(
-					[
-						...claudeArgs({
-							settings: {
-								model,
-								effort,
-								budgetUsd,
-							},
-							schema: stageTurnSchema,
-							access: "unrestricted",
-							session: { id: sessionId, resume: turn > 0 },
-							settingSources,
-							settingsOverlay,
-							output: "events",
-						}),
-						prompt,
-					],
-					targetDir,
-					{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS, env: environment },
-				);
-				envelope = readClaudeEnvelope(output);
-			} catch (error) {
-				if (error instanceof ClaudeSessionError) {
-					calls.record(error.envelope);
-				} else {
-					calls.recordUnreported();
-				}
-				throw new WorkflowExecutionError({ cause: error, ...calls.reading() });
-			}
-
-			sessionId = envelope.session_id;
-			calls.record(envelope);
-			let agent;
-			try {
-				agent = readStructuredOutput(envelope, stageTurnSchema);
-			} catch (error) {
-				throw new WorkflowExecutionError({ cause: error, ...calls.reading() });
-			}
-
-			if (agent.status === "COMPLETE") {
-				exchanges.push({ agent });
-				runEvents?.record(
-					"turn-completed",
-					stage,
-					calls.spentUsd(),
-					elapsedMs(),
-				);
-
-				return {
-					stage,
-					sessionId,
-					costUsd: calls.spentUsd(),
-					providerCalls: calls.providerCalls(),
-					exchanges,
-				};
-			}
-
-			const productOwnerAnswer = await productOwner.ask(stage, agent.message);
-			exchanges.push({ agent, productOwnerAnswer });
-			runEvents?.record("turn-completed", stage, calls.spentUsd(), elapsedMs());
-			prompt = continueStagePrompt(skill, productOwnerAnswer);
-		}
-
-		throw new Error(`${stage} exceeded ${MAX_STAGE_TURNS} turns`);
-	} catch (error) {
-		if (error instanceof StageSessionError) {
-			throw error;
-		}
-
-		throw new StageSessionError({ cause: error, ...calls.reading() });
-	}
+	return await new StageConversation({ request, runClaude }).run();
 }
+
+export { runWorkflowStage };
+export { default as WorkflowExecutionError } from "./workflow-contract";
+export { default as createProductOwner } from "./product-owner";
+export type {
+	ProductOwnerSnapshot,
+	ProductOwner,
+	ProductOwnerConfiguration,
+} from "./product-owner";
+export type { ClaudeCommand, WorkflowStageRequest } from "./workflow-contract";

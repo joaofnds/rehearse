@@ -3,20 +3,20 @@ import { CaseDeclarationError } from "#benchmark/case";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { regradeAttempt, writeAssessment } from "#benchmark/session-regrade";
-import { UsageError } from "#cli/commands";
+import { UsageError } from "#cli/command-usage";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
 import { writeRecord } from "#cli/output";
 import type { SessionAttemptRecordId } from "#cli/record-id";
 import { formatRecordId, parseRecordId } from "#cli/record-id";
 
-export interface RegradeRequest {
+interface RegradeRequest {
 	readonly id: string | undefined;
 	readonly runsDirectory: string;
 	readonly json: boolean;
 }
 
-export interface RegradeDependencies {
+interface RegradeDependencies {
 	readonly output: CommandOutput;
 	readonly requireCase: (caseId: string) => Promise<LoadedCase>;
 	readonly now: () => string;
@@ -61,21 +61,24 @@ async function caseBehind(
 	id: SessionAttemptRecordId,
 	dependencies: Readonly<RegradeDependencies>,
 ): Promise<SessionCase> {
-	let loaded: LoadedCase;
-	try {
-		loaded = await dependencies.requireCase(id.caseId);
-	} catch (error) {
-		if (
-			error instanceof RefusedPreconditionError ||
-			error instanceof CaseDeclarationError
-		) {
-			throw new RefusedPreconditionError(
-				`Attempt ${formatRecordId(id)} cannot be regraded: ${error.message}`,
-			);
-		}
+	const loadAttemptCase = async (): Promise<LoadedCase> => {
+		try {
+			return await dependencies.requireCase(id.caseId);
+		} catch (error) {
+			if (
+				error instanceof RefusedPreconditionError ||
+				error instanceof CaseDeclarationError
+			) {
+				throw new RefusedPreconditionError(
+					`Attempt ${formatRecordId(id)} cannot be regraded: ${error.message}`,
+				);
+			}
 
-		throw error;
-	}
+			throw error;
+		}
+	};
+
+	const loaded = await loadAttemptCase();
 
 	if (loaded.kind !== "session") {
 		throw new RefusedPreconditionError(
@@ -86,7 +89,7 @@ async function caseBehind(
 	return loaded;
 }
 
-export async function runRegrade(
+async function runRegrade(
 	request: Readonly<RegradeRequest>,
 	dependencies: Readonly<RegradeDependencies>,
 ): Promise<void> {
@@ -102,11 +105,14 @@ export async function runRegrade(
 	const record = parseSessionAttemptRecord(await saved.text());
 	const assessment = await regradeAttempt({
 		attemptId: { caseId: attemptId.caseId, uuid: attemptId.uuid },
-		record,
 		paths,
+		record,
 		sessionCase: await caseBehind(attemptId, dependencies),
 	});
 
 	const written = await writeAssessment(paths, dependencies.now(), assessment);
 	await writeRecord(dependencies.output, written, request.json);
 }
+
+export { runRegrade as default };
+export type { RegradeDependencies, RegradeRequest };

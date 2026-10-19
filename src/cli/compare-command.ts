@@ -1,15 +1,15 @@
-import { writeComparisonReport } from "#benchmark/comparison-command";
-import { UsageError } from "#cli/commands";
+import writeComparisonReport from "#benchmark/comparison-command";
+import { UsageError } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
 import { writeRecord } from "#cli/output";
 
-export interface CompareRequest {
+interface CompareRequest {
 	readonly manifestPath: string | undefined;
 	readonly runsDirectory: string;
 	readonly json: boolean;
 }
 
-export async function runCompare(
+async function runCompare(
 	request: CompareRequest,
 	output: CommandOutput,
 ): Promise<void> {
@@ -27,3 +27,6 @@ export async function runCompare(
 
 	await writeRecord(output, reportFile, request.json);
 }
+
+export { runCompare as default };
+export type { CompareRequest };

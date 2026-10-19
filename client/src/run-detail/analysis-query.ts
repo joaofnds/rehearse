@@ -1,23 +1,25 @@
 import type { InferResponseType } from "hono/client";
+
 import type { Immutable } from "#benchmark/contracts";
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const analysesRoute = apiClient.api.runs[":run"].analyses;
 
-export type AnalysisReadingResponse = Immutable<
-	InferResponseType<typeof analysesRoute.$get, 200>
+type AnalysisReadingResponse = Immutable<
+	InferResponseType<typeof analysesRoute.$get, typeof HTTP_STATUS.ok>
 >;
 
-export type AnalysisRecord = NonNullable<AnalysisReadingResponse["newest"]>;
+type AnalysisRecord = NonNullable<AnalysisReadingResponse["newest"]>;
 
-export type RecordedAnalysis = Extract<
+type RecordedAnalysis = Extract<
 	AnalysisRecord,
 	{ readonly outcome: "recorded" }
 >;
 
-export type AnalyzedStage = RecordedAnalysis["stages"][number];
+type AnalyzedStage = RecordedAnalysis["stages"][number];
 
-export type AnalysisRole = AnalyzedStage["role"];
+type AnalysisRole = AnalyzedStage["role"];
 
 async function fetchAnalyses(run: string): Promise<AnalysisReadingResponse> {
 	const response = await analysesRoute.$get({ param: { run } });
@@ -25,24 +27,24 @@ async function fetchAnalyses(run: string): Promise<AnalysisReadingResponse> {
 		throw new Error(`Could not read the root-cause analyses of run ${run}`);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export interface AnalysesQuery {
+interface AnalysesQuery {
 	readonly queryKey: readonly ["root-cause-analyses", string];
 	readonly queryFn: () => Promise<AnalysisReadingResponse>;
 }
 
 /** The root-cause analyses recorded of one pipeline run, newest first. */
-export function analysesQuery(run: string): AnalysesQuery {
+function analysesQuery(run: string): AnalysesQuery {
 	return {
+		queryFn: async () => await fetchAnalyses(run),
 		queryKey: ["root-cause-analyses", run],
-		queryFn: () => fetchAnalyses(run),
 	};
 }
 
 /** The role each step played in the newest analysis, when it was recorded. */
-export function rolesOf(
+function rolesOf(
 	reading: AnalysisReadingResponse | undefined,
 ): ReadonlyMap<string, AnalyzedStage> {
 	const newest = reading?.newest;
@@ -53,3 +55,13 @@ export function rolesOf(
 			: [],
 	);
 }
+
+export { analysesQuery, rolesOf };
+export type {
+	AnalysesQuery,
+	AnalysisReadingResponse,
+	AnalysisRecord,
+	AnalysisRole,
+	AnalyzedStage,
+	RecordedAnalysis,
+};

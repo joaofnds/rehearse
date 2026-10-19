@@ -6,7 +6,7 @@ import { SymlinkedEntryError } from "#benchmark/file-presence";
 import { SessionCorpusError } from "#benchmark/session-corpus";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
-export function corpusRefusal(
+function corpusRefusal(
 	error: Readonly<Error>,
 ): RefusedPreconditionError | undefined {
 	if (
@@ -20,3 +20,5 @@ export function corpusRefusal(
 
 	return undefined;
 }
+
+export { corpusRefusal as default };

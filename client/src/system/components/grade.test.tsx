@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
+
 import { Grade } from "./grade";
 
 describe(Grade.name, () => {

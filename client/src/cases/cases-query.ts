@@ -1,9 +1,8 @@
 import type { InferResponseType } from "hono/client";
+
 import { launchClient } from "#client/api-client";
 
-export type CasesResponse = InferResponseType<
-	typeof launchClient.api.cases.$get
->;
+type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
 async function fetchCases(): Promise<CasesResponse> {
 	const response = await launchClient.api.cases.$get();
@@ -11,10 +10,13 @@ async function fetchCases(): Promise<CasesResponse> {
 		throw new Error("Could not load the cases");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export const casesQuery = {
-	queryKey: ["cases"],
+const casesQuery = {
 	queryFn: fetchCases,
+	queryKey: ["cases"],
 } as const;
+
+export { casesQuery as default };
+export type { CasesResponse };

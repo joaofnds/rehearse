@@ -1,610 +1,171 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { LiveReply } from "#client/test-support/live-reply";
-import { renderAppWithStub } from "#client/test-support/render-app";
-import { recordStage, runRecord } from "#client/test-support/run-record";
-import { runRow } from "#client/test-support/runs-in-flight";
+
+import { fireEvent, screen, within } from "@testing-library/react";
+
+import NamedHistoryBuilder from "#client/run-history/run-history-page-named-history-builder";
 import {
-	ANALYSES,
-	CORPUS,
-	history,
-	judgedRow,
-	judgedStaleness,
-	noAnalysis,
 	RUN,
-	renderContribution,
 	renderRunDetail,
-	serveRunDetail,
 	stoppedAtBuild,
 	stoppedRow,
 } from "#client/test-support/run-detail";
 
-const originalFetch = globalThis.fetch;
+import { originalFetch } from "./run-detail-test-fixtures";
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
 describe("/runs/$run", () => {
-	it("names the run, its case and how it ended in the header", async () => {
-		renderRunDetail();
+	it(
+		"names the run, its case and how it ended in the header",
+		namesTheRunItsCaseAndHowItEndedInTheHeader,
+	);
 
-		const heading = await screen.findByRole("heading", { level: 1 });
-		const header = heading.closest("header");
+	it(
+		"labels header resources while keeping exact setup in its provenance disclosure",
+		labelsHeaderResourcesWhileKeepingExactSetupInItsProvenanceDisclosure,
+	);
+	it("opens exact setup resources in provenance", readsExactRunSetupProvenance);
 
-		expect(heading).toHaveTextContent("r-0147");
-		expect(
-			within(header ?? document.body).getByRole("link", { name: "audit-log" }),
-		).toHaveAttribute("href", "/cases?caseId=audit-log");
-		expect(header).toHaveTextContent("stopped at step 2 · below minimum B");
-		expect(header).toHaveTextContent("corpus@a41c7e");
-	});
+	it(
+		"states execution, final result and pending human review independently without repeating the review state",
+		statesExecutionFinalResultAndPendingHumanReviewIndependentlyWithoutRepeatingTheReviewState,
+	);
 
-	it("labels header resources while keeping exact setup in its provenance disclosure", async () => {
-		const record = stoppedAtBuild();
-		renderRunDetail(
-			new Map([
-				[
-					`/api/runs/${RUN}`,
-					{
-						...record,
-						identity: {
-							...record.identity,
-							target: "/workspace/a-long-target-repository",
-							commit: "abcdef1234567890",
-							model: "recorded-model",
-							effort: "high",
-						},
-					},
-				],
-			]),
-		);
+	it(
+		"links the primary final-outcome action to its retained target when the assessment is unavailable",
+		linksThePrimaryFinalOutcomeActionToItsRetainedTargetWhenTheAssessmentIsUnavailable,
+	);
+});
 
-		const heading = await screen.findByRole("heading", { level: 1 });
-		const header = heading.closest("header");
+async function namesTheRunItsCaseAndHowItEndedInTheHeader(): Promise<void> {
+	renderRunDetail();
 
-		expect(header).toHaveTextContent(/Time /u);
-		expect(header).toHaveTextContent(/Cost /u);
-		expect(header).not.toHaveTextContent("/workspace/a-long-target-repository");
-		expect(header).not.toHaveTextContent("recorded-model");
-		fireEvent.click(screen.getByText("Run setup & provenance"));
-		const setup = screen.getByRole("region", {
-			name: "Run setup & provenance",
-		});
-		expect(setup).toHaveTextContent(
-			"/workspace/a-long-target-repository @ abcdef1234567890",
-		);
-		expect(setup).toHaveTextContent("recorded-model / high");
-	});
+	const heading = await screen.findByRole("heading", { level: 1 });
+	const header = heading.closest("header");
 
-	it("states execution, final result and pending human review independently without repeating the review state", async () => {
-		renderRunDetail(
-			new Map<string, unknown>([
-				[
-					"/api/runs",
-					history([{ ...stoppedRow(), status: "AWAITING_HUMAN_REVIEW" }]),
-				],
-				[
-					`/api/runs/${RUN}`,
-					{
-						...stoppedAtBuild(),
-						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
-					},
-				],
-			]),
-		);
+	expect(heading).toHaveTextContent("r-0147");
+	expect(
+		within(header ?? document.body).getByRole("link", { name: "audit-log" }),
+	).toHaveAttribute("href", "/cases?caseId=audit-log");
+	expect(header).toHaveTextContent("stopped at step 2 · below minimum B");
+	expect(header).toHaveTextContent("corpus@a41c7e");
+}
 
-		const heading = await screen.findByRole("heading", { level: 1 });
-		const header = heading.closest("header");
-
-		expect(header).toHaveTextContent("Execution ended");
-		expect(header).toHaveTextContent("Final result: FAIL");
-		expect(header).toHaveTextContent("Human review: pending");
-		expect(header).not.toHaveTextContent("awaiting human review");
-	});
-
-	it("links the primary final-outcome action to its retained target when the assessment is unavailable", async () => {
-		renderRunDetail(
-			new Map<string, unknown>([
-				[
-					`/api/runs/${RUN}`,
-					{
-						...stoppedAtBuild(),
-						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
-					},
-				],
-				[
-					`/api/runs/${RUN}/final/assessment`,
-					{
-						state: "unavailable",
-						reason: "Final assessment was not retained.",
-					},
-				],
-			]),
-		);
-
-		const action = await screen.findByRole("link", {
-			name: "Review final outcome",
-		});
-		const href = action.getAttribute("href");
-		expect(href).toBe("#task-grade-label");
-		expect(
-			document.querySelector(href ?? "#missing-final-outcome-target"),
-		).toBeInTheDocument();
-	});
-
-	it("reads the run record again when a live run moves to its next step", async () => {
-		let running = "build";
-		const records = new Map([
+async function labelsHeaderResourcesWhileKeepingExactSetupInItsProvenanceDisclosure(): Promise<void> {
+	const record = stoppedAtBuild();
+	renderRunDetail(
+		new Map([
 			[
-				"build",
-				runRecord({
-					run: RUN,
-					running: "build",
-					stages: [
-						recordStage("shape", { status: "graded" }),
-						recordStage("build"),
-						recordStage("verify"),
-					],
-				}),
-			],
-			[
-				"verify",
-				runRecord({
-					run: RUN,
-					running: "verify",
-					stages: [
-						recordStage("shape", { status: "graded" }),
-						recordStage("build", { status: "graded" }),
-						recordStage("verify"),
-					],
-				}),
-			],
-		]);
-		serveRunDetail(
-			new Map([
-				[
-					"GET /api/runs",
-					new LiveReply(() => ({
-						status: 200,
-						body: history([runRow({ run: RUN, stage: running })]),
-					})),
-				],
-				[
-					`GET /api/runs/${RUN}`,
-					new LiveReply(() => ({ status: 200, body: records.get(running) })),
-				],
-			]),
-		);
-
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-
-		expect(
-			within(graph).getByRole("button", { name: /^build/u }),
-		).not.toHaveTextContent("Continued");
-		running = "verify";
-
-		await waitFor(
-			() => {
-				expect(
-					within(graph).getByRole("button", { name: /^build/u }),
-				).toHaveTextContent("Continued");
-			},
-			{ timeout: 5000 },
-		);
-		expect(
-			screen.getByRole("region", { name: "Live agent session" }),
-		).toHaveTextContent("Step 3 · verify");
-	});
-
-	it("reads the attempts at the selected step's checkpoint again when a live run moves on", async () => {
-		let running = "build";
-		const record = runRecord({
-			run: RUN,
-			running: "build",
-			stages: [
-				recordStage("shape", { status: "graded" }),
-				recordStage("build"),
-				recordStage("verify"),
-			],
-		});
-		const attempts = new Map([
-			["build", { checkpoint: "c-0147-1", attempts: [] }],
-			[
-				"verify",
+				`/api/runs/${RUN}`,
 				{
-					checkpoint: "c-0147-1",
-					attempts: [
-						{
-							kind: "original",
-							id: "r-0147",
-							staleness: judgedStaleness(false),
-						},
-					],
+					...record,
+					identity: {
+						...record.identity,
+						commit: "abcdef1234567890",
+						effort: "high",
+						model: "recorded-model",
+						target: "/workspace/a-long-target-repository",
+					},
 				},
 			],
-		]);
-		serveRunDetail(
-			new Map([
-				[
-					"GET /api/runs",
-					new LiveReply(() => ({
-						status: 200,
-						body: history([runRow({ run: RUN, stage: running })]),
-					})),
-				],
-				[
-					`GET /api/runs/${RUN}`,
-					new LiveReply(() => ({ status: 200, body: record })),
-				],
-				[
-					`GET /api/runs/${RUN}/stages/build/attempts`,
-					new LiveReply(() => ({
-						status: 200,
-						body: attempts.get(running),
-					})),
-				],
-			]),
-			undefined,
-			`/runs/${RUN}?view=results&step=build`,
-		);
-
-		const list = await screen.findByRole("list", {
-			name: "Attempts at c-0147-1",
-		});
-		expect(within(list).queryAllByRole("listitem")).toHaveLength(0);
-		running = "verify";
-
-		expect(
-			await within(list).findByText("r-0147", {}, { timeout: 5000 }),
-		).toBeInTheDocument();
-	});
-
-	it("opens Results on the step it stopped at, with its replay action", async () => {
-		renderRunDetail(
-			new Map([
-				[
-					"/api/runs",
-					history([{ ...stoppedRow(), replayableStages: ["shape", "build"] }]),
-				],
-			]),
-		);
-
-		const switcher = await screen.findByRole("group", {
-			name: "Run views",
-		});
-
-		expect(
-			within(switcher)
-				.getAllByRole("button")
-				.map((option) => [
-					option.textContent,
-					option.getAttribute("aria-pressed"),
-				]),
-		).toEqual([
-			["Results", "true"],
-			["Activity", "false"],
-			["Context & cost", "false"],
-		]);
-		expect(
-			within(screen.getByRole("region", { name: "Step report" })).getByRole(
-				"heading",
-				{ level: 2, name: "Step 2 · build" },
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Replay step 2" }),
-		).toBeInTheDocument();
-	});
-
-	it("restores the layout and step the URL names", async () => {
-		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=rail&step=shape`);
-
-		expect(
-			await screen.findByRole("heading", { level: 2, name: "Step 1 · shape" }),
-		).toBeInTheDocument();
-	});
-
-	it("writes the chosen view to the URL", async () => {
-		const router = renderRunDetail(
-			new Map([[ANALYSES, noAnalysis()]]),
-			[],
-			`/runs/${RUN}?step=shape`,
-		);
-
-		fireEvent.click(await screen.findByRole("button", { name: "Activity" }));
-
-		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
-				"aria-pressed",
-				"true",
-			);
-		});
-		expect(router.state.location.search).toEqual({
-			view: "activity",
-			step: "shape",
-		});
-	});
-
-	it("writes the view chosen with the step it shows", async () => {
-		const router = renderRunDetail();
-
-		fireEvent.click(
-			await screen.findByRole("button", { name: "Context & cost" }),
-		);
-
-		await waitFor(() => {
-			expect(router.state.location.search).toEqual({
-				view: "context",
-				step: "build",
-			});
-		});
-	});
-
-	it("falls back to Results on the stopped step for a view or step it does not know", async () => {
-		renderRunDetail(new Map(), [], `/runs/${RUN}?view=matrix&step=deploy`);
-
-		expect(
-			await screen.findByRole("heading", { level: 2, name: "Step 2 · build" }),
-		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Results" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
-	});
-
-	it("opens a run that did not stop on the last step with a record", async () => {
-		renderAppWithStub(
-			`/runs/${RUN}`,
-			new Map<string, unknown>([
-				["/api/runs", history([{ ...stoppedRow(), status: "SUCCESSFUL" }])],
-				[`/api/runs/${RUN}`, stoppedAtBuild()],
-			]),
-		);
-
-		expect(
-			await screen.findByRole("heading", { level: 2, name: "Step 2 · build" }),
-		).toBeInTheDocument();
-	});
-
-	it("shows which steps kept checkpoints when workflow details expand", async () => {
-		renderRunDetail();
-
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-		fireEvent.click(
-			within(graph).getByRole("button", {
-				name: "Show workflow details",
-			}),
-		);
-		expect(
-			within(graph).getByRole("button", { name: /^shape/u }),
-		).toHaveTextContent("checkpoint recorded");
-		expect(
-			within(graph).getByRole("button", { name: /^build/u }),
-		).toHaveTextContent("no checkpoint recorded");
-	});
-
-	it("grades the task on its own and never shows a letter the final judge did not return", async () => {
-		renderContribution();
-
-		const card = await screen.findByRole("region", {
-			name: "Final outcome · independent task Judge",
-		});
-
-		expect(card).toHaveTextContent(
-			"not reached · the run stopped before the final judge",
-		);
-		expect(card).toHaveTextContent(
-			"It does not read the intermediate steps, so it cannot grade a run that stopped early.",
-		);
-		expect(within(card).queryByText(/^[A-F][+-]?$/u)).not.toBeInTheDocument();
-	});
-
-	it.each([
-		[{ status: "JUDGED", verdict: "PASS" }, "PASS", "graded independently"],
-		[
-			{ status: "JUDGING_FAILED", reason: "the judge timed out" },
-			"—",
-			"judging failed · the judge timed out",
-		],
-		[
-			{ status: "PENDING", stage: "verify" },
-			"—",
-			"pending · the run is at verify",
-		],
-		[
-			{ status: "NOT_REACHED", stage: "verify", reason: "the run stopped" },
-			"—",
-			"not reached · the run stopped",
-		],
-	] as const)(
-		"reads a %o final outcome as its verdict or a dash with the reason",
-		async (finalOutcome, value, note) => {
-			renderContribution(
-				new Map([[`/api/runs/${RUN}`, { ...stoppedAtBuild(), finalOutcome }]]),
-			);
-
-			const card = await screen.findByRole("region", {
-				name: "Final outcome · independent task Judge",
-			});
-
-			expect(within(card).getByText(value)).toBeInTheDocument();
-			expect(within(card).getByText(note)).toBeInTheDocument();
-		},
+		]),
 	);
 
-	it.each(["rail", "ledger", "trace"])(
-		"opens an old %s layout link on Results",
-		async (layout) => {
-			renderRunDetail(new Map(), [], `/runs/${RUN}?layout=${layout}`);
+	const heading = await screen.findByRole("heading", { level: 1 });
+	const header = heading.closest("header");
 
-			expect(
-				await screen.findByRole("button", { name: "Results" }),
-			).toHaveAttribute("aria-pressed", "true");
-			expect(
-				await screen.findByRole("region", {
-					name: "Final outcome · independent task Judge",
-				}),
-			).toBeInTheDocument();
-		},
+	expect(header).toHaveTextContent(/Time /u);
+	expect(header).toHaveTextContent(/Cost /u);
+	expect(header).not.toHaveTextContent("/workspace/a-long-target-repository");
+	expect(header).not.toHaveTextContent("recorded-model");
+}
+
+async function readsExactRunSetupProvenance(): Promise<void> {
+	const record = stoppedAtBuild();
+	renderRunDetail(
+		new Map([
+			[
+				`/api/runs/${RUN}`,
+				{
+					...record,
+					identity: {
+						...record.identity,
+						commit: "abcdef1234567890",
+						effort: "high",
+						model: "recorded-model",
+						target: "/workspace/a-long-target-repository",
+					},
+				},
+			],
+		]),
 	);
+	await screen.findByRole("heading", { level: 1 });
 
-	it("keeps checkpoint information visible after a run completes", async () => {
-		renderAppWithStub(
-			`/runs/${RUN}`,
-			new Map<string, unknown>([
-				["/api/runs", history([{ ...stoppedRow(), status: "SUCCESSFUL" }])],
-				[`/api/runs/${RUN}`, stoppedAtBuild()],
-			]),
-		);
-
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-		fireEvent.click(
-			within(graph).getByRole("button", {
-				name: "Show workflow details",
-			}),
-		);
-		expect(
-			within(graph).getByRole("button", { name: /^shape/u }),
-		).toHaveTextContent("checkpoint recorded");
+	fireEvent.click(screen.getByText("Run setup & provenance"));
+	const setup = screen.getByRole("region", {
+		name: "Run setup & provenance",
 	});
+	expect(setup).toHaveTextContent(
+		"/workspace/a-long-target-repository @ abcdef1234567890",
+	);
+	expect(setup).toHaveTextContent("recorded-model / high");
+}
 
-	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {
-		renderContribution(new Map(), [
-			judgedRow(
-				"2026-09-20T09-00-00.000Z",
-				"r-0141",
-				"FAIL",
-				"1d2e3f".padEnd(64, "0"),
-			),
-			judgedRow(
-				"2026-09-25T09-00-00.000Z",
-				"r-0144",
-				"PASS",
-				"9f30d1".padEnd(64, "0"),
-				judgedStaleness(true),
-			),
+async function statesExecutionFinalResultAndPendingHumanReviewIndependentlyWithoutRepeatingTheReviewState(): Promise<void> {
+	const fetchReplies = new Map<string, unknown>([
+		[
+			"/api/runs",
+			new NamedHistoryBuilder({
+				rows: [{ ...stoppedRow(), status: "AWAITING_HUMAN_REVIEW" }],
+			}).build(),
+		],
+		[
+			`/api/runs/${RUN}`,
 			{
-				...judgedRow("2026-09-26T09-00-00.000Z", "r-0145", "PASS", CORPUS),
-				caseId: "other-case",
+				...stoppedAtBuild(),
+				finalOutcome: { status: "JUDGED", verdict: "FAIL" },
 			},
-		]);
+		],
+	]);
+	renderRunDetail(fetchReplies);
 
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
+	const heading = await screen.findByRole("heading", { level: 1 });
+	const header = heading.closest("header");
 
-		expect(last).toHaveTextContent("PASS");
-		expect(last).toHaveTextContent("r-0144");
-		expect(last).toHaveTextContent("stale · corpus@9f30d1");
-		expect(last).toHaveTextContent("Not comparable to a corpus@a41c7e result.");
+	expect(header).toHaveTextContent("Execution ended");
+	expect(header).toHaveTextContent("Final result: FAIL");
+	expect(header).toHaveTextContent("Human review: pending");
+	expect(header).not.toHaveTextContent("awaiting human review");
+}
+
+async function linksThePrimaryFinalOutcomeActionToItsRetainedTargetWhenTheAssessmentIsUnavailable(): Promise<void> {
+	renderRunDetail(
+		new Map<string, unknown>([
+			[
+				`/api/runs/${RUN}`,
+				{
+					...stoppedAtBuild(),
+					finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+				},
+			],
+			[
+				`/api/runs/${RUN}/final/assessment`,
+				{
+					reason: "Final assessment was not retained.",
+					state: "unavailable",
+				},
+			],
+		]),
+	);
+
+	const action = await screen.findByRole("link", {
+		name: "Review final outcome",
 	});
-
-	it("reads a last task grade on another corpus as clean when the server judged it so", async () => {
-		renderContribution(new Map(), [
-			judgedRow(
-				"2026-09-30T09-00-00.000Z",
-				"r-0150",
-				"PASS",
-				"9f30d1".padEnd(64, "0"),
-			),
-		]);
-
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
-
-		expect(last).toHaveTextContent("clean · corpus@9f30d1");
-		expect(last).not.toHaveTextContent("stale");
-		expect(last).toHaveTextContent("Not comparable to a corpus@a41c7e result.");
-	});
-
-	it("says a last task grade on this run's corpus is comparable", async () => {
-		renderContribution(new Map(), [
-			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS),
-		]);
-
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
-
-		expect(last).toHaveTextContent("clean · corpus@a41c7e");
-		expect(last).toHaveTextContent("same corpus as this run");
-		expect(last).not.toHaveTextContent("Not comparable");
-	});
-
-	it("says the server did not judge a last task grade's staleness, with its reason", async () => {
-		renderContribution(new Map(), [
-			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS, {
-				state: "unavailable",
-				reasons: ["the corpus could not be read"],
-			}),
-		]);
-
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
-
-		expect(last).toHaveTextContent(
-			"corpus@a41c7e · staleness not judged: the corpus could not be read",
-		);
-		expect(last).not.toHaveTextContent("stale ·");
-	});
-
-	it("says when no other run of the case has a task grade", async () => {
-		renderContribution();
-
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
-
-		expect(last).toHaveTextContent(
-			"No other run of this case has a task grade yet.",
-		);
-	});
-
-	it("matches no other run as the same case when neither recorded a case", async () => {
-		renderAppWithStub(
-			`/runs/${RUN}?layout=trace`,
-			new Map<string, unknown>([
-				[
-					"/api/runs",
-					history([
-						{ ...stoppedRow(), caseId: undefined },
-						{
-							...judgedRow(
-								"2026-09-30T09-00-00.000Z",
-								"r-0150",
-								"PASS",
-								CORPUS,
-							),
-							caseId: undefined,
-						},
-					]),
-				],
-				[`/api/runs/${RUN}`, stoppedAtBuild()],
-			]),
-		);
-
-		const last = await screen.findByRole("region", {
-			name: "Last task grade for this case",
-		});
-
-		expect(last).toHaveTextContent(
-			"No other run of this case has a task grade yet.",
-		);
-	});
-
-	it("says no recorded run has an id that run history does not list", async () => {
-		renderAppWithStub(
-			"/runs/2026-01-01T00-00-00.000Z",
-			new Map([["/api/runs", history([stoppedRow()])]]),
-		);
-
-		expect(
-			await screen.findByRole("heading", {
-				name: "No recorded run has this id",
-			}),
-		).toBeInTheDocument();
-	});
-});
+	const href = action.getAttribute("href");
+	expect(href).toBe("#task-grade-label");
+	expect(
+		document.querySelector(href ?? "#missing-final-outcome-target"),
+	).toBeInTheDocument();
+}

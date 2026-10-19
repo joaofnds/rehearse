@@ -1,0 +1,28 @@
+{
+	"declaration-property-unit-disallowed-list": [
+		{
+			"/^padding/": ["px", "rem"],
+			"/^margin/": ["px", "rem"],
+			"gap": ["px", "rem"],
+			"row-gap": ["px", "rem"],
+			"column-gap": ["px", "rem"],
+			"inset": ["px", "rem"],
+			"top": ["px", "rem"],
+			"right": ["px", "rem"],
+			"bottom": ["px", "rem"],
+			"left": ["px", "rem"],
+			"width": ["px", "rem"],
+			"height": ["px", "rem"],
+			"min-width": ["px", "rem"],
+			"min-height": ["px", "rem"],
+			"max-width": ["px", "rem"],
+			"max-height": ["px", "rem"],
+			"border-width": ["px", "rem"],
+			"font-size": ["px", "rem"]
+		},
+		{
+			"severity": "error"
+		}
+	],
+	"rehearse/color-token-palette": true
+}

@@ -1,8 +1,12 @@
 import type { ComparisonArm } from "./comparison-record";
 import { COMPARISON_ARMS } from "./comparison-record";
 
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const PROJECTION_SIGNIFICANT_DIGITS = 15;
+
 /** The part of a comparison arm's resources that says what its attempts cost. */
-export type ArmResources =
+type ArmResources =
 	| {
 			readonly status: "AVAILABLE";
 			readonly total: { readonly costUsd: { readonly mean: number } };
@@ -15,7 +19,7 @@ export type ArmResources =
 			}[];
 	  };
 
-export type MoreAttemptsCost =
+type MoreAttemptsCost =
 	| {
 			readonly state: "available";
 			readonly attemptsPerArm: number;
@@ -23,7 +27,7 @@ export type MoreAttemptsCost =
 	  }
 	| { readonly state: "unavailable"; readonly reasons: readonly string[] };
 
-export function missingCostReasons(
+function missingCostReasons(
 	resources: Extract<ArmResources, { readonly status: "UNAVAILABLE" }>,
 ): string[] {
 	return resources.missingEvidence.map(
@@ -35,7 +39,7 @@ export function missingCostReasons(
  * What adding attempts to every arm of a comparison costs, at each arm's
  * recorded cost per attempt, so the operator reads it before anything runs.
  */
-export function moreAttemptsCost(
+function moreAttemptsCost(
 	arms: Readonly<Record<ComparisonArm, ArmResources>>,
 	attemptsPerArm: number,
 ): MoreAttemptsCost {
@@ -49,13 +53,20 @@ export function moreAttemptsCost(
 			perAttemptUsd += resources.total.costUsd.mean;
 		}
 	}
-	if (reasons.length > 0) {
-		return { state: "unavailable", reasons };
+	if (reasons.length > EMPTY_COLLECTION_LENGTH) {
+		return { reasons, state: "unavailable" };
 	}
 
 	return {
-		state: "available",
 		attemptsPerArm,
-		usd: Number((perAttemptUsd * attemptsPerArm).toPrecision(15)),
+		state: "available",
+		usd: Number(
+			(perAttemptUsd * attemptsPerArm).toPrecision(
+				PROJECTION_SIGNIFICANT_DIGITS,
+			),
+		),
 	};
 }
+
+export { missingCostReasons, moreAttemptsCost };
+export type { ArmResources, MoreAttemptsCost };

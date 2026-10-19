@@ -1,60 +1,61 @@
+import Metric from "#client/system/components/metric";
+import type { RangePlotRow } from "#client/system/components/range-plot";
+import RangePlot from "#client/system/components/range-plot";
+import StateBadge from "#client/system/components/state-badge";
+import SummaryPanel from "#client/system/components/summary-panel";
 import type {
-	CheckLayerAssessment,
 	CheckLayerArmAssessment,
+	CheckLayerAssessment,
 	SessionComparisonAssessment,
 } from "#server/comparison-session-assessment";
-import { Metric } from "#client/system/components/metric";
-import { RangePlot } from "#client/system/components/range-plot";
-import { SummaryPanel } from "#client/system/components/summary-panel";
-import { StateBadge } from "#client/system/components/state-badge";
+
 import { DESIGN_ARMS } from "./design-arms";
+
+const ONLY_CHECK_COVERAGE_SAMPLE_INDEX = 0;
+
+const NO_MISSING_ITEMS = 0;
+
+const NO_ATTEMPTS_WITH_UNDECLARED_CHECKS = 0;
+
+const NO_ASSESSED_RESULTS = 0;
+
+const SINGLE_ITEM_COUNT = 1;
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 const ASSESSMENT_BASIS =
 	"Recorded session check outcomes and saved state checks are shown separately; no independent final workflow outcome is measured. An attempt passes a check layer when every declared check passes. Recorded outcomes are preserved below.";
 
 function coverage(score: CheckLayerArmAssessment): string {
 	let declared = "";
-	if (score.declared.length === 1) {
-		declared = `${score.declared[0]} checks each`;
-	} else if (score.declared.length > 1) {
+	if (score.declared.length === SINGLE_ITEM_COUNT) {
+		declared = `${score.declared[ONLY_CHECK_COVERAGE_SAMPLE_INDEX]} checks each`;
+	} else if (score.declared.length > SINGLE_ITEM_COUNT) {
 		declared = `${score.declared.join(" / ")} checks per attempt`;
 	}
 
 	return [
 		`${score.assessed}/${score.total} attempts assessed`,
 		declared,
-		score.missing === 0 ? "" : `${score.missing} not recorded`,
-		score.undeclared === 0 ? "" : `${score.undeclared} with no checks declared`,
+		score.missing === NO_MISSING_ITEMS ? "" : `${score.missing} not recorded`,
+		score.undeclared === NO_ATTEMPTS_WITH_UNDECLARED_CHECKS
+			? ""
+			: `${score.undeclared} with no checks declared`,
 	]
 		.filter(Boolean)
 		.join(" · ");
 }
 
+interface AssessmentLayerProps {
+	readonly title: string;
+	readonly assessment: CheckLayerAssessment;
+}
+
 function AssessmentLayer({
 	title,
 	assessment,
-}: {
-	readonly title: string;
-	readonly assessment: CheckLayerAssessment;
-}): React.JSX.Element {
-	const arms = DESIGN_ARMS.map(({ arm, role }) => ({
-		arm,
-		role,
-		score: assessment[arm],
-	}));
-	const rows = arms.flatMap(({ arm, role, score }) =>
-		score.passRate.state === "unavailable"
-			? []
-			: [
-					{
-						id: arm,
-						label: `${role.replace(" (before)", "").replace(" (after)", "")} · n=${score.assessed}`,
-						low: score.passRate.low,
-						high: score.passRate.high,
-						value: score.passRate.value,
-					},
-				],
-	);
+}: AssessmentLayerProps): React.JSX.Element {
+	const { arms, rows } = assessmentReading(assessment);
 
 	return (
 		<section aria-label={title} className="flex flex-col gap-3">
@@ -65,7 +66,7 @@ function AssessmentLayer({
 						key={arm}
 						label={role}
 						value={
-							score.assessed === 0
+							score.assessed === NO_ASSESSED_RESULTS
 								? "Not assessed"
 								: `${score.passed}/${score.assessed} passed`
 						}
@@ -76,7 +77,7 @@ function AssessmentLayer({
 			<p className="text-12 text-muted-foreground">
 				Attempt pass rate · 95% confidence interval
 			</p>
-			{rows.length === 0 ? (
+			{rows.length === EMPTY_COLLECTION_LENGTH ? (
 				<p className="text-14 text-muted-foreground">
 					No recorded attempts with declared checks to compare.
 				</p>
@@ -94,11 +95,13 @@ function AssessmentLayer({
 	);
 }
 
-export function SessionAssessment({
-	assessment,
-}: {
+interface SessionAssessmentProps {
 	readonly assessment: SessionComparisonAssessment | undefined;
-}): React.JSX.Element {
+}
+
+function SessionAssessment({
+	assessment,
+}: SessionAssessmentProps): React.JSX.Element {
 	if (assessment === undefined) {
 		return (
 			<SummaryPanel
@@ -137,3 +140,40 @@ export function SessionAssessment({
 		</SummaryPanel>
 	);
 }
+
+interface AssessmentArmReading {
+	readonly arm: (typeof DESIGN_ARMS)[number]["arm"];
+	readonly role: string;
+	readonly score: CheckLayerArmAssessment;
+}
+
+interface AssessmentReading {
+	readonly arms: readonly AssessmentArmReading[];
+	readonly rows: readonly RangePlotRow[];
+}
+
+function assessmentReading(
+	assessment: CheckLayerAssessment,
+): AssessmentReading {
+	const arms = DESIGN_ARMS.map(({ arm, role }) => ({
+		arm,
+		role,
+		score: assessment[arm],
+	}));
+	const rows = arms.flatMap(({ arm, role, score }) =>
+		score.passRate.state === "unavailable"
+			? []
+			: [
+					{
+						high: score.passRate.high,
+						id: arm,
+						label: `${role.replace(" (before)", "").replace(" (after)", "")} · n=${score.assessed}`,
+						low: score.passRate.low,
+						value: score.passRate.value,
+					},
+				],
+	);
+	return { arms, rows };
+}
+
+export { SessionAssessment as default };

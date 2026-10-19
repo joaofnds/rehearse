@@ -1,36 +1,49 @@
 import type { GradedStageRef } from "#benchmark/operator-grade";
-import { plural } from "#client/plural";
+import plural from "#client/plural";
+
+const NO_GRADE_DRIFT_TENTHS = 0;
+
+const PERCENT_SCALE = 100;
+
+const EXACT_AGREEMENT_STEPS = 0;
+
+const AGREEMENT_TOLERANCE_STEPS = 1;
+
+const TENTHS_PER_STEP = 10;
+
+const AGREEMENT_CELLS = 1;
+
+const CELLS_PER_STEP = 4;
+
+const DRIFT_DECIMAL_PLACES = 1;
 
 const DRIFT_CELLS = 7;
 
-export function reviewsLine(reviews: number): string {
+function reviewsLine(reviews: number): string {
 	return `${plural(reviews, "review")} recorded`;
 }
 
-export function agreementPercent(
-	withinOneStep: number,
-	reviews: number,
-): string {
-	return `${Math.round((withinOneStep / reviews) * 100)}%`;
+function agreementPercent(withinOneStep: number, reviews: number): string {
+	return `${Math.round((withinOneStep / reviews) * PERCENT_SCALE)}%`;
 }
 
-export interface AgreementReading {
+interface AgreementReading {
 	readonly glyph: "✓" | "≈" | "✕";
 	readonly label: string;
 }
 
-export function agreementReading(stepsApart: number): AgreementReading {
-	if (stepsApart === 0) {
+function agreementReading(stepsApart: number): AgreementReading {
+	if (stepsApart === EXACT_AGREEMENT_STEPS) {
 		return { glyph: "✓", label: "exact" };
 	}
-	if (stepsApart === 1) {
+	if (stepsApart === AGREEMENT_TOLERANCE_STEPS) {
 		return { glyph: "≈", label: "within 1 step" };
 	}
 
 	return { glyph: "✕", label: `${stepsApart} steps apart` };
 }
 
-export interface DriftReading {
+interface DriftReading {
 	readonly value: string;
 	readonly bar: string;
 }
@@ -40,25 +53,29 @@ export interface DriftReading {
  * "agrees" where that rounds to nothing. The bar's fill comes from the
  * unrounded value, one cell for agreement and one more per quarter step.
  */
-export function driftReading(steps: number): DriftReading {
+function driftReading(steps: number): DriftReading {
 	// Math.round takes a half toward +∞, so the magnitude is rounded and the
 	// sign put back, keeping a drift and its mirror the same size.
-	const tenths = Math.sign(steps) * Math.round(Math.abs(steps) * 10);
-	const filled = Math.min(DRIFT_CELLS, 1 + Math.round(4 * Math.abs(steps)));
+	const tenths =
+		Math.sign(steps) * Math.round(Math.abs(steps) * TENTHS_PER_STEP);
+	const filled = Math.min(
+		DRIFT_CELLS,
+		AGREEMENT_CELLS + Math.round(CELLS_PER_STEP * Math.abs(steps)),
+	);
 	const bar = `${"▮".repeat(filled)}${"▯".repeat(DRIFT_CELLS - filled)}`;
-	if (tenths === 0) {
-		return { value: "agrees", bar };
+	if (tenths === NO_GRADE_DRIFT_TENTHS) {
+		return { bar, value: "agrees" };
 	}
 
-	const sign = tenths > 0 ? "+" : "−";
+	const sign = tenths > NO_GRADE_DRIFT_TENTHS ? "+" : "−";
 
 	return {
-		value: `judge ${sign}${(Math.abs(tenths) / 10).toFixed(1)} steps`,
 		bar,
+		value: `judge ${sign}${(Math.abs(tenths) / TENTHS_PER_STEP).toFixed(DRIFT_DECIMAL_PLACES)} steps`,
 	};
 }
 
-export function stepLabel(stage: GradedStageRef, stageName: string): string {
+function stepLabel(stage: GradedStageRef, stageName: string): string {
 	switch (stage.kind) {
 		case "run": {
 			return `${stage.run} · ${stageName}`;
@@ -76,7 +93,7 @@ export function stepLabel(stage: GradedStageRef, stageName: string): string {
 }
 
 /** Where the review of one graded stage opens, one route family per kind as the server names them. */
-export function reviewPath(stage: GradedStageRef): string {
+function reviewPath(stage: GradedStageRef): string {
 	switch (stage.kind) {
 		case "run": {
 			return `/calibration/runs/${encodeURIComponent(stage.run)}/stages/${encodeURIComponent(stage.stage)}`;
@@ -92,3 +109,13 @@ export function reviewPath(stage: GradedStageRef): string {
 		}
 	}
 }
+
+export {
+	agreementPercent,
+	agreementReading,
+	driftReading,
+	reviewPath,
+	reviewsLine,
+	stepLabel,
+};
+export type { AgreementReading, DriftReading };

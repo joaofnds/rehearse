@@ -34,13 +34,13 @@ Run the gate before every commit:
 bun run check
 ```
 
-It runs every check below and stops at the first one that fails. The checks
+It first checks the quality policy, then runs every check below and stops at the first one that fails. The checks
 before the tests take seconds, and the full test suite runs last. Run it even
 when the tests for the files you changed pass. A change can break a test in a
 file it never touched, and only the full suite catches that. The gate checks the
 working tree, so a file it passes can import one you have not added.
 
-An opt-in pre-commit hook refuses a commit when the working-tree copy of a staged
+An opt-in pre-commit hook checks the quality policy across maintained files and refuses a commit when the working-tree copy of a staged
 file carries an oxlint error or is not formatted, and when a staged file is
 missing from the working tree. A file staged with only some of its edits is
 checked with all of them, so an error in the staged copy that the working tree
@@ -61,6 +61,7 @@ Setting `core.hooksPath` stops git from running the hooks in `.git/hooks`.
 Each check also runs on its own:
 
 ```sh
+bun run quality:policy
 bun run typecheck
 bun run lint
 bun run lint:css
@@ -106,6 +107,57 @@ class-transformer. Read [architecture](docs/design.md)
 for the component boundaries and [design handoff](docs/design-handoff/README.md)
 before implementing a new screen.
 
+Fix a quality check's cause in the code. Suppression comments, configured rules
+below error severity, per-file rule overrides, and exclusions for maintained
+source are forbidden. `quality:policy` enforces this in the full gate and hook,
+including newly created files. Experiment fixtures, recorded runs, the personal
+board, and archived references remain outside source checks because their bytes
+are inputs or evidence. The linter's own implementation receives the same checks
+as the application. Git exclusions that match maintained source or quality
+configuration fail the policy check, including files that have not been staged,
+so formatter scans cannot silently skip them. Installed dependencies and the
+generated client build stay outside maintained source.
+
+The oxlint configuration lists its enforced rules explicitly. Blanket category
+presets include contradictory policies, such as requiring and forbidding default
+exports. The selection preserves quality checks while supporting Bun's Node APIs and
+TypeScript's async functions and type imports. Modules with one runtime export
+use a default export; modules with multiple runtime exports keep named exports.
+Type exports can stay named. Vite and oxlint's plugin loader also require default
+exports.
+The [language and runtime policy](docs/quality-language-policy.md) records the
+opposing native restrictions and the tests that verify the selected contracts.
+Adding a rule requires resolving its violations and checking compatibility with
+the existing rules. Add it to `tools/required-lint-rules.json` too, so deleting
+its configuration fails the policy check. Rule options are pinned in
+`tools/required-lint-rule-options.json`, and required CSS settings in
+`tools/required-css-rule-settings.json`. The policy check rejects changed limits
+and allowlists even when severity stays at error. Update those records when the
+project deliberately changes a policy. The formatter organizes import
+declarations by source; the linter sorts their named members. Side-effect imports
+retain their evaluation order. The policy check requires formatter import
+organization to stay enabled.
+
+Promise-returning functions use `async` and await the operations they forward.
+Use `return await` for direct forwarding. `typescript/return-await` uses `always`
+so the same requirement applies inside and outside error-handling blocks.
+The native callback-return rule protects completion callbacks named `callback`
+and `cb`. The companion `require-return-or-await-for-next` rule keeps the same
+completion checks for `next` and accepts awaited continuations such as Hono's
+`Next`. Type-aware checks reject awaiting synchronous callbacks and leaving
+promise continuations unobserved.
+
+Group value and type export lists at the end of each module. Use
+`export { entry as default }` to preserve the local symbol name and live binding.
+Re-export symbols directly from their source module.
+
+Use named readonly request and context types for related execution inputs.
+
+The CSS checks allow hex colors only in `--color-*`
+declarations in the token file's top-level `:root`; ordinary declarations in that
+file receive the same checks as component styles. Negative CSS examples live in
+test strings and receive the real config.
+
 Tailwind's theme names live in `client/src/system/theme.css`, and several bind to a
 different value than the raw token spelled the same way. `bg-accent` is the subtle
 hover surface shadcn expects while `--color-accent` is the brand purple, and
@@ -125,9 +177,8 @@ those, add a token only for a value a utility or a base style reads, such as the
 bar's spend track size.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
-file before you commit it. Give its props a named type and add that name to the
-`typescript/prefer-readonly-parameter-types` allow list, because React's DOM prop
-types are not deeply readonly and that rule matches exact names.
+file before you commit it. Give its props a named type. Resolve lint errors in the
+component and its contract rather than adding a type allowance to the lint config.
 
 `shadcn/no-unknown-classes` carries no allowance, so every class a component writes
 must be one Tailwind generates, and a misspelled class name fails the lint.

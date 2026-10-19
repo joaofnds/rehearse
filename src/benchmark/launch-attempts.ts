@@ -1,4 +1,16 @@
-/** The attempt counts the launch dialog offers, and no other. */
-export const LAUNCH_ATTEMPTS = [1, 3, 6, 12] as const;
+const SINGLE_ATTEMPT = 1;
+const DEFAULT_CONFIRMATION_ATTEMPTS = 3;
+const EXTENDED_CONFIRMATION_ATTEMPTS = 6;
+const MAXIMUM_CONFIRMATION_ATTEMPTS = 12;
 
-export type LaunchAttempts = (typeof LAUNCH_ATTEMPTS)[number];
+const LAUNCH_ATTEMPTS = [
+	SINGLE_ATTEMPT,
+	DEFAULT_CONFIRMATION_ATTEMPTS,
+	EXTENDED_CONFIRMATION_ATTEMPTS,
+	MAXIMUM_CONFIRMATION_ATTEMPTS,
+] as const;
+
+type LaunchAttempts = (typeof LAUNCH_ATTEMPTS)[number];
+
+export { LAUNCH_ATTEMPTS as default };
+export type { LaunchAttempts };

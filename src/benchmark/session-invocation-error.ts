@@ -1,6 +1,6 @@
 import type { SessionAttempt } from "./session-attempt";
 
-export class SessionInvocationError extends Error {
+class SessionInvocationError extends Error {
 	public override name = "SessionInvocationError";
 
 	public constructor(
@@ -10,3 +10,5 @@ export class SessionInvocationError extends Error {
 		super(message);
 	}
 }
+
+export { SessionInvocationError as default };

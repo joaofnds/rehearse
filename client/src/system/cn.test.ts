@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { cn } from "./cn";
+
+import cn from "./cn";
 
 /** Steps Tailwind's own scales name, which the merge already knows. */
 const TAILWIND_SIZES = new Set(["xs", "sm", "md", "lg", "xl"]);

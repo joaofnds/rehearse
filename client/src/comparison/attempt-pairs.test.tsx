@@ -1,278 +1,145 @@
 import { describe, expect, it } from "bun:test";
-import { renderWithRouter } from "#client/test-support/render-app";
-import { screen, within } from "@testing-library/react";
-import type { ComparisonArm } from "#benchmark/comparison-record";
-import type { StageLetterGrade } from "#benchmark/stage-letter-grades";
-import type {
-	CaseAttempts,
-	ComparisonAttempt,
-} from "#server/comparison-attempts";
-import type { ComparisonAttemptHistoryLink } from "#server/comparison-history-links";
-import { AttemptPairs } from "./attempt-pairs";
 
-type CaseHistories = Readonly<
-	Record<ComparisonArm, readonly ComparisonAttemptHistoryLink[]>
->;
+import { within } from "@testing-library/react";
 
-function graded(
-	ordinal: number,
-	grade: StageLetterGrade,
-	words: number,
-	fired: readonly string[] = [],
-): ComparisonAttempt {
-	return {
-		repId: `rep-${String(ordinal)}`,
-		ordinal,
-		outcomes: {
-			state: "available",
-			outcomes: [{ name: "shape", status: "JUDGED", grade, successful: true }],
-		},
-		blockersFired: {
-			state: "available",
-			blockers: fired.map((id) => ({ stage: "shape", id })),
-		},
-		words: { state: "available", words },
-	};
-}
+import type { ComparisonAttempt } from "#server/comparison-attempts";
 
-const ATTEMPTS: CaseAttempts = {
-	control: [graded(1, "C", 325), graded(2, "D", 259)],
-	baseline: [graded(1, "B", 510), graded(2, "C", 537, ["scope-declared"])],
-	candidate: [graded(1, "A", 396), graded(2, "C", 468)],
-};
+import {
+	ATTEMPTS,
+	cell,
+	graded,
+	renderPairs,
+	table,
+} from "./attempt-pair-test-fixtures";
+import AttemptPairs from "./attempt-pairs";
 
-function renderPairs(
-	overrides: Readonly<{
-		mode?: "stage" | "session";
-		attempts?: CaseAttempts;
-		histories?: CaseHistories;
-	}> = {},
-): void {
-	renderWithRouter(
-		<AttemptPairs
-			digest="test-comparison"
-			caseId="audit-log"
-			mode={overrides.mode ?? "stage"}
-			attempts={overrides.attempts ?? ATTEMPTS}
-			histories={overrides.histories}
-		/>,
+describe(AttemptPairs.name, () => {
+	it(
+		"lists each arm's attempts side by side, baseline arm first",
+		listsEachArmSAttemptsSideBySideBaselineArmFirst,
 	);
-}
 
-function table(): HTMLElement {
-	return screen.getByRole("table", { name: "Attempt pairs · audit-log" });
-}
+	it(
+		"shows a session's recorded check outcome beside its separate saved state failures",
+		showsASessionSRecordedCheckOutcomeBesideItsSeparateSavedStateFailures,
+	);
 
-function cell(attempt: string, arm: string): HTMLElement {
+	it(
+		"shows each attempt's words and the blockers that fired on it",
+		showsEachAttemptSWordsAndTheBlockersThatFiredOnIt,
+	);
+
+	it(
+		"claims no change between attempts, since no record ties one arm's attempt to another's",
+		claimsNoChangeBetweenAttemptsSinceNoRecordTiesOneArmSAttemptToAnotherS,
+	);
+
+	it(
+		"leaves an arm's cell empty past its last attempt",
+		leavesAnArmSCellEmptyPastItsLastAttempt,
+	);
+
+	it(
+		"names the stage of each outcome a pipeline attempt recorded",
+		namesTheStageOfEachOutcomeAPipelineAttemptRecorded,
+	);
+});
+
+function listsEachArmSAttemptsSideBySideBaselineArmFirst(): void {
+	renderPairs();
+
 	const columns = within(table())
 		.getAllByRole("columnheader")
 		.map((header) => header.textContent);
-	const row = within(table()).getByRole("rowheader", {
-		name: attempt,
-	}).parentElement;
-	if (row === null) {
-		throw new Error(`Missing row ${attempt}`);
-	}
-	const found = row.children[columns.indexOf(arm)];
-	if (!(found instanceof HTMLElement)) {
-		throw new Error(`Missing ${arm} cell in ${attempt}`);
-	}
 
-	return found;
+	expect(columns).toEqual([
+		"Attempt",
+		"Control",
+		"Baseline (before)",
+		"Candidate (after)",
+	]);
+	expect(cell("Attempt 1", "Control")).toHaveTextContent("C");
+	expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("B");
+	expect(cell("Attempt 1", "Candidate (after)")).toHaveTextContent("A");
+	expect(cell("Attempt 2", "Control")).toHaveTextContent("D");
 }
 
-describe(AttemptPairs.name, () => {
-	it("lists each arm's attempts side by side, baseline arm first", () => {
-		renderPairs();
-
-		const columns = within(table())
-			.getAllByRole("columnheader")
-			.map((header) => header.textContent);
-
-		expect(columns).toEqual([
-			"Attempt",
-			"Control",
-			"Baseline (before)",
-			"Candidate (after)",
-		]);
-		expect(cell("Attempt 1", "Control")).toHaveTextContent("C");
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("B");
-		expect(cell("Attempt 1", "Candidate (after)")).toHaveTextContent("A");
-		expect(cell("Attempt 2", "Control")).toHaveTextContent("D");
+function showsASessionSRecordedCheckOutcomeBesideItsSeparateSavedStateFailures(): void {
+	const attempt: ComparisonAttempt = {
+		...graded({ grade: "A", ordinal: 1, words: 12 }),
+		checks: { declared: 1, failing: [], passed: 1 },
+		stateChecks: {
+			declared: 1,
+			failing: [{ detail: "history changed", name: "history-preserved" }],
+			passed: 0,
+		},
+	};
+	renderPairs({
+		attempts: { ...ATTEMPTS, baseline: [attempt] },
+		mode: "session",
 	});
 
-	it("shows a session's recorded check outcome beside its separate saved state failures", () => {
-		const attempt: ComparisonAttempt = {
-			...graded(1, "A", 12),
-			checks: { passed: 1, declared: 1, failing: [] },
-			stateChecks: {
-				passed: 0,
-				declared: 1,
-				failing: [{ name: "history-preserved", detail: "history changed" }],
-			},
-		};
-		renderPairs({
-			mode: "session",
-			attempts: { ...ATTEMPTS, baseline: [attempt] },
-		});
+	const baseline = cell("Attempt 1", "Baseline (before)");
+	expect(baseline).toHaveTextContent("Recorded checks passed");
+	expect(baseline).toHaveTextContent("Reply / transcript: 1/1 checks passed");
+	expect(baseline).toHaveTextContent("Saved state: 0/1 checks passed");
+	expect(baseline).toHaveTextContent("history-preserved: history changed");
+	expect(
+		within(baseline).queryByText("A", { exact: true }),
+	).not.toBeInTheDocument();
+}
 
-		const baseline = cell("Attempt 1", "Baseline (before)");
-		expect(baseline).toHaveTextContent("Recorded checks passed");
-		expect(baseline).toHaveTextContent("Reply / transcript: 1/1 checks passed");
-		expect(baseline).toHaveTextContent("Saved state: 0/1 checks passed");
-		expect(baseline).toHaveTextContent("history-preserved: history changed");
-		expect(
-			within(baseline).queryByText("A", { exact: true }),
-		).not.toBeInTheDocument();
+function showsEachAttemptSWordsAndTheBlockersThatFiredOnIt(): void {
+	renderPairs();
+
+	expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent("537 words");
+	expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent(
+		"fired shape · scope-declared",
+	);
+	expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
+		"no blocker fired",
+	);
+}
+
+function claimsNoChangeBetweenAttemptsSinceNoRecordTiesOneArmSAttemptToAnotherS(): void {
+	renderPairs();
+
+	expect(
+		within(table()).queryByRole("columnheader", { name: /→/u }),
+	).not.toBeInTheDocument();
+	expect(within(table()).queryByText(/step|no change/u)).toBeNull();
+}
+
+function leavesAnArmSCellEmptyPastItsLastAttempt(): void {
+	renderPairs({
+		attempts: {
+			...ATTEMPTS,
+			candidate: [graded({ grade: "A", ordinal: 1, words: 396 })],
+		},
 	});
 
-	it("shows each attempt's words and the blockers that fired on it", () => {
-		renderPairs();
+	expect(cell("Attempt 2", "Candidate (after)")).toHaveTextContent(
+		"no attempt",
+	);
+}
 
-		expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent(
-			"537 words",
-		);
-		expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent(
-			"fired shape · scope-declared",
-		);
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
-			"no blocker fired",
-		);
+function namesTheStageOfEachOutcomeAPipelineAttemptRecorded(): void {
+	const attempt: ComparisonAttempt = {
+		...graded({ grade: "B", ordinal: 1, words: 100 }),
+		outcomes: {
+			outcomes: [
+				{ grade: "B", name: "build", status: "JUDGED", successful: true },
+				{ name: "final", status: "NOT_REACHED", successful: false },
+			],
+			state: "available",
+		},
+	};
+	renderPairs({
+		attempts: { ...ATTEMPTS, baseline: [attempt] },
 	});
 
-	it("claims no change between attempts, since no record ties one arm's attempt to another's", () => {
-		renderPairs();
-
-		expect(
-			within(table()).queryByRole("columnheader", { name: /→/u }),
-		).not.toBeInTheDocument();
-		expect(within(table()).queryByText(/step|no change/u)).toBeNull();
-	});
-
-	it("leaves an arm's cell empty past its last attempt", () => {
-		renderPairs({
-			attempts: { ...ATTEMPTS, candidate: [graded(1, "A", 396)] },
-		});
-
-		expect(cell("Attempt 2", "Candidate (after)")).toHaveTextContent(
-			"no attempt",
-		);
-	});
-
-	it("names the stage of each outcome a pipeline attempt recorded", () => {
-		const attempt: ComparisonAttempt = {
-			...graded(1, "B", 100),
-			outcomes: {
-				state: "available",
-				outcomes: [
-					{ name: "build", status: "JUDGED", grade: "B", successful: true },
-					{ name: "final", status: "NOT_REACHED", successful: false },
-				],
-			},
-		};
-		renderPairs({
-			attempts: { ...ATTEMPTS, baseline: [attempt] },
-		});
-
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("build B");
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
-			"final not reached",
-		);
-	});
-
-	it("states once why words or blockers were not recorded", () => {
-		const unrecorded: ComparisonAttempt = {
-			...graded(1, "B", 0),
-			blockersFired: { state: "unavailable", reason: "no blocker grading" },
-			words: { state: "unavailable", reason: "no word count" },
-		};
-		renderPairs({
-			attempts: {
-				control: [unrecorded],
-				baseline: [unrecorded],
-				candidate: [unrecorded],
-			},
-		});
-
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
-			"words not recorded",
-		);
-		expect(
-			screen.getByText("Words not recorded: no word count."),
-		).toBeInTheDocument();
-		expect(
-			screen.getByText("Blockers not recorded: no blocker grading."),
-		).toBeInTheDocument();
-	});
-
-	it("states once why outcomes were not recorded", () => {
-		const unrecorded: ComparisonAttempt = {
-			...graded(1, "B", 10),
-			outcomes: { state: "unavailable", reason: "no per-attempt outcomes" },
-		};
-		renderPairs({
-			attempts: {
-				control: [unrecorded],
-				baseline: [unrecorded],
-				candidate: [unrecorded],
-			},
-		});
-
-		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
-			"outcome not recorded",
-		);
-		expect(
-			screen.getByText("Outcomes not recorded: no per-attempt outcomes."),
-		).toBeInTheDocument();
-	});
-
-	describe("attempt history", () => {
-		it("links each attempt whose saved history the comparison still vouches for, and marks the rest stale", () => {
-			renderPairs({
-				mode: "session",
-				histories: {
-					control: [{ status: "stale", repId: "rep-1", ordinal: 1 }],
-					baseline: [
-						{
-							status: "available",
-							repId: "rep-1",
-							ordinal: 1,
-							groupId: "g",
-							href: "/groups/g/reps/rep-1/attempt",
-						},
-					],
-					candidate: [],
-				},
-			});
-
-			expect(
-				within(cell("Attempt 1", "Baseline (before)")).getByRole("link", {
-					name: "Baseline (before) attempt 1 history",
-				}),
-			).toHaveAttribute(
-				"href",
-				"/groups/g/reps/rep-1/attempt?view=context&comparison=test-comparison",
-			);
-			expect(cell("Attempt 1", "Control")).toHaveTextContent("stale");
-		});
-
-		it("says a comparison that records no session has no attempt history to open", () => {
-			renderPairs();
-
-			expect(screen.queryByRole("link")).not.toBeInTheDocument();
-			expect(
-				screen.getByText(
-					"No attempt history to open: a stage comparison's attempts record no session.",
-				),
-			).toBeInTheDocument();
-		});
-
-		it("claims no missing session for a session comparison that links no attempt", () => {
-			renderPairs({ mode: "session" });
-
-			expect(
-				screen.queryByText(/No attempt history to open/u),
-			).not.toBeInTheDocument();
-		});
-	});
-});
+	expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("build B");
+	expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
+		"final not reached",
+	);
+}

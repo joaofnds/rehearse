@@ -1,35 +1,41 @@
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
+import type { CheckResult } from "./session-check-result";
 import type { ToolUse } from "./transcript";
 import { filesRead } from "./transcript";
-import type { CheckResult } from "./session-check-result";
 
-export const filesReadCheckSchema = z
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const filesReadCheckSchema = z
 	.object({
 		kind: z.literal("files-read"),
-		paths: z.array(z.string().min(1)).min(1),
+		paths: z.array(z.string().nonempty()).nonempty(),
 	})
 	.strict();
 
-export type FilesReadCheck = z.infer<typeof filesReadCheckSchema>;
+type FilesReadCheck = z.infer<typeof filesReadCheckSchema>;
 
-export function evaluateFilesRead(
+function evaluateFilesRead(
 	check: Immutable<FilesReadCheck>,
 	toolUses: Immutable<readonly ToolUse[]>,
 ): CheckResult {
 	const read = filesRead(toolUses);
 	const missing = check.paths.filter((path) => !read.includes(path));
-	if (missing.length === 0) {
+	if (missing.length === EMPTY_COLLECTION_LENGTH) {
 		return {
+			detail: `read ${check.paths.join(", ")}`,
 			kind: check.kind,
 			status: "PASS",
-			detail: `read ${check.paths.join(", ")}`,
 		};
 	}
 
 	return {
+		detail: `never read ${missing.join(", ")}`,
 		kind: check.kind,
 		status: "FAIL",
-		detail: `never read ${missing.join(", ")}`,
 	};
 }
+
+export { filesReadCheckSchema, evaluateFilesRead };
+export type { FilesReadCheck };

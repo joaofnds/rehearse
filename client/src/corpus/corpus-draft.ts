@@ -1,5 +1,6 @@
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+
 import type { CorpusExperimentSource } from "./experiment-source";
 
 interface CorpusDraft {
@@ -23,7 +24,7 @@ type CorpusDraftIdentity = readonly [
 ];
 
 /** Shared by the retained draft and the editor that owns its local state. */
-export function corpusDraftIdentity(
+function corpusDraftIdentity(
 	root: string,
 	path: string,
 	source: CorpusExperimentSource | undefined,
@@ -38,34 +39,37 @@ export function corpusDraftIdentity(
 }
 
 /** Unapplied text stays in app memory, scoped to the linked tree, file and source. */
-export function useCorpusDraft(
+function useCorpusDraft(
 	root: string,
 	path: string,
 	source: CorpusExperimentSource | undefined,
 ): CorpusDraftState {
 	const client = useQueryClient();
 	const options = queryOptions({
-		queryKey: corpusDraftIdentity(root, path, source),
-		queryFn: (): CorpusDraft | null => null,
-		initialData: null,
 		enabled: false,
 		// Drafts have no server fetch and must outlive the editor's observer.
 		gcTime: Infinity,
+		initialData: null,
+		queryFn: (): CorpusDraft | null => null,
+		queryKey: corpusDraftIdentity(root, path, source),
 	});
 	const retainedDraft = useQuery(options);
 	const recovered = useRef(retainedDraft.data !== null);
 	const [draft, setDraft] = useState(retainedDraft.data);
 
 	return {
+		discard: () => {
+			setDraft(null);
+			client.setQueryData(options.queryKey, null);
+		},
 		draft,
 		recovered: recovered.current,
 		save: (text, version) => {
 			setDraft({ text, version });
 			client.setQueryData(options.queryKey, () => ({ text, version }));
 		},
-		discard: () => {
-			setDraft(null);
-			client.setQueryData(options.queryKey, null);
-		},
 	};
 }
+
+export { corpusDraftIdentity, useCorpusDraft };
+export type { CorpusDraft };

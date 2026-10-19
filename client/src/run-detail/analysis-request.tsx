@@ -1,8 +1,12 @@
+import type { UseMutationResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { postLaunch } from "#client/launch/post-launch";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
 import { Button } from "#client/system/ui/button";
+import type { LaunchRequest } from "#server/launches";
+
 import type { AnalysisReadingResponse } from "./analysis-query";
 import { analysesQuery } from "./analysis-query";
 
@@ -15,13 +19,15 @@ const RUN_NOT_ENDED =
  * Why the run's own state holds a request back: the server refuses a run in
  * flight or paused, and a second analysis while one runs would spend twice.
  */
-export function analysisWait({
-	runEnded,
-	analysisInFlight,
-}: {
+interface AnalysisWaitProps {
 	readonly runEnded: boolean;
 	readonly analysisInFlight: boolean;
-}): string | null {
+}
+
+function analysisWait({
+	runEnded,
+	analysisInFlight,
+}: AnalysisWaitProps): string | null {
 	if (!runEnded) {
 		return RUN_NOT_ENDED;
 	}
@@ -30,7 +36,7 @@ export function analysisWait({
 }
 
 /** The words a request states before the click: the call and its cap. */
-export function requestWords(
+function requestWords(
 	request: AnalysisReadingResponse["request"],
 ): string | undefined {
 	return request.capUsd === null
@@ -51,29 +57,20 @@ function refusalOf(
  * button itself: the server refuses a stated figure other than its cap, so
  * the click is the operator's agreement to that figure.
  */
-export function RequestAnalysisButton({
-	run,
-	request,
-	wait,
-	label,
-}: {
+interface RequestAnalysisButtonProps {
 	readonly run: string;
 	readonly request: AnalysisReadingResponse["request"];
 	readonly wait: string | null;
 	readonly label: string;
-}): React.JSX.Element {
-	const queryClient = useQueryClient();
-	const mutation = useMutation({
-		mutationFn: postLaunch,
-		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: runHistoryQuery.queryKey }),
-				queryClient.invalidateQueries({
-					queryKey: analysesQuery(run).queryKey,
-				}),
-			]);
-		},
-	});
+}
+
+function RequestAnalysisButton({
+	run,
+	request,
+	wait,
+	label,
+}: RequestAnalysisButtonProps): React.JSX.Element {
+	const mutation = useAnalysisRequest(run);
 	const { capUsd } = request;
 	const refused = refusalOf(request, wait);
 
@@ -108,3 +105,24 @@ export function RequestAnalysisButton({
 		</span>
 	);
 }
+
+function useAnalysisRequest(
+	run: string,
+): UseMutationResult<void, Error, LaunchRequest> {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: postLaunch,
+		onSuccess: async () => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: runHistoryQuery.queryKey }),
+				queryClient.invalidateQueries({
+					queryKey: analysesQuery(run).queryKey,
+				}),
+			]);
+		},
+	});
+
+	return mutation;
+}
+
+export { analysisWait, RequestAnalysisButton, requestWords };

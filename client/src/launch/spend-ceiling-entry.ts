@@ -1,35 +1,40 @@
 import { launchClient } from "#client/api-client";
-import { refusalReason } from "#client/refusal-reason";
-import { SettingsRefusedError } from "./settings-query";
-import type { SettingsReading } from "./settings-query";
+import HTTP_STATUS from "#client/http-status";
+import refusalReason from "#client/refusal-reason";
+import { USD_FRACTION_DIGITS } from "#client/run-history/run-progress";
 
-export async function putSpendCeiling(usd: number): Promise<SettingsReading> {
+import type { SettingsReading } from "./settings-query";
+import { SettingsRefusedError } from "./settings-query";
+
+const POSITIVE_SPENDING_BOUNDARY_USD = 0;
+
+async function putSpendCeiling(usd: number): Promise<SettingsReading> {
 	const response = await launchClient.api.settings["spend-ceiling"].$put({
 		json: { usd },
 	});
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /**
  * A ceiling the CLI would store too: a plain positive decimal, so "0x10" or
  * "1e3" is refused rather than read as 16 or 1000.
  */
-export function enteredCeilingUsd(entered: string): number | undefined {
+function enteredCeilingUsd(entered: string): number | undefined {
 	if (!/^\d+(?:\.\d+)?$/u.test(entered)) {
 		return undefined;
 	}
 	const usd = Number(entered);
 
-	return usd > 0 ? usd : undefined;
+	return usd > POSITIVE_SPENDING_BOUNDARY_USD ? usd : undefined;
 }
 
 const PLAIN_DECIMAL = new Intl.NumberFormat("en-US", {
-	useGrouping: false,
 	maximumFractionDigits: 20,
+	useGrouping: false,
 });
 
 /**
@@ -38,8 +43,10 @@ const PLAIN_DECIMAL = new Intl.NumberFormat("en-US", {
  * finer than a cent and the field would then misstate it. It is written
  * out in plain decimals, because the entry rule refuses 1e-7.
  */
-export function storedCeilingEntry(usd: number): string {
-	const cents = usd.toFixed(2);
+function storedCeilingEntry(usd: number): string {
+	const cents = usd.toFixed(USD_FRACTION_DIGITS);
 
 	return Number(cents) === usd ? cents : PLAIN_DECIMAL.format(usd);
 }
+
+export { enteredCeilingUsd, putSpendCeiling, storedCeilingEntry };

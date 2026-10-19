@@ -1,22 +1,30 @@
-import { scopedRecordReader, recordFileExists } from "./record-read-scope";
-import type { Dirent } from "node:fs";
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const CHECKPOINTS_SUFFIX = ".checkpoints";
-const STOPPED_SESSION_SUFFIX = ".session";
-const MANIFEST_FILE = "manifest.json";
-const PAUSE_REQUEST_FILE = "pause-request.json";
-const PAUSED_FILE = "paused.json";
-const OPERATOR_STOP_FILE = "operator-stop.json";
-const CHECKPOINT_FILE = "checkpoint.json";
-const ATTEMPT_FILE = "attempt.json";
-const SESSIONS_DIRECTORY = "sessions";
-const GRADES_DIRECTORY = "grades";
-const RECORD_SUFFIX = ".json";
-const LAUNCHES_DIRECTORY = "launches";
+import { directoryNames, entries } from "./record-directory-entries";
+import { OPERATOR_STOP_FILE, RECORD_SUFFIX } from "./record-file-names";
+import { recordFileExists } from "./record-read-scope";
+import { replayRecordFile } from "./replay-layout";
 
-export interface BenchmarkRunPaths {
+const PREFIX_START_INDEX = 0;
+
+const CHECKPOINTS_SUFFIX = ".checkpoints";
+
+const STOPPED_SESSION_SUFFIX = ".session";
+
+const MANIFEST_FILE = "manifest.json";
+
+const PAUSE_REQUEST_FILE = "pause-request.json";
+
+const PAUSED_FILE = "paused.json";
+
+const CHECKPOINT_FILE = "checkpoint.json";
+
+interface RunLocation {
+	readonly runsDirectory: string;
+	readonly run: string;
+}
+
+interface BenchmarkRunPaths {
 	readonly runsDirectory: string;
 	readonly name: string;
 	readonly artifactFile: string;
@@ -40,34 +48,7 @@ export interface BenchmarkRunPaths {
 	readonly replayRecordFile: (lineage: string, timestamp: string) => string;
 }
 
-export interface ConfirmationRepPaths {
-	readonly directory: string;
-	readonly recordFile: string;
-	readonly attemptFile: string;
-	readonly transcriptFile: string;
-	readonly finalFile: string;
-	readonly stagesDirectory: string;
-	readonly checkpointsDirectory: string;
-	readonly stageFile: (stage: string) => string;
-	readonly checkpointDirectory: (stage: string) => string;
-}
-
-export interface ConfirmationGroupPaths {
-	readonly directory: string;
-	readonly groupFile: string;
-	readonly operatorStopFile: string;
-	readonly inputsDirectory: string;
-	readonly reportFile: string;
-	readonly repsDirectory: string;
-	readonly rep: (repId: string) => ConfirmationRepPaths;
-}
-
-export interface ComparisonReportPaths {
-	readonly directory: string;
-	readonly reportFile: string;
-}
-
-export function benchmarkRunsDirectory(controlDirectory: string): string {
+function benchmarkRunsDirectory(controlDirectory: string): string {
 	return join(controlDirectory, ".benchmark-runs");
 }
 
@@ -76,7 +57,7 @@ export function benchmarkRunsDirectory(controlDirectory: string): string {
  * state a reader can delete and rebuild, and every run in flight at once
  * writes into it, keyed by its own run id.
  */
-export function runEventsDatabaseFile(runsDirectory: string): string {
+function runEventsDatabaseFile(runsDirectory: string): string {
 	return join(runsDirectory, "run-events.sqlite");
 }
 
@@ -84,7 +65,7 @@ export function runEventsDatabaseFile(runsDirectory: string): string {
  * Operator grades sit in a directory of their own, so no reader that lists a
  * run's `<run>.*.json` files takes one for a stage record.
  */
-export function operatorGradesDirectory(runsDirectory: string): string {
+function operatorGradesDirectory(runsDirectory: string): string {
 	return join(runsDirectory, "operator-grades");
 }
 
@@ -92,12 +73,8 @@ export function operatorGradesDirectory(runsDirectory: string): string {
  * Root-cause analyses sit in a directory of their own for the same reason as
  * operator grades: a `<run>.*.json` file beside the run reads as a stage.
  */
-export function rootCauseAnalysesDirectory(runsDirectory: string): string {
+function rootCauseAnalysesDirectory(runsDirectory: string): string {
 	return join(runsDirectory, "analyses");
-}
-
-export function runNameFromTimestamp(timestamp: string): string {
-	return timestamp.replaceAll(":", "-");
 }
 
 /**
@@ -105,41 +82,24 @@ export function runNameFromTimestamp(timestamp: string): string {
  * runs directory one segment at a time needs the entry name rather than the
  * joined path `benchmarkRunPaths` returns.
  */
-export function checkpointsEntryForRun(name: string): string {
+function checkpointsEntryForRun(name: string): string {
 	return `${name}${CHECKPOINTS_SUFFIX}`;
 }
 
 /** The runs directory entry holding a stopped stage's session. */
-export function stoppedSessionEntry(name: string, stage: string): string {
+function stoppedSessionEntry(name: string, stage: string): string {
 	return `${name}.${stage}${STOPPED_SESSION_SUFFIX}`;
 }
 
-export function runNameFromCheckpointsEntry(entry: string): string | undefined {
+function runNameFromCheckpointsEntry(entry: string): string | undefined {
 	if (!entry.endsWith(CHECKPOINTS_SUFFIX)) {
 		return undefined;
 	}
 
-	return entry.slice(0, -CHECKPOINTS_SUFFIX.length);
+	return entry.slice(PREFIX_START_INDEX, -CHECKPOINTS_SUFFIX.length);
 }
 
-/**
- * A replay record is filed under the lineage it consumed rather than under the
- * run that produced it, so it is reachable without naming a run.
- */
-export function replayRecordFile(
-	runsDirectory: string,
-	lineage: string,
-	timestamp: string,
-): string {
-	return join(
-		runsDirectory,
-		"replays",
-		lineage,
-		`${runNameFromTimestamp(timestamp)}.json`,
-	);
-}
-
-export function benchmarkRunPaths(
+function benchmarkRunPaths(
 	runsDirectory: string,
 	name: string,
 ): BenchmarkRunPaths {
@@ -150,145 +110,41 @@ export function benchmarkRunPaths(
 	const replaysDirectory = join(runsDirectory, "replays");
 
 	return {
-		runsDirectory,
-		name,
 		artifactFile: join(runsDirectory, `${name}.json`),
-		reviewFile: join(runsDirectory, `${name}.review.json`),
+		checkpointDirectory: (stage) => join(checkpointsDirectory, stage),
 		checkpointsDirectory,
 		manifestFile: join(checkpointsDirectory, MANIFEST_FILE),
+		name,
+		operatorStopFile: join(checkpointsDirectory, OPERATOR_STOP_FILE),
 		pauseRequestFile: join(checkpointsDirectory, PAUSE_REQUEST_FILE),
 		pausedFile: join(checkpointsDirectory, PAUSED_FILE),
-		operatorStopFile: join(checkpointsDirectory, OPERATOR_STOP_FILE),
-		replaysDirectory,
-		stageFile: (stage) => join(runsDirectory, `${name}.${stage}.json`),
-		checkpointDirectory: (stage) => join(checkpointsDirectory, stage),
-		stoppedSessionDirectory: (stage) =>
-			join(runsDirectory, stoppedSessionEntry(name, stage)),
 		replayDirectory: (lineage) => join(replaysDirectory, lineage),
 		replayRecordFile: (lineage, timestamp) =>
 			replayRecordFile(runsDirectory, lineage, timestamp),
-	};
-}
-
-export function confirmationGroupPaths(
-	runsDirectory: string,
-	groupId: string,
-): ConfirmationGroupPaths {
-	const directory = join(runsDirectory, "confirmations", groupId);
-	const repsDirectory = join(directory, "reps");
-
-	return {
-		directory,
-		groupFile: join(directory, "group.json"),
-		operatorStopFile: join(directory, OPERATOR_STOP_FILE),
-		inputsDirectory: join(directory, "inputs"),
-		reportFile: join(directory, "report.json"),
-		repsDirectory,
-		rep: (repId) => {
-			const repDirectory = join(repsDirectory, repId);
-			const stagesDirectory = join(repDirectory, "stages");
-			const checkpointsDirectory = join(repDirectory, "checkpoints");
-
-			return {
-				directory: repDirectory,
-				recordFile: join(repDirectory, "rep.json"),
-				attemptFile: join(repDirectory, ATTEMPT_FILE),
-				transcriptFile: join(repDirectory, "transcript.jsonl"),
-				finalFile: join(repDirectory, "final.json"),
-				stagesDirectory,
-				checkpointsDirectory,
-				stageFile: (stage) => join(stagesDirectory, `${stage}.json`),
-				checkpointDirectory: (stage) => join(checkpointsDirectory, stage),
-			};
-		},
-	};
-}
-
-/**
- * Where one session attempt keeps its record, the corpus snapshot it ran
- * against, and every later grade of its evidence. The command that writes an
- * attempt and the three that read one all come through here, so the layout is
- * stated once and a change to it cannot leave a reader looking at the old
- * shape.
- *
- * A grade is filed inside the attempt it read, under the timestamp of the
- * pass that produced it, so one attempt carries as many assessments as it has
- * been regraded and none of them touches the record. A replay is filed the
- * other way round, at the runs-directory level under its lineage, because a
- * replay is reachable without naming a run and a grade is reached only by
- * naming the attempt it grades.
- */
-export function sessionAttemptPaths(
-	runsDirectory: string,
-	attempt: SessionAttemptId,
-): SessionAttemptPaths {
-	const directory = join(
+		replaysDirectory,
+		reviewFile: join(runsDirectory, `${name}.review.json`),
 		runsDirectory,
-		SESSIONS_DIRECTORY,
-		attempt.caseId,
-		attempt.uuid,
-	);
-
-	const gradesDirectory = join(directory, GRADES_DIRECTORY);
-
-	return {
-		directory,
-		recordFile: join(directory, ATTEMPT_FILE),
-		transcriptFile: join(directory, "transcript.jsonl"),
-		corpusDirectory: join(directory, "corpus"),
-		gradesDirectory,
-		gradeFile: (timestamp) =>
-			join(gradesDirectory, `${runNameFromTimestamp(timestamp)}.json`),
+		stageFile: (stage) => join(runsDirectory, `${name}.${stage}.json`),
+		stoppedSessionDirectory: (stage) =>
+			join(runsDirectory, stoppedSessionEntry(name, stage)),
 	};
 }
 
-export function checkpointRecordFile(checkpointDirectory: string): string {
+function checkpointRecordFile(checkpointDirectory: string): string {
 	return join(checkpointDirectory, CHECKPOINT_FILE);
 }
 
 /** Whether a stage of a run saved its checkpoint record. */
-export function checkpointRecorded(
+async function checkpointRecorded(
 	paths: Pick<BenchmarkRunPaths, "checkpointDirectory">,
 	stage: string,
 ): Promise<boolean> {
-	return recordFileExists(
+	return await recordFileExists(
 		checkpointRecordFile(paths.checkpointDirectory(stage)),
 	);
 }
 
-export function comparisonReportPaths(
-	runsDirectory: string,
-	manifestDigest: string,
-): ComparisonReportPaths {
-	const directory = join(runsDirectory, "comparisons", manifestDigest);
-
-	return { directory, reportFile: join(directory, "report.json") };
-}
-
-/**
- * Enumeration lives beside the path builders because this module is the only
- * one that knows a run's checkpoints directory carries a suffix, a group is a
- * directory under `confirmations`, and a replay record is a timestamp file
- * under its lineage. A directory that was never written is nothing recorded,
- * not a failure: `list` over a fresh checkout prints no line and exits 0.
- */
-const entries = scopedRecordReader(
-	async (directory): Promise<readonly Dirent[]> => {
-		const found: Dirent[] = await readdir(directory, {
-			withFileTypes: true,
-		}).catch(() => []);
-
-		return found.toSorted((left, right) => (left.name < right.name ? -1 : 1));
-	},
-);
-
-async function directoryNames(directory: string): Promise<readonly string[]> {
-	const found = await entries(directory);
-
-	return found.filter((entry) => entry.isDirectory()).map(({ name }) => name);
-}
-
-export async function recordedRunNames(
+async function recordedRunNames(
 	runsDirectory: string,
 ): Promise<readonly string[]> {
 	const names = await directoryNames(runsDirectory);
@@ -307,7 +163,7 @@ const REVIEW_SUFFIX = ".review.json";
  * so this is where a caller looks to tell which stage stopped a run that
  * never wrote an artifact.
  */
-export async function runStageFiles(
+async function runStageFiles(
 	runsDirectory: string,
 	run: string,
 ): Promise<readonly string[]> {
@@ -330,137 +186,65 @@ export async function runStageFiles(
  * Every stage a run recorded a checkpoint for, sorted. A run with no
  * checkpoints directory recorded nothing, not a failure.
  */
-export function checkpointStageNames(
+async function checkpointStageNames(
 	runsDirectory: string,
 	run: string,
 ): Promise<readonly string[]> {
-	return directoryNames(
+	return await directoryNames(
 		benchmarkRunPaths(runsDirectory, run).checkpointsDirectory,
 	);
 }
 
-export function confirmationGroupIds(
-	runsDirectory: string,
-): Promise<readonly string[]> {
-	return directoryNames(join(runsDirectory, "confirmations"));
-}
+export { runNameFromTimestamp } from "./record-file-names";
 
-/** Every rep directory a confirmation group holds, whether or not it finished. */
-export function confirmationRepIds(
-	runsDirectory: string,
-	groupId: string,
-): Promise<readonly string[]> {
-	return directoryNames(
-		confirmationGroupPaths(runsDirectory, groupId).repsDirectory,
-	);
-}
+export { replayRecordFile, replayAttemptIds } from "./replay-layout";
 
-/**
- * Every stage one rep kept a record of, from its stage files and its
- * checkpoints, so a rep's reads can be listed without the pipeline its group
- * froze.
- */
-export async function confirmationRepStageNames(
-	runsDirectory: string,
-	groupId: string,
-	repId: string,
-): Promise<readonly string[]> {
-	const rep = confirmationGroupPaths(runsDirectory, groupId).rep(repId);
-	const found = await entries(rep.stagesDirectory);
-	const stageFiles = found
-		.filter((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX))
-		.map(({ name }) => name.slice(0, -RECORD_SUFFIX.length));
-	const checkpoints = await directoryNames(rep.checkpointsDirectory);
+export {
+	confirmationGroupPaths,
+	confirmationGroupIds,
+	confirmationRepIds,
+	confirmationRepStageNames,
+} from "./confirmation-layout";
 
-	return [...new Set([...stageFiles, ...checkpoints])].toSorted();
-}
+export {
+	sessionAttemptPaths,
+	sessionAttemptIds,
+} from "./session-attempt-layout";
 
-export interface LaunchPaths {
-	readonly directory: string;
-	readonly recordFile: string;
-	readonly logFile: string;
-}
+export { comparisonReportPaths, comparisonDigests } from "./comparison-layout";
 
-/**
- * A browser launch is kept in the records directory rather than in server
- * memory, so the pid it started is still known after the server restarts.
- */
-export function launchPaths(runsDirectory: string, id: string): LaunchPaths {
-	const directory = join(runsDirectory, LAUNCHES_DIRECTORY);
+export { launchPaths, launchIds } from "./launch-layout";
 
-	return {
-		directory,
-		recordFile: join(directory, `${id}${RECORD_SUFFIX}`),
-		logFile: join(directory, `${id}.log`),
-	};
-}
+export type {
+	ConfirmationRepPaths,
+	ConfirmationGroupPaths,
+} from "./confirmation-layout";
 
-export async function launchIds(
-	runsDirectory: string,
-): Promise<readonly string[]> {
-	const found = await entries(join(runsDirectory, LAUNCHES_DIRECTORY));
+export type { ComparisonReportPaths } from "./comparison-layout";
 
-	return found
-		.filter((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX))
-		.map(({ name }) => name.slice(0, -RECORD_SUFFIX.length));
-}
+export type { LaunchPaths } from "./launch-layout";
 
-export function comparisonDigests(
-	runsDirectory: string,
-): Promise<readonly string[]> {
-	return directoryNames(join(runsDirectory, "comparisons"));
-}
+export type {
+	SessionAttemptId,
+	SessionAttemptPaths,
+} from "./session-attempt-layout";
 
-export interface SessionAttemptId {
-	readonly caseId: string;
-	readonly uuid: string;
-}
+export type { StageAttemptId } from "./replay-layout";
 
-export interface SessionAttemptPaths {
-	readonly directory: string;
-	readonly recordFile: string;
-	readonly transcriptFile: string;
-	readonly corpusDirectory: string;
-	readonly gradesDirectory: string;
-	readonly gradeFile: (timestamp: string) => string;
-}
+export {
+	benchmarkRunsDirectory,
+	runEventsDatabaseFile,
+	operatorGradesDirectory,
+	rootCauseAnalysesDirectory,
+	checkpointsEntryForRun,
+	stoppedSessionEntry,
+	runNameFromCheckpointsEntry,
+	benchmarkRunPaths,
+	checkpointRecordFile,
+	checkpointRecorded,
+	recordedRunNames,
+	runStageFiles,
+	checkpointStageNames,
+};
 
-export async function sessionAttemptIds(
-	runsDirectory: string,
-): Promise<readonly SessionAttemptId[]> {
-	const sessionsDirectory = join(runsDirectory, SESSIONS_DIRECTORY);
-	const attempts: SessionAttemptId[] = [];
-
-	for (const caseId of await directoryNames(sessionsDirectory)) {
-		for (const uuid of await directoryNames(join(sessionsDirectory, caseId))) {
-			attempts.push({ caseId, uuid });
-		}
-	}
-
-	return attempts;
-}
-
-export interface StageAttemptId {
-	readonly lineage: string;
-	readonly timestamp: string;
-}
-
-export async function replayAttemptIds(
-	runsDirectory: string,
-): Promise<readonly StageAttemptId[]> {
-	const replaysDirectory = join(runsDirectory, "replays");
-	const attempts: StageAttemptId[] = [];
-
-	for (const lineage of await directoryNames(replaysDirectory)) {
-		for (const entry of await entries(join(replaysDirectory, lineage))) {
-			if (entry.isFile() && entry.name.endsWith(RECORD_SUFFIX)) {
-				attempts.push({
-					lineage,
-					timestamp: entry.name.slice(0, -RECORD_SUFFIX.length),
-				});
-			}
-		}
-	}
-
-	return attempts;
-}
+export type { RunLocation, BenchmarkRunPaths };

@@ -1,12 +1,15 @@
 import { z } from "zod";
+
 import type { BenchmarkRunPaths } from "./run-layout";
+
+const RECORD_JSON_INDENT_SPACES = 2;
 
 type PausePaths = Pick<BenchmarkRunPaths, "pauseRequestFile" | "pausedFile">;
 
 const pausedRecordSchema = z.object({
-	status: z.literal("PAUSED"),
-	stage: z.string().min(1),
 	pausedAt: z.iso.datetime(),
+	stage: z.string().nonempty(),
+	status: z.literal("PAUSED"),
 });
 
 /**
@@ -14,36 +17,38 @@ const pausedRecordSchema = z.object({
  * reads the request at its next stage boundary, so the request lives on disk
  * beside the run rather than in the process that asked.
  */
-export async function requestPause(
+async function requestPause(
 	paths: PausePaths,
 	requestedAt: string,
 ): Promise<void> {
 	await Bun.write(
 		paths.pauseRequestFile,
-		`${JSON.stringify({ requestedAt }, null, 2)}\n`,
+		`${JSON.stringify({ requestedAt }, null, RECORD_JSON_INDENT_SPACES)}\n`,
 	);
 }
 
-export function pauseRequested(paths: PausePaths): Promise<boolean> {
-	return Bun.file(paths.pauseRequestFile).exists();
+async function pauseRequested(paths: PausePaths): Promise<boolean> {
+	return await Bun.file(paths.pauseRequestFile).exists();
 }
 
 /** Records that the run ended paused after `stage`, its checkpoint written. */
-export async function recordPaused(
+async function recordPaused(
 	paths: PausePaths,
 	stage: string,
 	pausedAt: string,
 ): Promise<void> {
 	await Bun.write(
 		paths.pausedFile,
-		`${JSON.stringify({ status: "PAUSED", stage, pausedAt }, null, 2)}\n`,
+		`${JSON.stringify(
+			{ pausedAt, stage, status: "PAUSED" },
+			null,
+			RECORD_JSON_INDENT_SPACES,
+		)}\n`,
 	);
 }
 
 /** The stage a paused run paused after, undefined for a run not paused. */
-export async function pausedStage(
-	paths: PausePaths,
-): Promise<string | undefined> {
+async function pausedStage(paths: PausePaths): Promise<string | undefined> {
 	const file = Bun.file(paths.pausedFile);
 	if (!(await file.exists())) {
 		return undefined;
@@ -51,3 +56,5 @@ export async function pausedStage(
 
 	return pausedRecordSchema.parse(JSON.parse(await file.text())).stage;
 }
+
+export { requestPause, pauseRequested, recordPaused, pausedStage };

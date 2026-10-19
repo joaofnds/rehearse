@@ -1,10 +1,10 @@
-import type { PipelineRow } from "#client/shell/run-in-flight";
-import type { StatusState } from "#client/system/components/status";
 import {
 	OPERATOR_STOPPED,
 	isPaused,
 	isStopped,
 } from "#benchmark/stopped-status";
+import type { PipelineRow } from "#client/shell/run-in-flight";
+import type { StatusState } from "#client/system/components/status";
 
 /**
  * A run's recorded status, read as the design system's status vocabulary. A
@@ -14,7 +14,7 @@ import {
  * A run the operator stopped is not a failure either, and reads the same.
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
-export function runStatusState(status: string): StatusState {
+function runStatusState(status: string): StatusState {
 	if (isStopped(status) || status === OPERATOR_STOPPED) {
 		return "stopped";
 	}
@@ -43,13 +43,15 @@ export function runStatusState(status: string): StatusState {
 }
 
 /** Whether the process ended; continuing a paused run starts a new replay. */
-export function hasRunEnded({
+function hasRunEnded({
 	progress,
 }: Pick<PipelineRow, "status" | "progress">): boolean {
 	return progress.state !== "running";
 }
 
 /** Whether a stop record or the operator ended the run. */
-export function endedByStop(status: string): boolean {
+function endedByStop(status: string): boolean {
 	return isStopped(status) || status === OPERATOR_STOPPED;
 }
+
+export { endedByStop, hasRunEnded, runStatusState };

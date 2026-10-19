@@ -3,7 +3,7 @@
  * test setup installs this one, and a test delivers an event to a stream it
  * finds open, as the server would.
  */
-export class FakeEventSource {
+class FakeEventSource {
 	public static opened: FakeEventSource[] = [];
 
 	public closed = false;
@@ -43,3 +43,5 @@ export class FakeEventSource {
 		}
 	}
 }
+
+export { FakeEventSource as default };

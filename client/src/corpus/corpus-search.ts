@@ -1,12 +1,15 @@
 import { z } from "zod";
 
 /** A corpus destination can retain its source step and selected file lines. */
-export const corpusSearchSchema = z.object({
+const corpusSearchSchema = z.object({
+	end: z.coerce.number().int().positive().optional(),
+	file: z.string().optional(),
 	sourceRun: z.string().optional(),
 	sourceStep: z.string().optional(),
-	file: z.string().optional(),
 	start: z.coerce.number().int().positive().optional(),
-	end: z.coerce.number().int().positive().optional(),
 });
 
-export type CorpusSearch = z.output<typeof corpusSearchSchema>;
+type CorpusSearch = z.output<typeof corpusSearchSchema>;
+
+export { corpusSearchSchema as default };
+export type { CorpusSearch };

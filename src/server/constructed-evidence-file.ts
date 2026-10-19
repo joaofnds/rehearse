@@ -1,14 +1,15 @@
 import { basename, dirname, relative } from "node:path";
+
 import type { RecordedEvidenceFile } from "./session-history-reader";
 import {
+	SessionHistoryReaderError,
+	readVerifiedFile,
 	verifiedDirectory,
 	verifiedFile,
-	readVerifiedFile,
-	SessionHistoryReaderError,
 } from "./session-history-reader";
 
 /** A path built from run-layout and parsed identities has no recorded-path root marker. */
-export async function readConstructedEvidenceFile(
+async function readConstructedEvidenceFile(
 	root: string,
 	file: string,
 ): Promise<RecordedEvidenceFile> {
@@ -18,7 +19,11 @@ export async function readConstructedEvidenceFile(
 			.split("/")
 			.filter((segment) => segment !== ""),
 	);
-	const verified = await verifiedFile(root, directory, basename(file), true);
+	const verified = await verifiedFile(root, {
+		directory,
+		name: basename(file),
+		required: true,
+	});
 	if (verified === undefined) {
 		throw new SessionHistoryReaderError(
 			"not-found",
@@ -28,3 +33,5 @@ export async function readConstructedEvidenceFile(
 
 	return { path: verified, text: await readVerifiedFile(root, verified) };
 }
+
+export { readConstructedEvidenceFile as default };

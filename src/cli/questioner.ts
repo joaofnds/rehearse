@@ -1,18 +1,30 @@
-import { stderr, stdin as input } from "node:process";
+import { stdin as input, stderr } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-export interface TerminalQuestioner {
+import { processOutput, signalDiagnostics } from "./output";
+
+interface TerminalQuestioner {
 	readonly question: (message: string) => Promise<string>;
 	readonly close: () => void;
 }
 
-export function terminalQuestioner(): TerminalQuestioner {
+function terminalQuestioner(
+	flush: () => Promise<void> = signalDiagnostics(processOutput).flush,
+): TerminalQuestioner {
 	const readline = createInterface({ input, output: stderr });
 
 	return {
-		question: (message) => readline.question(message),
 		close: () => {
 			readline.close();
 		},
+		question: async (message) => {
+			readline.pause();
+			await flush();
+
+			return await readline.question(message);
+		},
 	};
 }
+
+export { terminalQuestioner as default };
+export type { TerminalQuestioner };

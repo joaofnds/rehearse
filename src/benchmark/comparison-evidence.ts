@@ -1,31 +1,30 @@
+import type { SessionCaseDeclaration } from "./case";
+import type { ComparisonArm } from "./comparison-record";
+import type { StageGradingRecord } from "./comparison-stage-grading";
 import type {
-	ParsedConfirmationGroupRecord,
 	ConfirmationMode,
+	ParsedConfirmationGroupRecord,
 	ParsedConfirmationRepRecord,
 } from "./confirmation-record";
-import type { SessionCaseDeclaration } from "./case";
 import type { Immutable } from "./contracts";
-import type { ComparisonArm } from "./comparison-record";
-import type { SessionAttemptRecord } from "./session-record";
-import type { StageGradingRecord } from "./comparison-stage-grading";
 import { RefusedPreconditionError } from "./exit-codes";
+import type { SessionAttemptRecord } from "./session-record";
 
-export type FrozenFile =
-	ParsedConfirmationGroupRecord["inputs"]["files"][number];
+type FrozenFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
 
-export interface DigestedRecord<Record> {
+interface DigestedRecord<Record> {
 	readonly path: string;
 	readonly sha256: string;
 	readonly record: Record;
 	readonly canonicalPath?: string;
 }
 
-export interface LoadedFrozenFile {
+interface LoadedFrozenFile {
 	readonly record: FrozenFile;
 	readonly text: string;
 }
 
-export interface LoadedComparisonArmEvidence {
+interface LoadedComparisonArmEvidence {
 	readonly role: ComparisonArm;
 	readonly declaredCaseId: string | undefined;
 	readonly group: DigestedRecord<Immutable<ParsedConfirmationGroupRecord>>;
@@ -35,7 +34,7 @@ export interface LoadedComparisonArmEvidence {
 	readonly sourcePaths: readonly string[];
 }
 
-export interface DigestedComparisonRep {
+interface DigestedComparisonRep {
 	readonly path: string;
 	readonly sha256: string;
 	readonly record: Immutable<ParsedConfirmationRepRecord>;
@@ -45,17 +44,17 @@ export interface DigestedComparisonRep {
 }
 
 /** Each confirmation group an arm names, in the order the manifest names them. */
-export type LoadedComparisonArmGroups = readonly [
+type LoadedComparisonArmGroups = readonly [
 	LoadedComparisonArmEvidence,
 	...LoadedComparisonArmEvidence[],
 ];
 
-export interface LoadedComparisonCaseEvidence {
+interface LoadedComparisonCaseEvidence {
 	readonly caseId: string;
 	readonly arms: Readonly<Record<ComparisonArm, LoadedComparisonArmGroups>>;
 }
 
-export interface ComparisonArmEvidence {
+interface ComparisonArmEvidence {
 	readonly role: ComparisonArm;
 	readonly declaredCaseId: string | undefined;
 	/** The arm's first group, which every other group of the arm matched. */
@@ -71,30 +70,30 @@ export interface ComparisonArmEvidence {
 	readonly sourcePaths: readonly string[];
 }
 
-export interface ComparisonCaseEvidence {
+interface ComparisonCaseEvidence {
 	readonly caseId: string;
 	readonly arms: Readonly<Record<ComparisonArm, ComparisonArmEvidence>>;
 }
 
-export interface ComparisonContract {
+interface ComparisonContract {
 	readonly mode: ConfirmationMode;
 	readonly declaredStages: readonly string[];
 	readonly reps: number;
 }
 
-export interface ComparisonRepCaseInput {
+interface ComparisonRepCaseInput {
 	readonly caseId: string;
 	readonly arms: Readonly<
 		Record<ComparisonArm, readonly Immutable<ParsedConfirmationRepRecord>[]>
 	>;
 }
 
-export interface ComparisonProjectionInput {
+interface ComparisonProjectionInput {
 	readonly contract: ComparisonContract;
 	readonly cases: readonly ComparisonRepCaseInput[];
 }
 
-export interface ComparisonEvidence {
+interface ComparisonEvidence {
 	readonly manifest: {
 		readonly path: string;
 		readonly sha256: string;
@@ -104,6 +103,23 @@ export interface ComparisonEvidence {
 	readonly sourcePaths: readonly string[];
 }
 
-export class ComparisonEvidenceError extends RefusedPreconditionError {
+class ComparisonEvidenceError extends RefusedPreconditionError {
 	public override name = "ComparisonEvidenceError";
 }
+
+export { ComparisonEvidenceError as default };
+export type {
+	ComparisonArmEvidence,
+	ComparisonCaseEvidence,
+	ComparisonContract,
+	ComparisonEvidence,
+	ComparisonProjectionInput,
+	ComparisonRepCaseInput,
+	DigestedComparisonRep,
+	DigestedRecord,
+	FrozenFile,
+	LoadedComparisonArmEvidence,
+	LoadedComparisonArmGroups,
+	LoadedComparisonCaseEvidence,
+	LoadedFrozenFile,
+};

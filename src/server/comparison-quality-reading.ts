@@ -1,28 +1,34 @@
-import { STAGE_LETTER_GRADES } from "#benchmark/config";
-import type { ReliabilitySummary } from "#benchmark/confirmation-report";
-import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { ProportionInterval } from "#benchmark/comparison-estimator";
 import { wilsonInterval } from "#benchmark/comparison-estimator";
+import type { ComparisonArm } from "#benchmark/comparison-record";
+import { STAGE_LETTER_GRADES } from "#benchmark/config";
+import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+
+const NO_GRADED_OUTCOMES = 0;
+
+const FINAL_OBSERVED_GRADE_OFFSET = -1;
+
+const PERCENTAGE_POINTS_PER_UNIT = 100;
 
 const LETTER_SCALE: readonly string[] = STAGE_LETTER_GRADES;
 
-export interface QualityInterval {
+interface QualityInterval {
 	readonly low: string;
 	readonly high: string;
 }
 
 /** An arm that recorded nothing for the measure leaves nothing to compare. */
-export interface UnavailableVerdict {
+interface UnavailableVerdict {
 	readonly kind: "unavailable";
 }
 
-export type QualityVerdict =
+type QualityVerdict =
 	| UnavailableVerdict
 	| { readonly kind: "insideRerunNoise" }
 	| { readonly kind: "unchangedAlreadyClear" }
 	| { readonly kind: "separated"; readonly arm: ComparisonArm };
 
-export interface QualityReading {
+interface QualityReading {
 	readonly interval: {
 		readonly minuend: QualityInterval | undefined;
 		readonly subtrahend: QualityInterval | undefined;
@@ -43,18 +49,20 @@ interface QualityReadingRequest {
  * pass/fail measure, a session's checks or a pipeline's final verdict, whose
  * observed span is the whole scale whenever an arm holds both outcomes.
  */
-export type QualityScale = "letters" | "successRate";
+type QualityScale = "letters" | "successRate";
 
 function letterSpanOf(
 	summary: ReliabilitySummary,
 ): QualityInterval | undefined {
 	const observed = LETTER_SCALE.filter(
-		(grade) => (summary.gradeDistribution[grade] ?? 0) > 0,
+		(grade) =>
+			(summary.gradeDistribution[grade] ?? NO_GRADED_OUTCOMES) >
+			NO_GRADED_OUTCOMES,
 	);
 	const [high] = observed;
-	const low = observed.at(-1);
+	const low = observed.at(FINAL_OBSERVED_GRADE_OFFSET);
 
-	return low === undefined || high === undefined ? undefined : { low, high };
+	return low === undefined || high === undefined ? undefined : { high, low };
 }
 
 function letterSpansOverlap(
@@ -83,11 +91,11 @@ function successRateIntervalsOverlap(
 }
 
 function percent(proportion: number): string {
-	return `${Math.round(proportion * 100)}%`;
+	return `${Math.round(proportion * PERCENTAGE_POINTS_PER_UNIT)}%`;
 }
 
 function successRateLabel(interval: ProportionInterval): QualityInterval {
-	return { low: percent(interval.low), high: percent(interval.high) };
+	return { high: percent(interval.high), low: percent(interval.low) };
 }
 
 function atCeiling(summary: ReliabilitySummary): boolean {
@@ -125,10 +133,10 @@ function verdictFor(
 
 	return arm === undefined
 		? { kind: "insideRerunNoise" }
-		: { kind: "separated", arm };
+		: { arm, kind: "separated" };
 }
 
-export function qualityReading(request: QualityReadingRequest): QualityReading {
+function qualityReading(request: QualityReadingRequest): QualityReading {
 	if (request.scale === "successRate") {
 		const minuend = successRateIntervalOf(request.minuend);
 		const subtrahend = successRateIntervalOf(request.subtrahend);
@@ -161,3 +169,12 @@ export function qualityReading(request: QualityReadingRequest): QualityReading {
 		),
 	};
 }
+
+export { qualityReading as default };
+export type {
+	QualityInterval,
+	UnavailableVerdict,
+	QualityVerdict,
+	QualityReading,
+	QualityScale,
+};

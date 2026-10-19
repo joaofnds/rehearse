@@ -1,24 +1,28 @@
 import type { InferResponseType } from "hono/client";
+
 import type { Immutable } from "#benchmark/contracts";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import { calibrationClient } from "#client/api-client";
-import { RecordNotFoundError } from "#client/record-not-found";
+import HTTP_STATUS from "#client/http-status";
+import RecordNotFoundError from "#client/record-not-found";
 
 const runStage =
 	calibrationClient.api.calibration.runs[":run"].stages[":stage"];
+
 const repStage =
 	calibrationClient.api.calibration.groups[":groupId"].reps[":repId"].stages[
 		":stage"
 	];
+
 const replayStage =
 	calibrationClient.api.calibration.replays[":lineage"][":timestamp"];
 
-export type StageReview = Immutable<
-	InferResponseType<typeof runStage.$get, 200>
+type StageReview = Immutable<
+	InferResponseType<typeof runStage.$get, typeof HTTP_STATUS.ok>
 >;
 
-export type GradeRecorded = Immutable<
-	InferResponseType<typeof runStage.grade.$post, 201>
+type GradeRecorded = Immutable<
+	InferResponseType<typeof runStage.grade.$post, typeof HTTP_STATUS.created>
 >;
 
 /**
@@ -28,21 +32,21 @@ export type GradeRecorded = Immutable<
  */
 const escaped = encodeURIComponent;
 
-export class GradeRefusedError extends Error {
+class GradeRefusedError extends Error {
 	public override name = "GradeRefusedError";
 }
 
-function reviewResponse(
+async function reviewResponse(
 	stage: GradedStageRef,
 ): Promise<Awaited<ReturnType<typeof runStage.$get>>> {
 	switch (stage.kind) {
 		case "run": {
-			return runStage.$get({
+			return await runStage.$get({
 				param: { run: escaped(stage.run), stage: escaped(stage.stage) },
 			});
 		}
 		case "rep": {
-			return repStage.$get({
+			return await repStage.$get({
 				param: {
 					groupId: escaped(stage.groupId),
 					repId: escaped(stage.repId),
@@ -51,7 +55,7 @@ function reviewResponse(
 			});
 		}
 		case "replay": {
-			return replayStage.$get({
+			return await replayStage.$get({
 				param: {
 					lineage: escaped(stage.lineage),
 					timestamp: escaped(stage.timestamp),
@@ -59,7 +63,8 @@ function reviewResponse(
 			});
 		}
 		default: {
-			return stage satisfies never;
+			const result = stage satisfies never;
+			return result;
 		}
 	}
 }
@@ -67,32 +72,35 @@ function reviewResponse(
 async function fetchStageReview(stage: GradedStageRef): Promise<StageReview> {
 	const response = await reviewResponse(stage);
 	// A refused name names no record either, and asking again changes nothing.
-	if (response.status === 404 || response.status === 400) {
+	if (
+		response.status === HTTP_STATUS.notFound ||
+		response.status === HTTP_STATUS.badRequest
+	) {
 		throw new RecordNotFoundError(
 			"No stage the Judge graded is recorded there",
 		);
 	}
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new Error("Could not load this judged step");
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export interface StageReviewQuery {
+interface StageReviewQuery {
 	readonly queryKey: readonly ["calibration", "review", GradedStageRef];
 	readonly queryFn: () => Promise<StageReview>;
 }
 
-export function stageReviewQuery(stage: GradedStageRef): StageReviewQuery {
+function stageReviewQuery(stage: GradedStageRef): StageReviewQuery {
 	return {
+		queryFn: async () => await fetchStageReview(stage),
 		queryKey: ["calibration", "review", stage],
-		queryFn: () => fetchStageReview(stage),
 	};
 }
 
 /** The route reads the body as sent, so it travels as the JSON text the server parses. */
-function gradeResponse(
+async function gradeResponse(
 	stage: GradedStageRef,
 	grade: OperatorGrade,
 ): Promise<Awaited<ReturnType<typeof runStage.grade.$post>>> {
@@ -102,13 +110,13 @@ function gradeResponse(
 	};
 	switch (stage.kind) {
 		case "run": {
-			return runStage.grade.$post(
+			return await runStage.grade.$post(
 				{ param: { run: escaped(stage.run), stage: escaped(stage.stage) } },
 				options,
 			);
 		}
 		case "rep": {
-			return repStage.grade.$post(
+			return await repStage.grade.$post(
 				{
 					param: {
 						groupId: escaped(stage.groupId),
@@ -120,7 +128,7 @@ function gradeResponse(
 			);
 		}
 		case "replay": {
-			return replayStage.grade.$post(
+			return await replayStage.grade.$post(
 				{
 					param: {
 						lineage: escaped(stage.lineage),
@@ -131,7 +139,8 @@ function gradeResponse(
 			);
 		}
 		default: {
-			return stage satisfies never;
+			const result = stage satisfies never;
+			return result;
 		}
 	}
 }
@@ -141,18 +150,18 @@ function gradeResponse(
  * as the reason. Anything else, the request guard's plain-text 403 included,
  * is shown as the server sent it.
  */
-export async function recordGrade(
+async function recordGrade(
 	stage: GradedStageRef,
 	grade: OperatorGrade,
 ): Promise<GradeRecorded> {
 	const response = await gradeResponse(stage, grade);
-	if (response.status === 201) {
-		return response.json();
+	if (response.status === HTTP_STATUS.created) {
+		return await response.json();
 	}
 	if (
-		response.status === 400 ||
-		response.status === 404 ||
-		response.status === 409
+		response.status === HTTP_STATUS.badRequest ||
+		response.status === HTTP_STATUS.notFound ||
+		response.status === HTTP_STATUS.conflict
 	) {
 		const refusal = await response.json();
 		throw new GradeRefusedError(refusal.error);
@@ -160,3 +169,6 @@ export async function recordGrade(
 
 	throw new GradeRefusedError(await response.text());
 }
+
+export { GradeRefusedError, recordGrade, stageReviewQuery };
+export type { GradeRecorded, StageReview, StageReviewQuery };

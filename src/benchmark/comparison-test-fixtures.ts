@@ -1,25 +1,23 @@
-import type {
-	ConfirmationGroupRecord,
-	ConfirmationRepRecord,
-	SessionConfirmationRepRecord,
-} from "./confirmation-record";
-import {
-	confirmationGroupRecordSchema,
-	confirmationRepRecordSchema,
-	sessionConfirmationGroupRecordSchema,
-	sessionConfirmationRepRecordSchema,
-} from "./confirmation-record";
-import type {
-	ComparisonArmEvidence,
-	ComparisonEvidence,
-} from "./comparison-evidence";
-import type {
-	ComparisonArm,
-	LegacyComparisonReport,
-	MultiCaseComparisonReport,
-} from "./comparison-record";
-import { sessionAttemptRecordV3Schema } from "./session-record";
+import type { ComparisonArm } from "./comparison-record";
+import type { ConfirmationRepRecord } from "./confirmation-record";
+import { confirmationRepRecordSchema } from "./confirmation-record";
 import type { Immutable, StageLetterGrade } from "./contracts";
+
+const ORDINAL_BASE = 1;
+
+const IDENTITY_METRIC_SCALE = 1;
+
+const REP_CACHE_READ_TOKEN_UNIT = 3;
+
+const REP_CACHE_WRITE_TOKEN_UNIT = 4;
+
+const REP_ELAPSED_MS_UNIT = 100;
+
+const REP_INPUT_TOKEN_UNIT = 10;
+
+const REP_OUTPUT_TOKEN_UNIT = 2;
+
+const GIT_SHA_HEX_CHARACTERS = 40;
 
 type StageFixtureOutcome =
 	| StageLetterGrade
@@ -28,6 +26,7 @@ type StageFixtureOutcome =
 	| "error"
 	| "metrics-missing"
 	| "not-reached";
+
 type FinalFixtureOutcome =
 	| "pass"
 	| "fail"
@@ -35,10 +34,37 @@ type FinalFixtureOutcome =
 	| "metrics-missing"
 	| "not-reached";
 
-export interface RepFixtureOutcomes {
+interface RepFixtureOutcomes {
 	readonly discussion: StageFixtureOutcome;
 	readonly build: StageFixtureOutcome;
 	readonly final: FinalFixtureOutcome;
+}
+
+interface RepFixtureMeasurements {
+	readonly metricScale?: number;
+	readonly elapsedMs?: number;
+}
+
+interface ComparisonRepResult {
+	readonly outcomes: Readonly<RepFixtureOutcomes>;
+	readonly measurements?: Readonly<RepFixtureMeasurements> | undefined;
+}
+
+const PASS: RepFixtureOutcomes = {
+	build: "pass",
+	discussion: "pass",
+	final: "pass",
+};
+
+const FAIL: RepFixtureOutcomes = {
+	build: "fail",
+	discussion: "fail",
+	final: "fail",
+};
+
+interface ComparisonRepResults {
+	readonly outcomes: readonly RepFixtureOutcomes[];
+	readonly measurements?: Readonly<RepFixtureMeasurements> | undefined;
 }
 
 function stageOutcome(
@@ -46,13 +72,13 @@ function stageOutcome(
 	outcome: StageFixtureOutcome,
 ): ConfirmationRepRecord["stages"][number] {
 	if (outcome === "not-reached") {
-		return { stage, status: "NOT_REACHED", reason: "upstream stopped" };
+		return { reason: "upstream stopped", stage, status: "NOT_REACHED" };
 	}
 	if (outcome === "error") {
-		return { stage, status: "EXECUTION_FAILED", error: "execution failed" };
+		return { error: "execution failed", stage, status: "EXECUTION_FAILED" };
 	}
 	if (outcome === "metrics-missing") {
-		return { stage, status: "METRICS_MISSING", error: "metrics missing" };
+		return { error: "metrics missing", stage, status: "METRICS_MISSING" };
 	}
 
 	if (outcome === "pass" || outcome === "fail") {
@@ -68,15 +94,15 @@ function judgedStage(
 	outcome: "pass" | "fail",
 ): ConfirmationRepRecord["stages"][number] {
 	return {
-		stage,
-		status: "JUDGED",
-		grade,
-		verdict: outcome === "pass" ? "CONTINUE" : "STOP",
 		elapsedMs: 10,
 		evidence: {
-			resultSha: "e".repeat(40),
 			recordFile: `stages/${stage}.json`,
+			resultSha: "e".repeat(GIT_SHA_HEX_CHARACTERS),
 		},
+		grade,
+		stage,
+		status: "JUDGED",
+		verdict: outcome === "pass" ? "CONTINUE" : "STOP",
 	};
 }
 
@@ -84,628 +110,108 @@ function finalOutcome(
 	outcome: FinalFixtureOutcome,
 ): ConfirmationRepRecord["finalOutcome"] {
 	if (outcome === "not-reached") {
-		return { status: "NOT_REACHED", reason: "upstream stopped" };
+		return { reason: "upstream stopped", status: "NOT_REACHED" };
 	}
 	if (outcome === "error") {
-		return { status: "EXECUTION_FAILED", error: "execution failed" };
+		return { error: "execution failed", status: "EXECUTION_FAILED" };
 	}
 	if (outcome === "metrics-missing") {
-		return { status: "METRICS_MISSING", error: "metrics missing" };
+		return { error: "metrics missing", status: "METRICS_MISSING" };
 	}
 
 	return {
+		evidence: {
+			recordFile: "final.json",
+			resultSha: "e".repeat(GIT_SHA_HEX_CHARACTERS),
+		},
 		status: "JUDGED",
 		verdict: outcome === "pass" ? "PASS" : "FAIL",
-		evidence: {
-			resultSha: "e".repeat(40),
-			recordFile: "final.json",
-		},
 	};
 }
 
-export interface RepFixtureMeasurements {
-	readonly metricScale?: number;
-	readonly elapsedMs?: number;
-}
-
-export function comparisonRep(
+function comparisonRep(
 	groupId: string,
 	ordinal: number,
-	outcomes: Readonly<RepFixtureOutcomes>,
-	measurements: Readonly<RepFixtureMeasurements> = {},
+	{ outcomes, measurements = {} }: ComparisonRepResult,
 ): ConfirmationRepRecord {
-	const metricScale = measurements.metricScale ?? 1;
-	const elapsedMs = measurements.elapsedMs ?? ordinal * 100;
+	const metricScale = measurements.metricScale ?? IDENTITY_METRIC_SCALE;
+	const elapsedMs = measurements.elapsedMs ?? ordinal * REP_ELAPSED_MS_UNIT;
 	const successful =
 		outcomes.discussion === "pass" &&
 		outcomes.build === "pass" &&
 		outcomes.final === "pass";
 
 	return confirmationRepRecordSchema.parse({
-		schemaVersion: 1,
+		elapsedMs,
+		finalOutcome: finalOutcome(outcomes.final),
 		groupId,
-		repId: `${groupId}-rep-${ordinal}`,
-		ordinal,
+		lineage: { kind: "SOURCE", sha: "a".repeat(GIT_SHA_HEX_CHARACTERS) },
+		metrics: {
+			calls: [
+				{
+					metrics: {
+						cacheReadTokens: ordinal * REP_CACHE_READ_TOKEN_UNIT * metricScale,
+						cacheWriteTokens:
+							ordinal * REP_CACHE_WRITE_TOKEN_UNIT * metricScale,
+						costUsd: ordinal * metricScale,
+						inputTokens: ordinal * REP_INPUT_TOKEN_UNIT * metricScale,
+						outputTokens: ordinal * REP_OUTPUT_TOKEN_UNIT * metricScale,
+						turns: ordinal * metricScale,
+					},
+					role: "worker",
+				},
+			],
+			status: "COMPLETE",
+		},
 		mode: "pipeline",
-		worktreePath: `/worktrees/${groupId}-rep-${ordinal}`,
-		lineage: { kind: "SOURCE", sha: "a".repeat(40) },
+		ordinal,
 		outcome: successful ? "SUCCESSFUL" : "UNSUCCESSFUL",
+		repId: `${groupId}-rep-${ordinal}`,
+		schemaVersion: 1,
 		stages: [
 			stageOutcome("discuss", outcomes.discussion),
 			stageOutcome("build", outcomes.build),
 		],
-		finalOutcome: finalOutcome(outcomes.final),
-		metrics: {
-			status: "COMPLETE",
-			calls: [
-				{
-					role: "worker",
-					metrics: {
-						costUsd: ordinal * metricScale,
-						inputTokens: ordinal * 10 * metricScale,
-						outputTokens: ordinal * 2 * metricScale,
-						cacheReadTokens: ordinal * 3 * metricScale,
-						cacheWriteTokens: ordinal * 4 * metricScale,
-						turns: ordinal * metricScale,
-					},
-				},
-			],
-		},
 		workerTrajectorySteps: ordinal * metricScale,
-		elapsedMs,
+		worktreePath: `/worktrees/${groupId}-rep-${ordinal}`,
 	});
 }
 
-export const PASS: RepFixtureOutcomes = {
-	discussion: "pass",
-	build: "pass",
-	final: "pass",
-};
-
-export const FAIL: RepFixtureOutcomes = {
-	discussion: "fail",
-	build: "fail",
-	final: "fail",
-};
-
-export function comparisonReps(
+function comparisonReps(
 	caseId: string,
 	role: ComparisonArm,
-	outcomes: readonly RepFixtureOutcomes[],
-	measurements: Readonly<RepFixtureMeasurements> = {},
+	{ outcomes, measurements = {} }: ComparisonRepResults,
 ): readonly ConfirmationRepRecord[] {
 	return outcomes.map((outcome, index) =>
-		comparisonRep(`${caseId}-${role}`, index + 1, outcome, measurements),
+		comparisonRep(`${caseId}-${role}`, index + ORDINAL_BASE, {
+			measurements,
+			outcomes: outcome,
+		}),
 	);
 }
 
-export function withMissingMetrics(
+function withMissingMetrics(
 	record: Immutable<ConfirmationRepRecord>,
 	missing: string,
 ): ConfirmationRepRecord {
 	return confirmationRepRecordSchema.parse({
 		...record,
+		metrics: { calls: [], missing: [missing], status: "MISSING" },
 		outcome: "UNSUCCESSFUL",
-		metrics: { status: "MISSING", calls: [], missing: [missing] },
 		workerTrajectorySteps: 0,
 	});
 }
 
-function reportArmEvidence(
-	caseId: string,
-	role: ComparisonArm,
-	reps: readonly Immutable<ConfirmationRepRecord>[],
-): ComparisonArmEvidence {
-	const groupId = `${caseId}-${role}`;
-	const corpus = {
-		kind: "corpus" as const,
-		path: "inputs/corpus/SKILL.md",
-		sha256: { baseline: "1", candidate: "2", control: "3" }[role].repeat(64),
-	};
-	const record: ConfirmationGroupRecord = confirmationGroupRecordSchema.parse({
-		schemaVersion: 1,
-		caseId,
-		groupId,
-		mode: "pipeline",
-		reps: 4,
-		declaredStages: ["discuss", "build"],
-		inputs: {
-			lineage: { kind: "SOURCE", sha: "a".repeat(40) },
-			files: [
-				corpus,
-				{
-					kind: "task",
-					path: "inputs/task.md",
-					sha256: (caseId === "case-1" ? "4" : "5").repeat(64),
-				},
-			],
-			model: "sonnet",
-			judgeModel: "opus",
-			sessionBudgetUsd: 5,
-			pipelinePath: "pipelines/default.json",
-		},
-		projectedCost: {
-			reps: 4,
-			perRepMaximumUsd: 30,
-			totalMaximumUsd: 120,
-		},
-		approval: { method: "yes", approved: true },
-		repRecords: reps.map((rep) => ({
-			repId: rep.repId,
-			ordinal: rep.ordinal,
-			path: `reps/${rep.repId}/rep.json`,
-		})),
-		reportFile: "report.json",
-		makespanMs: 400,
-	});
-
-	const group = {
-		path: `groups/${groupId}/group.json`,
-		sha256: "6".repeat(64),
-		record,
-	};
-
-	return {
-		role,
-		declaredCaseId: record.caseId,
-		group,
-		groups: [group],
-		reps: reps.map((rep) => ({
-			path: `groups/${groupId}/reps/${rep.repId}/rep.json`,
-			sha256: "7".repeat(64),
-			record: rep,
-		})),
-		executedCorpus: [corpus],
-		controlledFiles: record.inputs.files.filter(
-			({ kind }) => kind !== "corpus" && kind !== "instructions",
-		),
-		sourcePaths: [],
-	};
-}
-
-export function comparisonEvidenceFixture(): ComparisonEvidence {
-	const cases = ["case-1", "case-2"].map((caseId) => {
-		const baseline = comparisonReps(caseId, "baseline", [
-			PASS,
-			PASS,
-			FAIL,
-			FAIL,
-		]);
-		const candidate = comparisonReps(caseId, "candidate", [
-			PASS,
-			PASS,
-			PASS,
-			PASS,
-		]);
-		const control = comparisonReps(caseId, "control", [FAIL, FAIL, FAIL, FAIL]);
-
-		return {
-			caseId,
-			arms: {
-				baseline: reportArmEvidence(caseId, "baseline", baseline),
-				candidate: reportArmEvidence(caseId, "candidate", candidate),
-				control: reportArmEvidence(caseId, "control", control),
-			},
-		};
-	});
-
-	return {
-		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
-		cases,
-		contract: {
-			mode: "pipeline",
-			declaredStages: ["discuss", "build"],
-			reps: 4,
-		},
-		sourcePaths: [],
-	};
-}
-
-export interface SessionRepMeasurements {
-	readonly costUsd: number;
-	readonly elapsedMs: number;
-}
-
-function sessionRep(
-	caseId: string,
-	role: ComparisonArm,
-	ordinal: number,
-	measurements: Readonly<SessionRepMeasurements>,
-): SessionConfirmationRepRecord {
-	const groupId = `${caseId}-${role}`;
-
-	return sessionConfirmationRepRecordSchema.parse({
-		schemaVersion: 2,
-		caseId,
-		groupId,
-		repId: `${groupId}-rep-${ordinal}`,
-		ordinal,
-		mode: "session",
-		lineage: { kind: "SESSION", lineage: `lineage-${role}` },
-		outcome: "SUCCESSFUL",
-		stages: [
-			{
-				stage: "checks",
-				status: "JUDGED",
-				grade: "A",
-				verdict: "CONTINUE",
-				elapsedMs: measurements.elapsedMs,
-				evidence: { recordFile: "attempt.json" },
-			},
-		],
-		finalOutcome: { status: "NOT_APPLICABLE" },
-		metrics: {
-			status: "COMPLETE",
-			calls: [
-				{
-					role: "worker",
-					metrics: {
-						costUsd: measurements.costUsd,
-						inputTokens: 10,
-						outputTokens: 2,
-						cacheReadTokens: 3,
-						cacheWriteTokens: 4,
-						turns: 1,
-					},
-				},
-			],
-		},
-		workerTrajectorySteps: 1,
-		elapsedMs: measurements.elapsedMs,
-	});
-}
-
-function sessionArmEvidence(
-	caseId: string,
-	role: ComparisonArm,
-	reps: readonly Immutable<SessionConfirmationRepRecord>[],
-): ComparisonArmEvidence {
-	const groupId = `${caseId}-${role}`;
-	const corpus = {
-		kind: "corpus" as const,
-		path: "inputs/corpus/SKILL.md",
-		sha256: { baseline: "1", candidate: "2", control: "3" }[role].repeat(64),
-	};
-	const record = sessionConfirmationGroupRecordSchema.parse({
-		schemaVersion: 2,
-		caseId,
-		groupId,
-		mode: "session",
-		reps: reps.length,
-		declaredStages: ["checks"],
-		inputs: {
-			lineage: { kind: "SESSION", lineage: `lineage-${role}` },
-			files: [
-				corpus,
-				{ kind: "case", path: "inputs/case.json", sha256: "4".repeat(64) },
-			],
-			model: "sonnet",
-			sessionBudgetUsd: 1,
-		},
-		projectedCost: {
-			reps: reps.length,
-			perRepMaximumUsd: 1,
-			preflightMaximumUsd: 0,
-			totalMaximumUsd: reps.length,
-		},
-		preflight: { status: "MISSING", missing: "preflight call metrics" },
-		approval: { method: "yes", approved: true },
-		repRecords: reps.map((rep) => ({
-			repId: rep.repId,
-			ordinal: rep.ordinal,
-			path: `reps/${rep.repId}/rep.json`,
-		})),
-		reportFile: "report.json",
-		makespanMs: 1,
-	});
-
-	const group = {
-		path: `groups/${groupId}/group.json`,
-		sha256: "6".repeat(64),
-		record,
-	};
-
-	return {
-		role,
-		declaredCaseId: record.caseId,
-		group,
-		groups: [group],
-		reps: reps.map((rep) => ({
-			path: `groups/${groupId}/reps/${rep.repId}/rep.json`,
-			sha256: "7".repeat(64),
-			record: rep,
-			attempt: {
-				path: `groups/${groupId}/reps/${rep.repId}/attempt.json`,
-				sha256: "9".repeat(64),
-				record: sessionAttemptRecordV3Schema.parse({
-					schemaVersion: 3,
-					caseId,
-					lineage: `lineage-${role}`,
-					model: "sonnet",
-					sessionBudgetUsd: 1,
-					corpusFiles: [],
-					prompt: "reply OK",
-					reply: "OK",
-					transcriptFile: `reps/${rep.repId}/transcript.jsonl`,
-					outcome: "SUCCESSFUL",
-					checks: [{ kind: "word-band", status: "PASS", detail: "1 word" }],
-					elapsedMs: rep.elapsedMs,
-				}),
-			},
-		})),
-		executedCorpus: [corpus],
-		controlledFiles: record.inputs.files.filter(
-			({ kind }) => kind !== "corpus",
-		),
-		sourcePaths: [],
-	};
-}
-
-export function withMissingSessionMetrics(
-	record: Immutable<SessionConfirmationRepRecord>,
-	missing: string,
-): SessionConfirmationRepRecord {
-	return sessionConfirmationRepRecordSchema.parse({
-		...record,
-		outcome: "UNSUCCESSFUL",
-		stages: [
-			{
-				stage: "checks",
-				status: "METRICS_MISSING",
-				error: missing,
-				evidence: { recordFile: "attempt.json" },
-			},
-		],
-		metrics: { status: "MISSING", calls: [], missing: [missing] },
-		workerTrajectorySteps: 0,
-	});
-}
-
-/**
- * One session case whose arms are given their cost and elapsed time directly,
- * so an arm can be built slower than another at identical spend. Deriving both
- * from the rep ordinal, as the pipeline fixture does, makes that pair
- * unconstructible.
- */
-export function singleCaseSessionEvidenceFixture(
-	measurements: Readonly<
-		Record<ComparisonArm, readonly SessionRepMeasurements[]>
-	>,
-): ComparisonEvidence {
-	const caseId = "case-one";
-	const arm = (role: ComparisonArm): ComparisonArmEvidence =>
-		sessionArmEvidence(
-			caseId,
-			role,
-			measurements[role].map((rep, index) =>
-				sessionRep(caseId, role, index + 1, rep),
-			),
-		);
-
-	return {
-		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
-		cases: [
-			{
-				caseId,
-				arms: {
-					baseline: arm("baseline"),
-					candidate: arm("candidate"),
-					control: arm("control"),
-				},
-			},
-		],
-		contract: {
-			mode: "session",
-			declaredStages: ["checks"],
-			reps: measurements.baseline.length,
-		},
-		sourcePaths: [],
-	};
-}
-
-type CurrentArmResources =
-	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
-type CurrentContrastResources =
-	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
-type VersionFourReport = Extract<
-	LegacyComparisonReport,
-	{ readonly schemaVersion: 4; readonly mode: "pipeline" }
->;
-type VersionFourArmResources =
-	VersionFourReport["cases"][number]["arms"]["baseline"]["resources"];
-type VersionFourContrastResources =
-	VersionFourReport["contrasts"]["candidateMinusBaseline"]["resources"];
-
-/**
- * What separates a version-4 report's resources from a current one's: the
- * elapsed measurement version 5 added. Tests that build an older report from a
- * current one go through here, so the next measurement to land has one place to
- * teach rather than one per test file.
- */
-export function armResourcesWithoutElapsed(
-	resources: Immutable<CurrentArmResources>,
-): VersionFourArmResources {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
-
-	return withoutElapsed;
-}
-
-/** A version-5 arm's source: the one group its attempts all came from. */
-export interface SingleGroupSource<Rep> {
-	readonly group: { readonly path: string; readonly sha256: string };
-	readonly reps: readonly Omit<Rep, "group">[];
-}
-
-/**
- * What separates a version-5 arm's source from a current one's: version 6
- * names every group the arm's attempts came from, and each attempt its group.
- */
-export function singleGroupSource<
-	Source extends {
-		readonly groups: readonly {
-			readonly path: string;
-			readonly sha256: string;
-		}[];
-		readonly reps: readonly { readonly group: number }[];
-	},
->(source: Source): SingleGroupSource<Source["reps"][number]> {
-	const [group, ...others] = source.groups;
-	if (group === undefined || others.length > 0) {
-		throw new Error("expected an arm of exactly one group");
-	}
-
-	return {
-		group,
-		reps: withoutGroups<Source["reps"][number]>(source.reps),
-	};
-}
-
-function withoutGroups<Rep extends { readonly group: number }>(
-	reps: readonly Rep[],
-): readonly Omit<Rep, "group">[] {
-	return reps.map(({ group: _group, ...rep }) => rep);
-}
-
-export function contrastResourcesWithoutElapsed(
-	resources: Immutable<CurrentContrastResources>,
-): VersionFourContrastResources {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
-
-	return withoutElapsed;
-}
-
-/**
- * Two cases where the candidate wins one and ties the other exactly. The tie
- * contributes a delta of exactly zero, the boundary the disagreement test turns
- * on: zero counts as agreement, so this reads blank rather than as a
- * disagreement, and relaxing the negative side of the test to `<=` reports it
- * as one.
- */
-export function flatCaseComparisonEvidenceFixture(): ComparisonEvidence {
-	const outcomes = {
-		"case-1": {
-			baseline: [PASS, PASS, FAIL, FAIL],
-			candidate: [PASS, PASS, PASS, PASS],
-		},
-		"case-2": {
-			baseline: [PASS, PASS, FAIL, FAIL],
-			candidate: [PASS, PASS, FAIL, FAIL],
-		},
-	} as const;
-
-	// The control arm outscores the candidate on case-1 and ties it on case-2,
-	// so candidate - control carries a negative delta beside the same exact
-	// zero. That row is the mirror of candidate - baseline: between them, a
-	// zero meets a positive and a negative, which is what pins both sides of
-	// the disagreement test.
-	const controlOutcomes = {
-		"case-1": [PASS, PASS, PASS, PASS],
-		"case-2": [PASS, PASS, FAIL, FAIL],
-	} as const;
-
-	const cases = (["case-1", "case-2"] as const).map((caseId) => ({
-		caseId,
-		arms: {
-			baseline: reportArmEvidence(
-				caseId,
-				"baseline",
-				comparisonReps(caseId, "baseline", [...outcomes[caseId].baseline]),
-			),
-			candidate: reportArmEvidence(
-				caseId,
-				"candidate",
-				comparisonReps(caseId, "candidate", [...outcomes[caseId].candidate]),
-			),
-			control: reportArmEvidence(
-				caseId,
-				"control",
-				comparisonReps(caseId, "control", [...controlOutcomes[caseId]]),
-			),
-		},
-	}));
-
-	return {
-		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
-		cases,
-		contract: {
-			mode: "pipeline",
-			declaredStages: ["discuss", "build"],
-			reps: 4,
-		},
-		sourcePaths: [],
-	};
-}
-
-/**
- * Two cases whose candidate-minus-baseline deltas cancel: the candidate wins
- * case-1 and loses case-2 by the same margin, so the mean is exactly zero while
- * neither case is null. A report built from this is the shape a mean alone
- * cannot describe.
- */
-export function cancellingComparisonEvidenceFixture(): ComparisonEvidence {
-	const outcomes = {
-		"case-1": {
-			baseline: [PASS, PASS, FAIL, FAIL],
-			candidate: [PASS, PASS, PASS, PASS],
-		},
-		"case-2": {
-			baseline: [PASS, PASS, PASS, PASS],
-			candidate: [PASS, PASS, FAIL, FAIL],
-		},
-	} as const;
-
-	// Distinct scales per case and arm, so the cost deltas differ between the
-	// two cases and their standard error is not zero. A fixture whose arms cost
-	// the same cannot tell a real spread from a constant.
-	const scales = {
-		"case-1": { baseline: 1, candidate: 3, control: 2 },
-		"case-2": { baseline: 1, candidate: 2, control: 4 },
-	} as const;
-
-	const cases = (["case-1", "case-2"] as const).map((caseId) => {
-		const baseline = comparisonReps(
-			caseId,
-			"baseline",
-			[...outcomes[caseId].baseline],
-			{ metricScale: scales[caseId].baseline },
-		);
-		const candidate = comparisonReps(
-			caseId,
-			"candidate",
-			[...outcomes[caseId].candidate],
-			{ metricScale: scales[caseId].candidate },
-		);
-		const control = comparisonReps(
-			caseId,
-			"control",
-			[FAIL, FAIL, FAIL, FAIL],
-			{ metricScale: scales[caseId].control },
-		);
-
-		return {
-			caseId,
-			arms: {
-				baseline: reportArmEvidence(caseId, "baseline", baseline),
-				candidate: reportArmEvidence(caseId, "candidate", candidate),
-				control: reportArmEvidence(caseId, "control", control),
-			},
-		};
-	});
-
-	return {
-		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
-		cases,
-		contract: {
-			mode: "pipeline",
-			declaredStages: ["discuss", "build"],
-			reps: 4,
-		},
-		sourcePaths: [],
-	};
-}
+export {
+	comparisonRep,
+	comparisonReps,
+	FAIL,
+	finalOutcome,
+	GIT_SHA_HEX_CHARACTERS,
+	ORDINAL_BASE,
+	PASS,
+	withMissingMetrics,
+	type ComparisonRepResults,
+	type RepFixtureMeasurements,
+	type RepFixtureOutcomes,
+};

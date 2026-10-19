@@ -1,9 +1,7 @@
-import { stageCorpusRefusal } from "#benchmark/session-corpus";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import { stageCorpusRefusal } from "#benchmark/session-corpus";
 
-export { RefusedPreconditionError } from "#benchmark/exit-codes";
-
-export function requireInteractiveStdin(
+function requireInteractiveStdin(
 	stdinIsTerminal: boolean,
 	reason: string,
 ): void {
@@ -18,7 +16,7 @@ export function requireInteractiveStdin(
  * A stage cannot be given a corpus source, so run and replay refuse one before
  * they resolve anything else rather than after a stage has been paid for.
  */
-export function refuseStageCorpus(corpus: string | undefined): void {
+function refuseStageCorpus(corpus: string | undefined): void {
 	if (corpus === undefined) {
 		return;
 	}
@@ -35,7 +33,7 @@ export function refuseStageCorpus(corpus: string | undefined): void {
  * name the model, or be at a terminal. `--yes` is not an alternative here
  * because it belongs to --confirm, which rejects it on its own.
  */
-export function requireSpendAuthorization(
+function requireSpendAuthorization(
 	args: readonly string[],
 	env: Readonly<Record<string, string | undefined>>,
 	stdinIsTerminal: boolean,
@@ -50,3 +48,10 @@ export function requireSpendAuthorization(
 		"stdin is not a terminal: the case declares the model, so nothing you passed authorizes the spend; pass --model to say which model you meant to pay for",
 	);
 }
+
+export { RefusedPreconditionError } from "#benchmark/exit-codes";
+export {
+	refuseStageCorpus,
+	requireInteractiveStdin,
+	requireSpendAuthorization,
+};

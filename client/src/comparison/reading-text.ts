@@ -1,10 +1,11 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { QualityVerdict } from "#server/comparison-quality-reading";
 import type { MeterReading } from "#server/comparison-what-moved";
+
 import { armProse } from "./design-arms";
 
 /** A served verdict as the glyph and phrase every comparison reading prints. */
-export interface ReadingText {
+interface ReadingText {
 	readonly glyph: string;
 	readonly phrase: string;
 }
@@ -17,7 +18,7 @@ function ranHigherGlyph(arm: ComparisonArm): string {
 	return arm === "candidate" ? "↓" : "↑";
 }
 
-export function qualityReadingText(verdict: QualityVerdict): ReadingText {
+function qualityReadingText(verdict: QualityVerdict): ReadingText {
 	switch (verdict.kind) {
 		case "insideRerunNoise": {
 			return { glyph: "~", phrase: "inside rerun noise" };
@@ -40,9 +41,7 @@ export function qualityReadingText(verdict: QualityVerdict): ReadingText {
 	}
 }
 
-export function meterReadingText(
-	verdict: MeterReading["verdict"],
-): ReadingText {
+function meterReadingText(verdict: MeterReading["verdict"]): ReadingText {
 	switch (verdict.kind) {
 		case "insideRerunNoise": {
 			return { glyph: "~", phrase: "inside rerun noise" };
@@ -61,3 +60,6 @@ export function meterReadingText(
 		}
 	}
 }
+
+export { meterReadingText, qualityReadingText };
+export type { ReadingText };

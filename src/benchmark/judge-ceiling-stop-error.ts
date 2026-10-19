@@ -8,7 +8,7 @@ import { SpendCeilingReachedError } from "./spend-ceiling";
  * It carries those attempts, so the record keeps what the refused call's
  * predecessors cost.
  */
-export class JudgeCeilingStopError extends SpendCeilingReachedError {
+class JudgeCeilingStopError extends SpendCeilingReachedError {
 	public override name = "JudgeCeilingStopError";
 	public readonly prompt: string;
 	public readonly attempts: readonly JudgeAttempt[];
@@ -29,3 +29,5 @@ export class JudgeCeilingStopError extends SpendCeilingReachedError {
 		this.costUsd = props.costUsd;
 	}
 }
+
+export { JudgeCeilingStopError as default };

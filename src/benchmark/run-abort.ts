@@ -1,678 +1,79 @@
-import type { HashedFile } from "./checkpoint";
-import type { CorpusMeasurement } from "./corpus-measurement";
-import type { Effort, WorkflowStage } from "./config";
+import RunAbortArtifactLifecycle from "./run-abort-artifact-lifecycle";
 import type {
-	FailedJudgeRunArtifact,
-	ProviderCall,
-	RunArtifact,
-	StageJudgeInput,
-	StageJudgeRecord,
-	StageLetterGrade,
-	StageScorecard,
-} from "./contracts";
-import type { JudgeAttempt } from "./judge-attempt";
-import type { ReadManifestEntry } from "./read-manifest";
-import type { RunEventRecorder } from "./run-events";
-import type { CeilingReached } from "./spend-ceiling";
-import type { SessionSpend } from "./stage-session-error";
-import { operatorStopRecord } from "./operator-stop";
-import type { ProductOwnerSnapshot } from "./workflow";
+	RunAbort,
+	RunAbortDependencies,
+	RunAbortRequest,
+} from "./run-abort-contracts";
+import RunAbortEvents from "./run-abort-events";
+import RunAbortRecovery from "./run-abort-recovery";
+import { RunAbortSignals } from "./run-abort-signals";
+import RunAbortStageLifecycle from "./run-abort-stage-lifecycle";
+import RunAbortTransitions from "./run-abort-transitions";
 
-export interface PendingStage {
-	readonly file: string;
-	readonly stage: WorkflowStage;
-	readonly input: StageJudgeInput;
-	readonly model?: string | undefined;
-	readonly effort?: Effort | undefined;
-	readonly judgeModel?: string | undefined;
-	readonly judgeEffort?: Effort | undefined;
-	readonly sessionBudgetUsd?: number | undefined;
-	readonly corpusFiles?: readonly HashedFile[] | undefined;
-	readonly corpusVersion?: CorpusMeasurement | undefined;
-	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
-	readonly failure?:
-		| {
-				readonly prompt: string;
-				readonly attempts: readonly JudgeAttempt[];
-				readonly judgeProviderCalls: readonly ProviderCall[];
-				readonly costUsd: number;
-		  }
-		| undefined;
-	readonly scorecard?: StageScorecard | undefined;
-	readonly stopped?: StoppedStageReadings | undefined;
-	readonly ceilingStop?: CeilingStopReadings | undefined;
-	/** The Product Owner's spend up to a stop, which no other record holds. */
-	readonly productOwner?: ProductOwnerSnapshot | undefined;
-	readonly operatorStop?: OperatorStop | undefined;
-}
-
-/** The signal someone ended the run with, as opposed to a ceiling stop. */
-export interface OperatorStop {
-	readonly signal: NodeJS.Signals;
-}
-
-/** The ceiling a run stopped at and the run spend that reached it. */
-export type CeilingStopReadings = CeilingReached;
-
-/**
- * A stage the spend ceiling stopped. Its session may have been refused before
- * any stage record existed, so it names the file its stop record goes to.
- */
-export interface CeilingStop extends CeilingStopReadings {
-	readonly file: string;
-	readonly stage: string;
-	readonly session?: SessionSpend | undefined;
-	readonly productOwner: ProductOwnerSnapshot;
-}
-
-/**
- * What a stop record needs beyond the scorecard to be read without its run's
- * other files: the grade it fell below and the stage's and the run's elapsed
- * time.
- */
-export interface StoppedStageReadings {
-	readonly minimumGrade: StageLetterGrade;
-	readonly elapsedMs?: number | undefined;
-	readonly runElapsedMs?: number | undefined;
-}
-
-export const noopRunEventRecorder: RunEventRecorder = {
-	record: () => undefined,
-	recordJudgeProgress: () => undefined,
-	recordStageStarted: () => undefined,
-};
-
-export interface RunAbortDependencies {
-	readonly killActiveCommands: () => Promise<void>;
-	readonly registerSignal: (
-		signal: NodeJS.Signals,
-		handler: (signal: NodeJS.Signals) => void,
-	) => void;
-	readonly releaseSignal: (
-		signal: NodeJS.Signals,
-		handler: (signal: NodeJS.Signals) => void,
-	) => void;
-	readonly exit: (code: number) => void;
-	readonly reportError: (message: string) => void;
-	readonly persistence: RunArtifactPersistence;
-	readonly runEvents?: RunEventRecorder | undefined;
-	/**
-	 * Milliseconds elapsed since the run started, not a raw clock: the caller
-	 * owns the one origin a run has, so this and workflow.ts's WorkflowStageRequest
-	 * carry the same shape rather than each capturing its own `Date.now()` at
-	 * construction. Two independent origins previously made elapsed time jump
-	 * backward at every stage boundary.
-	 */
-	readonly elapsedMs?: (() => number) | undefined;
-}
-
-export interface RunAbortRequest {
-	readonly artifactFile: string;
-	readonly operatorStopFile: string;
-	readonly teardown: () => Promise<void>;
-}
-
-export interface RunAbort {
-	readonly writePendingStage: (pending: PendingStage) => Promise<void>;
-	readonly updatePendingStage: (pending: PendingStage) => void;
-	readonly writeStageProgress: (record: StageJudgeRecord) => Promise<void>;
-	readonly completeStage: (record: StageJudgeRecord) => Promise<void>;
-	readonly writePendingArtifact: (artifact: RunArtifact) => Promise<void>;
-	readonly completeArtifact: (artifact: RunArtifact) => Promise<void>;
-	readonly awaitArtifactReview: () => Promise<void>;
-	readonly writeFailedArtifact: (
-		artifact: FailedJudgeRunArtifact,
-	) => Promise<void>;
-	readonly markAborted: (reason: string) => Promise<void>;
-	readonly stopAtCeiling: (stop: CeilingStop) => void;
-	readonly teardown: () => Promise<void>;
-	readonly release: () => void;
-}
-
-export const RUN_SIGNALS: readonly NodeJS.Signals[] = [
-	"SIGINT",
-	"SIGTERM",
-	"SIGHUP",
-];
-
-/**
- * The event store is derived and disposable (GLOSSARY.md: "the run artifact
- * on disk remains authoritative"), so a failure recording to it must never
- * block or skip the authoritative write it accompanies.
- */
-function recordRunEvent(
-	reportError: (message: string) => void,
-	record: () => void,
-): void {
-	try {
-		record();
-	} catch (error) {
-		reportError(
-			`Failed to record run event: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-}
-
-export interface RunArtifactPersistence {
-	readonly write: (path: string, contents: string) => Promise<void>;
-}
-
-export const fileRunArtifactPersistence: RunArtifactPersistence = {
-	write: async (path, contents) => {
-		await Bun.write(path, contents);
-	},
-};
-
-function totalSpentUsd(artifact: RunArtifact): number {
-	return (
-		artifact.workflow.reduce((total, stage) => total + stage.costUsd, 0) +
-		artifact.stageScorecards.reduce(
-			(total, stage) => total + stage.costUsd,
-			0,
-		) +
-		artifact.productOwnerCostUsd +
-		artifact.judgeCostUsd
-	);
-}
-
-export function signalExitCode(signal: NodeJS.Signals): number {
-	if (signal === "SIGTERM") {
-		return 143;
-	}
-	if (signal === "SIGHUP") {
-		return 129;
-	}
-
-	return 130;
-}
-
-export async function writeRunArtifact(
-	path: string,
-	artifact: RunArtifact,
-	persistence: RunArtifactPersistence = fileRunArtifactPersistence,
-): Promise<void> {
-	await persistence.write(path, `${JSON.stringify(artifact, null, 2)}\n`);
-}
-
-export async function writeStageJudgeFailure(
-	pending: PendingStage,
-	reason: string,
-	persistence: RunArtifactPersistence = fileRunArtifactPersistence,
-): Promise<void> {
-	const findings = pending.scorecard
-		? {
-				hardBlockers: pending.scorecard.grade.hardBlockers,
-				requirements: pending.scorecard.grade.requirements,
-				dimensions: pending.scorecard.grade.dimensions,
-				summary: pending.scorecard.grade.summary,
-				grade: {
-					grade: pending.scorecard.grade.grade,
-					verdict: pending.scorecard.grade.verdict,
-				},
-				attempts: pending.scorecard.attempts,
-				costUsd: pending.scorecard.costUsd,
-			}
-		: undefined;
-	const stopped =
-		pending.stopped === undefined
-			? undefined
-			: {
-					minimumGrade: pending.stopped.minimumGrade,
-					elapsedMs: pending.stopped.elapsedMs,
-					runElapsedMs: pending.stopped.runElapsedMs,
-				};
-	await persistence.write(
-		pending.file,
-		`${JSON.stringify(
-			{
-				status: "STAGE_JUDGE_FAILED",
-				stage: pending.stage,
-				error: reason,
-				input: pending.input,
-				corpusFiles: pending.corpusFiles,
-				corpusVersion: pending.corpusVersion,
-				readManifest: pending.readManifest,
-				model: pending.model,
-				effort: pending.effort,
-				judgeModel: pending.judgeModel,
-				judgeEffort: pending.judgeEffort,
-				sessionBudgetUsd: pending.sessionBudgetUsd,
-				...findings,
-				...stopped,
-				...productOwnerReadings(pending.productOwner),
-				...pending.failure,
-				ceilingStop: pending.ceilingStop,
-				operatorStop: pending.operatorStop,
-			},
-			null,
-			2,
-		)}\n`,
-	);
-}
-
-function productOwnerReadings(productOwner: ProductOwnerSnapshot | undefined):
-	| {
-			readonly productOwnerCostUsd: number;
-			readonly productOwnerProviderCalls: readonly ProviderCall[];
-	  }
-	| undefined {
-	return productOwner === undefined
-		? undefined
-		: {
-				productOwnerCostUsd: productOwner.spentUsd,
-				productOwnerProviderCalls: productOwner.providerCalls,
-			};
-}
-
-/**
- * The stop record of a stage the ceiling stopped before its Judge ran: it
- * holds the stop, what the session spent up to it when it got that far, and
- * the Product Owner's spend.
- */
-async function writeCeilingStop(
-	stop: CeilingStop,
-	reason: string,
-	persistence: RunArtifactPersistence,
-): Promise<void> {
-	await persistence.write(
-		stop.file,
-		`${JSON.stringify(
-			{
-				status: "STAGE_JUDGE_FAILED",
-				stage: stop.stage,
-				error: reason,
-				session: stop.session,
-				...productOwnerReadings(stop.productOwner),
-				ceilingStop: { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd },
-			},
-			null,
-			2,
-		)}\n`,
-	);
-}
-
-/**
- * The run's own record that a signal ended it, written whatever the run was
- * doing, since a stop during a stage's session has no stage record to carry
- * it and would otherwise read as a failure.
- */
-async function writeOperatorStop(
-	file: string,
-	stop: OperatorStop,
-	persistence: RunArtifactPersistence,
-): Promise<void> {
-	await persistence.write(file, operatorStopRecord(stop.signal));
-}
-
-export function createRunAbort(
+function createRunAbort(
 	dependencies: RunAbortDependencies,
 	request: RunAbortRequest,
 ): RunAbort {
-	let pendingArtifact: RunArtifact | undefined;
-	let pendingStage: PendingStage | undefined;
-	let ceilingStop: CeilingStop | undefined;
-	let terminalEventRecorded = false;
-	let abortRecorded: Promise<void> | undefined;
-	let teardownStarted: Promise<void> | undefined;
-	let signalAbortStarted = false;
-	let abortRequested = false;
-	let transitionReady = Promise.resolve();
-	const runEvents = dependencies.runEvents ?? noopRunEventRecorder;
-	const elapsedMs = dependencies.elapsedMs ?? (() => 0);
+	const transitions = new RunAbortTransitions();
+	const events = new RunAbortEvents(dependencies);
+	const stages = new RunAbortStageLifecycle({
+		events,
+		persistence: dependencies.persistence,
+		transitions,
+	});
+	const artifacts = new RunAbortArtifactLifecycle({
+		events,
+		file: request.artifactFile,
+		persistence: dependencies.persistence,
+		transitions,
+	});
+	const recovery = new RunAbortRecovery({
+		artifacts,
+		dependencies,
+		events,
+		request,
+		stages,
+		transitions,
+	});
+	const signals = new RunAbortSignals({ dependencies, recovery, request });
 
-	const enqueueTransition = async (
-		transition: () => Promise<void>,
-	): Promise<void> => {
-		const previousTransition = transitionReady;
-		const currentTransition = Promise.withResolvers<undefined>();
-		transitionReady = currentTransition.promise;
-		await previousTransition;
-
-		try {
-			await transition();
-		} finally {
-			currentTransition.resolve(undefined);
-		}
-	};
-	const enqueueNormalTransition = (
-		transition: () => Promise<void>,
-	): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-
-		return enqueueTransition(async () => {
-			if (!abortRequested) {
-				await transition();
-			}
-		});
-	};
-	const writePendingStage = (pending: PendingStage): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-
-		pendingStage = pending;
-
-		return enqueueNormalTransition(async () => {
-			recordRunEvent(dependencies.reportError, () => {
-				runEvents.record(
-					"stage-judging",
-					pending.stage,
-					pending.input.transcript.costUsd,
-					elapsedMs(),
-				);
-			});
-			await dependencies.persistence.write(
-				pending.file,
-				`${JSON.stringify(
-					{
-						status: "AWAITING_STAGE_JUDGE",
-						stage: pending.stage,
-						input: pending.input,
-						corpusVersion: pending.corpusVersion,
-						model: pending.model,
-						effort: pending.effort,
-						judgeModel: pending.judgeModel,
-						judgeEffort: pending.judgeEffort,
-						sessionBudgetUsd: pending.sessionBudgetUsd,
-					},
-					null,
-					2,
-				)}\n`,
-			);
-		});
-	};
-	const writeStageProgress = (record: StageJudgeRecord): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-		if (pendingStage === undefined) {
-			return Promise.reject(new Error("No stage transition is pending"));
-		}
-
-		const { file } = pendingStage;
-
-		return enqueueNormalTransition(() =>
-			dependencies.persistence.write(
-				file,
-				`${JSON.stringify(record, null, 2)}\n`,
-			),
-		);
-	};
-	const completeStage = (record: StageJudgeRecord): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-		if (pendingStage === undefined) {
-			return Promise.reject(new Error("No stage transition is pending"));
-		}
-
-		const { file, stage } = pendingStage;
-
-		return enqueueNormalTransition(async () => {
-			recordRunEvent(dependencies.reportError, () => {
-				runEvents.record(
-					"stage-completed",
-					stage,
-					record.input.transcript.costUsd + record.costUsd,
-					elapsedMs(),
-				);
-			});
-			await dependencies.persistence.write(
-				file,
-				`${JSON.stringify(record, null, 2)}\n`,
-			);
-			pendingStage = undefined;
-		});
-	};
-	const writePendingArtifact = (artifact: RunArtifact): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-
-		pendingArtifact = artifact;
-
-		return enqueueNormalTransition(() =>
-			writeRunArtifact(
-				request.artifactFile,
-				artifact,
-				dependencies.persistence,
-			),
-		);
-	};
-	const completeArtifact = (artifact: RunArtifact): Promise<void> => {
-		if (abortRequested) {
-			return Promise.resolve();
-		}
-
-		pendingArtifact = artifact;
-
-		return enqueueNormalTransition(async () => {
-			await writeRunArtifact(
-				request.artifactFile,
-				artifact,
-				dependencies.persistence,
-			);
-			recordRunEvent(dependencies.reportError, () => {
-				runEvents.record(
-					"run-completed",
-					"",
-					totalSpentUsd(artifact),
-					elapsedMs(),
-				);
-			});
-			terminalEventRecorded = true;
-			pendingArtifact = undefined;
-		});
-	};
-	/**
-	 * The artifact is finished at AWAITING_HUMAN_REVIEW and no further
-	 * transition is coming, so it stops being pending. Without this the copy
-	 * into the target and the checkout removal that follow are a window in which
-	 * a signal rewrites a fully graded artifact FAILED, and `calibrate` reads only AWAITING_HUMAN_REVIEW.
-	 */
-	const awaitArtifactReview = (): Promise<void> =>
-		enqueueNormalTransition(() => {
-			const artifact = pendingArtifact;
-			if (artifact !== undefined) {
-				recordRunEvent(dependencies.reportError, () => {
-					runEvents.record(
-						"run-completed",
-						"",
-						totalSpentUsd(artifact),
-						elapsedMs(),
-					);
-				});
-				terminalEventRecorded = true;
-			}
-			pendingArtifact = undefined;
-
-			return Promise.resolve();
-		});
-	const writeFailedArtifact = (
-		artifact: FailedJudgeRunArtifact,
-	): Promise<void> => {
-		pendingArtifact = artifact;
-
-		return enqueueTransition(async () => {
-			await writeRunArtifact(
-				request.artifactFile,
-				artifact,
-				dependencies.persistence,
-			);
-			recordRunEvent(dependencies.reportError, () => {
-				runEvents.record(
-					"run-failed",
-					"",
-					totalSpentUsd(artifact),
-					elapsedMs(),
-				);
-			});
-			terminalEventRecorded = true;
-			pendingArtifact = undefined;
-		});
-	};
-	const markAborted = (
-		reason: string,
-		operatorStop?: OperatorStop,
-	): Promise<void> => {
-		if (abortRecorded === undefined) {
-			abortRequested = true;
-			const stageToFail = pendingStage;
-			const unjudgedCeilingStop = ceilingStop;
-			const artifactToFail = pendingArtifact;
-			abortRecorded = enqueueTransition(async () => {
-				if (operatorStop !== undefined) {
-					try {
-						await writeOperatorStop(
-							request.operatorStopFile,
-							operatorStop,
-							dependencies.persistence,
-						);
-					} catch (error) {
-						dependencies.reportError(
-							`Failed to record the operator stop: ${error instanceof Error ? error.message : String(error)}`,
-						);
-					}
-				}
-				if (!terminalEventRecorded) {
-					recordRunEvent(dependencies.reportError, () => {
-						runEvents.record(
-							"run-failed",
-							stageToFail?.stage ?? unjudgedCeilingStop?.stage ?? "",
-							artifactToFail === undefined
-								? (stageToFail?.input.transcript.costUsd ??
-										unjudgedCeilingStop?.session?.costUsd ??
-										0)
-								: totalSpentUsd(artifactToFail),
-							elapsedMs(),
-						);
-					});
-					terminalEventRecorded = true;
-				}
-				if (stageToFail !== undefined) {
-					try {
-						await writeStageJudgeFailure(
-							{ ...stageToFail, operatorStop },
-							reason,
-							dependencies.persistence,
-						);
-					} catch (error) {
-						dependencies.reportError(
-							`Failed to update run artifacts: ${error instanceof Error ? error.message : String(error)}`,
-						);
-					}
-				}
-				if (stageToFail === undefined && unjudgedCeilingStop !== undefined) {
-					try {
-						await writeCeilingStop(
-							unjudgedCeilingStop,
-							reason,
-							dependencies.persistence,
-						);
-					} catch (error) {
-						dependencies.reportError(
-							`Failed to update run artifacts: ${error instanceof Error ? error.message : String(error)}`,
-						);
-					}
-				}
-				if (artifactToFail !== undefined) {
-					try {
-						await writeRunArtifact(
-							request.artifactFile,
-							{
-								...artifactToFail,
-								status: "FAILED",
-							},
-							dependencies.persistence,
-						);
-					} catch (error) {
-						dependencies.reportError(
-							`Failed to update run artifacts: ${error instanceof Error ? error.message : String(error)}`,
-						);
-					}
-				}
-			});
-		}
-
-		return abortRecorded;
-	};
-	const teardown = (): Promise<void> => {
-		teardownStarted ??= request.teardown();
-
-		return teardownStarted;
-	};
-	const attemptRecovery = async (
-		recover: () => Promise<void>,
-	): Promise<void> => {
-		try {
-			await recover();
-		} catch (error) {
-			dependencies.reportError(
-				error instanceof Error ? error.message : String(error),
-			);
-		}
-	};
-	const abortAndExit = async (signal: NodeJS.Signals): Promise<void> => {
-		if (teardownStarted === undefined) {
-			await attemptRecovery(dependencies.killActiveCommands);
-		}
-		await markAborted(`run interrupted by ${signal}`, { signal });
-		await attemptRecovery(teardown);
-		dependencies.exit(signalExitCode(signal));
-	};
-	const cleanUpOnSignal = (signal: NodeJS.Signals): void => {
-		dependencies.reportError(
-			`\nReceived ${signal}; removing the run's checkout before exit.`,
-		);
-		if (signalAbortStarted) {
-			return;
-		}
-
-		signalAbortStarted = true;
-		void abortAndExit(signal);
-	};
-	const release = (): void => {
-		for (const signal of RUN_SIGNALS) {
-			dependencies.releaseSignal(signal, cleanUpOnSignal);
-		}
-	};
-
-	for (const signal of RUN_SIGNALS) {
-		dependencies.registerSignal(signal, cleanUpOnSignal);
-	}
+	signals.register();
 
 	return {
-		writePendingStage,
-		updatePendingStage: (pending) => {
-			if (!abortRequested) {
-				pendingStage = pending;
-			}
-		},
-		writeStageProgress,
-		completeStage,
-		writePendingArtifact,
-		completeArtifact,
-		awaitArtifactReview,
-		writeFailedArtifact,
-		markAborted,
-		stopAtCeiling: (stop) => {
-			if (abortRequested) {
-				return;
-			}
-			const readings = { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd };
-			if (pendingStage?.stage === stop.stage) {
-				pendingStage = {
-					...pendingStage,
-					ceilingStop: readings,
-					productOwner: stop.productOwner,
-				};
-			} else {
-				ceilingStop = stop;
-			}
-		},
-		teardown,
-		release,
+		awaitArtifactReview: artifacts.awaitArtifactReview,
+		completeArtifact: artifacts.completeArtifact,
+		completeStage: stages.completeStage,
+		markAborted: recovery.markAborted,
+		release: signals.release,
+		stopAtCeiling: stages.stopAtCeiling,
+		teardown: signals.teardown,
+		updatePendingStage: stages.updatePendingStage,
+		writeFailedArtifact: artifacts.writeFailedArtifact,
+		writePendingArtifact: artifacts.writePendingArtifact,
+		writePendingStage: stages.writePendingStage,
+		writeStageProgress: stages.writeStageProgress,
 	};
 }
+
+export { createRunAbort };
+
+export {
+	fileRunArtifactPersistence,
+	writeRunArtifact,
+} from "./run-abort-artifact-records";
+
+export { RUN_SIGNALS, signalExitCode } from "./run-abort-signals";
+
+export { writeStageJudgeFailure } from "./run-abort-stage-records";
+
+export type {
+	PendingStage,
+	OperatorStop,
+	CeilingStopReadings,
+	CeilingStop,
+	StoppedStageReadings,
+	RunAbortDependencies,
+	RunAbortRequest,
+	RunAbort,
+	RunArtifactPersistence,
+} from "./run-abort-contracts";

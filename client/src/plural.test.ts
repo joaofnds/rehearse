@@ -1,16 +1,28 @@
 import { describe, expect, it } from "bun:test";
-import { plural } from "./plural";
+
+import plural from "./plural";
 
 describe(plural.name, () => {
 	it("counts one of a noun in the singular", () => {
-		expect(plural(1, "file")).toBe("1 file");
+		const noun = { count: 1, expected: "1 file", singular: "file" };
+		expect(plural(noun.count, noun.singular)).toBe(noun.expected);
 	});
 
-	it.each([0, 2, 137])("counts %i of a noun in the plural", (count) => {
-		expect(plural(count, "file")).toBe(`${count} files`);
+	it.each([
+		{ count: 0, expected: "0 files" },
+		{ count: 2, expected: "2 files" },
+		{ count: 137, expected: "137 files" },
+	])("counts $count of a noun in the plural", ({ count, expected }) => {
+		expect(plural(count, "file")).toBe(expected);
 	});
 
 	it("counts a noun with an irregular plural in its given form", () => {
-		expect(plural(2, "registry", "registries")).toBe("2 registries");
+		const noun = {
+			count: 2,
+			expected: "2 registries",
+			plural: "registries",
+			singular: "registry",
+		};
+		expect(plural(noun.count, noun.singular, noun.plural)).toBe(noun.expected);
 	});
 });

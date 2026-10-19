@@ -1,43 +1,55 @@
-import { describe, expect, it } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { benchmarkRunPaths } from "./run-layout";
+
+import { failureOf } from "#cli/cli-test-support";
+
+import { RunPausedError, runGradedStages } from "./run";
 import {
-	pauseRequested,
-	pausedStage,
-	recordPaused,
-	requestPause,
-} from "./run-pause";
-import { TestResources } from "./test-support";
+	testResources,
+	unexpectedReports,
+} from "./run-stage-context-test-fixture";
+import { stageFixture } from "./run-stage-dependencies-test-fixture";
 
-const testResources = TestResources.forEachTest();
-
-async function runPaths(): Promise<ReturnType<typeof benchmarkRunPaths>> {
-	const directory = await mkdtemp(join(tmpdir(), "rehearse-run-pause-"));
-	testResources.track(directory);
-
-	return benchmarkRunPaths(directory, "run-1");
-}
-
-describe(requestPause.name, () => {
-	it("is what pauseRequested reads back", async () => {
-		const paths = await runPaths();
-		expect(await pauseRequested(paths)).toBe(false);
-
-		await requestPause(paths, "2026-09-29T10:00:00.000Z");
-
-		expect(await pauseRequested(paths)).toBe(true);
-	});
+const RESOURCE_DRAIN_START_INDEX = 0;
+testResources.registerCleanup();
+afterEach(() => {
+	expect(unexpectedReports.splice(RESOURCE_DRAIN_START_INDEX)).toEqual([]);
 });
 
-describe(recordPaused.name, () => {
-	it("names the stage the run paused after", async () => {
-		const paths = await runPaths();
-		expect(await pausedStage(paths)).toBeUndefined();
+describe("runGradedStages pause", () => {
+	describe("when a pause is requested during a stage", () => {
+		it("ends after that stage's checkpoint and starts no further stage", async () => {
+			const { dependencies, executed, context } = await stageFixture();
 
-		await recordPaused(paths, "shape", "2026-09-29T10:05:00.000Z");
+			const failure = await failureOf(
+				runGradedStages(dependencies, {
+					...context,
+					pauseRequested: async () => await Promise.resolve(true),
+				}),
+			);
 
-		expect(await pausedStage(paths)).toBe("shape");
+			expect(failure).toBeInstanceOf(RunPausedError);
+			expect(failure).toMatchObject({ stage: "shape" });
+			expect(executed).toEqual(["shape"]);
+			const completedCheckpointExists = await Bun.file(
+				join(context.checkpointDirectory("shape"), "checkpoint.json"),
+			).exists();
+			expect(completedCheckpointExists).toBe(true);
+		});
+
+		it("finishes the run when the request arrives during the last stage", async () => {
+			const { dependencies, executed, context } = await stageFixture();
+			const pauseAfter = new Set(["build"]);
+
+			await runGradedStages(dependencies, {
+				...context,
+				pauseRequested: async () =>
+					await Promise.resolve(
+						executed.some((stage) => pauseAfter.has(stage)),
+					),
+			});
+
+			expect(executed).toEqual(["shape", "build"]);
+		});
 	});
 });

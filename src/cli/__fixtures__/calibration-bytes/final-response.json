@@ -1,0 +1,46 @@
+{
+	"session_id": "final-rejudge",
+	"structured_output": {
+		"requirements": [
+			{
+				"id": "worker",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "baseline-context",
+						"path": "context.md",
+						"claim": "complete",
+						"quote": "Context"
+					}
+				]
+			},
+			{
+				"id": "check-integrity",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "baseline-context",
+						"path": "context.md",
+						"claim": "complete",
+						"quote": "Context"
+					}
+				]
+			},
+			{
+				"id": "local-checks",
+				"status": "PASS",
+				"evidence": [
+					{
+						"source": "baseline-context",
+						"path": "context.md",
+						"claim": "complete",
+						"quote": "Context"
+					}
+				]
+			}
+		],
+		"verdict": "PASS",
+		"summary": "complete"
+	},
+	"total_cost_usd": 0.1
+}

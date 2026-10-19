@@ -1,100 +1,135 @@
 import { describe, expect, it } from "bun:test";
+
+import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
+
 import { caseFigures, medianVerdict } from "./case-figures";
-import type { CaseRun } from "./case-figures";
+import CaseRunBuilder from "./case-run-test-builder";
 
-const OLDER = "a".repeat(64);
-const NEWER = "b".repeat(64);
+const OLDER = "a".repeat(SHA256_HEX_DIGITS);
 
-function run(overrides: Partial<CaseRun> = {}): CaseRun {
-	return {
-		corpusDigest: NEWER,
-		passed: true,
-		costUsd: 1,
-		...overrides,
-	};
-}
+const NEWER = "b".repeat(SHA256_HEX_DIGITS);
 
 describe("caseFigures", () => {
-	it("counts the runs at the latest corpus version and the ones it left out", () => {
-		const figures = caseFigures([
-			run(),
-			run({ corpusDigest: NEWER, passed: false }),
-			run({ corpusDigest: OLDER }),
-			run({ corpusDigest: undefined }),
-		]);
+	it(
+		"counts the runs at the latest corpus version and the ones it left out",
+		verifyCaseFiguresCountsTheRunsAtTheLatestCorpusVersionAndTheOnesItLeftOut,
+	);
 
-		expect(figures).toMatchObject({
-			state: "measured",
-			corpusVersion: NEWER,
-			counted: 2,
-			leftOut: 2,
-			judged: 2,
-			passed: 1,
-		});
-	});
+	it(
+		"takes the mean cost over the counted runs whose cost is recorded",
+		verifyCaseFiguresTakesTheMeanCostOverTheCountedRunsWhoseCostIsRecorded,
+	);
 
-	it("takes the mean cost over the counted runs whose cost is recorded", () => {
-		const figures = caseFigures([
-			run({ costUsd: 1 }),
-			run({ costUsd: 2 }),
-			run({ costUsd: undefined }),
-			run({ corpusDigest: OLDER, costUsd: 50 }),
-		]);
+	it(
+		"counts only the judged runs toward the passed figure",
+		verifyCaseFiguresCountsOnlyTheJudgedRunsTowardThePassedFigure,
+	);
 
-		expect(figures).toMatchObject({
-			costPerRun: { meanUsd: 1.5, costed: 2, lacking: 1 },
-		});
-	});
-
-	it("counts only the judged runs toward the passed figure", () => {
-		const figures = caseFigures([run(), run({ passed: undefined })]);
-
-		expect(figures).toMatchObject({ counted: 2, judged: 1, passed: 1 });
-	});
-
-	it("reads no runs rather than zero figures for a case that never ran", () => {
-		expect(caseFigures([])).toEqual({ state: "no-runs" });
-	});
+	it(
+		"reads no runs rather than zero figures for a case that never ran",
+		verifyCaseFiguresReadsNoRunsRatherThanZeroFiguresForACaseThatNeverRan,
+	);
 
 	describe("when no counted run recorded its cost", () => {
-		it("serves no mean", () => {
-			expect(caseFigures([run({ costUsd: undefined })])).toMatchObject({
-				costPerRun: { meanUsd: null, costed: 0, lacking: 1 },
-			});
-		});
+		it(
+			"serves no mean",
+			verifyCaseFiguresWhenNoCountedRunRecordedItsCostServesNoMean,
+		);
 	});
 
 	describe("when no run recorded a corpus version", () => {
-		it("counts every run under no version", () => {
-			const figures = caseFigures([
-				run({ corpusDigest: undefined }),
-				run({ corpusDigest: undefined }),
-			]);
-
-			expect(figures).toMatchObject({
-				corpusVersion: null,
-				counted: 2,
-				leftOut: 0,
-			});
-		});
+		it(
+			"counts every run under no version",
+			verifyCaseFiguresWhenNoRunRecordedACorpusVersionCountsEveryRunUnderNoVersion,
+		);
 	});
 });
 
 describe("medianVerdict", () => {
 	it.each([
-		{ passed: 3, judged: 4, median: "PASS" },
-		{ passed: 2, judged: 4, median: "FAIL" },
-		{ passed: 1, judged: 1, median: "PASS" },
-		{ passed: 0, judged: 3, median: "FAIL" },
-		{ passed: 2, judged: 3, median: "PASS" },
+		{ judged: 4, median: "PASS", passed: 3 },
+		{ judged: 4, median: "FAIL", passed: 2 },
+		{ judged: 1, median: "PASS", passed: 1 },
+		{ judged: 3, median: "FAIL", passed: 0 },
+		{ judged: 3, median: "PASS", passed: 2 },
 	] as const)(
 		"reads $median for $passed of $judged passed, the lower middle on an even count",
 		({ passed, judged, median }) => {
-			expect(medianVerdict({ passed, judged })).toBe(median);
+			expect(medianVerdict({ judged, passed })).toBe(median);
 		},
 	);
 
-	it("reads no verdict when nothing was judged", () => {
-		expect(medianVerdict({ passed: 0, judged: 0 })).toBeNull();
-	});
+	it(
+		"reads no verdict when nothing was judged",
+		verifyMedianVerdictReadsNoVerdictWhenNothingWasJudged,
+	);
 });
+
+function verifyCaseFiguresCountsTheRunsAtTheLatestCorpusVersionAndTheOnesItLeftOut(): void {
+	const figures = caseFigures([
+		new CaseRunBuilder().build(),
+		new CaseRunBuilder({ corpusDigest: NEWER, passed: false }).build(),
+		new CaseRunBuilder({ corpusDigest: OLDER }).build(),
+		new CaseRunBuilder({ corpusDigest: undefined }).build(),
+	]);
+
+	expect(figures).toMatchObject({
+		corpusVersion: NEWER,
+		counted: 2,
+		judged: 2,
+		leftOut: 2,
+		passed: 1,
+		state: "measured",
+	});
+}
+
+function verifyCaseFiguresTakesTheMeanCostOverTheCountedRunsWhoseCostIsRecorded(): void {
+	const figures = caseFigures([
+		new CaseRunBuilder({ costUsd: 1 }).build(),
+		new CaseRunBuilder({ costUsd: 2 }).build(),
+		new CaseRunBuilder({ costUsd: undefined }).build(),
+		new CaseRunBuilder({ corpusDigest: OLDER, costUsd: 50 }).build(),
+	]);
+
+	expect(figures).toMatchObject({
+		costPerRun: { costed: 2, lacking: 1, meanUsd: 1.5 },
+	});
+}
+
+function verifyCaseFiguresCountsOnlyTheJudgedRunsTowardThePassedFigure(): void {
+	const figures = caseFigures([
+		new CaseRunBuilder().build(),
+		new CaseRunBuilder({ passed: undefined }).build(),
+	]);
+
+	expect(figures).toMatchObject({ counted: 2, judged: 1, passed: 1 });
+}
+
+function verifyCaseFiguresReadsNoRunsRatherThanZeroFiguresForACaseThatNeverRan(): void {
+	expect(caseFigures([])).toEqual({ state: "no-runs" });
+}
+
+function verifyCaseFiguresWhenNoCountedRunRecordedItsCostServesNoMean(): void {
+	expect(
+		caseFigures([new CaseRunBuilder({ costUsd: undefined }).build()]),
+	).toMatchObject({
+		costPerRun: { costed: 0, lacking: 1, meanUsd: null },
+	});
+}
+
+function verifyCaseFiguresWhenNoRunRecordedACorpusVersionCountsEveryRunUnderNoVersion(): void {
+	const figures = caseFigures([
+		new CaseRunBuilder({ corpusDigest: undefined }).build(),
+		new CaseRunBuilder({ corpusDigest: undefined }).build(),
+	]);
+
+	expect(figures).toMatchObject({
+		corpusVersion: null,
+		counted: 2,
+		leftOut: 0,
+	});
+}
+
+function verifyMedianVerdictReadsNoVerdictWhenNothingWasJudged(): void {
+	expect(medianVerdict({ judged: 0, passed: 0 })).toBeNull();
+}

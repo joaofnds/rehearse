@@ -1,3 +1,4 @@
+const MAX_DIFFERING_CORPUS_UNITS = 1;
 /** Corpus layout path to the sha256 of its bytes. */
 type CorpusFiles = ReadonlyMap<string, string>;
 
@@ -7,7 +8,7 @@ type CorpusFiles = ReadonlyMap<string, string>;
  * 2). `derived` removes the skill under test from arm A; `armA` runs arm A
  * as it is, because the skill under test is new in arm B.
  */
-export type BaselineCorpus =
+type BaselineCorpus =
 	| {
 			readonly kind: "derived" | "armA";
 			readonly skillUnderTest: string;
@@ -27,7 +28,8 @@ const SKILL_UNIT = /^skills\/[^/]+\//u;
  * its own.
  */
 function unitOf(path: string): string {
-	return SKILL_UNIT.exec(path)?.[0] ?? path;
+	const [skillDirectory] = SKILL_UNIT.exec(path) ?? [];
+	return skillDirectory ?? path;
 }
 
 /**
@@ -35,7 +37,7 @@ function unitOf(path: string): string {
  * supplied through a comparison manifest, since only a skill's directory is a
  * unit the browser can pair arms on.
  */
-export function needsComparisonManifest(path: string): boolean {
+function needsComparisonManifest(path: string): boolean {
 	return !SKILL_UNIT.test(path);
 }
 
@@ -50,7 +52,7 @@ function differingUnits(armA: CorpusFiles, armB: CorpusFiles): string[] {
 	return [...units].toSorted();
 }
 
-export function deriveBaselineCorpus(
+function deriveBaselineCorpus(
 	armA: CorpusFiles,
 	armB: CorpusFiles,
 ): BaselineCorpus {
@@ -58,23 +60,23 @@ export function deriveBaselineCorpus(
 	const [unit] = units;
 	if (unit === undefined) {
 		return {
+			differingUnits: [],
 			kind: "refused",
 			reason: "arms A and B hold identical corpora, so nothing is under test",
-			differingUnits: [],
 		};
 	}
-	if (units.length > 1) {
+	if (units.length > MAX_DIFFERING_CORPUS_UNITS) {
 		return {
+			differingUnits: units,
 			kind: "refused",
 			reason: "arms A and B differ in more than one corpus unit",
-			differingUnits: units,
 		};
 	}
 	if (!SKILL_UNIT.test(unit)) {
 		return {
+			differingUnits: units,
 			kind: "refused",
 			reason: `the arms differ in ${unit}, which is not a skill; supply the control through a comparison manifest`,
-			differingUnits: units,
 		};
 	}
 
@@ -83,8 +85,11 @@ export function deriveBaselineCorpus(
 	);
 
 	return {
+		files: withoutSkill,
 		kind: withoutSkill.size === armA.size ? "armA" : "derived",
 		skillUnderTest: unit,
-		files: withoutSkill,
 	};
 }
+
+export { needsComparisonManifest, deriveBaselineCorpus };
+export type { BaselineCorpus };

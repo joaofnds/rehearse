@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+
 import { fireEvent, render, screen } from "@testing-library/react";
+
 import { SequencePlot } from "./sequence-plot";
 
 describe("sequence plot", () => {

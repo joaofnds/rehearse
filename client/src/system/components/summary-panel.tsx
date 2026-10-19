@@ -1,21 +1,24 @@
 import type { ReactNode } from "react";
-import { cn } from "#client/system/cn";
 
-export function SummaryPanel({
-	id,
-	title,
-	description,
-	actions,
-	children,
-	className,
-}: {
+import cn from "#client/system/cn";
+
+interface SummaryPanelProps {
 	readonly id?: string;
 	readonly title: string;
 	readonly description?: ReactNode;
 	readonly actions?: ReactNode;
 	readonly children: ReactNode;
 	readonly className?: string;
-}): React.JSX.Element {
+}
+
+function SummaryPanel({
+	id,
+	title,
+	description,
+	actions,
+	children,
+	className,
+}: SummaryPanelProps): React.JSX.Element {
 	return (
 		<section
 			id={id}
@@ -40,3 +43,5 @@ export function SummaryPanel({
 		</section>
 	);
 }
+
+export { SummaryPanel as default };

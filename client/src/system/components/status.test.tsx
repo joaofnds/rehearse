@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
+
 import { STATUS_STATES, STATUS_VOCABULARY, Status } from "./status";
 
 describe(Status.name, () => {

@@ -1,20 +1,24 @@
+import type { UseQueryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
-import { apiClient, launchClient } from "#client/api-client";
-import { refusalReason } from "#client/refusal-reason";
-import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
 
-export type CorpusEditReview = InferResponseType<
+import { apiClient, launchClient } from "#client/api-client";
+import HTTP_STATUS from "#client/http-status";
+import refusalReason from "#client/refusal-reason";
+import CORPUS_VERSION_HEADER from "#server/corpus-version-header";
+
+type CorpusEditReview = InferResponseType<
 	typeof launchClient.api.corpus.edits.review.$post,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
-export type AppliedCorpusEdit = InferResponseType<
+type AppliedCorpusEdit = InferResponseType<
 	typeof launchClient.api.corpus.edits.apply.$post,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
 /** The server refused the edit, and its message says why. */
-export class CorpusEditRefusedError extends Error {
+class CorpusEditRefusedError extends Error {
 	public override name = "CorpusEditRefusedError";
 }
 
@@ -25,7 +29,7 @@ async function refusal(
 }
 
 /** A file's text and the corpus version it was read at, which an edit starts from. */
-export interface OpenedCorpusFile {
+interface OpenedCorpusFile {
 	readonly text: string;
 	readonly version: string;
 }
@@ -77,12 +81,12 @@ async function fetchCorpusBytes(
 	return { bytes: await response.arrayBuffer(), version };
 }
 
-export async function fetchCorpusFile(path: string): Promise<OpenedCorpusFile> {
+async function fetchCorpusFile(path: string): Promise<OpenedCorpusFile> {
 	const { bytes, version } = await fetchCorpusBytes(path);
 	return { text: editableText(path, bytes), version };
 }
 
-export async function fetchCorpusFileForReading(
+async function fetchCorpusFileForReading(
 	path: string,
 ): Promise<OpenedCorpusFile> {
 	const { bytes, version } = await fetchCorpusBytes(path);
@@ -90,32 +94,68 @@ export async function fetchCorpusFileForReading(
 }
 
 /** Reviews the edit against the version its file was opened at. */
-export async function reviewCorpusEdit(edit: {
+interface ReviewCorpusEditProps {
 	readonly path: string;
 	readonly text: string;
 	readonly startsFrom: string;
-}): Promise<CorpusEditReview> {
+}
+
+async function reviewCorpusEdit(
+	edit: ReviewCorpusEditProps,
+): Promise<CorpusEditReview> {
 	const response = await launchClient.api.corpus.edits.review.$post({
 		json: edit,
 	});
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw await refusal(response);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export async function applyCorpusEdit(edit: {
+interface ApplyCorpusEditProps {
 	readonly path: string;
 	readonly text: string;
 	readonly startsFrom: string;
-}): Promise<AppliedCorpusEdit> {
+}
+
+async function applyCorpusEdit(
+	edit: ApplyCorpusEditProps,
+): Promise<AppliedCorpusEdit> {
 	const response = await launchClient.api.corpus.edits.apply.$post({
 		json: edit,
 	});
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw await refusal(response);
 	}
 
-	return response.json();
+	return await response.json();
 }
+
+function corpusEditingFile(
+	root: string,
+	path: string,
+): UseQueryOptions<OpenedCorpusFile, Error, OpenedCorpusFile, string[]> {
+	return queryOptions({
+		gcTime: 0,
+		queryFn: async () => await fetchCorpusFile(path),
+		queryKey: ["corpus-file", root, path],
+		refetchOnMount: "always",
+	});
+}
+
+export {
+	applyCorpusEdit,
+	corpusEditingFile,
+	CorpusEditRefusedError,
+	fetchCorpusFile,
+	fetchCorpusFileForReading,
+	reviewCorpusEdit,
+};
+export type {
+	AppliedCorpusEdit,
+	ApplyCorpusEditProps,
+	CorpusEditReview,
+	OpenedCorpusFile,
+	ReviewCorpusEditProps,
+};

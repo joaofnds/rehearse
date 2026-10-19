@@ -1,112 +1,39 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import {
-	captureStageCorpus,
-	installStageCorpusSnapshot,
-	materializeCheckpoint,
-	recordCheckpoint,
-} from "./checkpoint";
-import { captureBaselineContext, captureFileHashes } from "./checks";
-import { runCommand } from "./command";
-import type {
-	ClaudeCallMetrics,
-	JudgeGrade,
-	StageJudgeInput,
-	StageRubric,
-	StageScorecard,
-} from "./contracts";
-import type { PipelineDefinition } from "./pipeline";
 import type {
 	PipelineConfirmationDependencies,
 	PipelineConfirmationRequest,
 } from "./pipeline-confirmation";
-import { runPipelineConfirmation } from "./pipeline-confirmation";
+import runPipelineConfirmation from "./pipeline-confirmation";
 import {
-	addWorktree,
-	assertBuildCommitted,
-	captureBuildCandidate,
-	changedPathsBetween,
-	currentSha,
-	removeWorktree,
-} from "./target";
+	completeFinalJudgment,
+	pipelineStageScorecard,
+} from "./pipeline-confirmation-judging-test-fixtures";
+import PipelineConfirmationRequestBuilder from "./pipeline-confirmation-request-builder";
+import stageSessionDefaults from "./pipeline-confirmation-stage-test-adapter";
+import type {
+	ConfirmationResources,
+	PipelineHarnessProps,
+} from "./pipeline-confirmation-workspace-test-fixture";
+import {
+	createPipelineHarnessResources,
+	workspaceDependencies,
+} from "./pipeline-confirmation-workspace-test-fixture";
+import { removeWorktree } from "./target";
 import { targetServices } from "./target-services";
 import {
 	FakeContainerRuntime,
-	POSTGRES,
 	READY_AT_ONCE,
 } from "./target-services-test-support";
-import { createProductOwner } from "./workflow";
-import { TEST_TARGET, commitAll, harnessResult } from "./test-support";
 
-interface ConfirmationResources {
-	readonly track: (directory: string) => void;
-	readonly createRepository: () => Promise<{
-		readonly directory: string;
-		readonly sha: string;
-	}>;
-}
-
-interface PipelineHarnessProps {
-	readonly sourceRoot: string;
-	readonly sourceSha: string;
-	readonly runsDirectory: string;
-	readonly corpusRoot: string;
-}
-
-export type PipelineDependencyOverride = (
+type PipelineDependencyOverride = (
 	defaults: PipelineConfirmationDependencies,
 ) => PipelineConfirmationDependencies;
 
-export const CONFIRMATION_METRIC: ClaudeCallMetrics = {
-	costUsd: 0.25,
-	inputTokens: 100,
-	outputTokens: 20,
-	cacheReadTokens: 30,
-	cacheWriteTokens: 40,
-	turns: 2,
-};
+interface PipelineHarnessContext extends PipelineHarnessProps {
+	readonly resources: ConfirmationResources;
+}
 
-export const CONFIRMATION_PIPELINE: PipelineDefinition = {
-	statuses: ["To Do", "Done"],
-	target: TEST_TARGET,
-	stages: [
-		{
-			name: "discuss",
-			kind: "planning",
-			skill: "discuss",
-			artifact: "spec",
-			rubric: "rubrics/discuss.json",
-			requiresAcceptanceCriteria: false,
-		},
-		{
-			name: "build",
-			kind: "delivery",
-			skill: "build",
-			rubric: "rubrics/build.json",
-		},
-	],
-};
-
-/** The confirmation pipeline on a target that sets up against a database. */
-export const SERVED_CONFIRMATION_PIPELINE: PipelineDefinition = {
-	...CONFIRMATION_PIPELINE,
-	target: {
-		...CONFIRMATION_PIPELINE.target,
-		setup: [{ command: ["bun", "install"] }],
-		services: [POSTGRES],
-	},
-};
-
-export const CONFIRMATION_STAGE_RUBRIC: StageRubric = {
-	hardBlockers: [],
-	requirements: [{ id: "scope", description: "Scope is explicit" }],
-	dimensions: [
-		{ id: "clarity", description: "Clear", good: "g", excellent: "e" },
-	],
-};
-
-export class PipelineConfirmationHarness {
+class PipelineConfirmationHarness {
+	private readonly resources: ConfirmationResources;
 	public readonly sourceRoot: string;
 	public readonly sourceSha: string;
 	public readonly runsDirectory: string;
@@ -118,7 +45,8 @@ export class PipelineConfirmationHarness {
 	public readonly logs: string[] = [];
 	public readonly containers = new FakeContainerRuntime();
 
-	private constructor(props: PipelineHarnessProps) {
+	private constructor(props: PipelineHarnessContext) {
+		this.resources = props.resources;
 		this.sourceRoot = props.sourceRoot;
 		this.sourceSha = props.sourceSha;
 		this.runsDirectory = props.runsDirectory;
@@ -128,33 +56,11 @@ export class PipelineConfirmationHarness {
 	public static async setup(
 		resources: ConfirmationResources,
 	): Promise<PipelineConfirmationHarness> {
-		const source = await resources.createRepository();
-		const sourceHead = await runCommand(
-			["git", "rev-parse", "HEAD"],
-			source.directory,
-		);
-		const runsDirectory = await mkdtemp(
-			join(tmpdir(), "rehearse-pipeline-confirmation-"),
-		);
-		resources.track(runsDirectory);
-		const corpusRoot = join(runsDirectory, "corpus");
-		for (const skill of ["discuss", "build", "doctrine"]) {
-			await mkdir(join(corpusRoot, "skills", skill), { recursive: true });
-			await Bun.write(
-				join(corpusRoot, "skills", skill, "SKILL.md"),
-				`${skill} corpus\n`,
-			);
-		}
-
-		return new PipelineConfirmationHarness({
-			sourceRoot: source.directory,
-			sourceSha: sourceHead.trim(),
-			runsDirectory,
-			corpusRoot,
-		});
+		const props = await createPipelineHarnessResources(resources);
+		return new PipelineConfirmationHarness({ ...props, resources });
 	}
 
-	public run(
+	public async run(
 		requestOverrides: Partial<PipelineConfirmationRequest>,
 		...overrides: readonly PipelineDependencyOverride[]
 	): ReturnType<typeof runPipelineConfirmation> {
@@ -163,235 +69,79 @@ export class PipelineConfirmationHarness {
 			dependencies = override(dependencies);
 		}
 
-		return runPipelineConfirmation(dependencies, {
-			...this.defaultRequest(),
+		const request = new PipelineConfirmationRequestBuilder({
+			corpusRoots: [{ kind: "directory", root: this.corpusRoot }],
+			runsDirectory: this.runsDirectory,
+			source: { root: this.sourceRoot, sha: this.sourceSha },
 			...requestOverrides,
-		});
+		}).build();
+
+		return await runPipelineConfirmation(dependencies, request);
 	}
 
 	private defaultDependencies(): PipelineConfirmationDependencies {
 		return {
-			createProductOwner,
-			stageSession: {
-				runWorkflowStage: async (request) => {
-					if (request.stage === "discuss") {
-						await mkdir(join(request.targetDir, "backlog", "docs"), {
-							recursive: true,
-						});
-						await Bun.write(
-							join(request.targetDir, "backlog", "docs", "DOC-1 - spec.md"),
-							"confirmed spec\n",
-						);
-					} else {
-						await Bun.write(join(request.targetDir, "change.txt"), "change\n");
-						await commitAll(request.targetDir, "feat: implement change");
-					}
-
-					return {
-						stage: request.stage,
-						sessionId: request.stage,
-						costUsd: CONFIRMATION_METRIC.costUsd,
-						providerCalls: [{ metrics: CONFIRMATION_METRIC }],
-						exchanges: [],
-					};
-				},
-				readTaskOutput: () =>
-					Promise.resolve(
-						JSON.stringify({
-							task: {
-								acceptanceCriteria: ["done"],
-								documentation: ["DOC-1 - spec.md"],
-							},
-						}),
-					),
-				readTaskCard: () => Promise.resolve("confirmed task card"),
-				captureBuildCandidate,
-				assertPlanningStageCompleted: async (
-					targetDir,
-					baselineSha,
-					stage,
-				) => ({
-					taskState: `${stage.name}-state`,
-					artifact: {
-						path: "backlog/docs/DOC-1 - spec.md",
-						content: await Bun.file(
-							join(targetDir, "backlog", "docs", "DOC-1 - spec.md"),
-						).text(),
-					},
-					resultSha: baselineSha,
-					diff: "",
-					changedPaths: [],
-				}),
-				assertBuildCommitted,
-				changedPathsBetween,
-				captureCheckIntegrity: () =>
-					Promise.resolve(harnessResult("PASS", "checks match")),
-				captureTreatmentChecks: () =>
-					Promise.resolve(harnessResult("PASS", "all green")),
-				captureStageCorpus,
-				measureCorpus: () =>
-					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
-				corpusVersionFiles: () => Promise.resolve([]),
+			...workspaceDependencies(this.resources),
+			log: (message) => {
+				this.logs.push(message);
 			},
-			runStageJudge: (_model, _effort, _budget, input, source) =>
-				Promise.resolve(pipelineStageScorecard(input, source)),
-			runFinalJudge: () =>
-				Promise.resolve({
-					grade: completeFinalGrade("PASS"),
-					prompt: "final prompt",
-					attempts: [
-						{
-							payload: { summary: "pass" },
-							costUsd: CONFIRMATION_METRIC.costUsd,
-							metrics: CONFIRMATION_METRIC,
-							outcome: "ACCEPTED",
-						},
-					],
-					costUsd: CONFIRMATION_METRIC.costUsd,
-				}),
-			seedTaskBoard: async (targetDir) => ({
-				taskId: "TASK-1",
-				taskSha: await currentSha(targetDir),
-			}),
-			runChecks: () => Promise.resolve(),
-			runSetup: () => Promise.resolve(),
-			captureBaselineContext,
-			captureFileHashes,
-			addWorktree,
+			pruneWorktrees: async (root) => {
+				this.pruned.push(root);
+
+				await Promise.resolve();
+			},
+			recordRetentionRef: async (_targetRoot, runName, targetSha) => {
+				this.retained.set(runName, targetSha);
+
+				await Promise.resolve();
+			},
 			removeWorktree: async (targetRoot, worktreePath) => {
 				this.removed.push(worktreePath);
 				await removeWorktree(targetRoot, worktreePath);
 			},
-			pruneWorktrees: (root) => {
-				this.pruned.push(root);
-
-				return Promise.resolve();
-			},
-			stopOnSignal: (cleanUp, recordStop) => {
-				// A released stop is inert, as the real one is once its signals
-				// return to their default.
-				let released = false;
-				this.stops.push(async () => {
-					if (released) {
-						return;
-					}
-					await recordStop?.("SIGTERM");
-					await cleanUp();
-				});
-
-				return () => {
-					released = true;
-				};
-			},
-			materializeCheckpoint,
-			installStageCorpusSnapshot,
-			recordCheckpoint,
-			recordRetentionRef: (_targetRoot, runName, targetSha) => {
-				this.retained.set(runName, targetSha);
-
-				return Promise.resolve();
-			},
-			captureBuildCandidate,
+			runFinalJudge: async () => await Promise.resolve(completeFinalJudgment()),
+			runStageJudge: async (_execution, { input, source }) =>
+				await Promise.resolve(pipelineStageScorecard(input, source)),
 			services: (owner) =>
 				targetServices(owner, this.containers, READY_AT_ONCE),
-			log: (message) => {
-				this.logs.push(message);
-			},
+			stageSession: stageSessionDefaults(),
+			stopOnSignal: (cleanUp, recordStop) =>
+				this.registerStop({ cleanUp, recordStop }),
 		};
 	}
 
-	private defaultRequest(): PipelineConfirmationRequest {
-		return {
-			caseId: "audit-log",
-			runsDirectory: this.runsDirectory,
-			groupId: "pipeline-confirmation-1",
-			reps: 3,
-			projectedCost: {
-				reps: 3,
-				perRepMaximumUsd: 45,
-				totalMaximumUsd: 135,
-			},
-			approvalMethod: "yes",
-			spendCeilingUsd: 100,
-			source: { root: this.sourceRoot, sha: this.sourceSha },
-			controlSha: "a".repeat(40),
-			pipelinePath: "pipelines/test.json",
-			pipeline: CONFIRMATION_PIPELINE,
-			task: "# Task\n\nImplement it.",
-			productBrief: "Product brief",
-			instructions: "Frozen instructions\n",
-			finalRubric: "1. `final`: pass the candidate\n",
-			stageRubrics: {
-				discuss: {
-					rubricPath: "rubrics/discuss.json",
-					content: "{}\n",
-					rubric: CONFIRMATION_STAGE_RUBRIC,
-				},
-				build: {
-					rubricPath: "rubrics/build.json",
-					content: "{}\n",
-					rubric: CONFIRMATION_STAGE_RUBRIC,
-				},
-			},
-			corpusRoots: [{ kind: "directory", root: this.corpusRoot }],
-			model: "sonnet",
-			effort: "high",
-			judgeModel: "opus",
-			judgeEffort: "high",
-			sessionBudgetUsd: 5,
+	private registerStop({ cleanUp, recordStop }: StopRegistration): () => void {
+		let released = false;
+
+		this.stops.push(async () => {
+			if (released) {
+				return;
+			}
+
+			await recordStop?.("SIGTERM");
+			await cleanUp();
+		});
+
+		return () => {
+			released = true;
 		};
 	}
 }
 
-export function pipelineStageScorecard(
-	input: StageJudgeInput,
-	source: {
-		readonly rubricPath: string;
-		readonly rubric: StageRubric;
-	},
-): StageScorecard {
-	return {
-		stage: input.stage,
-		rubricPath: source.rubricPath,
-		rubric: source.rubric,
-		input,
-		prompt: "prompt",
-		attempts: [
-			{
-				payload: { summary: "accepted" },
-				costUsd: CONFIRMATION_METRIC.costUsd,
-				metrics: CONFIRMATION_METRIC,
-				outcome: "ACCEPTED",
-			},
-		],
-		costUsd: CONFIRMATION_METRIC.costUsd,
-		grade: {
-			hardBlockers: [],
-			requirements: [],
-			dimensions: [],
-			summary: "graded",
-			grade: "A",
-			verdict: "CONTINUE",
-		},
-	};
+interface StopRegistration {
+	readonly cleanUp: () => Promise<void>;
+	readonly recordStop: (signal: NodeJS.Signals) => Promise<void>;
 }
 
-export function completeFinalGrade(verdict: "PASS" | "FAIL"): JudgeGrade {
-	return {
-		requirements: ["tests", "worker", "check-integrity", "local-checks"].map(
-			(id) => ({
-				id,
-				status: verdict,
-				evidence: [
-					{
-						source: "diff" as const,
-						path: "src/audit/example.ts",
-						claim: `${id} evidence`,
-					},
-				],
-			}),
-		),
-		verdict,
-		summary: "complete",
-	};
-}
+export { PipelineConfirmationHarness };
+export type { PipelineDependencyOverride };
+export {
+	CONFIRMATION_PIPELINE,
+	SERVED_CONFIRMATION_PIPELINE,
+} from "./pipeline-confirmation-test-data";
+export {
+	CONFIRMATION_METRIC,
+	CONFIRMATION_STAGE_RUBRIC,
+	completeFinalGrade,
+	pipelineStageScorecard,
+} from "./pipeline-confirmation-judging-test-fixtures";

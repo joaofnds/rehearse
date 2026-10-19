@@ -1,4 +1,4 @@
-import type { Sandbox } from "#cli/confinement";
+import type { Confined, Sandbox } from "#cli/confinement";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
@@ -20,11 +20,11 @@ function macosSandbox(pathExists: (path: string) => Promise<boolean>): Sandbox {
 			}
 
 			return {
-				kind: "confined",
 				image: {
-					path: SANDBOX_EXEC,
 					args: ["sandbox-exec", "-p", CONFINEMENT_PROFILE, ...argv],
+					path: SANDBOX_EXEC,
 				},
+				kind: "confined",
 			};
 		},
 	};
@@ -32,15 +32,15 @@ function macosSandbox(pathExists: (path: string) => Promise<boolean>): Sandbox {
 
 function missingSandbox(platform: NodeJS.Platform): Sandbox {
 	return {
-		confine: () =>
-			Promise.resolve({
+		confine: async () =>
+			await Promise.resolve<Confined>({
 				kind: "refused",
 				reason: `This command confines its sessions, and Rehearse has no sandbox for ${platform}, so it runs only on macOS`,
 			}),
 	};
 }
 
-export function sandboxFor(
+function sandboxFor(
 	platform: NodeJS.Platform,
 	pathExists: (path: string) => Promise<boolean>,
 ): Sandbox {
@@ -50,3 +50,5 @@ export function sandboxFor(
 
 	return missingSandbox(platform);
 }
+
+export { sandboxFor as default };

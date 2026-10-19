@@ -1,6 +1,14 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
-import { plural } from "#client/plural";
+import plural from "#client/plural";
+import { spendReading } from "#client/run-history/run-progress";
+
 import type { ComparisonResponse } from "./comparison-response";
+
+const NO_UNRECORDED_ARMS = 0;
+
+const UNRECORDED_ARM_COUNT_INCREMENT = 1;
+
+const SINGLE_ITEM_COUNT = 1;
 
 const COMPARISON_ARMS = [
 	"baseline",
@@ -13,7 +21,7 @@ type HeaderFacts = Pick<
 	"report" | "checkpoint" | "armFigures"
 >;
 
-export function comparisonTitle(facts: HeaderFacts): string {
+function comparisonTitle(facts: HeaderFacts): string {
 	if (facts.checkpoint.state === "available") {
 		const { stage, run, shortId } = facts.checkpoint;
 
@@ -44,11 +52,9 @@ function sharedInputs(facts: HeaderFacts): string {
 		return "same checkpoint, same case";
 	}
 
-	return facts.report.cases.length === 1 ? "same case" : "same cases";
-}
-
-function dollars(usd: number): string {
-	return `$${usd.toFixed(2)}`;
+	return facts.report.cases.length === SINGLE_ITEM_COUNT
+		? "same case"
+		: "same cases";
 }
 
 function recordedCost(armFigures: HeaderFacts["armFigures"]): string {
@@ -61,20 +67,22 @@ function recordedCost(armFigures: HeaderFacts["armFigures"]): string {
 		if (cost.state === "available") {
 			total += cost.totalUsd;
 		} else {
-			unrecorded += 1;
+			unrecorded += UNRECORDED_ARM_COUNT_INCREMENT;
 		}
 	}
 
-	return unrecorded === 0
-		? `${dollars(total)} total`
-		: `${dollars(total)} recorded · cost not recorded for ${plural(unrecorded, "arm")}`;
+	return unrecorded === NO_UNRECORDED_ARMS
+		? `${spendReading(total)} total`
+		: `${spendReading(total)} recorded · cost not recorded for ${plural(unrecorded, "arm")}`;
 }
 
 /** Names no seed and no pairing, since nothing records either. */
-export function comparisonSubline(facts: HeaderFacts): string {
+function comparisonSubline(facts: HeaderFacts): string {
 	return [
 		attemptsPerArm(facts.report),
 		sharedInputs(facts),
 		recordedCost(facts.armFigures),
 	].join(" · ");
 }
+
+export { comparisonSubline, comparisonTitle };

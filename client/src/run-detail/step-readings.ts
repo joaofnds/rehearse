@@ -14,7 +14,7 @@ function costPart(name: string, cost: RecordedCost): string {
  * each part apart when the record lacks one, so a part is never read as the
  * whole.
  */
-export function stageCostReading(stage: MonitoredStage): string {
+function stageCostReading(stage: MonitoredStage): string {
 	const { sessionCost, judgeCost } = stage;
 	if (sessionCost.state === "available" && judgeCost.state === "available") {
 		return spendReading(sessionCost.usd + judgeCost.usd);
@@ -24,3 +24,5 @@ export function stageCostReading(stage: MonitoredStage): string {
 		" · ",
 	);
 }
+
+export { stageCostReading as default };

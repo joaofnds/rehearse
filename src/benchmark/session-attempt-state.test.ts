@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+
 import { z } from "zod";
+
 import { parseSessionAttemptState } from "./session-record";
 
 const identity = {
@@ -7,48 +9,57 @@ const identity = {
 	lineage: "lineage",
 	outcome: "SUCCESSFUL",
 } as const;
-const passed = { name: "saved", status: "PASS", detail: "present" } as const;
+const passed = { detail: "present", name: "saved", status: "PASS" } as const;
+
+function readsSavedOutcomesWithoutParsingUnrelatedContextEvidence(): void {
+	const record = {
+		...identity,
+		contextEvidence: "unreadable context evidence",
+		schemaVersion: 3,
+		stateResults: [passed],
+	};
+
+	const state = parseSessionAttemptState(JSON.stringify(record));
+
+	expect(state).toEqual({
+		...identity,
+		schemaVersion: 3,
+		stateResults: [passed],
+	});
+}
 
 describe("parseSessionAttemptState", () => {
-	it("reads saved outcomes without parsing unrelated context evidence", () => {
-		const record = {
-			...identity,
-			schemaVersion: 3,
-			stateResults: [passed],
-			contextEvidence: "unreadable context evidence",
-		};
+	it(
+		"reads saved outcomes without parsing unrelated context evidence",
+		readsSavedOutcomesWithoutParsingUnrelatedContextEvidence,
+	);
 
-		const state = parseSessionAttemptState(JSON.stringify(record));
-
-		expect(state).toEqual({
-			...identity,
-			schemaVersion: 3,
-			stateResults: [passed],
-		});
-	});
-
-	it.each([
-		[1, "SUCCESSFUL"],
-		[2, "EXECUTION_FAILED"],
-	] as const)(
+	it.each(
+		(
+			[
+				{ outcome: "SUCCESSFUL", schemaVersion: 1 },
+				{ outcome: "EXECUTION_FAILED", schemaVersion: 2 },
+			] as const
+		).map(({ schemaVersion, outcome }) => [schemaVersion, outcome] as const),
+	)(
 		"reads version %i without inventing saved outcomes",
 		(schemaVersion, outcome) => {
 			expect(
 				parseSessionAttemptState(
-					JSON.stringify({ ...identity, schemaVersion, outcome }),
+					JSON.stringify({ ...identity, outcome, schemaVersion }),
 				),
-			).toEqual({ ...identity, schemaVersion, outcome });
+			).toEqual({ ...identity, outcome, schemaVersion });
 		},
 	);
 
 	it.each([
 		{ schemaVersion: 4 },
 		{ schemaVersion: 2 },
-		{ schemaVersion: 3, outcome: "EXECUTION_FAILED" },
+		{ outcome: "EXECUTION_FAILED", schemaVersion: 3 },
 		{ schemaVersion: 3, stateResults: [{ ...passed, status: "unknown" }] },
-		{ schemaVersion: 3, stateResults: [passed], stateGradingError: "failed" },
+		{ schemaVersion: 3, stateGradingError: "failed", stateResults: [passed] },
 		{ schemaVersion: 1, stateResults: [passed] },
-		{ schemaVersion: 3, caseId: "" },
+		{ caseId: "", schemaVersion: 3 },
 	])(
 		"refuses unsupported or inconsistent saved-state evidence: %j",
 		(fields) => {

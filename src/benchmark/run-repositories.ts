@@ -1,8 +1,9 @@
 import { CommandError } from "./command";
-import { MissingDirectoryError } from "./missing-directory-error";
+import MissingDirectoryError from "./missing-directory-error";
+import serialMap from "./serial-map";
 import { git } from "./target";
 
-export class RunCommitGoneError extends Error {
+class RunCommitGoneError extends Error {
 	public override name = "RunCommitGoneError";
 
 	public constructor(
@@ -14,7 +15,7 @@ export class RunCommitGoneError extends Error {
 }
 
 /** The repositories a run's commits can be read from. */
-export interface RunRepositories {
+interface RunRepositories {
 	/** The target the run copied its commits into, none for a run that worked in its target in place. */
 	readonly target: string | undefined;
 	/** The run's own checkout, which its end removes unless the commits could not be copied out. */
@@ -28,15 +29,22 @@ export interface RunRepositories {
  * outlives the run, while a worktree added to the run's checkout breaks when
  * the run removes it.
  */
-export async function repositoryHolding(
+async function repositoryHolding(
 	run: RunRepositories,
 	sha: string,
 ): Promise<string> {
 	const searched = [
 		...new Set([run.target, run.checkout, run.declared]),
 	].filter((repository) => repository !== undefined);
-	for (const repository of searched) {
-		if (await holdsCommit(repository, sha)) {
+	for await (const inspection of serialMap(
+		searched.values(),
+		async (repository) => ({
+			holds: await holdsCommit(repository, sha),
+			repository,
+		}),
+	)) {
+		const { repository, holds } = inspection;
+		if (holds) {
 			return repository;
 		}
 	}
@@ -60,3 +68,6 @@ async function holdsCommit(repository: string, sha: string): Promise<boolean> {
 		throw error;
 	}
 }
+
+export { RunCommitGoneError, repositoryHolding };
+export type { RunRepositories };

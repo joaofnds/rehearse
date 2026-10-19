@@ -1,29 +1,45 @@
 import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type { StageLetterGrade } from "#benchmark/config";
-import type { Immutable } from "#benchmark/contracts";
 import type {
 	ConfirmationMode,
 	ParsedConfirmationGroupRecord,
 	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
-import { costReading } from "./run-record";
-import { SESSION_GRADE_REASON } from "./session-grade-reason";
-import type { CostPart, CostReading, MissingPart, Reading } from "./run-record";
+import type { Immutable } from "#benchmark/contracts";
 
-export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
-export const UNRECORDED_REP_REASON = "the rep recorded nothing";
+import { costReading } from "./run-record";
+import type { CostPart, CostReading, MissingPart, Reading } from "./run-record";
+import SESSION_GRADE_REASON from "./session-grade-reason";
+
+const UNGRADED_OUTCOME_COUNT_INCREMENT = 1;
+
+const MIDPOINT_DIVISOR = 2;
+
+const NO_UNGRADED_RESULTS = 0;
+
+const FIRST_GRADED_LETTER_INDEX = 0;
+const FINAL_GRADED_LETTER_OFFSET = -1;
+
+const NO_SPEND_USD = 0;
+
+const SESSION_CONFIRMATION_RECORD_VERSION = 2;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const NO_GRADED_REP_REASON = "no rep was graded at this stage";
+const UNRECORDED_REP_REASON = "the rep recorded nothing";
 
 /** A rep whose record the group lists but the server could not read. */
-export interface UnreadRep {
+interface UnreadRep {
 	readonly repId: string;
 	readonly reason: string;
 }
 
 /** How many reps fell under each name, a verdict or a recorded status. */
-export type RepCounts = Readonly<Record<string, number>>;
+type RepCounts = Readonly<Record<string, number>>;
 
 /** Count a rep once for recorded quality failure, independently of execution/metrics gaps. */
-export function qualityFailureCount(
+function qualityFailureCount(
 	reps: readonly Pick<
 		Immutable<ParsedConfirmationRepRecord>,
 		"stages" | "finalOutcome"
@@ -39,7 +55,7 @@ export function qualityFailureCount(
 }
 
 /** What a group's reps scored at one stage, its median by `letterRange`. */
-export interface GroupStageSummary {
+interface GroupStageSummary {
 	readonly stage: string;
 	readonly graded: number;
 	/** Each rep the stage did not grade, counted under its recorded status. */
@@ -47,7 +63,7 @@ export interface GroupStageSummary {
 	readonly grades: Reading<LetterRange>;
 }
 
-export interface LetterRange {
+interface LetterRange {
 	readonly median: StageLetterGrade;
 	readonly lowest: StageLetterGrade;
 	readonly highest: StageLetterGrade;
@@ -57,18 +73,18 @@ export interface LetterRange {
  * The median of an even count is the lower of the two middle grades, so the
  * median is always a grade some rep received and never one between two letters.
  */
-export function letterRange(
+function letterRange(
 	grades: readonly StageLetterGrade[],
 ): LetterRange | undefined {
 	const bestToWorst = bestFirst(grades);
-	const highest = bestToWorst.at(0);
-	const lowest = bestToWorst.at(-1);
-	const median = bestToWorst[Math.floor(bestToWorst.length / 2)];
+	const highest = bestToWorst.at(FIRST_GRADED_LETTER_INDEX);
+	const lowest = bestToWorst.at(FINAL_GRADED_LETTER_OFFSET);
+	const median = bestToWorst[Math.floor(bestToWorst.length / MIDPOINT_DIVISOR)];
 	if (highest === undefined || lowest === undefined || median === undefined) {
 		return undefined;
 	}
 
-	return { median, lowest, highest };
+	return { highest, lowest, median };
 }
 
 /** Best first, so a later index is a lower grade. */
@@ -82,7 +98,11 @@ function bestFirst(grades: readonly StageLetterGrade[]): StageLetterGrade[] {
 function tally(names: readonly string[]): RepCounts {
 	const counts = new Map<string, number>();
 	for (const name of names) {
-		counts.set(name, (counts.get(name) ?? 0) + 1);
+		counts.set(
+			name,
+			(counts.get(name) ?? NO_UNGRADED_RESULTS) +
+				UNGRADED_OUTCOME_COUNT_INCREMENT,
+		);
 	}
 
 	return Object.fromEntries(counts);
@@ -104,28 +124,28 @@ function stageSummary(
 	);
 	if (mode === "session") {
 		return {
-			stage,
 			graded: grades.length,
+			grades: { reasons: [SESSION_GRADE_REASON], state: "unavailable" },
+			stage,
 			ungraded,
-			grades: { state: "unavailable", reasons: [SESSION_GRADE_REASON] },
 		};
 	}
 
 	const range = letterRange(grades);
 	if (range === undefined) {
 		return {
-			stage,
 			graded: 0,
+			grades: { reasons: [NO_GRADED_REP_REASON], state: "unavailable" },
+			stage,
 			ungraded,
-			grades: { state: "unavailable", reasons: [NO_GRADED_REP_REASON] },
 		};
 	}
 
 	return {
-		stage,
 		graded: grades.length,
-		ungraded,
 		grades: { state: "available", ...range },
+		stage,
+		ungraded,
 	};
 }
 
@@ -134,7 +154,7 @@ function stageSummary(
  * their checks passing, not by a judge's letter, so its summary counts the
  * reps and serves no letter.
  */
-export function stageSummaries(
+function stageSummaries(
 	mode: ConfirmationMode,
 	declaredStages: readonly string[],
 	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
@@ -146,7 +166,7 @@ export function stageSummaries(
  * The reps' final outcomes counted by the final judge's verdict where it
  * judged, and by the recorded status where it did not.
  */
-export function finalOutcomeTally(
+function finalOutcomeTally(
 	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
 ): RepCounts {
 	return tally(
@@ -161,7 +181,7 @@ export function finalOutcomeTally(
 function preflightCost(
 	record: Immutable<ParsedConfirmationGroupRecord>,
 ): readonly (CostPart | MissingPart)[] {
-	if (record.schemaVersion !== 2) {
+	if (record.schemaVersion !== SESSION_CONFIRMATION_RECORD_VERSION) {
 		return [];
 	}
 	if (record.preflight.status === "MISSING") {
@@ -185,12 +205,15 @@ function repCost(
 
 	const { calls } = rep.metrics;
 	const spent =
-		calls.length === 0
+		calls.length === EMPTY_COLLECTION_LENGTH
 			? []
 			: [
 					{
 						part: repId,
-						usd: calls.reduce((sum, call) => sum + call.metrics.costUsd, 0),
+						usd: calls.reduce(
+							(sum, call) => sum + call.metrics.costUsd,
+							NO_SPEND_USD,
+						),
 					},
 				];
 	if (rep.metrics.status === "MISSING") {
@@ -204,7 +227,7 @@ function repCost(
  * What the group spent: its preflight, then each rep in the order the group
  * lists them, read or not.
  */
-export function groupCost(
+function groupCost(
 	record: Immutable<ParsedConfirmationGroupRecord>,
 	reps: readonly (Immutable<ParsedConfirmationRepRecord> | UnreadRep)[],
 ): CostReading {
@@ -213,3 +236,14 @@ export function groupCost(
 		...reps.flatMap((rep) => repCost(rep)),
 	]);
 }
+
+export {
+	NO_GRADED_REP_REASON,
+	UNRECORDED_REP_REASON,
+	qualityFailureCount,
+	letterRange,
+	stageSummaries,
+	finalOutcomeTally,
+	groupCost,
+};
+export type { UnreadRep, RepCounts, GroupStageSummary, LetterRange };

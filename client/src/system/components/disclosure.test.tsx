@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Disclosure } from "./disclosure";
+
+import Disclosure from "./disclosure";
 
 function renderDisclosure(): void {
 	render(

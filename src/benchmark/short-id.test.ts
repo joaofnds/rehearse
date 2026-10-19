@@ -1,454 +1,216 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { chmod, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { failureOf } from "#cli/cli-test-support";
+
 import { RecordedRunsFixture } from "./run-records-test-support";
-import { withRecordReadScope } from "./record-read-scope";
+import { claimShortId, formatShortId, readShortIds } from "./short-id";
 import {
-	bindReplay,
-	claimShortId,
-	checkpointStageAt,
-	checkpointStageNumber,
-	formatShortId,
-	readShortIds,
-	readAllShortIds,
-	resolveShortId,
-} from "./short-id";
-
-const CASE_ID = "audit-log";
-
-let runsDirectory: string;
+	CASE_ID,
+	EXECUTABLE_DIRECTORY_MODE,
+	NO_ACCESS_MODE,
+	ORDINAL_BASE,
+	SUCCESSFUL_CHILD_EXIT_CODE,
+	claimInProcesses,
+	runsDirectory,
+} from "./short-id-test-fixtures";
 
 beforeEach(async () => {
-	runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-short-id-"));
+	await mkdir(runsDirectory, { recursive: true });
 });
-
 afterEach(async () => {
-	await rm(runsDirectory, { recursive: true, force: true });
+	await rm(runsDirectory, { force: true, recursive: true });
 });
 
-describe("registry reads within a report", () => {
-	it("reuses the collected registry, then sees added, replaced and removed claims in later reports", async () => {
-		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
-		const first = await withRecordReadScope(async () => {
-			const all = await readAllShortIds(runsDirectory);
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "run",
-				run: "second",
-			});
-			await writeFile(
-				join(runsDirectory, "short-ids", CASE_ID, "claims", "1"),
-				JSON.stringify({ kind: "run", run: "replacement" }),
-			);
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual(all.entries);
-			return all.entries;
-		});
-		expect(first.map(({ record }) => record)).toEqual([
-			{ kind: "run", run: "first" },
-		]);
-		expect(
-			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
-		).toEqual([
-			{ shortId: "audit-log/r1", record: { kind: "run", run: "replacement" } },
-			{ shortId: "audit-log/r2", record: { kind: "run", run: "second" } },
-		]);
-		await rm(join(runsDirectory, "short-ids", CASE_ID, "claims", "1"));
-		expect(
-			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
-		).toEqual([
-			{ shortId: "audit-log/r2", record: { kind: "run", run: "second" } },
-		]);
-	});
+async function givesEveryConcurrentClaimItsOwnNumberFrom1(): Promise<void> {
+	const exits = await claimInProcesses({ claimsEach: 10, processes: 4 });
 
-	it("keeps separate cases and records directories distinct", async () => {
-		const other = join(runsDirectory, "other-records");
-		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
-		await claimShortId(runsDirectory, "other-case", {
-			kind: "run",
-			run: "second",
-		});
-		await claimShortId(other, CASE_ID, { kind: "run", run: "third" });
-		await withRecordReadScope(async () => {
-			const first = await readShortIds(runsDirectory, CASE_ID);
-			const second = await readShortIds(runsDirectory, "other-case");
-			const third = await readShortIds(other, CASE_ID);
-			expect(first[0]?.record).toEqual({
-				kind: "run",
-				run: "first",
-			});
-			expect(second[0]?.record).toEqual({ kind: "run", run: "second" });
-			expect(third[0]?.record).toEqual({
-				kind: "run",
-				run: "third",
-			});
-		});
-	});
-
-	it("does not retain a missing registry outside the report", async () => {
-		await withRecordReadScope(async () => {
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
-			await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
-		});
-		expect(await readShortIds(runsDirectory, CASE_ID)).toHaveLength(1);
-		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "second" });
-		expect(await readShortIds(runsDirectory, CASE_ID)).toHaveLength(2);
-	});
-
-	it("isolates concurrent reports reading the same registry", async () => {
-		await claimShortId(runsDirectory, CASE_ID, { kind: "run", run: "first" });
-		const read = Promise.withResolvers<undefined>();
-		const changed = Promise.withResolvers<undefined>();
-		const prior = withRecordReadScope(async () => {
-			const first = await readShortIds(runsDirectory, CASE_ID);
-			read.resolve(undefined);
-			await changed.promise;
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual(first);
-		});
-		await read.promise;
-		try {
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "run",
-				run: "second",
-			});
-			expect(
-				await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
-			).toHaveLength(2);
-		} finally {
-			changed.resolve(undefined);
-			await prior;
-		}
-	});
-
-	it("rereads a replay binding in the next report", async () => {
-		const claimed = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "replay",
-			run: "source",
-			stage: "build",
-		});
-		await withRecordReadScope(async () => {
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
-			await bindReplay(runsDirectory, claimed, {
-				lineage: "lineage-build",
-				timestamp: "attempt-time",
-			});
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
-		});
-		expect(
-			await withRecordReadScope(() => readShortIds(runsDirectory, CASE_ID)),
-		).toEqual([
-			{
-				shortId: "audit-log/r1",
-				record: {
-					kind: "attempt:stage",
-					lineage: "lineage-build",
-					timestamp: "attempt-time",
-				},
-			},
-		]);
-	});
-});
-
-async function claimInProcesses(
-	processes: number,
-	claimsEach: number,
-): Promise<void> {
-	const script = `
-		import { claimShortId } from ${JSON.stringify(join(import.meta.dir, "short-id.ts"))};
-		for (let i = 0; i < ${String(claimsEach)}; i++) {
-			await claimShortId(${JSON.stringify(runsDirectory)}, ${JSON.stringify(CASE_ID)}, {
-				kind: "run",
-				run: \`claimed-\${process.pid}-\${i}\`,
-			});
-		}
-	`;
-	const children = Array.from({ length: processes }, () =>
-		Bun.spawn([process.execPath, "-e", script], { stderr: "inherit" }),
+	expect(exits).toEqual(
+		Array.from({ length: 4 }, () => SUCCESSFUL_CHILD_EXIT_CODE),
 	);
 
-	const exits = await Promise.all(children.map((child) => child.exited));
+	const named = await readShortIds(runsDirectory, CASE_ID);
+	expect(named.map(({ shortId }) => shortId)).toEqual(
+		[...Array.from({ length: 40 }).keys()].map(
+			(index) => `audit-log/r${String(index + ORDINAL_BASE)}`,
+		),
+	);
+}
 
-	expect(exits).toEqual(Array.from({ length: processes }, () => 0));
+async function numbersOnlyTheClaimedRecordFrom1(): Promise<void> {
+	const fixture = new RecordedRunsFixture(runsDirectory);
+	await fixture.pipeline.writePipelineRun({
+		caseId: CASE_ID,
+		run: "2026-09-01T00-00-00.000Z",
+	});
+
+	await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+
+	expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+		{
+			record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
+			shortId: "audit-log/r1",
+		},
+	]);
+}
+
+async function givesARunAndAConfirmationGroupOfOneCaseDifferentNumbersFromOneSequence(): Promise<void> {
+	const run = await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+	const group = await claimShortId(runsDirectory, CASE_ID, {
+		groupId: "group-1",
+		kind: "group",
+	});
+
+	expect([formatShortId(run), formatShortId(group)]).toEqual([
+		"audit-log/r1",
+		"audit-log/g2",
+	]);
+}
+
+async function numbersEachCaseOnItsOwn(): Promise<void> {
+	await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+
+	const other = await claimShortId(runsDirectory, "smoke", {
+		caseId: "smoke",
+		kind: "attempt:session",
+		uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+	});
+
+	expect(formatShortId(other)).toBe("smoke/r1");
+}
+
+async function namesNothingByThatNumberAndClaimsAboveIt(): Promise<void> {
+	await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+	await writeFile(join(runsDirectory, "short-ids", CASE_ID, "claims", "2"), "");
+
+	const next = await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T01-00-00.000Z",
+	});
+
+	expect(formatShortId(next)).toBe("audit-log/r3");
+	expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+		{
+			record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
+			shortId: "audit-log/r1",
+		},
+		{
+			record: { kind: "run", run: "2026-09-24T01-00-00.000Z" },
+			shortId: "audit-log/r3",
+		},
+	]);
+}
+
+async function claimsAboveTheNumbersAndIgnoresTheFile(): Promise<void> {
+	await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+	await writeFile(
+		join(runsDirectory, "short-ids", CASE_ID, "claims", ".DS_Store"),
+		"",
+	);
+
+	const next = await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T01-00-00.000Z",
+	});
+
+	const entries = await readShortIds(runsDirectory, CASE_ID);
+
+	expect(formatShortId(next)).toBe("audit-log/r2");
+	expect(entries.map(({ shortId }) => shortId)).toEqual([
+		"audit-log/r1",
+		"audit-log/r2",
+	]);
+}
+
+async function refusesItAndWritesNothing(): Promise<void> {
+	const records = join(runsDirectory, "records");
+
+	const failure = await failureOf(
+		claimShortId(records, "../escaped", {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		}),
+	);
+
+	expect(failure.message).toContain("not a case id");
+	expect(await readdir(runsDirectory)).toEqual([]);
+}
+
+async function saysSoRatherThanReadingItAsEmpty(): Promise<void> {
+	await claimShortId(runsDirectory, CASE_ID, {
+		kind: "run",
+		run: "2026-09-24T00-00-00.000Z",
+	});
+	const claims = join(runsDirectory, "short-ids", CASE_ID, "claims");
+	await chmod(claims, NO_ACCESS_MODE);
+
+	try {
+		const failure = await failureOf(readShortIds(runsDirectory, CASE_ID));
+
+		expect(failure.message).toContain("EACCES");
+	} finally {
+		await chmod(claims, EXECUTABLE_DIRECTORY_MODE);
+	}
 }
 
 describe(claimShortId.name, () => {
-	it("gives every concurrent claim its own number from 1", async () => {
-		await claimInProcesses(4, 10);
+	it(
+		"gives every concurrent claim its own number from 1",
+		givesEveryConcurrentClaimItsOwnNumberFrom1,
+	);
 
-		const named = await readShortIds(runsDirectory, CASE_ID);
-		expect(named.map(({ shortId }) => shortId)).toEqual(
-			[...Array.from({ length: 40 }).keys()].map(
-				(index) => `audit-log/r${String(index + 1)}`,
-			),
+	describe("when a record of the case was written before its first claim", () => {
+		it(
+			"numbers only the claimed record, from 1",
+			numbersOnlyTheClaimedRecordFrom1,
 		);
 	});
 
-	describe("when a record of the case was written before its first claim", () => {
-		it("numbers only the claimed record, from 1", async () => {
-			const fixture = new RecordedRunsFixture(runsDirectory);
-			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
+	it(
+		"gives a run and a confirmation group of one case different numbers from one sequence",
+		givesARunAndAConfirmationGroupOfOneCaseDifferentNumbersFromOneSequence,
+	);
 
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "run",
-				run: "2026-09-24T00-00-00.000Z",
-			});
-
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
-				{
-					shortId: "audit-log/r1",
-					record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
-				},
-			]);
-		});
-	});
-
-	it("gives a run and a confirmation group of one case different numbers from one sequence", async () => {
-		const run = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
-		const group = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "group",
-			groupId: "group-1",
-		});
-
-		expect([formatShortId(run), formatShortId(group)]).toEqual([
-			"audit-log/r1",
-			"audit-log/g2",
-		]);
-	});
-
-	it("numbers each case on its own", async () => {
-		await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
-
-		const other = await claimShortId(runsDirectory, "smoke", {
-			kind: "attempt:session",
-			caseId: "smoke",
-			uuid: "0f6b6f2a-0000-4000-8000-000000000001",
-		});
-
-		expect(formatShortId(other)).toBe("smoke/r1");
-	});
+	it("numbers each case on its own", numbersEachCaseOnItsOwn);
 
 	describe("when a writer died between creating its claim and writing it", () => {
-		it("names nothing by that number and claims above it", async () => {
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "run",
-				run: "2026-09-24T00-00-00.000Z",
-			});
-			await writeFile(
-				join(runsDirectory, "short-ids", CASE_ID, "claims", "2"),
-				"",
-			);
-
-			const next = await claimShortId(runsDirectory, CASE_ID, {
-				kind: "run",
-				run: "2026-09-24T01-00-00.000Z",
-			});
-
-			expect(formatShortId(next)).toBe("audit-log/r3");
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
-				{
-					shortId: "audit-log/r1",
-					record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
-				},
-				{
-					shortId: "audit-log/r3",
-					record: { kind: "run", run: "2026-09-24T01-00-00.000Z" },
-				},
-			]);
-		});
+		it(
+			"names nothing by that number and claims above it",
+			namesNothingByThatNumberAndClaimsAboveIt,
+		);
 	});
 });
 
 describe("when the registry directory holds a file that is not a number", () => {
-	it("claims above the numbers and ignores the file", async () => {
-		await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
-		await writeFile(
-			join(runsDirectory, "short-ids", CASE_ID, "claims", ".DS_Store"),
-			"",
-		);
-
-		const next = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T01-00-00.000Z",
-		});
-
-		const entries = await readShortIds(runsDirectory, CASE_ID);
-		expect(formatShortId(next)).toBe("audit-log/r2");
-		expect(entries.map(({ shortId }) => shortId)).toEqual([
-			"audit-log/r1",
-			"audit-log/r2",
-		]);
-	});
+	it(
+		"claims above the numbers and ignores the file",
+		claimsAboveTheNumbersAndIgnoresTheFile,
+	);
 });
 
 describe("when a claim is asked for in a case id that names a path", () => {
-	it("refuses it and writes nothing", async () => {
-		const records = join(runsDirectory, "records");
-
-		const failure = await failureOf(
-			claimShortId(records, "../escaped", {
-				kind: "run",
-				run: "2026-09-24T00-00-00.000Z",
-			}),
-		);
-
-		expect(failure.message).toContain("not a case id");
-		expect(await readdir(runsDirectory)).toEqual([]);
-	});
+	it("refuses it and writes nothing", refusesItAndWritesNothing);
 });
 
 describe("when a case's registry cannot be read", () => {
-	it("says so rather than reading it as empty", async () => {
-		await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
-		const claims = join(runsDirectory, "short-ids", CASE_ID, "claims");
-		await chmod(claims, 0o000);
-
-		try {
-			const failure = await failureOf(readShortIds(runsDirectory, CASE_ID));
-
-			expect(failure.message).toContain("EACCES");
-		} finally {
-			await chmod(claims, 0o755);
-		}
-	});
-});
-
-describe(bindReplay.name, () => {
-	it("names the replay's record by the number its claim took", async () => {
-		const claimed = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "replay",
-			run: "2026-09-24T00-00-00.000Z",
-			stage: "build",
-		});
-
-		await bindReplay(runsDirectory, claimed, {
-			lineage: "lineage-build",
-			timestamp: "2026-09-24T02-00-00.000Z",
-		});
-
-		expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
-			{
-				shortId: "audit-log/r1",
-				record: {
-					kind: "attempt:stage",
-					lineage: "lineage-build",
-					timestamp: "2026-09-24T02-00-00.000Z",
-				},
-			},
-		]);
-	});
-
-	describe("when the replay failed before it was bound", () => {
-		it("names nothing by its number", async () => {
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "replay",
-				run: "2026-09-24T00-00-00.000Z",
-				stage: "build",
-			});
-
-			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
-		});
-	});
-});
-
-describe(formatShortId.name, () => {
-	it("spells a run's number after its case, unpadded", () => {
-		expect(formatShortId({ caseId: CASE_ID, kind: "run", number: 12 })).toBe(
-			"audit-log/r12",
-		);
-	});
-});
-
-describe(resolveShortId.name, () => {
-	it("names the record its number was claimed for", async () => {
-		const claimed = await claimShortId(runsDirectory, CASE_ID, {
-			kind: "group",
-			groupId: "group-1",
-		});
-
-		expect(await resolveShortId(runsDirectory, claimed)).toEqual({
-			kind: "group",
-			groupId: "group-1",
-		});
-	});
-
-	describe("when the letter does not match the kind claimed", () => {
-		it("names nothing", async () => {
-			const claimed = await claimShortId(runsDirectory, CASE_ID, {
-				kind: "group",
-				groupId: "group-1",
-			});
-
-			expect(
-				await resolveShortId(runsDirectory, { ...claimed, kind: "run" }),
-			).toBeUndefined();
-		});
-	});
-
-	describe("when a claim names a record by a path", () => {
-		it("names nothing", async () => {
-			const claims = join(runsDirectory, "short-ids", CASE_ID, "claims");
-			await claimShortId(runsDirectory, CASE_ID, {
-				kind: "group",
-				groupId: "group-1",
-			});
-			await writeFile(
-				join(claims, "2"),
-				JSON.stringify({ kind: "group", groupId: "../../outside" }),
-			);
-
-			expect(
-				await resolveShortId(runsDirectory, {
-					caseId: CASE_ID,
-					kind: "group",
-					number: 2,
-				}),
-			).toBeUndefined();
-		});
-	});
-
-	describe("when no registry exists for the case", () => {
-		it("names nothing and creates none", async () => {
-			expect(
-				await resolveShortId(runsDirectory, {
-					caseId: CASE_ID,
-					kind: "run",
-					number: 1,
-				}),
-			).toBeUndefined();
-			expect(await readdir(runsDirectory)).toEqual([]);
-		});
-	});
-});
-
-describe("checkpoint labels", () => {
-	const stages = ["discuss", "build"];
-
-	it("numbers the setup checkpoint 0 and each stage by its place in the pipeline", () => {
-		expect(
-			["initial", "discuss", "build"].map((stage) =>
-				checkpointStageNumber(stages, stage),
-			),
-		).toEqual([0, 1, 2]);
-		expect(
-			[0, 1, 2].map((number) => checkpointStageAt(stages, number)),
-		).toEqual(["initial", "discuss", "build"]);
-	});
-
-	it("names no label for a stage outside the pipeline", () => {
-		expect(checkpointStageNumber(stages, "review")).toBeUndefined();
-		expect(checkpointStageAt(stages, 3)).toBeUndefined();
-	});
+	it(
+		"says so rather than reading it as empty",
+		saysSoRatherThanReadingItAsEmpty,
+	);
 });

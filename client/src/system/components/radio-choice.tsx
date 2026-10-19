@@ -1,19 +1,22 @@
 import type { ReactNode } from "react";
-import { cn } from "#client/system/cn";
 
-export function RadioChoice({
-	name,
-	value,
-	checked,
-	onChoose,
-	children,
-}: {
+import cn from "#client/system/cn";
+
+interface RadioChoiceProps {
 	readonly name: string;
 	readonly value: string;
 	readonly checked: boolean;
 	readonly onChoose: () => void;
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function RadioChoice({
+	name,
+	value,
+	checked,
+	onChoose,
+	children,
+}: RadioChoiceProps): React.JSX.Element {
 	return (
 		<label
 			className={cn(
@@ -35,3 +38,5 @@ export function RadioChoice({
 		</label>
 	);
 }
+
+export { RadioChoice as default };

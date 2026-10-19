@@ -1,6 +1,7 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+
 import { git, refExists, retentionRef } from "./target";
 
 /**
@@ -8,11 +9,10 @@ import { git, refExists, retentionRef } from "./target";
  * no file with it, so the operator's own checkout, with its untracked files
  * and linked board, is neither read nor written by the run.
  */
-export async function cloneTarget(targetRoot: string): Promise<string> {
+async function cloneTarget(targetRoot: string): Promise<string> {
 	// The provider names a session's transcript after its real working path.
-	const parent = await realpath(
-		await mkdtemp(join(tmpdir(), "rehearse-target-")),
-	);
+	const temporaryDirectory = await mkdtemp(join(tmpdir(), "rehearse-target-"));
+	const parent = await realpath(temporaryDirectory);
 	const clone = join(parent, basename(targetRoot));
 	try {
 		await git(
@@ -50,7 +50,7 @@ async function adoptTargetOrigin(
 }
 
 /** Removes the clone and the directory made to hold it. */
-export async function discardClone(clone: string): Promise<void> {
+async function discardClone(clone: string): Promise<void> {
 	await rm(dirname(clone), { force: true, recursive: true });
 }
 
@@ -58,7 +58,7 @@ export async function discardClone(clone: string): Promise<void> {
  * Copies the run's retention ref, and the commits it keeps, from the clone into
  * the target, so replays find them there once the clone is removed.
  */
-export async function retainInTarget(
+async function retainInTarget(
 	clone: string,
 	targetRoot: string,
 	runName: string,
@@ -79,7 +79,7 @@ export async function retainInTarget(
 }
 
 /** The target could not take the run's commits, so the clone holding their only copy stays. */
-export class CommitsNotCopiedError extends Error {
+class CommitsNotCopiedError extends Error {
 	public override name = "CommitsNotCopiedError";
 
 	public constructor(
@@ -102,7 +102,7 @@ export class CommitsNotCopiedError extends Error {
  * Removes the clone once the target holds the run's commits. A clone whose
  * commits the target could not take stays, since it holds their only copy.
  */
-export async function releaseClone(
+async function releaseClone(
 	clone: string,
 	targetRoot: string,
 	runName: string,
@@ -115,3 +115,11 @@ export async function releaseClone(
 
 	await discardClone(clone);
 }
+
+export {
+	cloneTarget,
+	discardClone,
+	retainInTarget,
+	CommitsNotCopiedError,
+	releaseClone,
+};

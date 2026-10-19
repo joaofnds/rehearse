@@ -1,11 +1,13 @@
 import type { InferResponseType } from "hono/client";
+
 import { apiClient } from "#client/api-client";
+import type HTTP_STATUS from "#client/http-status";
 
 const stageTimesRoute = apiClient.api.runs[":run"]["stage-times"];
 
-export type StageTimesResponse = InferResponseType<
+type StageTimesResponse = InferResponseType<
 	typeof stageTimesRoute.$get,
-	200
+	typeof HTTP_STATUS.ok
 >;
 
 async function fetchStageTimes(run: string): Promise<StageTimesResponse> {
@@ -14,10 +16,10 @@ async function fetchStageTimes(run: string): Promise<StageTimesResponse> {
 		throw new Error(`Could not read the step times of runs before ${run}`);
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export interface StageTimesQuery {
+interface StageTimesQuery {
 	readonly queryKey: readonly ["stage-times", string];
 	readonly queryFn: () => Promise<StageTimesResponse>;
 }
@@ -26,9 +28,12 @@ export interface StageTimesQuery {
  * How long each step of the run took in earlier runs of its case. Those runs
  * are recorded already, so no event of this run refetches it.
  */
-export function stageTimesQuery(run: string): StageTimesQuery {
+function stageTimesQuery(run: string): StageTimesQuery {
 	return {
+		queryFn: async () => await fetchStageTimes(run),
 		queryKey: ["stage-times", run],
-		queryFn: () => fetchStageTimes(run),
 	};
 }
+
+export { stageTimesQuery as default };
+export type { StageTimesQuery, StageTimesResponse };

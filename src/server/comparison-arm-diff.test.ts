@@ -1,81 +1,48 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm, unlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "bun:test";
+import { unlink } from "node:fs/promises";
+import { constants as HTTP_STATUS } from "node:http2";
+import { join } from "node:path";
+
 import { z } from "zod";
-import { compareAttempts } from "#benchmark/compare-attempts";
+
+import { CASE_ID, groupIdFor } from "#benchmark/compare-attempts-test-support";
 import {
-	CASE_ID,
-	groupIdFor,
-	RecordedArms,
-} from "#benchmark/compare-attempts-test-support";
-import type { CorpusFiles } from "#benchmark/compare-attempts-test-support";
-import {
-	directorySource,
-	fixedCorpusSource,
-	NO_PROVIDER_PROJECTS,
-	nothingRunning,
-} from "#benchmark/run-records-test-support";
-import { createApiApp } from "./api";
+	clearArmDiffRoots,
+	comparedArms,
+} from "#server/comparison-arm-diff-test-fixture";
+import ComparisonHarness from "#server/comparison-test-harness";
+import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
+
 import { MISMATCHED_FROZEN_COPY_REASON } from "./comparison-arm-diff";
 
-const roots: string[] = [];
+afterEach(clearArmDiffRoots);
 
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-	);
+const unavailableFileSchema = z.object({
+	reasons: z.array(z.string()),
+	state: z.literal("unavailable"),
 });
-
-async function temporaryDirectory(prefix: string): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), prefix));
-	roots.push(root);
-
-	return root;
-}
-
-const SHARED = { "CLAUDE.md": "global instructions\n" };
-
-async function comparedArms(
-	armA: CorpusFiles,
-	armB: CorpusFiles,
-	readOnlyByArmB: readonly string[] = [],
-): Promise<{ readonly runsDirectory: string; readonly digest: string }> {
-	const runsDirectory = await temporaryDirectory("rehearse-arm-diff-runs-");
-	const arms = await RecordedArms.create(
-		runsDirectory,
-		await temporaryDirectory("rehearse-arm-diff-scratch-"),
-	);
-	const groupA = await arms.recordArm("baseline", { ...SHARED, ...armA });
-	const groupB = await arms.recordArm("candidate", { ...SHARED, ...armB });
-	await arms.readInStage(groupA, "skills/build/SKILL.md");
-	await arms.readInStage(groupB, "skills/build/SKILL.md");
-	for (const path of readOnlyByArmB) {
-		await arms.readInStage(groupB, path);
-	}
-	const { reportFile } = await compareAttempts(
-		{ runsDirectory, armA: groupA, armB: groupB },
-		{ runBaselineGroup: arms.runBaselineGroup },
-	);
-
-	return { runsDirectory, digest: basename(dirname(reportFile)) };
-}
 
 const fileTextSchema = z.discriminatedUnion("state", [
 	z.object({ state: z.literal("available"), text: z.string() }),
 	z.object({ state: z.literal("absent") }),
-	z.object({ state: z.literal("unavailable"), reasons: z.array(z.string()) }),
+	unavailableFileSchema,
 ]);
-const armDiffSchema = z.record(
-	z.string(),
-	z.array(
-		z.object({
-			path: z.string(),
-			baseline: fileTextSchema,
-			candidate: fileTextSchema,
-		}),
-	),
-);
+
+const differingFileSchema = z.object({
+	baseline: fileTextSchema,
+	candidate: fileTextSchema,
+	path: z.string(),
+});
+
+const armDiffSchema = z.record(z.string(), z.array(differingFileSchema));
 
 async function differingFiles(
 	response: Response,
@@ -83,22 +50,6 @@ async function differingFiles(
 	const body = armDiffSchema.parse(await response.json());
 
 	return body[CASE_ID] ?? [];
-}
-
-async function armDiffOf(
-	runsDirectory: string,
-	digest: string,
-): Promise<Response> {
-	const app = createApiApp({
-		projectsDirectory: NO_PROVIDER_PROJECTS,
-		runsDirectory,
-		liveness: nothingRunning,
-		readCorpusSource: fixedCorpusSource(
-			directorySource(await temporaryDirectory("rehearse-arm-diff-corpus-")),
-		),
-	});
-
-	return app.request(`/api/comparisons/${digest}/arm-diff`);
 }
 
 async function frozenCopy(
@@ -119,18 +70,65 @@ async function frozenCopy(
 
 const SKILL = "skills/build/SKILL.md";
 
-describe("GET /api/comparisons/:digest/arm-diff", () => {
-	it("serves each file that differs between arms A and B at the text each arm froze", async () => {
-		const { runsDirectory, digest } = await comparedArms(
-			{ [SKILL]: "build\n" },
-			{ [SKILL]: "revised build\n" },
+function registerTests(harness: Promise<ComparisonHarness>): void {
+	registerGETApiComparisonsDigestArmDiffServesEachFileThatDiffersBetweenArmsAAndBAtTheTextEachArmFroze(
+		harness,
+	);
+
+	registerGETApiComparisonsDigestArmDiffReadsAFileOnlyOneArmRanAsAbsentFromTheOther(
+		harness,
+	);
+
+	registerGETApiComparisonsDigestArmDiffSaysAnArmSTextIsUnavailableWhenItsFrozenCopyNoLongerMatchesTheRecordedDigest(
+		harness,
+	);
+
+	registerGETApiComparisonsDigestArmDiffSaysWhyAnArmSTextIsUnavailableWhenItsFrozenCopyIsGone(
+		harness,
+	);
+
+	describe("when no comparison is recorded for the digest", () => {
+		registerGETApiComparisonsDigestArmDiffWhenNoComparisonIsRecordedForTheDigestRefusesWith404(
+			harness,
 		);
+	});
+}
 
-		const response = await armDiffOf(runsDirectory, digest);
+describe("GET /api/comparisons/:digest/arm-diff", () => {
+	const harness = Promise.withResolvers<ComparisonHarness>();
+	beforeAll(async () => {
+		await ComparisonHarness.setup().then(harness.resolve, harness.reject);
+	});
+	beforeEach(async () => {
+		const ready = await harness.promise;
+		await ready.reset();
+	});
+	afterAll(async () => {
+		const ready = await harness.promise;
+		await ready.teardown();
+	});
+	registerTests(harness.promise);
+});
 
-		expect(response.status).toBe(200);
+function registerGETApiComparisonsDigestArmDiffServesEachFileThatDiffersBetweenArmsAAndBAtTheTextEachArmFroze(
+	harness: Promise<ComparisonHarness>,
+): void {
+	it(
+		"serves each file that differs between arms A and B at the text each arm froze",
+		verifyGETApiComparisonsDigestArmDiffServesEachFileThatDiffersBetweenArmsAAndBAtTheTextEachArmFroze,
+	);
+	async function verifyGETApiComparisonsDigestArmDiffServesEachFileThatDiffersBetweenArmsAAndBAtTheTextEachArmFroze(): Promise<void> {
+		const { driver, runsDirectory } = await harness;
+		const { digest } = await comparedArms({
+			armA: { [SKILL]: "build\n" },
+			armB: { [SKILL]: "revised build\n" },
+			runsDirectory,
+		});
+
+		const response = await driver.armDiffRaw(digest);
+
+		expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_OK);
 		expect(await differingFiles(response)).toContainEqual({
-			path: SKILL,
 			baseline: {
 				state: "available",
 				text: await Bun.file(
@@ -143,21 +141,31 @@ describe("GET /api/comparisons/:digest/arm-diff", () => {
 					await frozenCopy(runsDirectory, "candidate", SKILL),
 				).text(),
 			},
+			path: SKILL,
 		});
-	});
+	}
+}
 
-	it("reads a file only one arm ran as absent from the other", async () => {
+function registerGETApiComparisonsDigestArmDiffReadsAFileOnlyOneArmRanAsAbsentFromTheOther(
+	harness: Promise<ComparisonHarness>,
+): void {
+	it(
+		"reads a file only one arm ran as absent from the other",
+		verifyGETApiComparisonsDigestArmDiffReadsAFileOnlyOneArmRanAsAbsentFromTheOther,
+	);
+	async function verifyGETApiComparisonsDigestArmDiffReadsAFileOnlyOneArmRanAsAbsentFromTheOther(): Promise<void> {
+		const { driver, runsDirectory } = await harness;
 		const notes = "skills/build/notes.md";
-		const { runsDirectory, digest } = await comparedArms(
-			{ [SKILL]: "build\n" },
-			{ [SKILL]: "revised build\n" },
-			[notes],
-		);
+		const { digest } = await comparedArms({
+			armA: { [SKILL]: "build\n" },
+			armB: { [SKILL]: "revised build\n" },
+			readOnlyByArmB: [notes],
+			runsDirectory,
+		});
 
-		const response = await armDiffOf(runsDirectory, digest);
+		const response = await driver.armDiffRaw(digest);
 
 		expect(await differingFiles(response)).toContainEqual({
-			path: notes,
 			baseline: { state: "absent" },
 			candidate: {
 				state: "available",
@@ -165,56 +173,86 @@ describe("GET /api/comparisons/:digest/arm-diff", () => {
 					await frozenCopy(runsDirectory, "candidate", notes),
 				).text(),
 			},
+			path: notes,
 		});
-	});
+	}
+}
 
-	it("says an arm's text is unavailable when its frozen copy no longer matches the recorded digest", async () => {
-		const { runsDirectory, digest } = await comparedArms(
-			{ [SKILL]: "build\n" },
-			{ [SKILL]: "revised build\n" },
-		);
+function registerGETApiComparisonsDigestArmDiffSaysAnArmSTextIsUnavailableWhenItsFrozenCopyNoLongerMatchesTheRecordedDigest(
+	harness: Promise<ComparisonHarness>,
+): void {
+	it(
+		"says an arm's text is unavailable when its frozen copy no longer matches the recorded digest",
+		verifyGETApiComparisonsDigestArmDiffSaysAnArmSTextIsUnavailableWhenItsFrozenCopyNoLongerMatchesTheRecordedDigest,
+	);
+	async function verifyGETApiComparisonsDigestArmDiffSaysAnArmSTextIsUnavailableWhenItsFrozenCopyNoLongerMatchesTheRecordedDigest(): Promise<void> {
+		const { driver, runsDirectory } = await harness;
+		const { digest } = await comparedArms({
+			armA: { [SKILL]: "build\n" },
+			armB: { [SKILL]: "revised build\n" },
+			runsDirectory,
+		});
 		await Bun.write(
 			await frozenCopy(runsDirectory, "candidate", SKILL),
 			"edited after the run\n",
 		);
 
-		const response = await armDiffOf(runsDirectory, digest);
+		const response = await driver.armDiffRaw(digest);
 
 		const files = await differingFiles(response);
 		const skill = files.find(({ path }) => path === SKILL);
-		expect(skill?.candidate).toEqual({
-			state: "unavailable",
-			reasons: [MISMATCHED_FROZEN_COPY_REASON],
-		});
-	});
 
-	it("says why an arm's text is unavailable when its frozen copy is gone", async () => {
-		const { runsDirectory, digest } = await comparedArms(
-			{ [SKILL]: "build\n" },
-			{ [SKILL]: "revised build\n" },
-		);
+		expect(skill?.candidate).toEqual({
+			reasons: [MISMATCHED_FROZEN_COPY_REASON],
+			state: "unavailable",
+		});
+	}
+}
+
+function registerGETApiComparisonsDigestArmDiffSaysWhyAnArmSTextIsUnavailableWhenItsFrozenCopyIsGone(
+	harness: Promise<ComparisonHarness>,
+): void {
+	it(
+		"says why an arm's text is unavailable when its frozen copy is gone",
+		verifyGETApiComparisonsDigestArmDiffSaysWhyAnArmSTextIsUnavailableWhenItsFrozenCopyIsGone,
+	);
+	async function verifyGETApiComparisonsDigestArmDiffSaysWhyAnArmSTextIsUnavailableWhenItsFrozenCopyIsGone(): Promise<void> {
+		const { driver, runsDirectory } = await harness;
+		const { digest } = await comparedArms({
+			armA: { [SKILL]: "build\n" },
+			armB: { [SKILL]: "revised build\n" },
+			runsDirectory,
+		});
 		await unlink(await frozenCopy(runsDirectory, "candidate", SKILL));
 
-		const response = await armDiffOf(runsDirectory, digest);
+		const response = await driver.armDiffRaw(digest);
 
 		const files = await differingFiles(response);
 		const skill = files.find(({ path }) => path === SKILL);
 		const { reasons } = z
 			.object({
-				state: z.literal("unavailable"),
 				reasons: z.tuple([z.string()]),
+				state: z.literal("unavailable"),
 			})
 			.parse(skill?.candidate);
-		expect(reasons[0]).toMatch(/^its frozen copy cannot be read: /u);
-	});
+		const [observedFirstReason] = reasons;
 
-	describe("when no comparison is recorded for the digest", () => {
-		it("refuses with 404", async () => {
-			const runsDirectory = await temporaryDirectory("rehearse-arm-diff-runs-");
+		expect(observedFirstReason).toMatch(/^its frozen copy cannot be read: /u);
+	}
+}
 
-			const response = await armDiffOf(runsDirectory, "e".repeat(64));
+function registerGETApiComparisonsDigestArmDiffWhenNoComparisonIsRecordedForTheDigestRefusesWith404(
+	harness: Promise<ComparisonHarness>,
+): void {
+	it(
+		"refuses with 404",
+		verifyGETApiComparisonsDigestArmDiffWhenNoComparisonIsRecordedForTheDigestRefusesWith404,
+	);
+	async function verifyGETApiComparisonsDigestArmDiffWhenNoComparisonIsRecordedForTheDigestRefusesWith404(): Promise<void> {
+		const { driver } = await harness;
 
-			expect(response.status).toBe(404);
-		});
-	});
-});
+		const response = await driver.armDiffRaw("e".repeat(SHA256_HEX_DIGITS));
+
+		expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_NOT_FOUND);
+	}
+}

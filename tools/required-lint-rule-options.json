@@ -1,0 +1,121 @@
+{
+	"capitalized-comments": [
+		"always",
+		{
+			"ignoreConsecutiveComments": true
+		}
+	],
+	"func-style": [
+		"declaration",
+		{
+			"allowArrowFunctions": true
+		}
+	],
+	"id-length": [
+		{
+			"exceptions": ["T"]
+		}
+	],
+	"import/no-namespace": [
+		{
+			"ignore": ["@testing-library/jest-dom/matchers"]
+		}
+	],
+	"import/no-unassigned-import": [
+		{
+			"allow": ["**/*.css"]
+		}
+	],
+	"no-duplicate-imports": [
+		{
+			"allowSeparateTypeImports": true
+		}
+	],
+	"no-restricted-imports": [
+		{
+			"paths": [
+				{
+					"name": "cn",
+					"message": "Import cn from #client/system/cn, which knows the theme's type steps. The bare package reads them as colours and drops the variant's text colour."
+				}
+			]
+		}
+	],
+	"no-shadow": [{ "builtinGlobals": true }],
+	"no-use-before-define": [
+		{
+			"functions": false
+		}
+	],
+	"no-void": [
+		{
+			"allowAsStatement": true
+		}
+	],
+	"node/callback-return": [["callback", "cb"]],
+	"one-var": ["never"],
+	"sort-imports": [
+		{
+			"ignoreDeclarationSort": true
+		}
+	],
+	"typescript/explicit-function-return-type": [
+		{
+			"allowExpressions": true,
+			"allowTypedFunctionExpressions": true,
+			"allowHigherOrderFunctions": true
+		}
+	],
+	"typescript/no-empty-interface": [
+		{
+			"allowSingleExtends": true
+		}
+	],
+	"typescript/no-empty-object-type": [
+		{
+			"allowWithName": "^Matchers$",
+			"allowInterfaces": "with-single-extends"
+		}
+	],
+	"typescript/parameter-properties": [
+		{
+			"prefer": "parameter-property"
+		}
+	],
+	"typescript/prefer-readonly-parameter-types": [
+		{
+			"treatMethodsAsReadonly": true,
+			"ignoreInferredTypes": true,
+			"allow": [
+				"ZodType",
+				"BunFile",
+				"Subprocess",
+				"ReactNode",
+				"RouterHistory",
+				"Request",
+				"RequestInit",
+				"URL",
+				"ButtonProps",
+				"NativeSelectProps",
+				"SearchInputProps",
+				"CurrentAnchorProps",
+				"DisclosureProps"
+			]
+		}
+	],
+	"typescript/return-await": ["always"],
+	"unicorn/import-style": [
+		{
+			"styles": {
+				"node:path": {
+					"named": true,
+					"default": false
+				},
+				"path": {
+					"named": true,
+					"default": false
+				}
+			}
+		}
+	]
+}

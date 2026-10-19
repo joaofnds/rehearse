@@ -4,14 +4,14 @@ import {
 	unlinkCorpus,
 } from "#benchmark/corpus-source";
 import {
-	readSettings,
 	SET_SPEND_CEILING_COMMAND,
+	readSettings,
 	storeSpendCeiling,
 } from "#benchmark/settings";
-import { asUsageErrorAsync, UsageError } from "#cli/commands";
+import { UsageError, asUsageErrorAsync } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
 
-export interface SettingsRequest {
+interface SettingsRequest {
 	readonly runsDirectory: string;
 	readonly spendCeilingUsd: string | undefined;
 	readonly linkCorpus: string | undefined;
@@ -24,7 +24,7 @@ export interface SettingsRequest {
  * when one is given. The records location is shown and never stored: the environment
  * variable that points every command at it owns it.
  */
-export async function runSettings(
+async function runSettings(
 	request: SettingsRequest,
 	output: CommandOutput,
 ): Promise<void> {
@@ -34,13 +34,23 @@ export async function runSettings(
 
 	const { spendCeilingUsd } = request;
 	if (spendCeilingUsd !== undefined) {
-		await asUsageErrorAsync(() =>
-			storeSpendCeiling(request.runsDirectory, decimalUsd(spendCeilingUsd)),
-		);
+		await asUsageErrorAsync(async () => {
+			await storeSpendCeiling(
+				request.runsDirectory,
+				decimalUsd(spendCeilingUsd),
+			);
+		});
 	}
 
 	await changeCorpusLink(request);
 
+	await showSettings(request, output);
+}
+
+async function showSettings(
+	request: SettingsRequest,
+	output: CommandOutput,
+): Promise<void> {
 	const settings = await readSettings(request.runsDirectory);
 	if (request.json) {
 		output.stdout(
@@ -57,6 +67,7 @@ export async function runSettings(
 	const corpus =
 		settings.linkedCorpusDirectory ??
 		"the live install, since no directory is linked";
+
 	output.stdout(
 		`Spend ceiling: ${ceiling}\nLinked corpus: ${corpus}\nRecords location: ${request.runsDirectory}\n`,
 	);
@@ -90,3 +101,6 @@ function decimalUsd(text: string): number {
 
 	return Number(text);
 }
+
+export { runSettings as default };
+export type { SettingsRequest };

@@ -1,6 +1,11 @@
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
 import type { CheckResult } from "./session-check-result";
+
+const FULL_PATTERN_MATCH_INDEX = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 function compile(regex: string, flags: string | undefined): RegExp {
 	return new RegExp(regex, flags);
@@ -8,9 +13,9 @@ function compile(regex: string, flags: string | undefined): RegExp {
 
 const patternSchema = z
 	.object({
-		name: z.string().min(1),
-		regex: z.string().min(1),
 		flags: z.string().optional(),
+		name: z.string().nonempty(),
+		regex: z.string().nonempty(),
 	})
 	.strict()
 	.superRefine(({ regex, flags }, context) => {
@@ -24,34 +29,39 @@ const patternSchema = z
 		}
 	});
 
-export const forbiddenPatternCheckSchema = z
+const forbiddenPatternCheckSchema = z
 	.object({
 		kind: z.literal("forbidden-pattern"),
-		patterns: z.array(patternSchema).min(1),
+		patterns: z.array(patternSchema).nonempty(),
 	})
 	.strict();
 
-export type ForbiddenPatternCheck = z.infer<typeof forbiddenPatternCheckSchema>;
+type ForbiddenPatternCheck = z.infer<typeof forbiddenPatternCheckSchema>;
 
-export function evaluateForbiddenPattern(
+function evaluateForbiddenPattern(
 	check: Immutable<ForbiddenPatternCheck>,
 	reply: string,
 ): CheckResult {
 	const matched = check.patterns.flatMap((pattern) => {
 		const match = compile(pattern.regex, pattern.flags).exec(reply);
-		return match === null ? [] : [{ name: pattern.name, text: match[0] }];
+		return match === null
+			? []
+			: [{ name: pattern.name, text: match[FULL_PATTERN_MATCH_INDEX] }];
 	});
-	if (matched.length === 0) {
+	if (matched.length === EMPTY_COLLECTION_LENGTH) {
 		return {
+			detail: `none of ${String(check.patterns.length)} forbidden patterns match`,
 			kind: check.kind,
 			status: "PASS",
-			detail: `none of ${String(check.patterns.length)} forbidden patterns match`,
 		};
 	}
 
 	return {
+		detail: `reply matches ${matched.map(({ name, text }) => `${name} (${JSON.stringify(text)})`).join(", ")}`,
 		kind: check.kind,
 		status: "FAIL",
-		detail: `reply matches ${matched.map(({ name, text }) => `${name} (${JSON.stringify(text)})`).join(", ")}`,
 	};
 }
+
+export { forbiddenPatternCheckSchema, evaluateForbiddenPattern };
+export type { ForbiddenPatternCheck };

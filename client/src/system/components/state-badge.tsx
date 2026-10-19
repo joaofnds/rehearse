@@ -1,20 +1,23 @@
 import type { ReactNode } from "react";
-import { cn } from "#client/system/cn";
+
+import cn from "#client/system/cn";
 
 const TONES = {
+	attention: "border-attention/25 bg-attention-surface text-attention",
+	negative: "border-negative/25 bg-negative-surface text-negative",
 	neutral: "border-divider bg-muted text-secondary-foreground",
 	positive: "border-positive/25 bg-positive-surface text-positive",
-	negative: "border-negative/25 bg-negative-surface text-negative",
-	attention: "border-attention/25 bg-attention-surface text-attention",
 } as const;
 
-export function StateBadge({
-	tone = "neutral",
-	children,
-}: {
+interface StateBadgeProps {
 	readonly tone?: keyof typeof TONES;
 	readonly children: ReactNode;
-}): React.JSX.Element {
+}
+
+function StateBadge({
+	tone = "neutral",
+	children,
+}: StateBadgeProps): React.JSX.Element {
 	return (
 		<span
 			className={cn(
@@ -26,3 +29,5 @@ export function StateBadge({
 		</span>
 	);
 }
+
+export { StateBadge as default };

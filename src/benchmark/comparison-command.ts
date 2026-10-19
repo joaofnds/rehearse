@@ -1,22 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+
+import type { ComparisonBaselineRecord } from "./comparison-baseline-record";
+import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import { loadComparisonEvidence } from "./comparison-loader";
-import { buildComparisonReport } from "./comparison-report";
-import {
-	filterJudgeAgreementReport,
-	loadJudgeAgreementReport,
-} from "./judge-agreement";
 import {
 	COMPARISON_ARMS,
 	serializeComparisonReport,
 } from "./comparison-record";
+import buildComparisonReport from "./comparison-report";
 import { RefusedPreconditionError } from "./exit-codes";
-import type { ComparisonBaselineRecord } from "./comparison-baseline-record";
-import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
+import {
+	filterJudgeAgreementReport,
+	loadJudgeAgreementReport,
+} from "./judge-agreement";
 import { comparisonReportPaths } from "./run-layout";
 
-export interface WriteComparisonReportRequest {
+interface WriteComparisonReportRequest {
 	readonly manifestPath: string;
 	readonly runsDirectory: string;
 	/** How `compare attempts` made the control group, written beside the report. */
@@ -62,13 +63,13 @@ async function writeReportAtomically(
 	}
 }
 
-export async function writeComparisonReport(
+async function writeComparisonReport(
 	request: Readonly<WriteComparisonReportRequest>,
 ): Promise<string> {
 	const evidence = await loadComparisonEvidence(request.manifestPath);
 	const judgeAgreement =
 		evidence.contract.mode === "session"
-			? { skippedCalibrations: 0, baselines: [] }
+			? { baselines: [], skippedCalibrations: 0 }
 			: filterJudgeAgreementReport(
 					await loadJudgeAgreementReport(request.runsDirectory),
 					evidence.cases.flatMap((benchmarkCase) =>
@@ -107,3 +108,6 @@ export async function writeComparisonReport(
 
 	return paths.reportFile;
 }
+
+export { writeComparisonReport as default };
+export type { WriteComparisonReportRequest };

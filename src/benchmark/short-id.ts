@@ -1,98 +1,29 @@
-import { scopedRecordReader } from "./record-read-scope";
-import { mkdir, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
+
 import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
-import { readdirIfPresent, textIfPresent } from "./file-presence";
-import { claimedNumbers } from "./numbered-claims";
+import { readdirIfPresent } from "./file-presence";
+import { REGISTRY_DIRECTORY } from "./short-id-contract";
+import type {
+	ShortIdEntry,
+	ShortIdRegistries,
+	UnreadableRegistry,
+} from "./short-id-contract";
+import { readShortIds } from "./short-id-registry";
 
-const REGISTRY_DIRECTORY = "short-ids";
-const CLAIMS_DIRECTORY = "claims";
-const BINDINGS_DIRECTORY = "bindings";
+const INITIAL_CHECKPOINT_NUMBER = 0;
 
-/**
- * A claim is read back from disk and names the directory a record lives in,
- * so a name that is a path would carry `show` outside the runs directory. The
- * rule is the one a typed Record ID is held to, and a claim breaking it names
- * nothing.
- */
-const segmentSchema = z
-	.string()
-	.min(1)
-	.refine((text) => text !== "." && text !== ".." && !text.includes("/"));
+const CHECKPOINT_STAGE_NUMBER_BASE = 1;
 
-const runSchema = z.object({ kind: z.literal("run"), run: segmentSchema });
-const sessionAttemptSchema = z.object({
-	kind: z.literal("attempt:session"),
-	caseId: segmentSchema,
-	uuid: segmentSchema,
-});
-const stageAttemptSchema = z.object({
-	kind: z.literal("attempt:stage"),
-	lineage: segmentSchema,
-	timestamp: segmentSchema,
-});
-/**
- * A replay confirmation's group names the checkpoint its reps replayed, since
- * its own record carries only a lineage and two runs can share one.
- */
-const groupSchema = z.object({
-	kind: z.literal("group"),
-	groupId: segmentSchema,
-	source: z.object({ run: segmentSchema, stage: segmentSchema }).optional(),
-});
+const MISSING_SEQUENCE_INDEX = -1;
 
-/**
- * A record a short id names, in the same shape and spelling as its Record ID,
- * so a caller holding one can print or open the record the way `show` does.
- */
-const namedRecordSchema = z.discriminatedUnion("kind", [
-	runSchema,
-	sessionAttemptSchema,
-	stageAttemptSchema,
-	groupSchema,
-]);
-
-export type NamedRecord = z.infer<typeof namedRecordSchema>;
-
-/**
- * A replay's Record ID carries the timestamp it takes only after its session
- * and judge have run, so its claim names the checkpoint it replays and the
- * record is bound to the number by a second write once it is known.
- */
-const pendingReplaySchema = z.object({
-	kind: z.literal("replay"),
-	run: segmentSchema,
-	stage: segmentSchema,
-});
-
-const claimSchema = z.discriminatedUnion("kind", [
-	runSchema,
-	sessionAttemptSchema,
-	stageAttemptSchema,
-	groupSchema,
-	pendingReplaySchema,
-]);
-
-export type ClaimSubject = z.infer<typeof claimSchema>;
-
-export interface ShortId {
-	readonly caseId: string;
-	readonly kind: "run" | "group";
-	readonly number: number;
-}
-
-export interface ShortIdEntry {
-	readonly shortId: string;
-	readonly record: NamedRecord;
-}
+const ORDINAL_BASE = 1;
 
 /**
  * The checkpoint a group replayed, which only its short-id claim records,
  * since the group record carries a lineage two runs can share.
  */
-export function claimedReplaySource(
+function claimedReplaySource(
 	entries: readonly ShortIdEntry[],
 	groupId: string,
 ): { readonly run: string; readonly stage: string } | undefined {
@@ -103,186 +34,6 @@ export function claimedReplaySource(
 	return claim?.record.kind === "group" ? claim.record.source : undefined;
 }
 
-export function formatShortId(id: ShortId): string {
-	const letter = id.kind === "group" ? "g" : "r";
-
-	return `${id.caseId}/${letter}${String(id.number)}`;
-}
-
-function registryDirectory(runsDirectory: string, caseId: string): string {
-	return join(runsDirectory, REGISTRY_DIRECTORY, caseId);
-}
-
-function shortIdKind(subject: ClaimSubject): ShortId["kind"] {
-	return subject.kind === "group" ? "group" : "run";
-}
-
-async function highestNumber(claimsDirectory: string): Promise<number> {
-	return claimedNumbers(await readdir(claimsDirectory)).at(-1) ?? 0;
-}
-
-/**
- * The exclusive create is what makes a number one process's alone: a second
- * writer racing for it gets EEXIST and moves to the next. The content is
- * written after the create, so a writer killed between the two leaves an
- * empty file, which every reader treats as a number that names nothing.
- */
-async function createExclusively(
-	file: string,
-	contents: string,
-): Promise<boolean> {
-	let handle;
-	try {
-		handle = await open(file, "wx");
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "EEXIST") {
-			return false;
-		}
-
-		throw error;
-	}
-
-	try {
-		await handle.writeFile(contents);
-	} finally {
-		await handle.close();
-	}
-
-	return true;
-}
-
-function serialize(value: ClaimSubject): string {
-	return `${JSON.stringify(value)}\n`;
-}
-
-async function ensureRegistry(
-	runsDirectory: string,
-	caseId: string,
-): Promise<string> {
-	const directory = registryDirectory(runsDirectory, caseId);
-
-	await mkdir(join(directory, CLAIMS_DIRECTORY), { recursive: true });
-	await mkdir(join(directory, BINDINGS_DIRECTORY), { recursive: true });
-
-	return directory;
-}
-
-/**
- * The case id names the registry's directory, and a replay reads it from a
- * manifest on disk, so one that is not a case id is refused before it can
- * name a directory outside the registry.
- */
-export async function claimShortId(
-	runsDirectory: string,
-	caseId: string,
-	subject: ClaimSubject,
-): Promise<ShortId> {
-	if (!isCaseId(caseId)) {
-		throw new Error(
-			`Cannot claim a short id in ${caseId}: it is not a case id`,
-		);
-	}
-	const claimsDirectory = join(
-		await ensureRegistry(runsDirectory, caseId),
-		CLAIMS_DIRECTORY,
-	);
-
-	let number = (await highestNumber(claimsDirectory)) + 1;
-	while (
-		!(await createExclusively(
-			join(claimsDirectory, String(number)),
-			serialize(subject),
-		))
-	) {
-		number += 1;
-	}
-
-	return { caseId, kind: shortIdKind(subject), number };
-}
-
-async function readRegistryFile<Parsed>(
-	file: string,
-	schema: z.ZodType<Parsed>,
-): Promise<Parsed | undefined> {
-	const text = await textIfPresent(file);
-	if (text === undefined) {
-		return undefined;
-	}
-	let contents: unknown;
-	try {
-		contents = JSON.parse(text);
-	} catch {
-		return undefined;
-	}
-
-	return schema.safeParse(contents).data;
-}
-
-async function readEntry(
-	directory: string,
-	number: number,
-): Promise<NamedRecord | undefined> {
-	const claim = await readRegistryFile(
-		join(directory, CLAIMS_DIRECTORY, String(number)),
-		claimSchema,
-	);
-
-	return claim?.kind === "replay"
-		? readRegistryFile(
-				join(directory, BINDINGS_DIRECTORY, String(number)),
-				stageAttemptSchema,
-			)
-		: claim;
-}
-
-interface RegistryEntry {
-	readonly number: number;
-	readonly record: NamedRecord;
-}
-
-const readRegistry = scopedRecordReader(
-	async (directory): Promise<readonly RegistryEntry[]> => {
-		const names =
-			(await readdirIfPresent(join(directory, CLAIMS_DIRECTORY))) ?? [];
-		const entries: RegistryEntry[] = [];
-
-		for (const number of claimedNumbers(names)) {
-			const record = await readEntry(directory, number);
-			if (record !== undefined) {
-				entries.push({ number, record });
-			}
-		}
-
-		return entries;
-	},
-);
-
-export async function readShortIds(
-	runsDirectory: string,
-	caseId: string,
-): Promise<readonly ShortIdEntry[]> {
-	const entries = await readRegistry(registryDirectory(runsDirectory, caseId));
-	return entries.map(({ number, record }) => ({
-		shortId: formatShortId({ caseId, kind: shortIdKind(record), number }),
-		record,
-	}));
-}
-
-/**
- * A registry that could not be read, named by its directory under the runs
- * directory: `short-ids/<case>` for one case's, or `short-ids` when the
- * cases cannot be listed at all.
- */
-export interface UnreadableRegistry {
-	readonly registry: string;
-	readonly reason: string;
-}
-
-export interface ShortIdRegistries {
-	readonly entries: readonly ShortIdEntry[];
-	readonly unreadable: readonly UnreadableRegistry[];
-}
-
 /**
  * Every short id claimed in any case, for a listing that prints them beside
  * Record IDs. It reads registries and builds none, so listing stays read-only
@@ -290,51 +41,48 @@ export interface ShortIdRegistries {
  * registry cannot be read is reported rather than thrown, so it hides only
  * its own short ids.
  */
-export async function readAllShortIds(
+async function readAllShortIds(
 	runsDirectory: string,
 ): Promise<ShortIdRegistries> {
-	let cases: readonly string[];
-	try {
-		cases =
-			(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? [];
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		return {
-			entries: [],
-			unreadable: [{ registry: REGISTRY_DIRECTORY, reason }],
-		};
+	const readRegistryCases = async (): Promise<
+		readonly string[] | ShortIdRegistries
+	> => {
+		try {
+			return (
+				(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? []
+			);
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : String(error);
+			return {
+				entries: [],
+				unreadable: [{ reason, registry: REGISTRY_DIRECTORY }],
+			};
+		}
+	};
+
+	const cases = await readRegistryCases();
+	if ("unreadable" in cases) {
+		return cases;
 	}
 
 	const entries: ShortIdEntry[] = [];
 	const unreadable: UnreadableRegistry[] = [];
-	for (const caseId of cases.filter((name) => isCaseId(name)).toSorted()) {
-		try {
-			entries.push(...(await readShortIds(runsDirectory, caseId)));
-		} catch (error) {
-			const reason = error instanceof Error ? error.message : String(error);
-			unreadable.push({ registry: `${REGISTRY_DIRECTORY}/${caseId}`, reason });
-		}
-	}
-
-	return { entries, unreadable };
-}
-
-/**
- * The record a short id names, or undefined when its number names nothing or
- * was claimed for the other letter: `g4` never names the run claimed as `r4`.
- */
-export async function resolveShortId(
-	runsDirectory: string,
-	id: ShortId,
-): Promise<NamedRecord | undefined> {
-	const record = await readEntry(
-		registryDirectory(runsDirectory, id.caseId),
-		id.number,
+	await Array.fromAsync(
+		cases.filter((name) => isCaseId(name)).toSorted(),
+		async (caseId) => {
+			try {
+				entries.push(...(await readShortIds(runsDirectory, caseId)));
+			} catch (error) {
+				const reason = error instanceof Error ? error.message : String(error);
+				unreadable.push({
+					reason,
+					registry: `${REGISTRY_DIRECTORY}/${caseId}`,
+				});
+			}
+		},
 	);
 
-	return record !== undefined && shortIdKind(record) === id.kind
-		? record
-		: undefined;
+	return { entries, unreadable };
 }
 
 /**
@@ -342,50 +90,47 @@ export async function resolveShortId(
  * task setup, then each stage by its position in the pipeline the run froze
  * into its manifest, so the label is fixed when the run starts.
  */
-export function checkpointStageNumber(
+function checkpointStageNumber(
 	stages: readonly string[],
 	stage: string,
 ): number | undefined {
 	if (stage === INITIAL_CHECKPOINT_STAGE) {
-		return 0;
+		return INITIAL_CHECKPOINT_NUMBER;
 	}
+
 	const index = stages.indexOf(stage);
 
-	return index === -1 ? undefined : index + 1;
+	return index === MISSING_SEQUENCE_INDEX ? undefined : index + ORDINAL_BASE;
 }
 
-export function formatCheckpointShortId(
-	runShortId: string,
-	stage: number,
-): string {
+function formatCheckpointShortId(runShortId: string, stage: number): string {
 	return `${runShortId}/s${String(stage)}`;
 }
 
-export function checkpointStageAt(
+function checkpointStageAt(
 	stages: readonly string[],
 	number: number,
 ): string | undefined {
-	return number === 0 ? INITIAL_CHECKPOINT_STAGE : stages[number - 1];
+	return number === INITIAL_CHECKPOINT_NUMBER
+		? INITIAL_CHECKPOINT_STAGE
+		: stages[number - CHECKPOINT_STAGE_NUMBER_BASE];
 }
 
-export async function bindReplay(
-	runsDirectory: string,
-	id: ShortId,
-	attempt: { readonly lineage: string; readonly timestamp: string },
-): Promise<void> {
-	const binding = join(
-		registryDirectory(runsDirectory, id.caseId),
-		BINDINGS_DIRECTORY,
-		String(id.number),
-	);
-
-	const bound = await createExclusively(
-		binding,
-		serialize({ kind: "attempt:stage", ...attempt }),
-	);
-	if (!bound) {
-		throw new Error(
-			`Short id ${formatShortId(id)} is already bound to a replay record`,
-		);
-	}
-}
+export {
+	claimedReplaySource,
+	checkpointStageNumber,
+	formatCheckpointShortId,
+	checkpointStageAt,
+	readAllShortIds,
+};
+export { formatShortId } from "./short-id-contract";
+export { claimShortId, bindReplay } from "./short-id-claim";
+export { readShortIds, resolveShortId } from "./short-id-registry";
+export type {
+	NamedRecord,
+	ClaimSubject,
+	ShortId,
+	ShortIdEntry,
+	UnreadableRegistry,
+	ShortIdRegistries,
+} from "./short-id-contract";

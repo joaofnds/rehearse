@@ -1,4 +1,4 @@
-export class MissingDirectoryError extends Error {
+class MissingDirectoryError extends Error {
 	public override name = "MissingDirectoryError";
 
 	public constructor(
@@ -8,3 +8,5 @@ export class MissingDirectoryError extends Error {
 		super(`${directory} does not exist, so no command can run in it`, options);
 	}
 }
+
+export { MissingDirectoryError as default };

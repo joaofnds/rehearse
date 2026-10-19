@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { Navigate } from "@tanstack/react-router";
+
+import plural from "#client/plural";
+import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
-import { EmptyState } from "#client/system/components/empty-state";
-import { ScreenHeader } from "#client/system/components/screen-header";
-import { plural } from "#client/plural";
+import EmptyState from "#client/system/components/empty-state";
+import ScreenHeader from "#client/system/components/screen-header";
 
 /** The legacy monitor entry opens the newest live run in its workspace. */
-export function MonitorPage(): React.JSX.Element | null {
+function MonitorPage(): React.JSX.Element | null {
 	const { data, isError } = useQuery(polledRunListingQuery);
 	if (isError) {
 		return (
@@ -49,3 +50,5 @@ export function MonitorPage(): React.JSX.Element | null {
 		/>
 	);
 }
+
+export { MonitorPage as default };

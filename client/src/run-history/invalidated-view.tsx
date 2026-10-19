@@ -1,25 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
-import { corpusQuery } from "#client/corpus/corpus-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
-import { plural } from "#client/plural";
-import { Notice } from "#client/system/components/notice";
+import { corpusQuery } from "#client/corpus/corpus-query";
+import plural from "#client/plural";
+import Notice from "#client/system/components/notice";
+
 import { invalidatedByValue } from "./invalidated-by";
 import type { InvalidatedSelection, Read } from "./invalidated-selection";
-import { invalidatedSelection } from "./invalidated-selection";
+import invalidatedSelection from "./invalidated-selection";
 import type { RunHistoryResponse } from "./run-history-query";
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 /**
  * A query's last good body while it has one, so a failed re-read keeps what
  * was listed, as the rest of run history does.
  */
-export function readOf<Body>(query: {
+interface ReadOfProps<Body> {
 	readonly isError: boolean;
 	readonly data: Body | undefined;
-}): Read<Body> {
+}
+
+function readOf<Body>(query: ReadOfProps<Body>): Read<Body> {
 	if (query.data !== undefined) {
-		return { state: "loaded", body: query.data };
+		return { body: query.data, state: "loaded" };
 	}
 	if (query.isError) {
 		return { state: "failed" };
@@ -28,11 +34,13 @@ export function readOf<Body>(query: {
 	return { state: "loading" };
 }
 
-export function InvalidatedNotice({
-	selection,
-}: {
+interface InvalidatedNoticeProps {
 	readonly selection: InvalidatedSelection;
-}): React.JSX.Element {
+}
+
+function InvalidatedNotice({
+	selection,
+}: InvalidatedNoticeProps): React.JSX.Element {
 	switch (selection.kind) {
 		case "unanswered": {
 			return <p className="text-muted-foreground">{selection.reason}</p>;
@@ -61,7 +69,7 @@ export function InvalidatedNotice({
 					<p className="text-secondary-foreground">
 						{`${plural(count, "recorded result")} invalidated by the edit from ${corpusVersionLabel(edit.previous)} to ${corpusVersionLabel(edit.current)}`}
 					</p>
-					{missing.length > 0 ? (
+					{missing.length > EMPTY_COLLECTION_LENGTH ? (
 						<Notice
 							message="These invalidated results have no readable row, so they are missing from the table below:"
 							items={missing.map(
@@ -84,7 +92,7 @@ export function InvalidatedNotice({
  * it does not poll, so the filtered view reads it again on mount and waits.
  * A later read keeps the rows listed until it answers.
  */
-export function useInvalidatedSelection(
+function useInvalidatedSelection(
 	invalidatedBy: string | undefined,
 	runs: Read<RunHistoryResponse>,
 ): InvalidatedSelection | undefined {
@@ -103,3 +111,5 @@ export function useInvalidatedSelection(
 
 	return invalidatedSelection(invalidatedBy, corpusRead, runs);
 }
+
+export { InvalidatedNotice, readOf, useInvalidatedSelection };

@@ -1,4 +1,4 @@
-export const STATUS_STATES = [
+const STATUS_STATES = [
 	"accepted",
 	"running",
 	"queued",
@@ -15,23 +15,23 @@ export const STATUS_STATES = [
 	"checkpoint-absent",
 ] as const;
 
-export type StatusState = (typeof STATUS_STATES)[number];
+type StatusState = (typeof STATUS_STATES)[number];
 
-export const STATUS_VOCABULARY = {
+const STATUS_VOCABULARY = {
 	accepted: { glyph: "✓", word: "accepted" },
-	running: { glyph: "●", word: "running" },
-	queued: { glyph: "○", word: "queued" },
-	stopped: { glyph: "◼", word: "stopped" },
-	paused: { glyph: "‖", word: "paused" },
-	interrupted: { glyph: "⊘", word: "interrupted" },
-	fired: { glyph: "✕", word: "fired" },
-	clear: { glyph: "✓", word: "clear" },
-	clean: { glyph: "✓", word: "clean" },
-	stale: { glyph: "⚠", word: "stale" },
-	superseded: { glyph: "⚠", word: "superseded" },
-	pending: { glyph: "◌", word: "pending" },
-	"checkpoint-present": { glyph: "◆", word: "checkpoint present" },
 	"checkpoint-absent": { glyph: "◇", word: "checkpoint absent" },
+	"checkpoint-present": { glyph: "◆", word: "checkpoint present" },
+	clean: { glyph: "✓", word: "clean" },
+	clear: { glyph: "✓", word: "clear" },
+	fired: { glyph: "✕", word: "fired" },
+	interrupted: { glyph: "⊘", word: "interrupted" },
+	paused: { glyph: "‖", word: "paused" },
+	pending: { glyph: "◌", word: "pending" },
+	queued: { glyph: "○", word: "queued" },
+	running: { glyph: "●", word: "running" },
+	stale: { glyph: "⚠", word: "stale" },
+	stopped: { glyph: "◼", word: "stopped" },
+	superseded: { glyph: "⚠", word: "superseded" },
 } satisfies Record<StatusState, { glyph: string; word: string }>;
 
 /**
@@ -39,11 +39,11 @@ export const STATUS_VOCABULARY = {
  * takes the light accent unless its tone keeps the surrounding text's colour,
  * as the design's task graph nodes do.
  */
-export function LiveGlyph({
-	tone = "accent",
-}: {
+interface LiveGlyphProps {
 	readonly tone?: "accent" | "surrounding";
-}): React.JSX.Element {
+}
+
+function LiveGlyph({ tone = "accent" }: LiveGlyphProps): React.JSX.Element {
 	return (
 		<span
 			aria-hidden="true"
@@ -55,28 +55,30 @@ export function LiveGlyph({
 }
 
 const TONE_CLASSES = {
-	neutral: "",
-	positive: "text-positive",
-	negative: "text-negative",
 	attention: "text-attention",
 	info: "text-info",
+	negative: "text-negative",
+	neutral: "",
+	positive: "text-positive",
 } as const;
-export type StatusTone = keyof typeof TONE_CLASSES;
+
+type StatusTone = keyof typeof TONE_CLASSES;
+
 const STATE_TONES = {
 	accepted: "neutral",
-	running: "info",
-	stopped: "attention",
-	paused: "attention",
-	interrupted: "attention",
-	fired: "negative",
-	stale: "attention",
-	superseded: "attention",
-	queued: "neutral",
-	clear: "neutral",
-	clean: "neutral",
-	pending: "neutral",
-	"checkpoint-present": "neutral",
 	"checkpoint-absent": "neutral",
+	"checkpoint-present": "neutral",
+	clean: "neutral",
+	clear: "neutral",
+	fired: "negative",
+	interrupted: "attention",
+	paused: "attention",
+	pending: "neutral",
+	queued: "neutral",
+	running: "info",
+	stale: "attention",
+	stopped: "attention",
+	superseded: "attention",
 } as const satisfies Readonly<Record<StatusState, StatusTone>>;
 
 /**
@@ -85,15 +87,13 @@ const STATE_TONES = {
  * the reader asked for reduced motion. A label puts a phrase in the word's
  * place, as a record's outcome does.
  */
-export function Status({
-	state,
-	label,
-	tone,
-}: {
+interface StatusProps {
 	readonly state: StatusState;
 	readonly label?: string;
 	readonly tone?: StatusTone | undefined;
-}): React.JSX.Element {
+}
+
+function Status({ state, label, tone }: StatusProps): React.JSX.Element {
 	const { glyph, word } = STATUS_VOCABULARY[state];
 
 	return (
@@ -109,3 +109,6 @@ export function Status({
 		</span>
 	);
 }
+
+export { LiveGlyph, STATUS_STATES, STATUS_VOCABULARY, Status };
+export type { StatusState, StatusTone };

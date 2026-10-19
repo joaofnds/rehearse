@@ -1,6 +1,14 @@
-import type { ClaudeCallMetrics, StageLetterGrade } from "./contracts";
+import type { StageLetterGrade } from "./contracts";
 
-export type ConfirmationStageOutcome =
+const GRADED_OUTCOME_COUNT_INCREMENT = 1;
+
+const TOTAL_OUTCOME_PROBABILITY = 1;
+
+const NO_REQUESTED_REPS = 0;
+
+const NO_GRADED_OUTCOMES = 0;
+
+type ConfirmationStageOutcome =
 	| {
 			readonly stage: string;
 			readonly status: "JUDGED";
@@ -12,19 +20,19 @@ export type ConfirmationStageOutcome =
 			readonly status: "EXECUTION_FAILED" | "METRICS_MISSING" | "NOT_REACHED";
 	  };
 
-export type ConfirmationFinalOutcome =
+type ConfirmationFinalOutcome =
 	| { readonly status: "JUDGED"; readonly verdict: "PASS" | "FAIL" }
 	| {
 			readonly status: "EXECUTION_FAILED" | "METRICS_MISSING" | "NOT_REACHED";
 	  };
 
-export interface ConfirmationReliabilityRep {
+interface ConfirmationReliabilityRep {
 	readonly metricsComplete: boolean;
 	readonly stages: readonly ConfirmationStageOutcome[];
 	readonly finalOutcome: ConfirmationFinalOutcome;
 }
 
-export interface ReliabilitySummary {
+interface ReliabilitySummary {
 	readonly name: string;
 	readonly requested: number;
 	readonly attempted: number;
@@ -37,7 +45,7 @@ export interface ReliabilitySummary {
 	readonly passK: number;
 }
 
-export function reliabilitySummaryNamed(
+function reliabilitySummaryNamed(
 	quality: readonly ReliabilitySummary[],
 	name: string,
 ): ReliabilitySummary {
@@ -49,7 +57,7 @@ export function reliabilitySummaryNamed(
 	return summary;
 }
 
-export type ReliabilityOutcome =
+type ReliabilityOutcome =
 	| {
 			readonly name: string;
 			readonly status: "JUDGED";
@@ -62,45 +70,37 @@ export type ReliabilityOutcome =
 			readonly successful: false;
 	  };
 
-export function summarizeReliabilityOutcomes(
+function summarizeReliabilityOutcomes(
 	name: string,
 	outcomes: readonly ReliabilityOutcome[],
 ): ReliabilitySummary {
 	const requested = outcomes.length;
-	if (requested === 0) {
+	if (requested === NO_REQUESTED_REPS) {
 		throw new Error("A confirmation report requires at least one rep");
 	}
 
-	let attempted = 0;
-	let successful = 0;
-	const gradeDistribution: Record<string, number> = {};
-	for (const outcome of outcomes) {
-		if (outcome.status !== "NOT_REACHED") {
-			attempted += 1;
-		}
-		if (outcome.successful) {
-			successful += 1;
-		}
-		if (outcome.status === "JUDGED") {
-			gradeDistribution[outcome.grade] =
-				(gradeDistribution[outcome.grade] ?? 0) + 1;
-		}
-	}
+	const attempted = outcomes.filter(
+		({ status }) => status !== "NOT_REACHED",
+	).length;
+	const successful = outcomes.filter((outcome) => outcome.successful).length;
+	const gradeDistribution = gradedOutcomesDistribution(outcomes);
 
 	const notReached = requested - attempted;
 	const successRate = successful / requested;
 
 	return {
-		name,
-		requested,
 		attempted,
-		notReached,
 		failed: attempted - successful,
-		successful,
 		gradeDistribution,
-		successRate,
-		standardError: Math.sqrt((successRate * (1 - successRate)) / requested),
+		name,
+		notReached,
 		passK: successRate ** requested,
+		requested,
+		standardError: Math.sqrt(
+			(successRate * (TOTAL_OUTCOME_PROBABILITY - successRate)) / requested,
+		),
+		successRate,
+		successful,
 	};
 }
 
@@ -117,13 +117,13 @@ function stageObservation(
 	}
 
 	return {
+		grade: outcome.grade,
 		name,
 		status: outcome.status,
 		successful:
 			metricsComplete &&
 			outcome.verdict === "CONTINUE" &&
 			(outcome.grade === "A" || outcome.grade === "B"),
-		grade: outcome.grade,
 	};
 }
 
@@ -139,14 +139,14 @@ function finalObservation(
 	}
 
 	return {
+		grade: outcome.verdict,
 		name: "final",
 		status: outcome.status,
 		successful: metricsComplete && outcome.verdict === "PASS",
-		grade: outcome.verdict,
 	};
 }
 
-export function buildReliabilityOutcomes(
+function buildReliabilityOutcomes(
 	declaredStages: readonly string[],
 	rep: ConfirmationReliabilityRep,
 ): readonly ReliabilityOutcome[] {
@@ -162,7 +162,7 @@ export function buildReliabilityOutcomes(
 	return [...stages, finalObservation(rep.finalOutcome, rep.metricsComplete)];
 }
 
-export function buildReliabilityReport(
+function buildReliabilityReport(
 	declaredStages: readonly string[],
 	reps: readonly ConfirmationReliabilityRep[],
 ): readonly ReliabilitySummary[] {
@@ -186,253 +186,42 @@ export function buildReliabilityReport(
 	);
 }
 
-const CALL_ROLES = [
-	"worker",
-	"product-owner",
-	"stage-judge",
-	"final-judge",
-] as const;
+function gradedOutcomesDistribution(
+	outcomes: readonly ReliabilityOutcome[],
+): ReliabilitySummary["gradeDistribution"] {
+	const grades: Record<string, number> = {};
 
-type CallRole = (typeof CALL_ROLES)[number];
-
-interface ConfirmationCallEvidence {
-	readonly role: CallRole;
-	readonly metrics: ClaudeCallMetrics;
-}
-
-export interface ConfirmationResourceRep {
-	readonly metrics:
-		| {
-				readonly status: "COMPLETE";
-				readonly calls: readonly ConfirmationCallEvidence[];
-		  }
-		| {
-				readonly status: "MISSING";
-				readonly calls: readonly ConfirmationCallEvidence[];
-				readonly missing: readonly string[];
-		  };
-	readonly workerTrajectorySteps: number;
-	readonly elapsedMs: number;
-	readonly stages: readonly {
-		readonly stage: string;
-		readonly elapsedMs?: number | undefined;
-	}[];
-}
-
-export interface MetricDistributions {
-	readonly costUsd: readonly number[];
-	readonly inputTokens: readonly number[];
-	readonly outputTokens: readonly number[];
-	readonly cacheReadTokens: readonly number[];
-	readonly cacheWriteTokens: readonly number[];
-}
-
-export interface ConfirmationResourceReport {
-	readonly completeReps: number;
-	readonly missingMetricReps: number;
-	readonly perRole: Readonly<Record<CallRole, MetricDistributions>>;
-	readonly total: MetricDistributions;
-	readonly workerTurns: readonly number[];
-	readonly stageElapsedMs: Readonly<Record<string, readonly number[]>>;
-	readonly repElapsedMs: readonly number[];
-	readonly makespanMs: number;
-}
-
-export type ConfirmationCommandTotal =
-	| {
-			readonly status: "COMPLETE";
-			readonly metrics: Omit<
-				ClaudeCallMetrics,
-				"turns" | "durationMs" | "apiDurationMs"
-			>;
-	  }
-	| { readonly status: "MISSING"; readonly missing: readonly string[] };
-
-interface MutableMetricDistributions {
-	readonly costUsd: number[];
-	readonly inputTokens: number[];
-	readonly outputTokens: number[];
-	readonly cacheReadTokens: number[];
-	readonly cacheWriteTokens: number[];
-}
-
-function emptyMetricDistributions(): MutableMetricDistributions {
-	return {
-		costUsd: [],
-		inputTokens: [],
-		outputTokens: [],
-		cacheReadTokens: [],
-		cacheWriteTokens: [],
-	};
-}
-
-function sumCallMetrics(
-	calls: readonly ConfirmationCallEvidence[],
-	role?: CallRole,
-): Omit<ClaudeCallMetrics, "turns" | "durationMs" | "apiDurationMs"> {
-	const total = {
-		costUsd: 0,
-		inputTokens: 0,
-		outputTokens: 0,
-		cacheReadTokens: 0,
-		cacheWriteTokens: 0,
-	};
-	for (const call of calls) {
-		if (role !== undefined && call.role !== role) {
-			continue;
-		}
-
-		total.costUsd += call.metrics.costUsd;
-		total.inputTokens += call.metrics.inputTokens;
-		total.outputTokens += call.metrics.outputTokens;
-		total.cacheReadTokens += call.metrics.cacheReadTokens;
-		total.cacheWriteTokens += call.metrics.cacheWriteTokens;
-	}
-
-	return total;
-}
-
-function appendMetricDistributions(
-	distributions: MetricDistributions,
-	metrics: ReturnType<typeof sumCallMetrics>,
-): MutableMetricDistributions {
-	return {
-		costUsd: [...distributions.costUsd, metrics.costUsd],
-		inputTokens: [...distributions.inputTokens, metrics.inputTokens],
-		outputTokens: [...distributions.outputTokens, metrics.outputTokens],
-		cacheReadTokens: [
-			...distributions.cacheReadTokens,
-			metrics.cacheReadTokens,
-		],
-		cacheWriteTokens: [
-			...distributions.cacheWriteTokens,
-			metrics.cacheWriteTokens,
-		],
-	};
-}
-
-function sortMetricDistributions(
-	distributions: MetricDistributions,
-): MetricDistributions {
-	return {
-		costUsd: distributions.costUsd.toSorted((left, right) => left - right),
-		inputTokens: distributions.inputTokens.toSorted(
-			(left, right) => left - right,
-		),
-		outputTokens: distributions.outputTokens.toSorted(
-			(left, right) => left - right,
-		),
-		cacheReadTokens: distributions.cacheReadTokens.toSorted(
-			(left, right) => left - right,
-		),
-		cacheWriteTokens: distributions.cacheWriteTokens.toSorted(
-			(left, right) => left - right,
-		),
-	};
-}
-
-export function buildResourceReport(
-	declaredStages: readonly string[],
-	reps: readonly ConfirmationResourceRep[],
-	makespanMs: number,
-): ConfirmationResourceReport {
-	const perRole = {
-		worker: emptyMetricDistributions(),
-		"product-owner": emptyMetricDistributions(),
-		"stage-judge": emptyMetricDistributions(),
-		"final-judge": emptyMetricDistributions(),
-	} satisfies Record<CallRole, MutableMetricDistributions>;
-	let total = emptyMetricDistributions();
-	const workerTurns: number[] = [];
-	const repElapsedMs: number[] = [];
-	const stageElapsedMs: Record<string, number[]> = {};
-	for (const stage of declaredStages) {
-		stageElapsedMs[stage] = [];
-	}
-
-	let completeReps = 0;
-	for (const rep of reps) {
-		if (rep.metrics.status === "MISSING") {
-			continue;
-		}
-
-		completeReps += 1;
-		for (const role of CALL_ROLES) {
-			perRole[role] = appendMetricDistributions(
-				perRole[role],
-				sumCallMetrics(rep.metrics.calls, role),
-			);
-		}
-		total = appendMetricDistributions(total, sumCallMetrics(rep.metrics.calls));
-		workerTurns.push(rep.workerTrajectorySteps);
-		repElapsedMs.push(rep.elapsedMs);
-		for (const stage of rep.stages) {
-			const durations = stageElapsedMs[stage.stage];
-			if (durations !== undefined && stage.elapsedMs !== undefined) {
-				durations.push(stage.elapsedMs);
-			}
+	for (const outcome of outcomes) {
+		if (outcome.status === "JUDGED") {
+			grades[outcome.grade] =
+				(grades[outcome.grade] ?? NO_GRADED_OUTCOMES) +
+				GRADED_OUTCOME_COUNT_INCREMENT;
 		}
 	}
 
-	const sortedStageElapsedMs: Record<string, readonly number[]> = {};
-	for (const [stage, durations] of Object.entries(stageElapsedMs)) {
-		sortedStageElapsedMs[stage] = durations.toSorted(
-			(left, right) => left - right,
-		);
-	}
-
-	return {
-		completeReps,
-		missingMetricReps: reps.length - completeReps,
-		perRole: {
-			worker: sortMetricDistributions(perRole.worker),
-			"product-owner": sortMetricDistributions(perRole["product-owner"]),
-			"stage-judge": sortMetricDistributions(perRole["stage-judge"]),
-			"final-judge": sortMetricDistributions(perRole["final-judge"]),
-		},
-		total: sortMetricDistributions(total),
-		workerTurns: workerTurns.toSorted((left, right) => left - right),
-		stageElapsedMs: sortedStageElapsedMs,
-		repElapsedMs: repElapsedMs.toSorted((left, right) => left - right),
-		makespanMs,
-	};
+	return grades;
 }
 
-export function buildSessionCommandTotal(
-	report: ConfirmationResourceReport,
-	preflight:
-		| { readonly status: "COMPLETE"; readonly metrics: ClaudeCallMetrics }
-		| { readonly status: "MISSING"; readonly missing: string },
-): ConfirmationCommandTotal {
-	const missing = [
-		...(preflight.status === "MISSING" ? [preflight.missing] : []),
-		...(report.missingMetricReps === 0
-			? []
-			: [`${String(report.missingMetricReps)} rep call metrics`]),
-	];
-	if (missing.length > 0) {
-		return { status: "MISSING", missing };
-	}
-
-	if (preflight.status === "MISSING") {
-		throw new Error("Complete session total requires preflight metrics");
-	}
-
-	const sum = (values: readonly number[]): number =>
-		values.reduce((total, value) => total + value, 0);
-
-	return {
-		status: "COMPLETE",
-		metrics: {
-			costUsd: preflight.metrics.costUsd + sum(report.total.costUsd),
-			inputTokens:
-				preflight.metrics.inputTokens + sum(report.total.inputTokens),
-			outputTokens:
-				preflight.metrics.outputTokens + sum(report.total.outputTokens),
-			cacheReadTokens:
-				preflight.metrics.cacheReadTokens + sum(report.total.cacheReadTokens),
-			cacheWriteTokens:
-				preflight.metrics.cacheWriteTokens + sum(report.total.cacheWriteTokens),
-		},
-	};
-}
+export {
+	reliabilitySummaryNamed,
+	summarizeReliabilityOutcomes,
+	buildReliabilityOutcomes,
+	buildReliabilityReport,
+};
+export type {
+	ConfirmationStageOutcome,
+	ConfirmationFinalOutcome,
+	ConfirmationReliabilityRep,
+	ReliabilitySummary,
+	ReliabilityOutcome,
+};
+export {
+	buildResourceReport,
+	buildSessionCommandTotal,
+} from "./confirmation-resource-report";
+export type {
+	ConfirmationResourceRep,
+	MetricDistributions,
+	ConfirmationResourceReport,
+	ConfirmationCommandTotal,
+} from "./confirmation-resource-contract";

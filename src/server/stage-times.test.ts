@@ -1,297 +1,272 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { writeRunManifest } from "#benchmark/manifest";
+import { constants as HTTP_STATUS } from "node:http2";
+
 import { benchmarkRunPaths } from "#benchmark/run-layout";
-import { TEST_TARGET } from "#benchmark/test-support";
 import {
-	directorySource,
-	fixedCorpusSource,
-	NO_PROVIDER_PROJECTS,
-	nothingRunning,
-} from "#benchmark/run-records-test-support";
-import { createApiApp } from "./api";
+	STAGES,
+	clearStageTimeRoots,
+	recordRun,
+	runsDirectory,
+	startEvidenceApi,
+} from "#server/stage-times-test-fixture";
+
 import type { StageTime } from "./stage-times";
 
-const CASE = "audit-log";
-const STAGES = ["discuss", "build", "review"] as const;
-
 const RUN = "2026-10-01T10-00-00.000Z";
+
 const FIRST_EARLIER = "2026-09-29T10-00-00.000Z";
+
 const SECOND_EARLIER = "2026-09-30T10-00-00.000Z";
 
-const roots: string[] = [];
-
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-	);
-});
-
-async function runsDirectory(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-stage-times-"));
-	roots.push(root);
-
-	return root;
-}
-
-/** A pipeline run of a case, with the elapsed time each listed stage recorded. */
-async function recordRun(
-	directory: string,
-	props: {
-		readonly run: string;
-		readonly caseId?: string;
-		readonly stageMs?: Readonly<Partial<Record<string, number>>>;
-		readonly stoppedIn?: string;
-	},
-): Promise<void> {
-	const paths = benchmarkRunPaths(directory, props.run);
-	await writeRunManifest(paths.manifestFile, {
-		caseId: props.caseId ?? CASE,
-		timestamp: props.run,
-		controlSha: "control-sha",
-		sourceRoot: join(directory, "source"),
-		sourceSha: "source-sha",
-		taskId: "TASK-1",
-		taskSha: "task-sha",
-		task: "Task text",
-		productBrief: "Brief text",
-		model: "sonnet",
-		judgeModel: "opus",
-		sessionBudgetUsd: 5,
-		pipeline: {
-			statuses: ["To Do", "Done"],
-			target: TEST_TARGET,
-			stages: STAGES.map((name) => ({
-				name,
-				kind: "delivery",
-				skill: name,
-				rubric: `rubrics/${name}.json`,
-			})),
-		},
-		pipelinePath: "pipelines/default.json",
-	});
-	for (const [stage, elapsedMs] of Object.entries(props.stageMs ?? {})) {
-		await Bun.write(
-			paths.stageFile(stage),
-			JSON.stringify(
-				stage === props.stoppedIn
-					? { status: "STAGE_JUDGE_FAILED", elapsedMs }
-					: { elapsedMs },
-			),
-		);
-	}
-}
+afterEach(clearStageTimeRoots);
 
 function unrecorded(stage: string): StageTime {
 	return {
+		reasons: [`no prior run of this case recorded a time for ${stage}`],
 		stage,
 		state: "unavailable",
-		reasons: [`no prior run of this case recorded a time for ${stage}`],
 	};
 }
 
-async function stageTimes(directory: string, run: string): Promise<Response> {
-	const app = createApiApp({
-		projectsDirectory: NO_PROVIDER_PROJECTS,
-		runsDirectory: directory,
-		liveness: nothingRunning,
-		readCorpusSource: fixedCorpusSource(directorySource(directory)),
-	});
-
-	const response = await app.request(
-		`/api/runs/${encodeURIComponent(run)}/stage-times`,
+describe("/api/runs/:run/stage-times", () => {
+	it(
+		"gives each stage of the run the median time earlier runs of its case took in it",
+		verifyApiRunsRunStageTimesGivesEachStageOfTheRunTheMedianTimeEarlierRunsOfItsCaseTookInIt,
 	);
 
-	return response;
-}
+	it(
+		"takes the middle time, not the mean, of an odd count of earlier runs",
+		verifyApiRunsRunStageTimesTakesTheMiddleTimeNotTheMeanOfAnOddCountOfEarlierRuns,
+	);
 
-describe("/api/runs/:run/stage-times", () => {
-	it("gives each stage of the run the median time earlier runs of its case took in it", async () => {
-		const directory = await runsDirectory();
-		await recordRun(directory, {
-			run: FIRST_EARLIER,
-			stageMs: { discuss: 60_000, build: 300_000, review: 100_000 },
-		});
-		await recordRun(directory, {
-			run: SECOND_EARLIER,
-			stageMs: { discuss: 120_000, build: 500_000, review: 140_000 },
-		});
-		await recordRun(directory, { run: RUN });
+	it(
+		"leaves out runs of another case and runs started after this one",
+		verifyApiRunsRunStageTimesLeavesOutRunsOfAnotherCaseAndRunsStartedAfterThisOne,
+	);
 
-		const response = await stageTimes(directory, RUN);
+	it(
+		"leaves out the time of a stage that stopped its run before it finished",
+		verifyApiRunsRunStageTimesLeavesOutTheTimeOfAStageThatStoppedItsRunBeforeItFinished,
+	);
 
-		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({
-			stages: [
-				{ stage: "discuss", state: "available", medianMs: 90_000 },
-				{ stage: "build", state: "available", medianMs: 400_000 },
-				{ stage: "review", state: "available", medianMs: 120_000 },
-			],
-		});
-	});
-
-	it("takes the middle time, not the mean, of an odd count of earlier runs", async () => {
-		const directory = await runsDirectory();
-		await recordRun(directory, {
-			run: "2026-09-28T10-00-00.000Z",
-			stageMs: { build: 500_000 },
-		});
-		await recordRun(directory, {
-			run: FIRST_EARLIER,
-			stageMs: { build: 300_000 },
-		});
-		await recordRun(directory, {
-			run: SECOND_EARLIER,
-			stageMs: { build: 310_000 },
-		});
-		await recordRun(directory, { run: RUN });
-
-		const response = await stageTimes(directory, RUN);
-
-		expect(await response.json()).toEqual({
-			stages: [
-				unrecorded("discuss"),
-				{ stage: "build", state: "available", medianMs: 310_000 },
-				unrecorded("review"),
-			],
-		});
-	});
-
-	it("leaves out runs of another case and runs started after this one", async () => {
-		const directory = await runsDirectory();
-		await recordRun(directory, {
-			run: FIRST_EARLIER,
-			stageMs: { discuss: 60_000 },
-		});
-		await recordRun(directory, {
-			run: SECOND_EARLIER,
-			caseId: "smoke",
-			stageMs: { discuss: 999_000 },
-		});
-		await recordRun(directory, { run: RUN });
-		await recordRun(directory, {
-			run: "2026-10-02T10-00-00.000Z",
-			stageMs: { discuss: 999_000 },
-		});
-
-		const response = await stageTimes(directory, RUN);
-
-		expect(await response.json()).toEqual({
-			stages: [
-				{ stage: "discuss", state: "available", medianMs: 60_000 },
-				unrecorded("build"),
-				unrecorded("review"),
-			],
-		});
-	});
-
-	it("leaves out the time of a stage that stopped its run before it finished", async () => {
-		const directory = await runsDirectory();
-		await recordRun(directory, {
-			run: FIRST_EARLIER,
-			stageMs: { discuss: 60_000 },
-		});
-		await recordRun(directory, {
-			run: SECOND_EARLIER,
-			stageMs: { discuss: 5000 },
-			stoppedIn: "discuss",
-		});
-		await recordRun(directory, { run: RUN });
-
-		const response = await stageTimes(directory, RUN);
-
-		expect(await response.json()).toEqual({
-			stages: [
-				{ stage: "discuss", state: "available", medianMs: 60_000 },
-				unrecorded("build"),
-				unrecorded("review"),
-			],
-		});
-	});
-
-	it("leaves out an earlier record it cannot read, and counts the rest", async () => {
-		const directory = await runsDirectory();
-		await recordRun(directory, {
-			run: FIRST_EARLIER,
-			stageMs: { discuss: 60_000, build: 300_000 },
-		});
-		await recordRun(directory, {
-			run: SECOND_EARLIER,
-			stageMs: { discuss: 120_000 },
-		});
-		await Bun.write(
-			benchmarkRunPaths(directory, SECOND_EARLIER).stageFile("build"),
-			'{"elapsedMs": 12',
-		);
-		const unreadableRun = "2026-09-30T12-00-00.000Z";
-		await Bun.write(
-			benchmarkRunPaths(directory, unreadableRun).manifestFile,
-			"{ not json",
-		);
-		await recordRun(directory, { run: RUN });
-
-		const response = await stageTimes(directory, RUN);
-
-		expect(await response.json()).toEqual({
-			stages: [
-				{ stage: "discuss", state: "available", medianMs: 90_000 },
-				{ stage: "build", state: "available", medianMs: 300_000 },
-				unrecorded("review"),
-			],
-		});
-	});
+	it(
+		"leaves out an earlier record it cannot read, and counts the rest",
+		verifyApiRunsRunStageTimesLeavesOutAnEarlierRecordItCannotReadAndCountsTheRest,
+	);
 
 	describe("when no earlier run recorded a stage's time", () => {
-		it("says no earlier run of the case exists", async () => {
-			const directory = await runsDirectory();
-			await recordRun(directory, { run: RUN });
+		it(
+			"says no earlier run of the case exists",
+			verifyApiRunsRunStageTimesWhenNoEarlierRunRecordedAStageSTimeSaysNoEarlierRunOfTheCaseExists,
+		);
 
-			const response = await stageTimes(directory, RUN);
-
-			expect(await response.json()).toEqual({
-				stages: STAGES.map((stage) => ({
-					stage,
-					state: "unavailable",
-					reasons: ["no prior run of this case"],
-				})),
-			});
-		});
-
-		it("says no earlier run of the case recorded that stage's time", async () => {
-			const directory = await runsDirectory();
-			await recordRun(directory, {
-				run: FIRST_EARLIER,
-				stageMs: { discuss: 60_000 },
-			});
-			await recordRun(directory, { run: RUN });
-
-			const response = await stageTimes(directory, RUN);
-
-			expect(await response.json()).toEqual({
-				stages: [
-					{ stage: "discuss", state: "available", medianMs: 60_000 },
-					unrecorded("build"),
-					unrecorded("review"),
-				],
-			});
-		});
+		it(
+			"says no earlier run of the case recorded that stage's time",
+			verifyApiRunsRunStageTimesWhenNoEarlierRunRecordedAStageSTimeSaysNoEarlierRunOfTheCaseRecordedThatStageSTime,
+		);
 	});
 
-	it("refuses a run name that leaves the runs directory", async () => {
-		const directory = await runsDirectory();
+	it(
+		"refuses a run name that leaves the runs directory",
+		verifyApiRunsRunStageTimesRefusesARunNameThatLeavesTheRunsDirectory,
+	);
 
-		const response = await stageTimes(directory, "a/b");
-
-		expect(response.status).toBe(400);
-	});
-
-	it("refuses a run that is not recorded", async () => {
-		const directory = await runsDirectory();
-
-		const response = await stageTimes(directory, RUN);
-
-		expect(response.status).toBe(404);
-	});
+	it(
+		"refuses a run that is not recorded",
+		verifyApiRunsRunStageTimesRefusesARunThatIsNotRecorded,
+	);
 });
+
+async function verifyApiRunsRunStageTimesGivesEachStageOfTheRunTheMedianTimeEarlierRunsOfItsCaseTookInIt(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { build: 300_000, discuss: 60_000, review: 100_000 },
+	});
+	await recordRun(directory, {
+		run: SECOND_EARLIER,
+		stageMs: { build: 500_000, discuss: 120_000, review: 140_000 },
+	});
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_OK);
+	expect(await response.json()).toEqual({
+		stages: [
+			{ medianMs: 90_000, stage: "discuss", state: "available" },
+			{ medianMs: 400_000, stage: "build", state: "available" },
+			{ medianMs: 120_000, stage: "review", state: "available" },
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesTakesTheMiddleTimeNotTheMeanOfAnOddCountOfEarlierRuns(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: "2026-09-28T10-00-00.000Z",
+		stageMs: { build: 500_000 },
+	});
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { build: 300_000 },
+	});
+	await recordRun(directory, {
+		run: SECOND_EARLIER,
+		stageMs: { build: 310_000 },
+	});
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: [
+			unrecorded("discuss"),
+			{ medianMs: 310_000, stage: "build", state: "available" },
+			unrecorded("review"),
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesLeavesOutRunsOfAnotherCaseAndRunsStartedAfterThisOne(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { discuss: 60_000 },
+	});
+	await recordRun(directory, {
+		caseId: "smoke",
+		run: SECOND_EARLIER,
+		stageMs: { discuss: 999_000 },
+	});
+	await recordRun(directory, { run: RUN });
+	await recordRun(directory, {
+		run: "2026-10-02T10-00-00.000Z",
+		stageMs: { discuss: 999_000 },
+	});
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: [
+			{ medianMs: 60_000, stage: "discuss", state: "available" },
+			unrecorded("build"),
+			unrecorded("review"),
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesLeavesOutTheTimeOfAStageThatStoppedItsRunBeforeItFinished(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { discuss: 60_000 },
+	});
+	await recordRun(directory, {
+		run: SECOND_EARLIER,
+		stageMs: { discuss: 5000 },
+		stoppedIn: "discuss",
+	});
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: [
+			{ medianMs: 60_000, stage: "discuss", state: "available" },
+			unrecorded("build"),
+			unrecorded("review"),
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesLeavesOutAnEarlierRecordItCannotReadAndCountsTheRest(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { build: 300_000, discuss: 60_000 },
+	});
+	await recordRun(directory, {
+		run: SECOND_EARLIER,
+		stageMs: { discuss: 120_000 },
+	});
+	await Bun.write(
+		benchmarkRunPaths(directory, SECOND_EARLIER).stageFile("build"),
+		'{"elapsedMs": 12',
+	);
+	const unreadableRun = "2026-09-30T12-00-00.000Z";
+	await Bun.write(
+		benchmarkRunPaths(directory, unreadableRun).manifestFile,
+		"{ not json",
+	);
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: [
+			{ medianMs: 90_000, stage: "discuss", state: "available" },
+			{ medianMs: 300_000, stage: "build", state: "available" },
+			unrecorded("review"),
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesWhenNoEarlierRunRecordedAStageSTimeSaysNoEarlierRunOfTheCaseExists(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: STAGES.map((stage) => ({
+			reasons: ["no prior run of this case"],
+			stage,
+			state: "unavailable",
+		})),
+	});
+}
+
+async function verifyApiRunsRunStageTimesWhenNoEarlierRunRecordedAStageSTimeSaysNoEarlierRunOfTheCaseRecordedThatStageSTime(): Promise<void> {
+	const directory = await runsDirectory();
+	await recordRun(directory, {
+		run: FIRST_EARLIER,
+		stageMs: { discuss: 60_000 },
+	});
+	await recordRun(directory, { run: RUN });
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(await response.json()).toEqual({
+		stages: [
+			{ medianMs: 60_000, stage: "discuss", state: "available" },
+			unrecorded("build"),
+			unrecorded("review"),
+		],
+	});
+}
+
+async function verifyApiRunsRunStageTimesRefusesARunNameThatLeavesTheRunsDirectory(): Promise<void> {
+	const directory = await runsDirectory();
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes("a/b");
+
+	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_BAD_REQUEST);
+}
+
+async function verifyApiRunsRunStageTimesRefusesARunThatIsNotRecorded(): Promise<void> {
+	const directory = await runsDirectory();
+	const api = await startEvidenceApi(directory);
+
+	const response = await api.savedEvidence.stageTimes(RUN);
+
+	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_NOT_FOUND);
+}

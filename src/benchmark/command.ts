@@ -1,7 +1,12 @@
 import { stat } from "node:fs/promises";
-import { CommandSilenceError } from "./command-silence-error";
-import { MissingDirectoryError } from "./missing-directory-error";
+
+import CommandOutputLines from "./command-output-lines";
+import type { OutputReader } from "./command-output-lines";
+import CommandSilenceError from "./command-silence-error";
 import { COMMAND_TIMEOUT_MS } from "./config";
+import MissingDirectoryError from "./missing-directory-error";
+
+const SUCCESS_EXIT_CODE = 0;
 
 /**
  * A command ends at its wall limit, `timeoutMs` or the default, or, when given
@@ -21,53 +26,40 @@ type CommandOptions = CommandLimit & {
 	readonly onLine?: ((line: string) => void) | undefined;
 };
 
-export class CommandError extends Error {
+interface CommandFailure {
+	readonly exitCode: number;
+	readonly stdout: string;
+	readonly stderr: string;
+}
+
+class CommandError extends Error {
+	public readonly exitCode: number;
+	public readonly stdout: string;
+	public readonly stderr: string;
 	public override name = "CommandError";
 
 	public constructor(
 		public readonly command: readonly string[],
-		public readonly exitCode: number,
-		public readonly stdout: string,
-		public readonly stderr: string,
+		{ exitCode, stdout, stderr }: CommandFailure,
 	) {
 		super(
 			`Command failed (${exitCode}): ${command.join(" ")}\n${stderr || stdout}`,
 		);
+		this.exitCode = exitCode;
+		this.stdout = stdout;
+		this.stderr = stderr;
 	}
 }
 
-interface OutputReader {
-	readonly onChunk: () => void;
-	readonly onLine?: ((line: string) => void) | undefined;
-}
-
-/**
- * The whole stream as text, telling `onChunk` each time a chunk arrives and
- * handing each line to `onLine` on the way.
- */
 async function readLines(
 	stream: ReadableStream<Uint8Array>,
 	reader: OutputReader,
 ): Promise<string> {
-	const decoder = new TextDecoder();
-	let text = "";
-	let lineStart = 0;
+	const lines = new CommandOutputLines(reader);
 	for await (const chunk of stream) {
-		reader.onChunk();
-		text += decoder.decode(chunk, { stream: true });
-		let lineEnd = text.indexOf("\n", lineStart);
-		while (lineEnd !== -1) {
-			reader.onLine?.(text.slice(lineStart, lineEnd));
-			lineStart = lineEnd + 1;
-			lineEnd = text.indexOf("\n", lineStart);
-		}
+		lines.append(chunk);
 	}
-	text += decoder.decode();
-	if (lineStart < text.length) {
-		reader.onLine?.(text.slice(lineStart));
-	}
-
-	return text;
+	return lines.finish();
 }
 
 const activeProcesses = new Set<ReturnType<typeof Bun.spawn>>();
@@ -112,7 +104,7 @@ async function readLinesOrKill(
 	}
 }
 
-export async function runCommand(
+async function runCommand(
 	command: readonly string[],
 	cwd: string,
 	options: CommandOptions = {},
@@ -137,11 +129,11 @@ async function spawnIn(
 	try {
 		return Bun.spawn([...command], {
 			cwd,
+			detached: true,
 			env: { ...Bun.env, ...options.env },
+			stderr: "pipe",
 			stdin: options.input === undefined ? "ignore" : new Blob([options.input]),
 			stdout: "pipe",
-			stderr: "pipe",
-			detached: true,
 		});
 	} catch (error) {
 		if (await isMissing(cwd)) {
@@ -197,8 +189,12 @@ async function awaitOutput(
 			throw new CommandSilenceError(command, options.silenceLimitMs, stderr);
 		}
 
-		if (exitCode !== 0) {
-			throw new CommandError(command, exitCode, stdout, stderr);
+		if (exitCode !== SUCCESS_EXIT_CODE) {
+			throw new CommandError(command, {
+				exitCode,
+				stderr,
+				stdout,
+			});
 		}
 
 		return stdout;
@@ -207,11 +203,15 @@ async function awaitOutput(
 	}
 }
 
-export async function killActiveCommands(): Promise<void> {
+async function killActiveCommands(): Promise<void> {
 	const children = [...activeProcesses];
 	for (const child of children) {
 		killProcessGroup(child);
 	}
 
-	await Promise.allSettled(children.map((child) => child.exited));
+	await Promise.allSettled(children.map(async (child) => await child.exited));
 }
+
+export { CommandError, runCommand, killActiveCommands };
+
+export type { CommandOptions };

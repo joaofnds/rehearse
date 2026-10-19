@@ -1,96 +1,40 @@
 #!/usr/bin/env bun
-import { claudeProjectsDirectory } from "#benchmark/session-capture";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { casesRoot } from "#benchmark/case";
-import {
-	CONTROL_DIR,
-	RECORDS_DIRECTORY_VARIABLE,
-	recordsDirectory,
-} from "#benchmark/config";
 import { assertPinnedBunVersion } from "#benchmark/bun-pin";
-import { liveCorpusSource } from "#benchmark/corpus-file";
-import { linkedCorpusSource } from "#benchmark/corpus-source";
-import { runEventsDatabaseFile } from "#benchmark/run-layout";
-import { openRunEventStore } from "#benchmark/run-events";
-import { liveRunLiveness } from "#benchmark/run-liveness";
-import {
-	liveReconciliationDependencies,
-	reconcileInterruptedRuns,
-} from "#benchmark/run-reconciliation";
-import { createAppServer } from "./app";
-import { processLauncher } from "./process-launcher";
-import { runListing } from "./run-history";
-import {
-	RecordParseCache,
-	withRecordParseCache,
-} from "#benchmark/record-parse-cache";
+import { recordsDirectory } from "#benchmark/config";
+import serverConfigurationSchema from "#server/serve-configuration";
+import serverDependencies from "#server/serve-dependencies";
+import startupReadings from "#server/serve-startup";
 
-const DEFAULT_PORT = 4173;
+import createAppServer from "./app";
 
-export function startLocalServer(
+function startLocalServer(
 	port: number,
 	fetch: (request: Request) => Response | Promise<Response>,
 ): Bun.Server<undefined> {
-	return Bun.serve({ hostname: "127.0.0.1", port, fetch });
-}
-
-/**
- * Runs once at startup and completes before the server accepts traffic: a
- * crash leaves a run's event stream stuck at a non-terminal event, and a
- * fresh process boot is the meaningful moment to ask whether the pid that
- * was running it is still alive. Awaiting it here, rather than firing it in
- * the background, keeps a client from reading a run as "running" in the
- * window between the port opening and reconciliation finishing. A run
- * genuinely still in flight when only the server restarts is left alone
- * (its pid is alive), so this cannot mistake a healthy run for a crashed
- * one.
- */
-async function reconcileOnStartup(runsDirectory: string): Promise<void> {
-	const store = await openRunEventStore(runEventsDatabaseFile(runsDirectory));
-	try {
-		await reconcileInterruptedRuns(
-			store,
-			liveReconciliationDependencies(runsDirectory),
-		);
-	} finally {
-		store.close();
-	}
+	return Bun.serve({ fetch, hostname: "127.0.0.1", port });
 }
 
 async function main(): Promise<void> {
 	assertPinnedBunVersion();
 
+	const { port } = serverConfigurationSchema.parse(Bun.env);
 	const runsDirectory = recordsDirectory();
-	await reconcileOnStartup(runsDirectory);
-	const liveness = liveRunLiveness();
-	const recordParseCache = new RecordParseCache();
-	await withRecordParseCache(recordParseCache, () =>
-		runListing(runsDirectory, liveness),
+
+	const readings = await startupReadings(runsDirectory);
+
+	const app = createAppServer(
+		serverDependencies({ ...readings, port, runsDirectory }),
 	);
 
-	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
-	const app = createAppServer({
-		runsDirectory,
-		projectsDirectory: claudeProjectsDirectory(),
-		readCorpusSource: () => linkedCorpusSource(runsDirectory),
-		liveness,
-		recordParseCache,
-		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
-		port,
-		casesRoot: casesRoot(),
-		liveCorpus: () => liveCorpusSource(),
-		home: homedir(),
-		launcher: processLauncher(
-			[process.execPath, join(CONTROL_DIR, "rehearse.ts")],
-			{ ...Bun.env, [RECORDS_DIRECTORY_VARIABLE]: runsDirectory },
-		),
-	});
-
 	startLocalServer(port, app.fetch);
-	console.log(`rehearse serving on http://localhost:${String(port)}`);
+
+	process.stdout.write(
+		`rehearse serving on http://localhost:${String(port)}\n`,
+	);
 }
 
 if (import.meta.main) {
 	await main();
 }
+
+export { startLocalServer as default };

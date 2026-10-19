@@ -5,21 +5,29 @@ import {
 } from "#benchmark/checkpoint";
 import { loadRunManifest } from "#benchmark/manifest";
 import { readReplayRecord } from "#benchmark/replay-record";
+import type { RunLocation } from "#benchmark/run-layout";
 import {
 	benchmarkRunPaths,
 	checkpointRecorded,
 	replayRecordFile,
 } from "#benchmark/run-layout";
 import { stoppedStage } from "#benchmark/run-outcome";
+import serialMap from "#benchmark/serial-map";
 import { stopRecordReadsSchema } from "#benchmark/staleness-report";
 import { parseRecordId } from "#cli/record-id";
+
 import { redactAbsolutePaths } from "./redact-path";
+
+const SORT_ORDER_AFTER = 1;
+const SORT_ORDER_BEFORE = -1;
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 /**
  * The stage replay that would show what an edit changed: a stage that read
  * the edited file, replayed from the checkpoint it consumed, or why none can.
  */
-export type PairedRerun =
+type PairedRerun =
 	| { readonly kind: "offered"; readonly run: string; readonly stage: string }
 	| { readonly kind: "none"; readonly reason: string };
 
@@ -38,8 +46,7 @@ interface Candidate {
  * judge stopped the run and so saved no checkpoint, its stop record's.
  */
 async function pathsStageRead(
-	runsDirectory: string,
-	run: string,
+	{ runsDirectory, run }: RunLocation,
 	stage: string,
 	stopped: string | undefined,
 ): Promise<readonly string[]> {
@@ -52,8 +59,9 @@ async function pathsStageRead(
 	if (stage !== stopped) {
 		return [];
 	}
+	const stageRecordFile = Bun.file(paths.stageFile(stage));
 	const reads = stopRecordReadsSchema.parse(
-		JSON.parse(await Bun.file(paths.stageFile(stage)).text()),
+		JSON.parse(await stageRecordFile.text()),
 	);
 
 	return (reads.corpusFiles ?? []).map((file) => file.path);
@@ -73,13 +81,15 @@ async function runCandidate(
 	const manifest = await loadRunManifest(paths.manifestFile);
 	const stopped = await stoppedStage(runsDirectory, run);
 	const stages = manifest.pipeline.stages.map(({ name }) => name);
-	for (const [index, stage] of stages.entries()) {
-		const read = await pathsStageRead(
-			runsDirectory,
-			run,
+	for await (const inspection of serialMap(
+		stages.entries(),
+		async ([index, stage]) => ({
+			index,
+			read: await pathsStageRead({ run, runsDirectory }, stage, stopped?.stage),
 			stage,
-			stopped?.stage,
-		);
+		}),
+	)) {
+		const { index, stage, read } = inspection;
 		if (read.includes(path)) {
 			const consumed = consumedCheckpointStage(stages, index);
 
@@ -91,11 +101,14 @@ async function runCandidate(
 
 	return undefined;
 }
+interface ReplayLocation {
+	readonly runsDirectory: string;
+	readonly lineage: string;
+	readonly timestamp: string;
+}
 
 async function replayCandidate(
-	runsDirectory: string,
-	lineage: string,
-	timestamp: string,
+	{ runsDirectory, lineage, timestamp }: ReplayLocation,
 	path: string,
 ): Promise<Candidate | undefined> {
 	const record = await readReplayRecord(
@@ -113,7 +126,7 @@ async function replayCandidate(
 }
 
 /** Session attempts and confirmation groups are not offered yet (ACT-441). */
-function candidateOf(
+async function candidateOf(
 	runsDirectory: string,
 	row: string,
 	path: string,
@@ -121,10 +134,13 @@ function candidateOf(
 	const id = parseRecordId(row);
 	switch (id.kind) {
 		case "run": {
-			return runCandidate(runsDirectory, id.run, path);
+			return await runCandidate(runsDirectory, id.run, path);
 		}
 		case "attempt:stage": {
-			return replayCandidate(runsDirectory, id.lineage, id.timestamp, path);
+			return await replayCandidate(
+				{ lineage: id.lineage, runsDirectory, timestamp: id.timestamp },
+				path,
+			);
 		}
 		case "attempt:session":
 		case "case":
@@ -133,7 +149,7 @@ function candidateOf(
 		case "group":
 		case "rep:session":
 		case "rep:stage": {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 		default: {
 			return id satisfies never;
@@ -152,15 +168,15 @@ async function readRow(
 ): Promise<RowReading> {
 	try {
 		return {
-			kind: "read",
 			candidate: await candidateOf(runsDirectory, row, path),
+			kind: "read",
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 
 		return {
-			kind: "unreadable",
 			detail: `${row}: ${redactAbsolutePaths(message)}`,
+			kind: "unreadable",
 		};
 	}
 }
@@ -170,12 +186,12 @@ async function readRow(
  * edited file. A row whose records cannot be read offers none, rather than
  * failing an edit already written, and the reason names it.
  */
-export async function pairedRerun(
+async function pairedRerun(
 	runsDirectory: string,
 	invalidated: readonly string[],
 	path: string,
 ): Promise<PairedRerun> {
-	if (invalidated.length === 0) {
+	if (invalidated.length === EMPTY_COLLECTION_LENGTH) {
 		return {
 			kind: "none",
 			reason:
@@ -184,7 +200,7 @@ export async function pairedRerun(
 	}
 
 	const readings = await Promise.all(
-		invalidated.map((row) => readRow(runsDirectory, row, path)),
+		invalidated.map(async (row) => await readRow(runsDirectory, row, path)),
 	);
 	const [newest] = readings
 		.flatMap((reading) =>
@@ -192,7 +208,9 @@ export async function pairedRerun(
 				? [reading.candidate]
 				: [],
 		)
-		.toSorted((left, right) => (left.ranAt < right.ranAt ? 1 : -1));
+		.toSorted((left, right) =>
+			left.ranAt < right.ranAt ? SORT_ORDER_AFTER : SORT_ORDER_BEFORE,
+		);
 	if (newest !== undefined) {
 		return { kind: "offered", run: newest.run, stage: newest.stage };
 	}
@@ -205,8 +223,11 @@ export async function pairedRerun(
 	return {
 		kind: "none",
 		reason:
-			unreadable.length === 0
+			unreadable.length === EMPTY_COLLECTION_LENGTH
 				? noCheckpoint
 				: `${noCheckpoint}, and these could not be read: ${unreadable.join("; ")}`,
 	};
 }
+
+export { pairedRerun as default };
+export type { PairedRerun };

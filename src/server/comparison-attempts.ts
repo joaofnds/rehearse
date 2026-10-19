@@ -13,11 +13,11 @@ type RepOutcomes = Extract<
 	{ readonly outcomes: unknown }
 >["outcomes"];
 
-export const NO_RECORDED_OUTCOMES_REASON =
+const NO_RECORDED_OUTCOMES_REASON =
 	"this report records no per-attempt outcomes";
-export const NO_RECORDED_GRADING_REASON =
+const NO_RECORDED_GRADING_REASON =
 	"this report records no per-attempt blocker grading";
-export const NO_RECORDED_ATTEMPT_WORDS_REASON =
+const NO_RECORDED_ATTEMPT_WORDS_REASON =
 	"this report records no word count for this attempt";
 
 type ScoredRep = Extract<ReportRep, { readonly checks?: unknown }>;
@@ -32,7 +32,7 @@ interface FiredBlocker {
  * and no seed, because nothing the harness records ties an attempt of one arm
  * to an attempt of another.
  */
-export interface ComparisonAttempt {
+interface ComparisonAttempt {
 	readonly repId: string;
 	readonly ordinal: number;
 	readonly outcomes:
@@ -49,7 +49,7 @@ export interface ComparisonAttempt {
 	readonly stateChecks?: ScoredRep["stateResults"];
 }
 
-export interface CaseAttempts {
+interface CaseAttempts {
 	readonly baseline: readonly ComparisonAttempt[];
 	readonly candidate: readonly ComparisonAttempt[];
 	readonly control: readonly ComparisonAttempt[];
@@ -57,30 +57,30 @@ export interface CaseAttempts {
 
 function outcomesOf(rep: ReportRep): ComparisonAttempt["outcomes"] {
 	if (!("outcomes" in rep)) {
-		return { state: "unavailable", reason: NO_RECORDED_OUTCOMES_REASON };
+		return { reason: NO_RECORDED_OUTCOMES_REASON, state: "unavailable" };
 	}
 
-	return { state: "available", outcomes: rep.outcomes };
+	return { outcomes: rep.outcomes, state: "available" };
 }
 
 function blockersFiredOf(rep: ReportRep): ComparisonAttempt["blockersFired"] {
 	if (!("stageGrading" in rep) || rep.stageGrading === undefined) {
-		return { state: "unavailable", reason: NO_RECORDED_GRADING_REASON };
+		return { reason: NO_RECORDED_GRADING_REASON, state: "unavailable" };
 	}
 
 	return {
-		state: "available",
 		blockers: rep.stageGrading.flatMap(({ stage, hardBlockers }) =>
 			hardBlockers
 				.filter(({ fired }) => fired)
-				.map(({ id }) => ({ stage, id })),
+				.map(({ id }) => ({ id, stage })),
 		),
+		state: "available",
 	};
 }
 
 function wordsOf(rep: ReportRep): OutputWords {
 	if (!("words" in rep) || rep.words === undefined) {
-		return { state: "unavailable", reason: NO_RECORDED_ATTEMPT_WORDS_REASON };
+		return { reason: NO_RECORDED_ATTEMPT_WORDS_REASON, state: "unavailable" };
 	}
 
 	return rep.words;
@@ -88,18 +88,18 @@ function wordsOf(rep: ReportRep): OutputWords {
 
 function attemptsOf(reps: readonly ReportRep[]): readonly ComparisonAttempt[] {
 	return reps.map((rep) => ({
-		repId: rep.repId,
+		blockersFired: blockersFiredOf(rep),
+		checks: "checks" in rep ? rep.checks : undefined,
 		ordinal: rep.ordinal,
 		outcomes: outcomesOf(rep),
-		blockersFired: blockersFiredOf(rep),
-		words: wordsOf(rep),
-		checks: "checks" in rep ? rep.checks : undefined,
+		repId: rep.repId,
 		stateChecks: "stateResults" in rep ? rep.stateResults : undefined,
+		words: wordsOf(rep),
 	}));
 }
 
 /** Each arm's attempts side by side, in the order each arm recorded them. */
-export function comparisonAttempts(benchmarkCase: {
+function comparisonAttempts(benchmarkCase: {
 	readonly arms: Readonly<
 		Record<
 			ComparisonArm,
@@ -113,3 +113,11 @@ export function comparisonAttempts(benchmarkCase: {
 		control: attemptsOf(benchmarkCase.arms.control.source.reps),
 	};
 }
+
+export {
+	NO_RECORDED_OUTCOMES_REASON,
+	NO_RECORDED_GRADING_REASON,
+	NO_RECORDED_ATTEMPT_WORDS_REASON,
+	comparisonAttempts,
+};
+export type { ComparisonAttempt, CaseAttempts };

@@ -1,23 +1,29 @@
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { ScreenHeader } from "#client/system/components/screen-header";
-import { PageContent } from "#client/system/components/page-content";
+
+import PageContent from "#client/system/components/page-content";
+import ScreenHeader from "#client/system/components/screen-header";
+
 import type {
 	EvidenceSourceIdentity,
 	EvidenceSourceResponse,
 } from "./evidence-source-query";
-import { fetchEvidenceSource } from "./evidence-source-query";
+import fetchEvidenceSource from "./evidence-source-query";
+
+const PREFIX_START_INDEX = 0;
 
 type SourceView = EvidenceSourceResponse["view"];
+
 type TextView = Extract<SourceView, { kind: "text" }>;
+
 type HarnessView = Extract<SourceView, { kind: "harness" }>;
 
-function Explanation({
-	children,
-}: {
+interface ExplanationProps {
 	readonly children: string;
-}): React.JSX.Element {
+}
+
+function Explanation({ children }: ExplanationProps): React.JSX.Element {
 	return <p className="text-muted-foreground">{children}</p>;
 }
 
@@ -25,11 +31,11 @@ function Explanation({
  * The recorded text, read-only, with the quoted span marked and scrolled into
  * view once it renders.
  */
-function RecordedText({
-	view,
-}: {
+interface RecordedTextProps {
 	readonly view: TextView;
-}): React.JSX.Element {
+}
+
+function RecordedText({ view }: RecordedTextProps): React.JSX.Element {
 	const mark = useRef<HTMLElement>(null);
 	useEffect(() => {
 		mark.current?.scrollIntoView({ block: "center" });
@@ -51,7 +57,7 @@ function RecordedText({
 					text
 				) : (
 					<>
-						{text.slice(0, span.start)}
+						{text.slice(PREFIX_START_INDEX, span.start)}
 						<mark ref={mark} className="bg-accent text-accent-foreground">
 							{text.slice(span.start, span.end)}
 						</mark>
@@ -63,11 +69,11 @@ function RecordedText({
 	);
 }
 
-function HarnessResult({
-	view,
-}: {
+interface HarnessResultProps {
 	readonly view: HarnessView;
-}): React.JSX.Element {
+}
+
+function HarnessResult({ view }: HarnessResultProps): React.JSX.Element {
 	if (view.value === undefined) {
 		return (
 			<Explanation>{`Harness result ${view.result}: the judge's input held none.`}</Explanation>
@@ -96,11 +102,11 @@ function HarnessResult({
 	);
 }
 
-function SourceBody({
-	view,
-}: {
+interface SourceBodyProps {
 	readonly view: SourceView;
-}): React.JSX.Element {
+}
+
+function SourceBody({ view }: SourceBodyProps): React.JSX.Element {
 	switch (view.kind) {
 		case "text": {
 			return <RecordedText view={view} />;
@@ -135,51 +141,27 @@ function SourceBody({
  * The source a judge's evidence item cites, as the run's record holds it.
  * Read-only: nothing here opens a file or launches a program.
  */
-export function EvidenceSourcePage({
-	identity,
-	embedded = false,
-}: {
+interface EvidenceSourcePageProps {
 	readonly identity: EvidenceSourceIdentity;
 	readonly embedded?: boolean;
-}): React.JSX.Element {
+}
+
+function EvidenceSourcePage({
+	identity,
+	embedded = false,
+}: EvidenceSourcePageProps): React.JSX.Element {
 	const query = useQuery({
+		queryFn: async () => await fetchEvidenceSource(identity),
 		queryKey: ["evidence-source", identity],
-		queryFn: () => fetchEvidenceSource(identity),
 	});
 
-	const returnToRun =
-		identity.kind === "stage"
-			? `/runs/${encodeURIComponent(identity.run)}?view=results&step=${encodeURIComponent(identity.stage)}`
-			: `/runs/${encodeURIComponent(identity.run)}?view=results`;
 	const reading = (
-		<PageContent className="max-w-7xl gap-4 wrap-anywhere">
-			{embedded && query.isSuccess ? (
-				<p className="text-14 text-dim">
-					From <span className="font-mono">{query.data.record}</span>
-				</p>
-			) : null}
-			{query.isLoading ? (
-				<p className="text-muted-foreground">Loading…</p>
-			) : null}
-			{query.isError ? (
-				<p role="alert" className="text-attention">
-					<span aria-hidden="true">⚠ </span>
-					Could not open this evidence item.
-				</p>
-			) : null}
-			{query.isSuccess ? (
-				<>
-					<p>{query.data.claim}</p>
-					<p className="text-14 text-dim">
-						{"Cites "}
-						<span className="font-mono">
-							{query.data.source} {query.data.path}
-						</span>
-					</p>
-					<SourceBody view={query.data.view} />
-				</>
-			) : null}
-		</PageContent>
+		<EvidenceSourceReading
+			embedded={embedded}
+			report={query.data}
+			loading={query.isLoading}
+			failed={query.isError}
+		/>
 	);
 	if (embedded) {
 		return <div className="min-h-0 overflow-y-auto">{reading}</div>;
@@ -187,33 +169,96 @@ export function EvidenceSourcePage({
 
 	return (
 		<div>
-			<ScreenHeader
-				title="Cited source"
-				lead={
-					<Link
-						to={returnToRun}
-						className="text-14 text-link hover:text-link-hover"
-					>
-						← Back to run Results
-					</Link>
-				}
-				eyebrow={identity.kind === "stage" ? "Step judge" : "Final judge"}
-				subline={
-					<>
-						<span className="block font-mono">
-							{identity.kind === "stage" ? `${identity.stage} · ` : ""}
-							{identity.item}
-						</span>
-						{query.isSuccess ? (
-							<span className="block">
-								{"From "}
-								<span className="font-mono">{query.data.record}</span>
-							</span>
-						) : null}
-					</>
-				}
-			/>
+			<EvidenceSourceHeader identity={identity} record={query.data?.record} />
 			{reading}
 		</div>
 	);
 }
+
+interface EvidenceSourceReadingProps {
+	readonly embedded: boolean;
+	readonly report: EvidenceSourceResponse | undefined;
+	readonly loading: boolean;
+	readonly failed: boolean;
+}
+
+function EvidenceSourceReading({
+	embedded,
+	report,
+	loading,
+	failed,
+}: EvidenceSourceReadingProps): React.JSX.Element {
+	return (
+		<PageContent className="max-w-7xl gap-4 wrap-anywhere">
+			{embedded && report !== undefined ? (
+				<p className="text-14 text-dim">
+					From <span className="font-mono">{report.record}</span>
+				</p>
+			) : null}
+			{loading ? <p className="text-muted-foreground">Loading…</p> : null}
+			{failed ? (
+				<p role="alert" className="text-attention">
+					<span aria-hidden="true">⚠ </span>
+					Could not open this evidence item.
+				</p>
+			) : null}
+			{report === undefined ? null : (
+				<>
+					<p>{report.claim}</p>
+					<p className="text-14 text-dim">
+						{"Cites "}
+						<span className="font-mono">
+							{report.source} {report.path}
+						</span>
+					</p>
+					<SourceBody view={report.view} />
+				</>
+			)}
+		</PageContent>
+	);
+}
+
+interface EvidenceSourceHeaderProps {
+	readonly identity: EvidenceSourceIdentity;
+	readonly record: string | undefined;
+}
+
+function EvidenceSourceHeader({
+	identity,
+	record,
+}: EvidenceSourceHeaderProps): React.JSX.Element {
+	const returnToRun =
+		identity.kind === "stage"
+			? `/runs/${encodeURIComponent(identity.run)}?view=results&step=${encodeURIComponent(identity.stage)}`
+			: `/runs/${encodeURIComponent(identity.run)}?view=results`;
+	return (
+		<ScreenHeader
+			title="Cited source"
+			lead={
+				<Link
+					to={returnToRun}
+					className="text-14 text-link hover:text-link-hover"
+				>
+					← Back to run Results
+				</Link>
+			}
+			eyebrow={identity.kind === "stage" ? "Step judge" : "Final judge"}
+			subline={
+				<>
+					<span className="block font-mono">
+						{identity.kind === "stage" ? `${identity.stage} · ` : ""}
+						{identity.item}
+					</span>
+					{record === undefined ? null : (
+						<span className="block">
+							{"From "}
+							<span className="font-mono">{record}</span>
+						</span>
+					)}
+				</>
+			}
+		/>
+	);
+}
+
+export { EvidenceSourcePage as default };

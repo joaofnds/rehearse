@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { isShortcutKey } from "./shortcut-key";
+
+import isShortcutKey from "./shortcut-key";
 import { CHORD_WINDOW_MS } from "./use-go-to-shortcut";
 
 /**
@@ -7,19 +8,16 @@ import { CHORD_WINDOW_MS } from "./use-go-to-shortcut";
  * or never while `key` is undefined. A key pressed within a `g` chord's window
  * belongs to the chord, so `g r` reaches run history without also pressing `r`.
  */
-export function useKeyShortcut(
-	key: string | undefined,
-	onPress: () => void,
-): void {
+function useKeyShortcut(key: string | undefined, onPress: () => void): void {
 	const press = useRef(onPress);
 	press.current = onPress;
 
-	useEffect(() => {
+	useEffect((): (() => void) | undefined => {
 		if (key === undefined) {
 			return undefined;
 		}
 
-		let chordSince: number | undefined;
+		let chordSince: number | undefined = undefined;
 
 		const listener: EventListener = (event) => {
 			if (!(event instanceof KeyboardEvent) || !isShortcutKey(event)) {
@@ -43,3 +41,5 @@ export function useKeyShortcut(
 		};
 	}, [key]);
 }
+
+export { useKeyShortcut as default };

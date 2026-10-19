@@ -1,530 +1,194 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-	createMemoryHistory,
-	RouterContextProvider,
-} from "@tanstack/react-router";
-import { LaunchDialog } from "#client/launch/launch-dialog";
-import { createAppRouter } from "#client/router";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import type { Reply } from "#client/test-support/fetch-stub";
-import { FakeServer } from "#client/test-support/fetch-stub";
-import { LiveReply } from "#client/test-support/live-reply";
-import {
-	renderAppWithStub,
-	settingsReading,
-} from "#client/test-support/render-app";
-import { recordStage, runRecord } from "#client/test-support/run-record";
-import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
-import { RunInFlight, RunInFlightBar } from "./run-in-flight-bar";
 
-type HistoryRow = RunHistoryResponse["rows"][number];
+import { screen, waitFor, within } from "@testing-library/react";
 
-const OLDER = "2026-09-30T09-00-00.000Z";
-const NEWER = "2026-09-30T11-00-00.000Z";
+import NamedHistoryBuilder from "#client/run-history/run-history-page-named-history-builder";
+import PipelineRunRowBuilder from "#client/run-history/run-history-page-pipeline-row-builder";
+import ListedStageGradeBuilder from "#client/test-support/listed-stage-grade-test-builder";
+import { renderAppWithStub } from "#client/test-support/render-app";
 
-const originalFetch = globalThis.fetch;
+import {
+	IN_FLIGHT,
+	bar,
+	originalFetch,
+	renderRunInFlight,
+} from "./in-flight-test-fixtures";
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-function history(rows: readonly HistoryRow[]): RunHistoryResponse {
-	return { rows: [...rows], launches: [], unreadable: [] };
-}
-
-interface RenderedRunInFlight {
-	readonly rerender: (next: readonly HistoryRow[]) => void;
-}
-
-function renderRunInFlight(rows: readonly HistoryRow[]): RenderedRunInFlight {
-	const client = new QueryClient();
-	const router = createAppRouter({
-		history: createMemoryHistory({ initialEntries: ["/corpus"] }),
-	});
-	const view = (next: readonly HistoryRow[]): React.JSX.Element => (
-		<QueryClientProvider client={client}>
-			<RouterContextProvider router={router}>
-				<RunInFlight rows={next} />
-			</RouterContextProvider>
-		</QueryClientProvider>
-	);
-	const { rerender } = render(view(rows));
-
-	return {
-		rerender: (next) => {
-			rerender(view(next));
-		},
-	};
-}
-
-const IN_FLIGHT = /^Run \S+ in flight$/u;
-
-/**
- * The bar beside a launch dialog, both reading one query cache, as every
- * screen holds them.
- */
-function renderBarWithLaunch(): void {
-	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	});
-	const router = createAppRouter({
-		history: createMemoryHistory({ initialEntries: ["/corpus"] }),
-	});
-
-	render(
-		<QueryClientProvider client={client}>
-			<RouterContextProvider router={router}>
-				<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
-				<RunInFlightBar />
-			</RouterContextProvider>
-		</QueryClientProvider>,
-	);
-}
-
-/**
- * Serves the listing the bar reads, changed by whatever `routes` answers to a
- * write.
- */
-function servingListing(
-	listing: () => readonly HistoryRow[],
-	routes: ReadonlyMap<string, Reply>,
-): FakeServer {
-	const server = new FakeServer(
-		new Map<string, Reply | LiveReply>([
-			[
-				"GET /api/run-listing",
-				new LiveReply(() => ({ status: 200, body: history(listing()) })),
-			],
-			["GET /api/settings", { status: 200, body: settingsReading(5) }],
-			[
-				"GET /api/cases",
-				{
-					status: 200,
-					body: {
-						cases: [
-							{
-								id: "audit-log",
-								kind: "pipeline",
-								title: "Audit log",
-								model: "sonnet",
-							},
-						],
-						unreadable: [],
-					},
-				},
-			],
-			...routes,
-		]),
-	);
-	server.install();
-
-	return server;
-}
-
-function bar(): HTMLElement {
-	return screen.getByRole("region", { name: IN_FLIGHT });
-}
-
 describe("the run in flight on every screen", () => {
-	it("shows the run's readings on a screen other than run history", async () => {
-		renderAppWithStub(
-			"/corpus",
-			new Map([
-				[
-					"/api/run-listing",
-					history([
-						runRow({
-							stage: "build",
-							grades: [graded("plan", "B+"), notYet("build")],
-							runSpentUsd: 1.83,
-							ceilingUsd: 20,
-							launchId: "launch-1",
-						}),
-					]),
+	it(
+		"shows the run's readings on a screen other than run history",
+		showsTheRunSReadingsOnAScreenOtherThanRunHistory,
+	);
+
+	it(
+		"names the run within its case, since the case is named beside it",
+		namesTheRunWithinItsCaseSinceTheCaseIsNamedBesideIt,
+	);
+
+	it(
+		"marks the run with the pulsing glyph alone, as the design draws it",
+		marksTheRunWithThePulsingGlyphAloneAsTheDesignDrawsIt,
+	);
+
+	it(
+		"draws the spend track at the design's 76 by 5px with its 3px radius",
+		drawsTheSpendTrackAtTheDesignS76By5pxWithIts3pxRadius,
+	);
+
+	it(
+		"separates its readings where the design does and nowhere else",
+		separatesItsReadingsWhereTheDesignDoesAndNowhereElse,
+	);
+
+	it(
+		"shows a dash with its reason rather than a figure it cannot vouch for",
+		showsADashWithItsReasonRatherThanAFigureItCannotVouchFor,
+	);
+
+	it(
+		"ticks the elapsed clock each second between the run's own readings",
+		ticksTheElapsedClockEachSecondBetweenTheRunSOwnReadings,
+	);
+
+	it(
+		"pulses its glyph only for readers who did not ask for reduced motion",
+		pulsesItsGlyphOnlyForReadersWhoDidNotAskForReducedMotion,
+	);
+});
+
+async function showsTheRunSReadingsOnAScreenOtherThanRunHistory(): Promise<void> {
+	const runListing = new NamedHistoryBuilder({
+		rows: [
+			new PipelineRunRowBuilder({
+				launchId: "launch-1",
+				stageGrades: {
+					grades: [
+						new ListedStageGradeBuilder({ stage: "plan" })
+							.graded({ letter: "B+" })
+							.build(),
+						new ListedStageGradeBuilder({ stage: "build" }).build(),
+					],
+					state: "available",
+				},
+			})
+				.withExecutionProgress({
+					ceilingUsd: 20,
+					runSpentUsd: 1.83,
+					stage: "build",
+				})
+				.build(),
+		],
+	}).build();
+
+	renderAppWithStub("/corpus", new Map([["/api/run-listing", runListing]]));
+
+	const shown = await screen.findByRole("region", { name: IN_FLIGHT });
+	expect(shown).toHaveTextContent("r-0148");
+	expect(shown).toHaveTextContent("audit-log");
+	expect(shown).toHaveTextContent("step 2 of 2 · build");
+	expect(shown).toHaveTextContent("session running");
+	expect(shown).toHaveTextContent("$1.83 / $20.00");
+	expect(shown).toHaveTextContent("grades so far B+");
+	expect(within(shown).getByRole("button", { name: "Stop" })).toBeEnabled();
+}
+
+function namesTheRunWithinItsCaseSinceTheCaseIsNamedBesideIt(): void {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({ shortId: "audit-log/r33" })
+			.withExecutionProgress()
+			.build(),
+	]);
+
+	expect(within(bar()).getByText("r33")).toBeInTheDocument();
+}
+
+function marksTheRunWithThePulsingGlyphAloneAsTheDesignDrawsIt(): void {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({}).withExecutionProgress().build(),
+	]);
+
+	expect(within(bar()).queryByText("running")).not.toBeInTheDocument();
+}
+
+function drawsTheSpendTrackAtTheDesignS76By5pxWithIts3pxRadius(): void {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({})
+			.withExecutionProgress({ ceilingUsd: 20, runSpentUsd: 1.83 })
+			.build(),
+	]);
+
+	const fill = bar().querySelector("[style*='--spend-share']");
+
+	expect(fill?.parentElement).toHaveClass(
+		"h-spend-track-height",
+		"w-spend-track-width",
+		"rounded-xs",
+	);
+}
+
+function separatesItsReadingsWhereTheDesignDoesAndNowhereElse(): void {
+	const expectedMatchingElementsCount = 3;
+
+	renderRunInFlight([
+		new PipelineRunRowBuilder({
+			stageGrades: {
+				grades: [
+					new ListedStageGradeBuilder({ stage: "plan" })
+						.graded({ letter: "B+" })
+						.build(),
+					new ListedStageGradeBuilder({ stage: "build" }).build(),
 				],
-			]),
-		);
-
-		const shown = await screen.findByRole("region", { name: IN_FLIGHT });
-		expect(shown).toHaveTextContent("r-0148");
-		expect(shown).toHaveTextContent("audit-log");
-		expect(shown).toHaveTextContent("step 2 of 2 · build");
-		expect(shown).toHaveTextContent("session running");
-		expect(shown).toHaveTextContent("$1.83 / $20.00");
-		expect(shown).toHaveTextContent("grades so far B+");
-		expect(within(shown).getByRole("button", { name: "Stop" })).toBeEnabled();
-	});
-
-	it("names the run within its case, since the case is named beside it", () => {
-		renderRunInFlight([runRow({ shortId: "audit-log/r33" })]);
-
-		expect(within(bar()).getByText("r33")).toBeInTheDocument();
-	});
-
-	it("marks the run with the pulsing glyph alone, as the design draws it", () => {
-		renderRunInFlight([runRow({})]);
-
-		expect(within(bar()).queryByText("running")).not.toBeInTheDocument();
-	});
-
-	it("draws the spend track at the design's 76 by 5px with its 3px radius", () => {
-		renderRunInFlight([runRow({ runSpentUsd: 1.83, ceilingUsd: 20 })]);
-
-		const fill = bar().querySelector("[style*='--spend-share']");
-
-		expect(fill?.parentElement).toHaveClass(
-			"h-spend-track-height",
-			"w-spend-track-width",
-			"rounded-xs",
-		);
-	});
-
-	it("separates its readings where the design does and nowhere else", () => {
-		renderRunInFlight([
-			runRow({
-				grades: [graded("plan", "B+"), notYet("build")],
-				runSpentUsd: 1.83,
-				ceilingUsd: 20,
-			}),
-		]);
-
-		expect(within(bar()).getAllByText("│")).toHaveLength(3);
-	});
-
-	it("shows nothing on a screen when no run is in flight", async () => {
-		renderAppWithStub("/corpus", new Map());
-
-		await screen.findByRole("navigation", { name: "Sections" });
-		expect(
-			screen.queryByRole("region", { name: IN_FLIGHT }),
-		).not.toBeInTheDocument();
-	});
-
-	it("leaves when the run ends", () => {
-		const { rerender } = renderRunInFlight([runRow({})]);
-		expect(bar()).toBeInTheDocument();
-
-		rerender([runRow({ status: "COMPLETE" })]);
-
-		expect(
-			screen.queryByRole("region", { name: IN_FLIGHT }),
-		).not.toBeInTheDocument();
-	});
-
-	it("shows a dash with its reason rather than a figure it cannot vouch for", () => {
-		renderRunInFlight([runRow({ ceilingUsd: 20 })]);
-
-		expect(bar()).toHaveTextContent("— run spend not recorded / $20.00");
-	});
-
-	it("shows a bar for each run in flight, the newest first", async () => {
-		renderAppWithStub(
-			"/corpus",
-			new Map([
-				[
-					"/api/run-listing",
-					history([
-						{ ...runRow({ run: OLDER }), shortId: "r-0147" },
-						{ ...runRow({ run: NEWER, stage: "review" }), shortId: "r-0149" },
-					]),
-				],
-			]),
-		);
-
-		const bars = await screen.findAllByRole("region", { name: IN_FLIGHT });
-
-		expect(bars).toHaveLength(2);
-		expect(bars[0]).toHaveAccessibleName("Run r-0149 in flight");
-		expect(bars[1]).toHaveAccessibleName("Run r-0147 in flight");
-	});
-
-	it("opens its run's Activity from any screen", async () => {
-		const older = { ...runRow({ run: OLDER }), shortId: "r-0147" };
-		renderAppWithStub(
-			"/corpus",
-			new Map<string, unknown>([
-				[
-					"/api/runs",
-					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
-				],
-				[
-					"/api/run-listing",
-					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
-				],
-				[
-					`/api/runs/${OLDER}`,
-					runRecord({
-						run: OLDER,
-						running: "build",
-						stages: [recordStage("build")],
-					}),
-				],
-			]),
-		);
-		const shown = await screen.findByRole("region", {
-			name: "Run r-0147 in flight",
-		});
-
-		fireEvent.click(within(shown).getByRole("link", { name: "Open activity" }));
-
-		expect(
-			await screen.findByRole("region", { name: "Run workspace" }),
-		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
-		expect(
-			within(screen.getByRole("navigation", { name: "Sections" })).getByRole(
-				"link",
-				{ name: /^Runs/u },
-			),
-		).toHaveAttribute("aria-current", "page");
-	});
-
-	it("stops the run through the launch that started it", async () => {
-		const asked: string[] = [];
-		const stub = (input: RequestInfo | URL): Promise<Response> => {
-			asked.push(input instanceof Request ? input.url : String(input));
-
-			return Promise.resolve(Response.json({}));
-		};
-		stub.preconnect = originalFetch.preconnect;
-		globalThis.fetch = stub;
-		renderRunInFlight([runRow({ launchId: "launch-1" })]);
-
-		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
-
-		await waitFor(() => {
-			expect(
-				within(bar()).getByRole("button", { name: "Stop" }),
-			).toBeDisabled();
-		});
-		expect(asked).toHaveLength(1);
-		expect(asked[0]).toEndWith("/api/launches/launch-1/stop");
-	});
-
-	it("stops a run started outside the browser through the run itself", async () => {
-		const asked: string[] = [];
-		const stub = (input: RequestInfo | URL): Promise<Response> => {
-			asked.push(input instanceof Request ? input.url : String(input));
-
-			return Promise.resolve(Response.json({}));
-		};
-		stub.preconnect = originalFetch.preconnect;
-		globalThis.fetch = stub;
-		renderRunInFlight([
-			runRow({ run: "2026-09-30T10-00-00.000Z", launchId: undefined }),
-		]);
-
-		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
-
-		await waitFor(() => {
-			expect(
-				within(bar()).getByRole("button", { name: "Stop" }),
-			).toBeDisabled();
-		});
-		expect(asked).toHaveLength(1);
-		expect(asked[0]).toEndWith("/api/runs/2026-09-30T10-00-00.000Z/stop");
-	});
-
-	it("says why the server refused a stop", async () => {
-		const stub = (): Promise<Response> =>
-			Promise.resolve(
-				Response.json({ error: "launch already ended" }, { status: 409 }),
-			);
-		stub.preconnect = originalFetch.preconnect;
-		globalThis.fetch = stub;
-		renderRunInFlight([runRow({ launchId: "launch-1" })]);
-
-		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
-
-		expect(await within(bar()).findByRole("alert")).toHaveTextContent(
-			"launch already ended",
-		);
-	});
-
-	it("offers Stop for the run left in flight after the newest is stopped", async () => {
-		const stub = (): Promise<Response> => Promise.resolve(Response.json({}));
-		stub.preconnect = originalFetch.preconnect;
-		globalThis.fetch = stub;
-		const older = {
-			...runRow({ run: OLDER, launchId: "launch-b" }),
-			shortId: "r-0147",
-		};
-		const { rerender } = renderRunInFlight([
-			{ ...runRow({ run: NEWER, launchId: "launch-a" }), shortId: "r-0149" },
-			older,
-		]);
-		const newest = screen.getByRole("region", { name: "Run r-0149 in flight" });
-		fireEvent.click(within(newest).getByRole("button", { name: "Stop" }));
-		await waitFor(() => {
-			expect(
-				within(newest).getByRole("button", { name: "Stop" }),
-			).toBeDisabled();
-		});
-
-		rerender([older]);
-
-		expect(within(bar()).getByRole("button", { name: "Stop" })).toBeEnabled();
-	});
-
-	it("shows a run launched from the browser without waiting for a poll", async () => {
-		const server = servingListing(
-			() =>
-				server.posted("/api/launches").length === 0
-					? []
-					: [runRow({ launchId: "launch-1" })],
-			new Map([
-				["POST /api/launches", { status: 202, body: { id: "launch-1" } }],
-			]),
-		);
-		renderBarWithLaunch();
-		fireEvent.click(screen.getByRole("button", { name: "New run" }));
-		const start = await screen.findByRole("button", { name: /^Start · /u });
-		await waitFor(() => {
-			expect(start).toBeEnabled();
-		});
-
-		fireEvent.click(start);
-
-		expect(
-			await screen.findByRole("region", { name: IN_FLIGHT }),
-		).toBeInTheDocument();
-	});
-
-	it("leaves once its Stop is accepted, without waiting for a poll", async () => {
-		const server = servingListing(
-			() =>
-				server.posted("/api/launches/launch-1/stop").length === 0
-					? [runRow({ launchId: "launch-1" })]
-					: [],
-			new Map([
-				["POST /api/launches/launch-1/stop", { status: 200, body: {} }],
-			]),
-		);
-		renderBarWithLaunch();
-		const shown = await screen.findByRole("region", { name: IN_FLIGHT });
-
-		fireEvent.click(within(shown).getByRole("button", { name: "Stop" }));
-
-		await waitFor(() => {
-			expect(screen.queryByRole("region", { name: IN_FLIGHT })).toBeNull();
-		});
-	});
-
-	it("ticks the elapsed clock each second between the run's own readings", async () => {
-		renderRunInFlight([
-			runRow({ elapsedMs: 9000, measuredAt: new Date().toISOString() }),
-		]);
-
-		expect(bar()).toHaveTextContent("00:09");
-		await waitFor(
-			() => {
-				expect(bar()).toHaveTextContent("00:10");
+				state: "available",
 			},
-			{ timeout: 2000 },
-		);
-	});
+		})
+			.withExecutionProgress({ ceilingUsd: 20, runSpentUsd: 1.83 })
+			.build(),
+	]);
 
-	it("pulses its glyph only for readers who did not ask for reduced motion", () => {
-		renderRunInFlight([runRow({})]);
+	expect(within(bar()).getAllByText("│")).toHaveLength(
+		expectedMatchingElementsCount,
+	);
+}
 
-		const glyph = within(bar()).getByText("●");
-		expect(glyph).toHaveClass("animate-live");
-		expect(glyph).toHaveClass("motion-reduce:animate-none");
-	});
-});
+function showsADashWithItsReasonRatherThanAFigureItCannotVouchFor(): void {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({})
+			.withExecutionProgress({ ceilingUsd: 20 })
+			.build(),
+	]);
 
-describe("what a screen reader hears of a run in flight", () => {
-	it("keeps the visible readings out of the live region", () => {
-		renderRunInFlight([runRow({})]);
+	expect(bar()).toHaveTextContent("— run spend not recorded / $20.00");
+}
 
-		expect(screen.getByRole("status")).toBeEmptyDOMElement();
-		expect(bar()).not.toHaveAttribute("aria-live");
-	});
+async function ticksTheElapsedClockEachSecondBetweenTheRunSOwnReadings(): Promise<void> {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({})
+			.withExecutionProgress({
+				elapsedMs: 9000,
+				measuredAt: new Date().toISOString(),
+			})
+			.build(),
+	]);
 
-	it("announces a stage continuing", () => {
-		const { rerender } = renderRunInFlight([
-			runRow({ grades: [notYet("plan"), notYet("build")] }),
-		]);
+	expect(bar()).toHaveTextContent("00:09");
+	await waitFor(
+		() => {
+			expect(bar()).toHaveTextContent("00:10");
+		},
+		{ timeout: 2000 },
+	);
+}
 
-		rerender([runRow({ grades: [graded("plan", "B+"), notYet("build")] })]);
+function pulsesItsGlyphOnlyForReadersWhoDidNotAskForReducedMotion(): void {
+	renderRunInFlight([
+		new PipelineRunRowBuilder({}).withExecutionProgress().build(),
+	]);
 
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"r-0148 step 1 of 2 continued: plan B+",
-		);
-	});
-
-	it("announces a stage stopped after the bar has left", () => {
-		const { rerender } = renderRunInFlight([
-			runRow({ grades: [graded("plan", "B+"), notYet("build")] }),
-		]);
-
-		rerender([
-			runRow({
-				status: "STOPPED:build",
-				grades: [graded("plan", "B+"), graded("build", "D", "STOP")],
-			}),
-		]);
-
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"r-0148 stopped at step 2 of 2: build",
-		);
-	});
-
-	it("announces nothing again for stages accepted before a reading that could not read them", () => {
-		const accepted = [
-			graded("plan", "B+"),
-			graded("design", "A-"),
-			notYet("build"),
-		];
-		const { rerender } = renderRunInFlight([runRow({ grades: accepted })]);
-
-		rerender([runRow({})]);
-		rerender([runRow({ grades: accepted })]);
-
-		expect(screen.getByRole("status")).toBeEmptyDOMElement();
-	});
-
-	it("announces a stage continuing while a reading could not read the stages", () => {
-		const { rerender } = renderRunInFlight([
-			runRow({
-				grades: [graded("plan", "B+"), notYet("design"), notYet("build")],
-			}),
-		]);
-
-		rerender([runRow({})]);
-		rerender([
-			runRow({
-				grades: [graded("plan", "B+"), graded("design", "A-"), notYet("build")],
-			}),
-		]);
-
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"r-0148 step 2 of 3 continued: design A-",
-		);
-	});
-
-	it("announces the ceiling approached and then nothing new while spend moves on", () => {
-		const { rerender } = renderRunInFlight([
-			runRow({ runSpentUsd: 7.9, ceilingUsd: 10 }),
-		]);
-		rerender([runRow({ runSpentUsd: 8.1, ceilingUsd: 10 })]);
-		const region = screen.getByRole("status");
-		const announced = region.textContent;
-
-		rerender([runRow({ runSpentUsd: 9, ceilingUsd: 10 })]);
-
-		expect(announced).toBe("r-0148 has spent $8.10 of its $10.00 ceiling");
-		expect(region.textContent).toBe(announced);
-	});
-});
+	const glyph = within(bar()).getByText("●");
+	expect(glyph).toHaveClass("animate-live");
+	expect(glyph).toHaveClass("motion-reduce:animate-none");
+}

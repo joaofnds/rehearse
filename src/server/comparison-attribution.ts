@@ -5,7 +5,12 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 
-export type ComparisonAttribution =
+const CORPUS_LAYOUT_PREFIX_SEGMENTS_PIPELINE = 3;
+const CORPUS_LAYOUT_PREFIX_SEGMENTS_SESSION = 2;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+type ComparisonAttribution =
 	| { readonly claim: "identical" }
 	| {
 			readonly claim: "attributable";
@@ -18,9 +23,9 @@ export type ComparisonAttribution =
 	  };
 
 const ATTRIBUTION_WORDING = {
-	modified: (path: string) => path,
-	missingFromRight: (path: string) => path,
 	missingFromLeft: (path: string) => path,
+	missingFromRight: (path: string) => path,
+	modified: (path: string) => path,
 };
 
 type ComparisonMode = (ComparisonReport | LegacyComparisonReport)["mode"];
@@ -36,16 +41,22 @@ type ComparisonMode = (ComparisonReport | LegacyComparisonReport)["mode"];
  * count one file once per stage; dropping a segment from a session path can
  * collapse distinct layout files that share a basename.
  */
-export function layoutPath(path: string, mode: ComparisonMode): string {
+function layoutPath(path: string, mode: ComparisonMode): string {
 	const segments = path.split("/");
-	if (segments[0] !== "inputs" || segments[1] !== "corpus") {
+	const [inputDirectory, corpusDirectory] = segments;
+	if (inputDirectory !== "inputs" || corpusDirectory !== "corpus") {
 		return path;
 	}
 
-	const layoutStart = mode === "session" ? 2 : 3;
+	const layoutStart =
+		mode === "session"
+			? CORPUS_LAYOUT_PREFIX_SEGMENTS_SESSION
+			: CORPUS_LAYOUT_PREFIX_SEGMENTS_PIPELINE;
 	const layoutSegments = segments.slice(layoutStart);
 
-	return layoutSegments.length === 0 ? path : layoutSegments.join("/");
+	return layoutSegments.length === EMPTY_COLLECTION_LENGTH
+		? path
+		: layoutSegments.join("/");
 }
 
 function dedupedByPath(
@@ -63,7 +74,7 @@ function dedupedByPath(
 	return [...byPath.entries()].map(([path, sha256]) => ({ path, sha256 }));
 }
 
-export function comparisonAttribution(
+function comparisonAttribution(
 	left: readonly HashedFile[],
 	right: readonly HashedFile[],
 	mode: ComparisonMode,
@@ -90,3 +101,6 @@ export function comparisonAttribution(
 
 	return { claim: "refused", differingPaths: [first, second, ...rest] };
 }
+
+export { layoutPath, comparisonAttribution };
+export type { ComparisonAttribution };

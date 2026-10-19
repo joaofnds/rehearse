@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
 import type { TargetService } from "./pipeline";
@@ -9,16 +10,30 @@ import type {
 	StartedContainer,
 } from "./target-services";
 
-const hostPortSchema = z.coerce.number().int().min(1).max(65_535);
+const PORT_SEPARATOR_CODE_UNITS = 1;
+
+const MAXIMUM_TCP_PORT = 65_535;
+const MINIMUM_TCP_PORT = 1;
+const DOCKER_CANNOT_INVOKE_EXIT_CODE = 126;
+const DOCKER_NOT_FOUND_EXIT_CODE = 127;
+
+const hostPortSchema = z.coerce
+	.number()
+	.int()
+	.min(MINIMUM_TCP_PORT)
+	.max(MAXIMUM_TCP_PORT);
 
 /** Exit codes docker exec gives when the command cannot run in the container. */
-const COMMAND_CANNOT_RUN = new Set([126, 127]);
+const COMMAND_CANNOT_RUN = new Set<number>([
+	DOCKER_CANNOT_INVOKE_EXIT_CODE,
+	DOCKER_NOT_FOUND_EXIT_CODE,
+]);
 
 /** The host port in `docker port` output, such as `127.0.0.1:32768`. */
-export function publishedHostPort(output: string): number {
+function publishedHostPort(output: string): number {
 	const [binding = ""] = output.trim().split("\n");
 	const parsed = hostPortSchema.safeParse(
-		binding.slice(binding.lastIndexOf(":") + 1),
+		binding.slice(binding.lastIndexOf(":") + PORT_SEPARATOR_CODE_UNITS),
 	);
 	if (!parsed.success) {
 		throw new Error(`docker port printed no published port: ${output.trim()}`);
@@ -32,7 +47,7 @@ export function publishedHostPort(output: string): number {
  * port the operator's own services hold and never listens beyond this machine.
  * The labels let a run's end find its containers however far their start got.
  */
-export function dockerRunArguments(
+function dockerRunArguments(
 	service: TargetService,
 	owner: ContainerOwner,
 ): readonly string[] {
@@ -57,7 +72,7 @@ export function dockerRunArguments(
 }
 
 /** Each line of `docker ps --format '{{.ID}} {{.Label "rehearse.service"}}'`. */
-export function ownedContainersIn(output: string): readonly OwnedContainer[] {
+function ownedContainersIn(output: string): readonly OwnedContainer[] {
 	return output
 		.split("\n")
 		.filter((line) => line.trim() !== "")
@@ -68,11 +83,11 @@ export function ownedContainersIn(output: string): readonly OwnedContainer[] {
 		});
 }
 
-export const dockerContainerRuntime: ContainerRuntime = {
-	start: startContainer,
-	succeeds: succeedsIn,
+const dockerContainerRuntime: ContainerRuntime = {
 	owned: ownedBy,
 	remove: removeContainer,
+	start: startContainer,
+	succeeds: succeedsIn,
 };
 
 async function startContainer(
@@ -85,7 +100,7 @@ async function startContainer(
 	try {
 		const published = await docker("port", id, `${service.port}/tcp`);
 
-		return { id, hostPort: publishedHostPort(published) };
+		return { hostPort: publishedHostPort(published), id };
 	} catch (error) {
 		await assertRunning(id);
 		throw error;
@@ -148,6 +163,13 @@ async function removeContainer(id: string): Promise<void> {
 	await docker("rm", "--force", id);
 }
 
-function docker(...args: readonly string[]): Promise<string> {
-	return runCommand(["docker", ...args], CONTROL_DIR);
+async function docker(...args: readonly string[]): Promise<string> {
+	return await runCommand(["docker", ...args], CONTROL_DIR);
 }
+
+export {
+	publishedHostPort,
+	dockerRunArguments,
+	ownedContainersIn,
+	dockerContainerRuntime,
+};

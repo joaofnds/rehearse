@@ -1,4 +1,5 @@
 import type { CorpusResponse } from "#client/corpus/corpus-query";
+
 import type { EditVersions } from "./invalidated-by";
 import { editNamedBy } from "./invalidated-by";
 import type { RunHistoryResponse } from "./run-history-query";
@@ -6,13 +7,13 @@ import type { RunHistoryResponse } from "./run-history-query";
 type HistoryRow = RunHistoryResponse["rows"][number];
 
 /** A read the selection waits on, as the screen holds it now. */
-export type Read<Body> =
+type Read<Body> =
 	| { readonly state: "loading" }
 	| { readonly state: "failed" }
 	| { readonly state: "loaded"; readonly body: Body };
 
 /** An invalidated result run history has no row for. */
-export interface MissingRow {
+interface MissingRow {
 	readonly id: string;
 	/** Why its record could not be read, when run history says. */
 	readonly reason: string | undefined;
@@ -23,7 +24,7 @@ export interface MissingRow {
  * `listed` lists no row as invalidated, since the screen cannot tell which
  * rows the named edit invalidated.
  */
-export type InvalidatedSelection =
+type InvalidatedSelection =
 	| { readonly kind: "unanswered"; readonly reason: string }
 	| {
 			readonly kind: "moved-on";
@@ -45,7 +46,7 @@ function sameEdit(named: EditVersions, last: EditVersions): boolean {
  * The rows the last edit invalidated, read from the corpus report and the
  * run history the screen already holds, when the address names that edit.
  */
-export function invalidatedSelection(
+function invalidatedSelection(
 	value: string,
 	corpus: Read<CorpusResponse>,
 	runs: Read<RunHistoryResponse>,
@@ -58,18 +59,37 @@ export function invalidatedSelection(
 				"The address names no edit, so no result is listed as invalidated by it.",
 		};
 	}
-	if (corpus.state === "loading") {
-		return { kind: "unanswered", reason: "Reading the last edit…" };
+	switch (corpus.state) {
+		case "loading": {
+			return { kind: "unanswered", reason: "Reading the last edit…" };
+		}
+		case "failed": {
+			return {
+				kind: "unanswered",
+				reason:
+					"Could not load the corpus report, so no result is listed as invalidated.",
+			};
+		}
+		case "loaded": {
+			return selectionForEdit({ lastEdit: corpus.body.lastEdit, named, runs });
+		}
+		default: {
+			return corpus satisfies never;
+		}
 	}
-	if (corpus.state === "failed") {
-		return {
-			kind: "unanswered",
-			reason:
-				"Could not load the corpus report, so no result is listed as invalidated.",
-		};
-	}
+}
 
-	const { lastEdit } = corpus.body;
+interface EditSelectionRequest {
+	readonly named: EditVersions;
+	readonly lastEdit: CorpusResponse["lastEdit"];
+	readonly runs: Read<RunHistoryResponse>;
+}
+
+function selectionForEdit({
+	named,
+	lastEdit,
+	runs,
+}: EditSelectionRequest): InvalidatedSelection {
 	if (lastEdit.kind === "not-recorded") {
 		return {
 			kind: "unanswered",
@@ -79,30 +99,54 @@ export function invalidatedSelection(
 	if (!sameEdit(named, lastEdit)) {
 		return { kind: "moved-on", last: lastEdit };
 	}
-	if (runs.state === "loading") {
-		return { kind: "unanswered", reason: "Reading run history…" };
+	switch (runs.state) {
+		case "loading": {
+			return { kind: "unanswered", reason: "Reading run history…" };
+		}
+		case "failed": {
+			return {
+				kind: "unanswered",
+				reason:
+					"Could not load run history, so no result is listed as invalidated.",
+			};
+		}
+		case "loaded": {
+			return listedSelection({ lastEdit, runs: runs.body });
+		}
+		default: {
+			return runs satisfies never;
+		}
 	}
-	if (runs.state === "failed") {
-		return {
-			kind: "unanswered",
-			reason:
-				"Could not load run history, so no result is listed as invalidated.",
-		};
-	}
+}
 
+interface ListedSelectionRequest {
+	readonly lastEdit: Extract<
+		CorpusResponse["lastEdit"],
+		{ readonly kind: "measured" }
+	>;
+	readonly runs: RunHistoryResponse;
+}
+
+function listedSelection({
+	lastEdit,
+	runs,
+}: ListedSelectionRequest): InvalidatedSelection {
 	const invalidated = new Set(lastEdit.rows);
-	const listed = new Set(runs.body.rows.map(({ recordId }) => recordId));
+	const listed = new Set(runs.rows.map(({ recordId }) => recordId));
 
 	return {
-		kind: "listed",
-		edit: lastEdit,
 		count: lastEdit.count,
-		rows: runs.body.rows.filter(({ recordId }) => invalidated.has(recordId)),
+		edit: lastEdit,
+		kind: "listed",
 		missing: lastEdit.rows
 			.filter((id) => !listed.has(id))
 			.map((id) => ({
 				id,
-				reason: runs.body.unreadable.find((record) => record.id === id)?.reason,
+				reason: runs.unreadable.find((record) => record.id === id)?.reason,
 			})),
+		rows: runs.rows.filter(({ recordId }) => invalidated.has(recordId)),
 	};
 }
+
+export { invalidatedSelection as default };
+export type { InvalidatedSelection, MissingRow, Read };

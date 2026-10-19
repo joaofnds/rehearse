@@ -1,23 +1,27 @@
 import { readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+
+import { recordsDirectory } from "./config";
 import {
 	CORPUS_INSTRUCTIONS_PATH,
 	CORPUS_LAYOUT_DIRECTORIES,
 	liveCorpusSource,
 } from "./corpus-file";
 import type { DirectoryCorpusRoot, LiveCorpusRoot } from "./corpus-file";
-import { recordsDirectory } from "./config";
-import { hashCorpusLayout } from "./corpus-layout";
+import hashCorpusLayout from "./corpus-layout";
 import { RefusedPreconditionError } from "./exit-codes";
 import { pathExists } from "./file-presence";
+import serialMap from "./serial-map";
 import {
-	readSettings,
-	storeLinkedCorpusDirectory,
 	LINK_CORPUS_COMMAND,
 	UNLINK_CORPUS_COMMAND,
+	readSettings,
+	storeLinkedCorpusDirectory,
 } from "./settings";
 
-export class CorpusSourceError extends Error {
+const EMPTY_COLLECTION_LENGTH = 0;
+
+class CorpusSourceError extends Error {
 	public override name = "CorpusSourceError";
 }
 
@@ -26,11 +30,9 @@ export class CorpusSourceError extends Error {
  * learns how the directory came to exist. Live sources also carry the backing
  * tree they permit, so later reads do not consult mutable process configuration.
  */
-export type ResolvedCorpusSource = LiveCorpusRoot | DirectoryCorpusRoot;
+type ResolvedCorpusSource = LiveCorpusRoot | DirectoryCorpusRoot;
 
-export type CorpusSourceResolver = (
-	source: string | undefined,
-) => Promise<ResolvedCorpusSource>;
+type CorpusSourceResolver = (source?: string) => Promise<ResolvedCorpusSource>;
 
 /**
  * The entries a directory must hold at least one of to be a corpus. Without
@@ -43,8 +45,11 @@ const CORPUS_LAYOUT_ENTRIES: readonly string[] = [
 ];
 
 async function holdsCorpusLayout(root: string): Promise<boolean> {
-	for (const entry of CORPUS_LAYOUT_ENTRIES) {
-		if (await pathExists(join(root, entry))) {
+	for await (const exists of serialMap(
+		CORPUS_LAYOUT_ENTRIES.values(),
+		async (entry) => await pathExists(join(root, entry)),
+	)) {
+		if (exists) {
 			return true;
 		}
 	}
@@ -73,7 +78,7 @@ async function directorySource(source: string): Promise<DirectoryCorpusRoot> {
  * corpus layout and where its bytes are read from. The snapshot copies these,
  * so nothing after it reads the source tree again.
  */
-export interface CorpusLayoutEntry {
+interface CorpusLayoutEntry {
 	readonly layoutPath: string;
 	readonly sourcePath: string;
 }
@@ -97,16 +102,16 @@ async function entriesUnder(
  * corpus layout, so this reads its entries where they are and never learns what
  * produced the directory.
  */
-export async function corpusLayoutEntries(
+async function corpusLayoutEntries(
 	source: ResolvedCorpusSource,
 ): Promise<readonly CorpusLayoutEntry[]> {
 	const entries: CorpusLayoutEntry[] = [];
 
-	for (const layoutPrefix of CORPUS_LAYOUT_DIRECTORIES) {
+	await Array.fromAsync(CORPUS_LAYOUT_DIRECTORIES, async (layoutPrefix) => {
 		entries.push(
 			...(await entriesUnder(join(source.root, layoutPrefix), layoutPrefix)),
 		);
-	}
+	});
 
 	const instructions = join(source.root, CORPUS_INSTRUCTIONS_PATH);
 	if (await pathExists(instructions)) {
@@ -124,21 +129,21 @@ export async function corpusLayoutEntries(
  * holds a resolved source cannot be holding a directory that does not exist or
  * one that holds no corpus.
  */
-export function resolveCorpusSource(
-	source: string | undefined,
+async function resolveCorpusSource(
+	source?: string,
 ): Promise<ResolvedCorpusSource> {
 	if (source === undefined) {
-		return linkedCorpusSource(recordsDirectory());
+		return await linkedCorpusSource(recordsDirectory());
 	}
 
-	return directorySource(source);
+	return await directorySource(source);
 }
 
 /**
  * The corpus every command measures unless one is named: the linked
  * directory, or the live install when none is linked.
  */
-export async function linkedCorpusSource(
+async function linkedCorpusSource(
 	records: string,
 	live: () => LiveCorpusRoot = liveCorpusSource,
 ): Promise<ResolvedCorpusSource> {
@@ -146,7 +151,7 @@ export async function linkedCorpusSource(
 
 	return linkedCorpusDirectory === undefined
 		? live()
-		: linkedDirectorySource(linkedCorpusDirectory);
+		: await linkedDirectorySource(linkedCorpusDirectory);
 }
 
 /**
@@ -173,13 +178,13 @@ async function linkedDirectorySource(
  * rehash against it would refuse. Linking refuses it first, with the same
  * reasons, and keeps the link it had.
  */
-export async function linkCorpus(
+async function linkCorpus(
 	records: string,
 	directory: string,
 ): Promise<DirectoryCorpusRoot> {
 	const source = await directorySource(directory);
 	const { refusals } = await hashCorpusLayout(source);
-	if (refusals.length > 0) {
+	if (refusals.length > EMPTY_COLLECTION_LENGTH) {
 		throw new CorpusSourceError(
 			`Corpus source ${source.root} cannot be measured: ${refusals.join("; ")}`,
 		);
@@ -190,15 +195,15 @@ export async function linkCorpus(
 	return source;
 }
 
-export function unlinkCorpus(records: string): Promise<void> {
-	return storeLinkedCorpusDirectory(records, undefined);
+async function unlinkCorpus(records: string): Promise<void> {
+	await storeLinkedCorpusDirectory(records);
 }
 
 /**
  * A pipeline run measures only the live install, so a linked directory would
  * be silently ignored if the run went ahead.
  */
-export async function refusePipelineUnderLinkedDirectory(
+async function refusePipelineUnderLinkedDirectory(
 	records: string,
 ): Promise<void> {
 	const linked = await linkedCorpusSource(records);
@@ -208,3 +213,14 @@ export async function refusePipelineUnderLinkedDirectory(
 		);
 	}
 }
+
+export {
+	CorpusSourceError,
+	corpusLayoutEntries,
+	resolveCorpusSource,
+	linkedCorpusSource,
+	linkCorpus,
+	unlinkCorpus,
+	refusePipelineUnderLinkedDirectory,
+};
+export type { ResolvedCorpusSource, CorpusSourceResolver, CorpusLayoutEntry };

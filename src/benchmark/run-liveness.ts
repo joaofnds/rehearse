@@ -2,11 +2,13 @@ import { loadRunManifest } from "./manifest";
 import type { RunEventStore } from "./run-events";
 import { readRunMarker } from "./target";
 
+const PROCESS_EXISTS_SIGNAL = 0;
+
 /**
  * What a target's claim marker says about who holds it. A marker written by
  * a control checkout from before claims named their run carries no `run`.
  */
-export interface TargetClaim {
+interface TargetClaim {
 	readonly pid: number;
 	readonly run?: string | undefined;
 	readonly startedAt: string;
@@ -16,16 +18,13 @@ export interface TargetClaim {
  * The run a liveness question is about, with the moment it recorded its
  * first event, or undefined when it has recorded none yet.
  */
-export interface ClaimingRun {
+interface ClaimingRun {
 	readonly run: string;
 	readonly firstEventAt: string | undefined;
 }
 
-export function claimingRun(
-	runEvents: RunEventStore,
-	run: string,
-): ClaimingRun {
-	return { run, firstEventAt: runEvents.firstEvent(run)?.recordedAt };
+function claimingRun(runEvents: RunEventStore, run: string): ClaimingRun {
+	return { firstEventAt: runEvents.firstEvent(run)?.recordedAt, run };
 }
 
 /**
@@ -40,22 +39,21 @@ export function claimingRun(
  * a crashed run whose target another run claimed is listed as interrupted, and
  * reconciled only once a start finds that other run's pid dead too.
  */
-export interface RunLiveness {
+interface RunLiveness {
 	readonly readMarker: (sourceRoot: string) => Promise<TargetClaim | undefined>;
 	readonly isAlive: (pid: number) => boolean;
 }
 
 /**
- * `process.kill(pid, 0)` throws for a dead pid rather than returning false,
+ * `process.kill(pid, PROCESS_EXISTS_SIGNAL)` throws for a dead pid rather than returning false,
  * per Node's documented signal-0 liveness probe. It also throws EPERM for a
  * live process another user owns, which is still a process holding the pid.
  */
-export function liveRunLiveness(): RunLiveness {
+function liveRunLiveness(): RunLiveness {
 	return {
-		readMarker: readRunMarker,
 		isAlive: (pid) => {
 			try {
-				process.kill(pid, 0);
+				process.kill(pid, PROCESS_EXISTS_SIGNAL);
 
 				return true;
 			} catch (error) {
@@ -64,6 +62,7 @@ export function liveRunLiveness(): RunLiveness {
 				);
 			}
 		},
+		readMarker: readRunMarker,
 	};
 }
 
@@ -76,13 +75,13 @@ export function liveRunLiveness(): RunLiveness {
  * out to git in the target, so a target that is no longer a checkout throws
  * rather than returning nothing, while one that is gone holds no claim.
  */
-export type RunClaim = "live" | "gone" | "unknown";
+type RunClaim = "live" | "gone" | "unknown";
 
 type MarkerReading =
 	| { readonly state: "unread" }
 	| { readonly state: "read"; readonly marker: TargetClaim | undefined };
 
-export async function runClaim(
+async function runClaim(
 	manifestFile: string,
 	liveness: RunLiveness,
 	claiming: ClaimingRun,
@@ -112,7 +111,7 @@ export async function runClaim(
  * gone claim. A caller that must not take an unreachable target for an ended
  * run reads `runClaim` instead.
  */
-export async function claimsLiveTarget(
+async function claimsLiveTarget(
 	manifestFile: string,
 	liveness: RunLiveness,
 	claiming: ClaimingRun,
@@ -125,7 +124,7 @@ export async function claimsLiveTarget(
  * cannot be asked, for the reasons `RunClaim` gives, or holds no claim of
  * this run's.
  */
-export async function targetMarker(
+async function targetMarker(
 	manifestFile: string,
 	liveness: RunLiveness,
 	claiming: ClaimingRun,
@@ -145,17 +144,28 @@ async function ownMarker(
 	}
 
 	const manifest = await loadRunManifest(manifestFile);
-	let marker;
-	try {
-		marker = await liveness.readMarker(manifest.sourceRoot);
-	} catch {
-		return { state: "unread" };
+	const readClaimMarker = async (): Promise<MarkerReading> => {
+		try {
+			return {
+				marker: await liveness.readMarker(manifest.sourceRoot),
+				state: "read",
+			};
+		} catch {
+			return { state: "unread" };
+		}
+	};
+
+	const marker = await readClaimMarker();
+	if (marker.state === "unread") {
+		return marker;
 	}
 
 	return {
-		state: "read",
 		marker:
-			marker !== undefined && isOwnClaim(marker, claiming) ? marker : undefined,
+			marker.marker !== undefined && isOwnClaim(marker.marker, claiming)
+				? marker.marker
+				: undefined,
+		state: "read",
 	};
 }
 
@@ -177,3 +187,12 @@ function isOwnClaim(marker: TargetClaim, claiming: ClaimingRun): boolean {
 		Date.parse(marker.startedAt) <= Date.parse(claiming.firstEventAt)
 	);
 }
+
+export {
+	claimingRun,
+	liveRunLiveness,
+	runClaim,
+	claimsLiveTarget,
+	targetMarker,
+};
+export type { TargetClaim, ClaimingRun, RunLiveness, RunClaim };

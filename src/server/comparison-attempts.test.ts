@@ -1,36 +1,32 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { writeComparisonReport } from "#benchmark/comparison-command";
-import { ComparisonEvidenceFixture } from "#benchmark/comparison-evidence-test-support";
+
 import { parseComparisonReport } from "#benchmark/comparison-record";
-import { buildComparisonReport } from "#benchmark/comparison-report";
-import { comparisonEvidenceFixture } from "#benchmark/comparison-test-fixtures";
+import buildComparisonReport from "#benchmark/comparison-report";
+import { comparisonEvidenceFixture } from "#benchmark/comparison-report-test-fixtures";
+import {
+	clearComparisonRoots,
+	oneCheckpointReportText,
+} from "#server/comparison-endpoint-test-fixture";
+import ComparisonSourceRepBuilder from "#server/comparison-source-rep-test-builder";
+import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
+
 import { comparisonAttempts } from "./comparison-attempts";
 
-const roots: string[] = [];
+const SCORED_SOURCE_REP = new ComparisonSourceRepBuilder({
+	attempt: undefined,
+	group: 0,
+	ordinal: 1,
+	outcomes: [
+		{ grade: "A", name: "discuss", status: "JUDGED", successful: true },
+		{ grade: "A", name: "build", status: "JUDGED", successful: true },
+		{ grade: "PASS", name: "final", status: "JUDGED", successful: true },
+	],
+	path: "groups/case-1-baseline/reps/case-1-baseline-rep-1/rep.json",
+	repId: "case-1-baseline-rep-1",
+	sha256: "7".repeat(SHA256_HEX_DIGITS),
+}).build();
 
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-	);
-});
-
-async function oneCheckpointReportText(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-attempts-"));
-	roots.push(root);
-	const fixture = new ComparisonEvidenceFixture(root, ["build-checkpoint"]);
-	await fixture.write();
-	const runsDirectory = join(root, "runs");
-	await mkdir(runsDirectory);
-	const reportFile = await writeComparisonReport({
-		manifestPath: fixture.manifestFile,
-		runsDirectory,
-	});
-
-	return Bun.file(reportFile).text();
-}
+afterEach(clearComparisonRoots);
 
 function onlyCase(
 	report: ReturnType<typeof parseComparisonReport>,
@@ -44,105 +40,119 @@ function onlyCase(
 }
 
 describe(comparisonAttempts.name, () => {
-	it("lists each arm's attempts by ordinal with the grade, blockers fired and words each recorded", async () => {
-		const report = parseComparisonReport(await oneCheckpointReportText());
+	it(
+		"lists each arm's attempts by ordinal with the grade, blockers fired and words each recorded",
+		verifyComparisonAttemptsNameListsEachArmSAttemptsByOrdinalWithTheGradeBlockersFiredAndWordsEachRecorded,
+	);
 
-		const attempts = comparisonAttempts(onlyCase(report));
+	it(
+		"preserves reply and state check scores separately from the recorded outcome",
+		verifyComparisonAttemptsNamePreservesReplyAndStateCheckScoresSeparatelyFromTheRecordedOutcome,
+	);
 
-		expect(attempts.baseline).toEqual([
-			{
-				repId: "build-checkpoint-baseline-rep-1",
-				ordinal: 1,
-				outcomes: {
-					state: "available",
-					outcomes: [
-						{ name: "build", status: "JUDGED", grade: "A", successful: true },
-					],
-				},
-				blockersFired: {
-					state: "available",
-					blockers: [{ stage: "build", id: "scope-declared" }],
-				},
-				words: { state: "available", words: 7 },
-			},
-			{
-				repId: "build-checkpoint-baseline-rep-2",
-				ordinal: 2,
-				outcomes: {
-					state: "available",
-					outcomes: [
-						{ name: "build", status: "JUDGED", grade: "A", successful: true },
-					],
-				},
-				blockersFired: {
-					state: "available",
-					blockers: [{ stage: "build", id: "scope-declared" }],
-				},
-				words: { state: "available", words: 8 },
-			},
-		]);
-		expect(attempts.candidate[0]?.blockersFired).toEqual({
-			state: "available",
-			blockers: [],
-		});
-	});
-
-	it("preserves reply and state check scores separately from the recorded outcome", () => {
-		const report = buildComparisonReport(comparisonEvidenceFixture(), {
-			skippedCalibrations: 0,
-			baselines: [],
-		});
-		const benchmarkCase = onlyCase(report);
-		const { baseline } = benchmarkCase.arms;
-		const [rep] = baseline.source.reps;
-		if (rep === undefined) {
-			throw new Error("the fixture holds no baseline attempt");
-		}
-		const scored = {
-			...benchmarkCase,
-			arms: {
-				...benchmarkCase.arms,
-				baseline: {
-					...baseline,
-					source: {
-						...baseline.source,
-						reps: [
-							{
-								...rep,
-								checks: { passed: 1, declared: 1, failing: [] },
-								stateResults: {
-									passed: 0,
-									declared: 1,
-									failing: [
-										{ name: "history-preserved", detail: "history changed" },
-									],
-								},
-							},
-						],
-					},
-				},
-			},
-		};
-
-		const [attempt] = comparisonAttempts(scored).baseline;
-
-		expect(attempt?.checks).toEqual({ passed: 1, declared: 1, failing: [] });
-		expect(attempt?.stateChecks).toEqual({
-			passed: 0,
-			declared: 1,
-			failing: [{ name: "history-preserved", detail: "history changed" }],
-		});
-	});
-
-	it("reads unavailable, never an attempt nothing fired on, for reps their report recorded no grading or words for", () => {
-		const report = buildComparisonReport(comparisonEvidenceFixture(), {
-			skippedCalibrations: 0,
-			baselines: [],
-		});
-
-		const [attempt] = comparisonAttempts(onlyCase(report)).control;
-
-		expect(attempt?.blockersFired.state).toBe("unavailable");
-		expect(attempt?.words.state).toBe("unavailable");
-	});
+	it(
+		"reads unavailable, never an attempt nothing fired on, for reps their report recorded no grading or words for",
+		verifyComparisonAttemptsNameReadsUnavailableNeverAnAttemptNothingFiredOnForRepsTheirReportRecordedNoGradingOrWordsFor,
+	);
 });
+
+async function verifyComparisonAttemptsNameListsEachArmSAttemptsByOrdinalWithTheGradeBlockersFiredAndWordsEachRecorded(): Promise<void> {
+	const report = parseComparisonReport(await oneCheckpointReportText());
+
+	const attempts = comparisonAttempts(onlyCase(report));
+
+	const [observedFirstCandidate] = attempts.candidate;
+
+	expect(attempts.baseline).toEqual([
+		{
+			blockersFired: {
+				blockers: [{ id: "scope-declared", stage: "build" }],
+				state: "available",
+			},
+			ordinal: 1,
+			outcomes: {
+				outcomes: [
+					{ grade: "A", name: "build", status: "JUDGED", successful: true },
+				],
+				state: "available",
+			},
+			repId: "build-checkpoint-baseline-rep-1",
+			words: { state: "available", words: 7 },
+		},
+		{
+			blockersFired: {
+				blockers: [{ id: "scope-declared", stage: "build" }],
+				state: "available",
+			},
+			ordinal: 2,
+			outcomes: {
+				outcomes: [
+					{ grade: "A", name: "build", status: "JUDGED", successful: true },
+				],
+				state: "available",
+			},
+			repId: "build-checkpoint-baseline-rep-2",
+			words: { state: "available", words: 8 },
+		},
+	]);
+	expect(observedFirstCandidate?.blockersFired).toEqual({
+		blockers: [],
+		state: "available",
+	});
+}
+
+function verifyComparisonAttemptsNamePreservesReplyAndStateCheckScoresSeparatelyFromTheRecordedOutcome(): void {
+	const report = buildComparisonReport(comparisonEvidenceFixture(), {
+		baselines: [],
+		skippedCalibrations: 0,
+	});
+	const benchmarkCase = onlyCase(report);
+	const { baseline } = benchmarkCase.arms;
+
+	const scored = {
+		...benchmarkCase,
+		arms: {
+			...benchmarkCase.arms,
+			baseline: {
+				...baseline,
+				source: {
+					...baseline.source,
+					reps: [
+						{
+							...SCORED_SOURCE_REP,
+							checks: { declared: 1, failing: [], passed: 1 },
+							stateResults: {
+								declared: 1,
+								failing: [
+									{ detail: "history changed", name: "history-preserved" },
+								],
+								passed: 0,
+							},
+						},
+					],
+				},
+			},
+		},
+	};
+
+	const [attempt] = comparisonAttempts(scored).baseline;
+
+	expect(attempt?.checks).toEqual({ declared: 1, failing: [], passed: 1 });
+	expect(attempt?.stateChecks).toEqual({
+		declared: 1,
+		failing: [{ detail: "history changed", name: "history-preserved" }],
+		passed: 0,
+	});
+}
+
+function verifyComparisonAttemptsNameReadsUnavailableNeverAnAttemptNothingFiredOnForRepsTheirReportRecordedNoGradingOrWordsFor(): void {
+	const report = buildComparisonReport(comparisonEvidenceFixture(), {
+		baselines: [],
+		skippedCalibrations: 0,
+	});
+
+	const [attempt] = comparisonAttempts(onlyCase(report)).control;
+
+	expect(attempt?.blockersFired.state).toBe("unavailable");
+	expect(attempt?.words.state).toBe("unavailable");
+}

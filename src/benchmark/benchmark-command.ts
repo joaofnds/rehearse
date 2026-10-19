@@ -2,20 +2,19 @@ import type { ApprovalMethod, BenchmarkConfig } from "./config";
 import { projectConfirmationCost, runRequestedExecution } from "./confirmation";
 import type { ConfirmationCostProjection } from "./confirmation";
 
-export interface BenchmarkConfirmationExecution {
+const SINGLE_EXECUTION_REP_COUNT = 1;
+
+interface BenchmarkConfirmationExecution {
 	readonly reps: number;
 	readonly projectedCost: ConfirmationCostProjection;
 	readonly approvalMethod: ApprovalMethod;
 }
 
-export type BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence> =
+type BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence> =
 	| { readonly kind: "debug"; readonly evidence: DebugEvidence }
 	| { readonly kind: "confirmation"; readonly evidence: ConfirmationEvidence };
 
-export interface BenchmarkExecutionDependencies<
-	DebugEvidence,
-	ConfirmationEvidence,
-> {
+interface BenchmarkExecutionDependencies<DebugEvidence, ConfirmationEvidence> {
 	readonly approval: {
 		readonly output: (message: string) => void;
 		readonly prompt: (message: string) => Promise<string>;
@@ -26,7 +25,7 @@ export interface BenchmarkExecutionDependencies<
 	) => Promise<ConfirmationEvidence>;
 }
 
-export function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
+async function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 	config: BenchmarkConfig,
 	stageCount: number,
 	dependencies: BenchmarkExecutionDependencies<
@@ -36,35 +35,42 @@ export function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 ): Promise<BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence>> {
 	const { confirmation } = config;
 
-	return runRequestedExecution<
+	return await runRequestedExecution<
 		BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence>
 	>({
+		approval: dependencies.approval,
 		confirmation,
 		projectCost: () =>
 			projectConfirmationCost({
 				mode: "pipeline",
-				reps: confirmation?.reps ?? 1,
-				stages: stageCount,
+				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: config.sessionBudgetUsd,
+				stages: stageCount,
 			}),
-		approval: dependencies.approval,
-		runDebug: async () => ({
-			kind: "debug" as const,
-			evidence: await dependencies.runDebug(),
-		}),
 		runConfirmed: async (projectedCost) => {
 			if (confirmation === undefined) {
 				throw new Error("Confirmation configuration is required");
 			}
 
 			return {
-				kind: "confirmation" as const,
 				evidence: await dependencies.runConfirmed({
-					reps: confirmation.reps,
-					projectedCost,
 					approvalMethod: confirmation.approval,
+					projectedCost,
+					reps: confirmation.reps,
 				}),
+				kind: "confirmation" as const,
 			};
 		},
+		runDebug: async () => ({
+			evidence: await dependencies.runDebug(),
+			kind: "debug" as const,
+		}),
 	});
 }
+
+export { executeBenchmark as default };
+export type {
+	BenchmarkConfirmationExecution,
+	BenchmarkExecutionOutcome,
+	BenchmarkExecutionDependencies,
+};

@@ -1,18 +1,26 @@
 import { link, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+
 import { z } from "zod";
+
 import type { Immutable } from "./contracts";
 import { stageLetterGradeSchema, unhandled } from "./contracts";
 import { operatorGradesDirectory, runNameFromTimestamp } from "./run-layout";
-import { deriveStageLetter } from "./stage-grading";
+import { deriveStageLetter } from "./stage-grade";
 import type { StageLetterGrade } from "./stage-letter-grades";
 import { STAGE_LETTER_GRADES } from "./stage-letter-grades";
+
+const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
+
+const OPERATOR_GRADE_SCHEMA_VERSION = 1;
+
+const RECORD_JSON_INDENT_SPACES = 2;
 
 /**
  * A stage the Judge graded, named by where its record sits: a pipeline run's
  * stage, a confirmation rep's stage, or a replay's scorecard.
  */
-export type GradedStageRef =
+type GradedStageRef =
 	| { readonly kind: "run"; readonly run: string; readonly stage: string }
 	| {
 			readonly kind: "rep";
@@ -28,36 +36,35 @@ export type GradedStageRef =
 
 const passFailSchema = z.enum(["PASS", "FAIL"]);
 
-/** What the operator submits: every rubric criterion, graded as the Judge grades it. */
-export const operatorGradeSchema = z.strictObject({
-	hardBlockers: z
-		.array(z.strictObject({ id: z.string().min(1), status: passFailSchema }))
-		.readonly(),
-	requirements: z
-		.array(z.strictObject({ id: z.string().min(1), status: passFailSchema }))
-		.readonly(),
-	dimensions: z
-		.array(
-			z.strictObject({ id: z.string().min(1), grade: stageLetterGradeSchema }),
-		)
-		.readonly(),
-	note: z.string().optional(),
+const operatorPassFailSchema = z.strictObject({
+	id: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+	status: passFailSchema,
 });
 
-export type OperatorGrade = Immutable<z.infer<typeof operatorGradeSchema>>;
+const operatorDimensionSchema = z.strictObject({
+	grade: stageLetterGradeSchema,
+	id: z.string().min(REQUIRED_TEXT_MINIMUM_CODE_UNITS),
+});
+
+/** What the operator submits: every rubric criterion, graded as the Judge grades it. */
+const operatorGradeSchema = z.strictObject({
+	dimensions: z.array(operatorDimensionSchema).readonly(),
+	hardBlockers: z.array(operatorPassFailSchema).readonly(),
+	note: z.string().optional(),
+	requirements: z.array(operatorPassFailSchema).readonly(),
+});
+
+type OperatorGrade = Immutable<z.infer<typeof operatorGradeSchema>>;
 
 const operatorGradeRecordSchema = operatorGradeSchema.extend({
-	schemaVersion: z.literal(1),
+	schemaVersion: z.literal(OPERATOR_GRADE_SCHEMA_VERSION),
 });
 
-export class OperatorGradeExistsError extends Error {
+class OperatorGradeExistsError extends Error {
 	public override name = "OperatorGradeExistsError";
 }
 
-export function operatorGradeFile(
-	runsDirectory: string,
-	ref: GradedStageRef,
-): string {
+function operatorGradeFile(runsDirectory: string, ref: GradedStageRef): string {
 	const directory = operatorGradesDirectory(runsDirectory);
 	switch (ref.kind) {
 		case "run": {
@@ -93,7 +100,7 @@ export function operatorGradeFile(
  * so an interrupted write leaves no partial grade that would refuse every
  * later one.
  */
-export async function writeOperatorGrade(
+async function writeOperatorGrade(
 	runsDirectory: string,
 	ref: GradedStageRef,
 	grade: OperatorGrade,
@@ -103,7 +110,7 @@ export async function writeOperatorGrade(
 	await mkdir(dirname(file), { recursive: true });
 	await writeFile(
 		written,
-		`${JSON.stringify({ schemaVersion: 1, ...grade }, null, 2)}\n`,
+		`${JSON.stringify({ schemaVersion: OPERATOR_GRADE_SCHEMA_VERSION, ...grade }, null, RECORD_JSON_INDENT_SPACES)}\n`,
 		{ flag: "wx" },
 	);
 
@@ -122,7 +129,7 @@ export async function writeOperatorGrade(
 	}
 }
 
-export async function readOperatorGrade(
+async function readOperatorGrade(
 	runsDirectory: string,
 	ref: GradedStageRef,
 ): Promise<OperatorGrade | undefined> {
@@ -138,7 +145,7 @@ export async function readOperatorGrade(
 }
 
 /** The operator's stage letter, by the rule the Judge's letter is derived by. */
-export function operatorStageLetter(grade: OperatorGrade): StageLetterGrade {
+function operatorStageLetter(grade: OperatorGrade): StageLetterGrade {
 	return deriveStageLetter(grade);
 }
 
@@ -147,7 +154,7 @@ function place(letter: StageLetterGrade): number {
 }
 
 /** How many letter steps separate two letters for the same stage. */
-export function stepsApart(
+function stepsApart(
 	judge: StageLetterGrade,
 	operator: StageLetterGrade,
 ): number {
@@ -155,9 +162,21 @@ export function stepsApart(
 }
 
 /** The operator's letter place minus the Judge's: positive when the Judge was more generous. */
-export function driftSteps(
+function driftSteps(
 	judge: StageLetterGrade,
 	operator: StageLetterGrade,
 ): number {
 	return place(operator) - place(judge);
 }
+
+export {
+	operatorGradeSchema,
+	OperatorGradeExistsError,
+	operatorGradeFile,
+	writeOperatorGrade,
+	readOperatorGrade,
+	operatorStageLetter,
+	stepsApart,
+	driftSteps,
+};
+export type { GradedStageRef, OperatorGrade };

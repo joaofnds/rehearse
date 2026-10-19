@@ -1,509 +1,22 @@
-import { concurrentMap } from "./concurrent-map";
-import {
-	currentCorpusReadScope,
-	withCorpusReadScope,
-} from "./corpus-read-scope";
-import type { CaseDeclaration, SessionCaseDeclaration } from "./case";
-import { listCases } from "./case";
-import { join } from "node:path";
-import type {
-	ChangedCorpusFile,
-	CheckpointRecord,
-	CheckpointStaleness,
-	HashedFile,
-	RecordedReads,
-	StageCorpus,
-	StalenessLink,
-} from "./checkpoint";
-import {
-	captureStageCorpus,
-	deriveStaleness,
-	hashedCorpus,
-	hashedFileSchema,
-	INITIAL_CHECKPOINT_STAGE,
-	withLoadedFilesNow,
-	parseCheckpointRecord,
-	readCorpusFiles,
-	refusedCorpus,
-	readChangedFilesOnly,
-	modelCause,
-	effortCause,
-	stageCorpusChanges,
-} from "./checkpoint";
-import {
-	refusedEntryReason,
-	SymlinkedEntryError,
-	textIfPresent,
-} from "./file-presence";
-import type { Effort } from "./config";
-import { corpusMeasurementSchema } from "./corpus-measurement";
-import { stoppedStage } from "./run-outcome";
-import { compareCurrentStageSettings } from "./current-stage-settings";
 import type { CorpusRoot } from "./corpus-file";
-import {
-	CORPUS_INSTRUCTIONS_PATH,
-	CorpusFileError,
-	corpusFileRefusal,
-	corpusInstructionsEntry,
-	hashCorpusFiles,
-	withoutAbsolutePaths,
-} from "./corpus-file";
-import type { CorpusUnderTest, VersionDistance } from "./corpus-version";
+import { withCorpusReadScope } from "./corpus-read-scope";
 import { readCorpusUnderTest } from "./corpus-version";
-import { parseConfirmationGroupRecord } from "./confirmation-record";
-import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
-import type { Immutable } from "./contracts";
-import { loadRunManifest } from "./manifest";
-import type { RunManifest } from "./manifest";
-import { pipelineDefinitionSchema } from "./pipeline";
-import type { PipelineDefinition, StageDefinition } from "./pipeline";
+import { runCheckpointStaleness } from "./staleness-checkpoint-history";
 import {
-	benchmarkRunPaths,
-	checkpointRecordFile,
-	confirmationGroupIds,
-	confirmationGroupPaths,
-	confirmationRepIds,
-	confirmationRepStageNames,
-	recordedRunNames,
-	replayAttemptIds,
-	replayRecordFile,
-	sessionAttemptIds,
-	sessionAttemptPaths,
-} from "./run-layout";
-import type { ConfirmationGroupPaths } from "./run-layout";
-import { readReplayRecord } from "./replay-record";
-import type { ReplayRecord } from "./replay-record";
-import { parseSessionAttemptRecord } from "./session-record";
-import { stageRubricSha256 } from "./judge-agreement";
-import type { ReadManifestEntry } from "./read-manifest";
-import { readManifestSchema } from "./read-manifest";
-import { z } from "zod";
-import { parseStageRubric } from "./stage-grading";
-import { CONTROL_DIR, effortSchema } from "./config";
-
-/**
- * One record judged against the corpus under test, stale or clean, with the
- * corpus files it read that changed and how many versions behind it sits.
- * Stale or clean comes from the causes, never from the distance.
- */
-export interface RecordStaleness {
-	/** The id `show` accepts back. */
-	readonly id: string;
-	readonly stale: boolean;
-	/** Every reason it went stale, empty when it is clean. */
-	readonly causes: readonly string[];
-	readonly changedFiles: readonly ChangedCorpusFile[];
-	/**
-	 * Stale only because corpus files changed, among them one it read, which
-	 * is what a reader can count in versions.
-	 */
-	readonly onlyCorpusFiles: boolean;
-	readonly distance: VersionDistance;
-	/** The corpus files it read, each with the hash it recorded. */
-	readonly readFiles: readonly HashedFile[];
-	/**
-	 * What it declared and loaded, each corpus and rubric entry with a
-	 * recorded hash saying whether that file changed since. Empty for a record
-	 * written before read manifests.
-	 */
-	readonly readManifest: readonly JudgedReadEntry[];
-}
-
-export type JudgedReadEntry = ReadManifestEntry & {
-	readonly state?: "unchanged" | "changed";
-};
-
-export function judgeRubricCause(path: string): string {
-	return `judge rubric ${path} changed`;
-}
-
-/**
- * The hash a rubric has now, the way a stage's scorecard froze it. A rubric
- * that is gone or no longer parses has none, so it reads as changed.
- */
-async function rubricHashNow(
-	definition: StageDefinition | undefined,
-	path: string,
-): Promise<string | undefined> {
-	if (definition === undefined) {
-		return undefined;
-	}
-
-	let content: string;
-	try {
-		content = await Bun.file(join(CONTROL_DIR, path)).text();
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return undefined;
-		}
-
-		throw error;
-	}
-
-	try {
-		return stageRubricSha256(parseStageRubric(content, definition.kind));
-	} catch {
-		// Every error a parse raises means the rubric no longer parses.
-		return undefined;
-	}
-}
-
-/**
- * The corpus files that changed since the record, or undefined when the corpus
- * under test refused to be read and no file can be shown to still match.
- */
-function comparedCorpus(
-	now: StageCorpus | undefined,
-	changes: Pick<CheckpointStaleness, "changedFiles">,
-): readonly ChangedCorpusFile[] | undefined {
-	return now !== undefined && "refused" in now
-		? undefined
-		: changes.changedFiles;
-}
-
-/**
- * A project entry gets no state, since the target repository is not under
- * test, and neither does an entry that recorded no hash to compare or a
- * corpus entry the corpus under test could not be compared against.
- */
-async function judgedReadManifest(
-	entries: readonly ReadManifestEntry[] | undefined,
-	changedFiles: readonly ChangedCorpusFile[] | undefined,
-	definition: StageDefinition | undefined,
-): Promise<readonly JudgedReadEntry[]> {
-	const judged: JudgedReadEntry[] = [];
-	for (const entry of entries ?? []) {
-		if (
-			entry.sha256 === undefined ||
-			entry.half === "project" ||
-			(entry.half === "corpus" && changedFiles === undefined)
-		) {
-			judged.push(entry);
-		} else if (entry.half === "corpus") {
-			const changed = (changedFiles ?? []).some(
-				({ path }) => path === entry.path,
-			);
-			judged.push({ ...entry, state: changed ? "changed" : "unchanged" });
-		} else {
-			const now = await rubricHashNow(definition, entry.path);
-			judged.push({
-				...entry,
-				state: now === entry.sha256 ? "unchanged" : "changed",
-			});
-		}
-	}
-
-	return judged;
-}
-
-type JudgedReads = CorpusChanges &
-	Pick<RecordStaleness, "readFiles" | "readManifest">;
-
-/**
- * One record's reads judged against its corpus now, with each file it loaded
- * beyond its captured ones read from `source`, so both sides hold the same
- * files and each manifest entry says whether its file changed.
- */
-async function judgedReads(
-	reads: RecordedReads,
-	current: StageCorpus,
-	source: CorpusRoot,
-	definition: StageDefinition | undefined,
-): Promise<JudgedReads> {
-	const readFiles = readCorpusFiles(reads);
-	const now = await withLoadedFilesNow(current, reads, source);
-	const changes = stageCorpusChanges(readFiles, now);
-
-	return {
-		...changes,
-		readFiles,
-		readManifest: await judgedReadManifest(
-			reads.readManifest,
-			comparedCorpus(now, changes),
-			definition,
-		),
-	};
-}
-
-/**
- * A changed rubric changes the grade, not the version the record read, so it
- * stales the record without moving its distance. A later stage ran only
- * because that grade let it, so the cause reaches it as an upstream one.
- */
-function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
-	return readManifest
-		.filter(({ half, state }) => half === "rubric" && state === "changed")
-		.map(({ path }) => judgeRubricCause(path));
-}
-
-export async function chainRubricCauses(
-	chain: readonly StalenessLink[],
-	stages: readonly StageDefinition[],
-): Promise<ReadonlyMap<string, readonly string[]>> {
-	const causes = new Map<string, readonly string[]>();
-	for (const record of chain) {
-		const rubricEntries = (record.readManifest ?? []).filter(
-			({ half }) => half === "rubric",
-		);
-		causes.set(
-			record.stage,
-			rubricCauses(
-				await judgedReadManifest(
-					rubricEntries,
-					[],
-					stages.find(({ name }) => name === record.stage),
-				),
-			),
-		);
-	}
-
-	return causes;
-}
-
-export interface UnreadableStaleRecord {
-	readonly id: string;
-	readonly reason: string;
-}
-
-export interface StalenessReport {
-	readonly records: readonly RecordStaleness[];
-	readonly unreadable: readonly UnreadableStaleRecord[];
-}
-
-/**
- * The model and effort the session is about to replay with, which is what a
- * recorded checkpoint is compared against. Comparing a checkpoint to the
- * manifest that produced it answers the question tautologically, so a knob the
- * caller did not name asserts nothing: the run's own value stands in and that
- * half of the comparison stays silent, while a named one reports exactly what
- * `replay` would report for the same flags.
- */
-export interface CurrentSessionKnobs {
-	readonly model?: string | undefined;
-	readonly effort?: Effort | undefined;
-}
-
-/**
- * A tree `captureStageCorpus` refuses to hash stales the stage that reads it
- * rather than failing the report: this command and the run-history screen both
- * answer for every recorded run, and one unhashable corpus directory must not
- * take the other runs' answers with it. The refusal carries the entry it
- * names, so the reader can find the link that caused it.
- */
-async function hashedOrRefused(
-	skill: string,
-	instructions: string,
-	roots: readonly CorpusRoot[],
-): Promise<StageCorpus> {
-	try {
-		return hashedCorpus(await captureStageCorpus(skill, instructions, roots));
-	} catch (error) {
-		if (error instanceof SymlinkedEntryError) {
-			return refusedCorpus(error.message);
-		}
-
-		throw error;
-	}
-}
-
-/**
- * The instructions a replay would read, or the reason this corpus cannot supply
- * them. A refusal is not a failure of the report: every recorded checkpoint
- * hashed an instruction file into its corpus, so a corpus that cannot produce
- * one invalidates those measurements exactly as an edited file does, and that
- * is a cause the reader is owed rather than an error that takes every other
- * run's answer with it.
- *
- * Every refusal names the layout path alone. `stale` prints these on stdout and
- * the run-history report copies them into its rows, where an absolute path
- * would carry the operator's home directory to every reader.
- */
-type CurrentInstructions =
-	| { readonly text: string }
-	| { readonly refused: string };
-
-async function currentInstructions(
-	source: CorpusRoot,
-): Promise<CurrentInstructions> {
-	const entry = await corpusInstructionsEntry(source);
-	if (entry.kind === "absent") {
-		return {
-			refused: corpusFileRefusal(
-				CORPUS_INSTRUCTIONS_PATH,
-				"is not in the corpus under test, so a checkpoint that hashed it cannot be compared",
-			),
-		};
-	}
-	if (entry.kind === "refused") {
-		return { refused: entry.refusal };
-	}
-
-	try {
-		return { text: await Bun.file(entry.path).text() };
-	} catch (error) {
-		const reason =
-			error instanceof Error
-				? refusedEntryReason(error, entry.path)
-				: undefined;
-		if (reason === undefined) {
-			throw error;
-		}
-
-		return { refused: corpusFileRefusal(CORPUS_INSTRUCTIONS_PATH, reason) };
-	}
-}
-
-/** A stage's corpus in the corpus under test, or why it cannot be hashed. */
-function stageCorpusNow(
-	skill: string,
-	instructions: CurrentInstructions,
-	source: CorpusRoot,
-): Promise<StageCorpus> {
-	if ("refused" in instructions) {
-		return Promise.resolve(refusedCorpus(instructions.refused));
-	}
-
-	const cache = currentCorpusReadScope()?.stages;
-	const key = JSON.stringify([source, skill, instructions.text]);
-	let pending = cache?.get(key);
-	if (pending === undefined) {
-		pending = hashedOrRefused(skill, instructions.text, [source]);
-		cache?.set(key, pending);
-	}
-
-	return pending;
-}
-
-/**
- * `stale` answers one question per invocation: what the corpus the operator
- * named invalidated. So a live corpus here is the operator's install, not the
- * target each run recorded, even though `replay` resolves the same source
- * against the target it is about to run in. Half this command's subjects are
- * session cases, which carry no manifest and no target at all, so pointing
- * pipeline runs at their own recorded roots would make one command answer two
- * questions depending on what it happened to be looking at.
- */
-async function currentStageCorpus(
-	manifest: RunManifest,
-	chain: readonly StalenessLink[],
-	source: CorpusRoot,
-	instructions: CurrentInstructions,
-): Promise<ReadonlyMap<string, StageCorpus>> {
-	const corpus = new Map<string, StageCorpus>();
-
-	for (const record of chain) {
-		if (record.stage === INITIAL_CHECKPOINT_STAGE) {
-			continue;
-		}
-
-		const definition = manifest.pipeline.stages.find(
-			({ name }) => name === record.stage,
-		);
-		if (definition === undefined) {
-			continue;
-		}
-
-		corpus.set(
-			record.stage,
-			await withLoadedFilesNow(
-				await stageCorpusNow(definition.skill, instructions, source),
-				record,
-				source,
-			),
-		);
-	}
-
-	return corpus;
-}
-
-/** A link of a run's chain with the corpus version its stage measured. */
-type JudgedLink = StalenessLink & Pick<CheckpointRecord, "corpusVersion">;
-
-export const stopRecordReadsSchema = z.object({
-	corpusFiles: z.array(hashedFileSchema).optional(),
-	corpusVersion: corpusMeasurementSchema.optional(),
-	readManifest: readManifestSchema.optional(),
-	model: z.string().min(1).optional(),
-	effort: effortSchema.optional(),
-});
-
-/**
- * The stage its judge stopped, judged as the link after the run's last
- * checkpoint from the reads its stop record keeps, since it saved no
- * checkpoint to judge. None when no stage stopped, when the stopped stage
- * has a checkpoint after all, or when its stop record predates stop records
- * keeping the corpus files a stage read, since judging no files would report
- * every file it read as added. It throws when a stage file or the reads it
- * keeps do not parse, which its caller reports without losing the run's
- * checkpoints. A
- * stop record written before it kept its model
- * or effort takes the run's. Stage settings are loaded once per run, so the
- * stopped stage ran under the settings file its run's checkpoints recorded.
- */
-async function stoppedStageLink(
-	runsDirectory: string,
-	run: string,
-	manifest: RunManifest,
-	checkpoints: readonly CheckpointRecord[],
-): Promise<JudgedLink | undefined> {
-	const stopped = await stoppedStage(runsDirectory, run);
-	if (
-		stopped === undefined ||
-		checkpoints.some(({ stage }) => stage === stopped.stage)
-	) {
-		return undefined;
-	}
-
-	const reads = stopRecordReadsSchema.parse(
-		JSON.parse(
-			await Bun.file(
-				benchmarkRunPaths(runsDirectory, run).stageFile(stopped.stage),
-			).text(),
-		),
-	);
-	if (reads.corpusFiles === undefined) {
-		return undefined;
-	}
-
-	return {
-		stage: stopped.stage,
-		model: reads.model ?? manifest.model,
-		effort: reads.effort ?? manifest.effort,
-		settingsFile: checkpoints.at(-1)?.settingsFile,
-		corpusFiles: reads.corpusFiles,
-		readManifest: reads.readManifest,
-		corpusVersion: reads.corpusVersion,
-	};
-}
-
-async function checkpointChain(
-	runsDirectory: string,
-	run: string,
-	stages: readonly string[],
-): Promise<readonly CheckpointRecord[]> {
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	const chain: CheckpointRecord[] = [];
-
-	for (const stage of stages) {
-		const file = Bun.file(
-			checkpointRecordFile(paths.checkpointDirectory(stage)),
-		);
-		if (await file.exists()) {
-			chain.push(parseCheckpointRecord(await file.text()));
-		}
-	}
-
-	return chain;
-}
-
-/**
- * The initial checkpoint freezes the target before any stage reads the
- * corpus, so no version applies to it, whenever its run was recorded.
- */
-const INITIAL_CHECKPOINT_DISTANCE: VersionDistance = {
-	kind: "not-recorded",
-	reason: "the initial checkpoint reads no corpus",
-};
+	checkpointReport,
+	checkpointStalenessAgainst,
+} from "./staleness-checkpoints";
+import type { CheckpointStalenessByRun } from "./staleness-checkpoints";
+import type {
+	CurrentSessionKnobs,
+	RecordStaleness,
+	StalenessReport,
+} from "./staleness-contract";
+import { corpusJudgedAgainst } from "./staleness-current-corpus";
+import type { CorpusUnderTestReader } from "./staleness-current-corpus";
+import groupStalenessAgainst from "./staleness-groups";
+import replayAttemptStalenessAgainst from "./staleness-replay-attempts";
+import sessionAttemptStalenessAgainst from "./staleness-session-attempts";
 
 /**
  * Staleness needs the corpus hashed, never installed, so `stale` needs no
@@ -521,7 +34,7 @@ const INITIAL_CHECKPOINT_DISTANCE: VersionDistance = {
  * run: the corpus under test does not change between runs, so one read answers
  * for all of them and a refusal is decided in one place.
  */
-export async function checkpointStaleness(
+async function checkpointStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
@@ -535,83 +48,17 @@ export async function checkpointStaleness(
 	);
 }
 
-/** Every run's checkpoints in one report. */
-export function checkpointReport({
-	byRun,
-	unreadable,
-}: CheckpointStalenessByRun): StalenessReport {
-	return { records: [...byRun.values()].flat(), unreadable };
-}
-
-export interface CheckpointStalenessByRun {
-	/** Each readable run's checkpoints in chain order, then its stopped stage. */
-	readonly byRun: ReadonlyMap<string, readonly RecordStaleness[]>;
-	readonly unreadable: readonly UnreadableStaleRecord[];
-}
-
-/**
- * Every recorded run's checkpoints judged against one reading of the corpus,
- * keyed by run.
- */
-async function checkpointStalenessAgainst(
-	runsDirectory: string,
-	against: CorpusJudgedAgainst,
-	knobs: CurrentSessionKnobs,
-): Promise<CheckpointStalenessByRun> {
-	const readings = await concurrentMap(
-		await recordedRunNames(runsDirectory),
-		async (run) => {
-			try {
-				return {
-					run,
-					judged: await runCheckpointStaleness(
-						runsDirectory,
-						run,
-						against,
-						knobs,
-					),
-				};
-			} catch (error) {
-				return {
-					run,
-					unreadable: {
-						id: `run:${run}`,
-						reason: error instanceof Error ? error.message : String(error),
-					},
-				};
-			}
-		},
-	);
-	const byRun = new Map<string, RecordStaleness[]>();
-	const unreadable: UnreadableStaleRecord[] = [];
-
-	for (const reading of readings) {
-		if (reading.unreadable !== undefined) {
-			unreadable.push(reading.unreadable);
-		}
-		if (reading.judged !== undefined) {
-			byRun.set(reading.run, reading.judged.records);
-			if (reading.judged.unreadableStop !== undefined) {
-				unreadable.push(reading.judged.unreadableStop);
-			}
-		}
-	}
-
-	return { byRun, unreadable };
-}
-
 /**
  * One run's checkpoints judged as `checkpointStaleness` judges them, none when
  * the run recorded no manifest.
  */
-export async function checkpointStalenessOfRun(
+async function checkpointStalenessOfRun(
 	runsDirectory: string,
 	run: string,
 	source: CorpusRoot,
 ): Promise<readonly RecordStaleness[]> {
 	const judged = await runCheckpointStaleness(
-		runsDirectory,
-		run,
+		{ run, runsDirectory },
 		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
 		{},
 	);
@@ -619,152 +66,8 @@ export async function checkpointStalenessOfRun(
 	return judged?.records ?? [];
 }
 
-/**
- * The read manifest of a stage that saved no checkpoint, judged against the
- * corpus under test the way a checkpoint's is, from the corpus files its stage
- * record keeps.
- */
-export async function judgedStageReads(
-	runsDirectory: string,
-	run: string,
-	stage: string,
-	reads: RecordedReads,
-	source: CorpusRoot,
-): Promise<readonly JudgedReadEntry[]> {
-	const manifest = await loadRunManifest(
-		benchmarkRunPaths(runsDirectory, run).manifestFile,
-	);
-	const definition = manifest.pipeline.stages.find(
-		({ name }) => name === stage,
-	);
-	if (definition === undefined) {
-		throw new Error(`The run's pipeline does not declare the ${stage} stage`);
-	}
-
-	const judged = await judgedReads(
-		reads,
-		await stageCorpusNow(
-			definition.skill,
-			await currentInstructions(source),
-			source,
-		),
-		source,
-		definition,
-	);
-
-	return judged.readManifest;
-}
-
-interface CorpusJudgedAgainst {
-	readonly source: CorpusRoot;
-	readonly instructions: CurrentInstructions;
-	readonly underTest: CorpusUnderTest;
-}
-
-/** Reads the corpus under test as `readCorpusUnderTest` does. */
-export type CorpusUnderTestReader = (
-	recordsDirectory: string,
-	source: CorpusRoot,
-) => Promise<CorpusUnderTest>;
-
-async function corpusJudgedAgainst(
-	runsDirectory: string,
-	source: CorpusRoot,
-	readUnderTest: CorpusUnderTestReader,
-): Promise<CorpusJudgedAgainst> {
-	return {
-		source,
-		instructions: await currentInstructions(source),
-		underTest: await readUnderTest(runsDirectory, source),
-	};
-}
-
-/**
- * A run's judged records, with its stopped stage named unreadable when a
- * stage file or the reads its stop record keeps do not parse, so that stage
- * is reported rather than read as clean and the run's checkpoints are still
- * judged.
- */
-interface RunStaleness {
-	readonly records: RecordStaleness[];
-	readonly unreadableStop: UnreadableStaleRecord | undefined;
-}
-
-async function runCheckpointStaleness(
-	runsDirectory: string,
-	run: string,
-	{ source, instructions, underTest }: CorpusJudgedAgainst,
-	knobs: CurrentSessionKnobs,
-): Promise<RunStaleness | undefined> {
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	const manifestFile = Bun.file(paths.manifestFile);
-	if (!(await manifestFile.exists())) {
-		return undefined;
-	}
-
-	const manifest = await loadRunManifest(paths.manifestFile);
-	const checkpoints = await checkpointChain(runsDirectory, run, [
-		INITIAL_CHECKPOINT_STAGE,
-		...manifest.pipeline.stages.map(({ name }) => name),
-	]);
-	let unreadableStop: UnreadableStaleRecord | undefined;
-	let stopped: JudgedLink | undefined;
-	try {
-		stopped = await stoppedStageLink(runsDirectory, run, manifest, checkpoints);
-	} catch (error) {
-		unreadableStop = {
-			id: `run:${run}`,
-			reason: error instanceof Error ? error.message : String(error),
-		};
-	}
-	const chain: readonly JudgedLink[] =
-		stopped === undefined ? checkpoints : [...checkpoints, stopped];
-	const current = await currentStageCorpus(
-		manifest,
-		chain,
-		source,
-		instructions,
-	);
-	const settings = await compareCurrentStageSettings(manifest.caseId);
-	const byStage = new Map(chain.map((record) => [record.stage, record]));
-	const judged: RecordStaleness[] = [];
-
-	for (const staleness of deriveStaleness(chain, current, {
-		model: knobs.model ?? manifest.model,
-		effort: knobs.effort ?? manifest.effort,
-		judgeRubricCauses: await chainRubricCauses(chain, manifest.pipeline.stages),
-		...settings,
-	})) {
-		const readManifest = await judgedReadManifest(
-			byStage.get(staleness.stage)?.readManifest,
-			comparedCorpus(current.get(staleness.stage), staleness),
-			manifest.pipeline.stages.find(({ name }) => name === staleness.stage),
-		);
-		judged.push({
-			id:
-				staleness.stage === stopped?.stage
-					? `run:${run}`
-					: `checkpoint:${run}/${staleness.stage}`,
-			stale: staleness.stale,
-			causes: staleness.causes,
-			changedFiles: staleness.changedFiles,
-			onlyCorpusFiles: staleness.onlyCorpusFiles,
-			readManifest,
-			distance:
-				staleness.stage === INITIAL_CHECKPOINT_STAGE
-					? INITIAL_CHECKPOINT_DISTANCE
-					: underTest.distanceOf(byStage.get(staleness.stage)?.corpusVersion),
-			readFiles: readCorpusFiles(
-				byStage.get(staleness.stage) ?? { corpusFiles: [] },
-			),
-		});
-	}
-
-	return { records: judged, unreadableStop };
-}
-
 /** The readable checkpoints `checkpointStaleness` finds stale, and only those. */
-export async function staleCheckpoints(
+async function staleCheckpoints(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
@@ -772,47 +75,6 @@ export async function staleCheckpoints(
 	const report = await checkpointStaleness(runsDirectory, source, knobs);
 
 	return report.records.filter(({ stale }) => stale);
-}
-
-function sessionCases(
-	declarations: readonly CaseDeclaration[],
-): readonly SessionCaseDeclaration[] {
-	return declarations.filter(
-		(declaration): declaration is SessionCaseDeclaration =>
-			declaration.kind === "session",
-	);
-}
-
-/**
- * The declared files as the corpus under test holds them now, or why it
- * cannot hold them. A declared corpus file the corpus under test no longer
- * holds invalidates the measurement as surely as an edit does, the case cannot
- * even run against this corpus, so it is a cause rather than a failure that
- * hides every other case's answer.
- *
- * The cause names the layout path alone. A refusal built for a caller that
- * throws carries the resolved path, which helps an operator reading a refusal
- * on stderr and leaks the corpus root into the record ids and causes this
- * command prints on stdout, where a reader acts on the layout path anyway.
- */
-async function currentCaseCorpus(
-	declaration: SessionCaseDeclaration,
-	source: CorpusRoot,
-): Promise<StageCorpus> {
-	try {
-		const current = await hashCorpusFiles(source, declaration.corpusFiles);
-
-		return hashedCorpus(current.map(({ path, sha256 }) => ({ path, sha256 })));
-	} catch (error) {
-		if (
-			error instanceof CorpusFileError ||
-			error instanceof SymlinkedEntryError
-		) {
-			return refusedCorpus(withoutAbsolutePaths(error.message, source));
-		}
-
-		throw error;
-	}
 }
 
 /**
@@ -826,122 +88,14 @@ async function currentCaseCorpus(
  * that does not read: silence there is indistinguishable from fresh, and a
  * mistyped `corpusFiles` entry would then read as an answer.
  */
-export async function sessionAttemptStaleness(
+async function sessionAttemptStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<StalenessReport> {
-	return sessionAttemptStalenessAgainst(runsDirectory, {
+	return await sessionAttemptStalenessAgainst(runsDirectory, {
 		source,
 		underTest: await readCorpusUnderTest(runsDirectory, source),
 	});
-}
-
-async function sessionAttemptStalenessAgainst(
-	runsDirectory: string,
-	{ source, underTest }: Omit<CorpusJudgedAgainst, "instructions">,
-): Promise<StalenessReport> {
-	const listing = await listCases(undefined, { includeArchived: true });
-	const attempts = await sessionAttemptIds(runsDirectory);
-	const records: RecordStaleness[] = [];
-	const unreadable: UnreadableStaleRecord[] = listing.unreadable.map(
-		({ id, reason }) => ({ id: `case:${id}`, reason }),
-	);
-
-	const known = new Set([
-		...listing.declarations.map(({ id }) => id),
-		...listing.unreadable.map(({ id }) => id),
-	]);
-	for (const attempt of attempts) {
-		if (!known.has(attempt.caseId)) {
-			unreadable.push({
-				id: `attempt:session:${attempt.caseId}/${attempt.uuid}`,
-				reason: "corpus files unknown: case no longer declared",
-			});
-		}
-	}
-
-	for (const declaration of sessionCases(listing.declarations)) {
-		const current = await currentCaseCorpus(declaration, source);
-
-		for (const attempt of attempts) {
-			if (attempt.caseId !== declaration.id) {
-				continue;
-			}
-
-			const id = `attempt:session:${attempt.caseId}/${attempt.uuid}`;
-			const text = await textIfPresent(
-				sessionAttemptPaths(runsDirectory, attempt).recordFile,
-			);
-			if (text === undefined) {
-				continue;
-			}
-
-			try {
-				const record = parseSessionAttemptRecord(text);
-				const reads = {
-					corpusFiles: record.corpusFiles.map(({ path, sha256 }) => ({
-						path,
-						sha256,
-					})),
-					readManifest:
-						record.schemaVersion === 1 ? undefined : record.readManifest,
-				};
-				const judged = await judgedReads(reads, current, source, undefined);
-				records.push({
-					id,
-					stale: judged.causes.length > 0,
-					...judged,
-					onlyCorpusFiles: readChangedFilesOnly(judged),
-					distance: underTest.distanceOf(record.corpusVersion),
-				});
-			} catch (error) {
-				unreadable.push({
-					id,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			}
-		}
-	}
-
-	return { records, unreadable };
-}
-
-/**
- * A model or effort the caller names that differs from the one the record ran
- * with. An unnamed knob asserts nothing, as it does for a checkpoint.
- */
-function namedKnobCauses(
-	record: Pick<ReplayRecord, "model" | "effort">,
-	knobs: CurrentSessionKnobs,
-): readonly string[] {
-	const causes: string[] = [];
-	if (knobs.model !== undefined && knobs.model !== record.model) {
-		causes.push(modelCause(record.model, knobs.model));
-	}
-	if (knobs.effort !== undefined && knobs.effort !== record.effort) {
-		causes.push(effortCause(record.effort, knobs.effort));
-	}
-
-	return causes;
-}
-
-async function replayedStage(
-	runsDirectory: string,
-	record: Pick<ReplayRecord, "runName" | "stage">,
-): Promise<StageDefinition> {
-	const manifest = await loadRunManifest(
-		benchmarkRunPaths(runsDirectory, record.runName).manifestFile,
-	);
-	const definition = manifest.pipeline.stages.find(
-		({ name }) => name === record.stage,
-	);
-	if (definition === undefined) {
-		throw new Error(
-			`the run's pipeline does not declare the ${record.stage} stage it replayed`,
-		);
-	}
-
-	return definition;
 }
 
 /**
@@ -954,488 +108,15 @@ async function replayedStage(
  * cause of its own here, since it stales the consumed checkpoint and reaches
  * the replay as that upstream cause.
  */
-export async function replayAttemptStaleness(
+async function replayAttemptStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
-	return replayAttemptStalenessAgainst(
+	return await replayAttemptStalenessAgainst(
 		runsDirectory,
 		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
-		await checkpointStaleness(runsDirectory, source),
-		knobs,
-	);
-}
-
-/** Given `upstream`, every checkpoint judged with no knob named. */
-async function replayAttemptStalenessAgainst(
-	runsDirectory: string,
-	{ source, instructions, underTest }: CorpusJudgedAgainst,
-	upstream: StalenessReport,
-	knobs: CurrentSessionKnobs,
-): Promise<StalenessReport> {
-	const staleCheckpointsById = new Map(
-		upstream.records
-			.filter(({ stale }) => stale)
-			.map((checkpoint) => [checkpoint.id, checkpoint]),
-	);
-	const unreadableRuns = new Set(upstream.unreadable.map(({ id }) => id));
-	const records: RecordStaleness[] = [];
-	const unreadable: UnreadableStaleRecord[] = [];
-
-	for (const { lineage, timestamp } of await replayAttemptIds(runsDirectory)) {
-		const id = `attempt:stage:${lineage}/${timestamp}`;
-
-		try {
-			const record = await readReplayRecord(
-				replayRecordFile(runsDirectory, lineage, timestamp),
-			);
-			if (unreadableRuns.has(`run:${record.runName}`)) {
-				throw new Error(
-					`the run ${record.runName} it replayed cannot be read to judge its upstream stages`,
-				);
-			}
-			const definition = await replayedStage(runsDirectory, record);
-			const corpus = await judgedReads(
-				record,
-				await stageCorpusNow(definition.skill, instructions, source),
-				source,
-				definition,
-			);
-			const consumed = staleCheckpointsById.get(
-				`checkpoint:${record.runName}/${record.consumed.stage}`,
-			);
-			const knobCauses = namedKnobCauses(record, knobs);
-			const rubric = rubricCauses(corpus.readManifest);
-			const causes = [
-				...(consumed === undefined
-					? []
-					: [`upstream stage ${record.consumed.stage} is stale`]),
-				...knobCauses,
-				...corpus.causes,
-				...rubric,
-			];
-			records.push({
-				id,
-				stale: causes.length > 0,
-				causes,
-				changedFiles: corpus.changedFiles,
-				onlyCorpusFiles:
-					knobCauses.length === 0 &&
-					rubric.length === 0 &&
-					(consumed === undefined || consumed.onlyCorpusFiles) &&
-					readChangedFilesOnly(corpus),
-				distance: underTest.distanceOf(record.corpusVersion),
-				readFiles: corpus.readFiles,
-				readManifest: corpus.readManifest,
-			});
-		} catch (error) {
-			unreadable.push({
-				id,
-				reason: error instanceof Error ? error.message : String(error),
-			});
-		}
-	}
-
-	return { records, unreadable };
-}
-
-const FROZEN_CORPUS = "inputs/corpus/";
-
-type CorpusChanges = Pick<RecordStaleness, "causes" | "changedFiles">;
-
-type FrozenGroupFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
-
-/** The frozen corpus files under one prefix, by the layout path each holds. */
-function frozenCorpusFiles(
-	files: readonly FrozenGroupFile[],
-	prefix: string,
-): readonly HashedFile[] {
-	return files
-		.filter(({ kind, path }) => kind === "corpus" && path.startsWith(prefix))
-		.map(({ path, sha256 }) => ({ path: path.slice(prefix.length), sha256 }));
-}
-
-/**
- * A group freezes one corpus per stage, and a file every stage reads, the
- * instructions for one, sits in each of them. The reader is owed one line per
- * file, so a file that changed under several stages is named once.
- */
-function mergedChanges(changes: readonly CorpusChanges[]): CorpusChanges {
-	const causes = new Set(changes.flatMap((change) => change.causes));
-	const changedFiles = new Map(
-		changes.flatMap((change) =>
-			change.changedFiles.map((file) => [file.path, file] as const),
-		),
-	);
-
-	return {
-		causes: [...causes].toSorted(),
-		changedFiles: [...changedFiles.values()].toSorted((first, second) =>
-			first.path.localeCompare(second.path),
-		),
-	};
-}
-
-export async function frozenPipeline(
-	groupDirectory: string,
-	files: readonly FrozenGroupFile[],
-): Promise<PipelineDefinition> {
-	const frozen = files.find(({ kind }) => kind === "pipeline");
-	if (frozen === undefined) {
-		throw new Error("the group froze no pipeline to hash its stages against");
-	}
-
-	const text = await textIfPresent(join(groupDirectory, frozen.path));
-	if (text === undefined) {
-		throw new Error(`the group's frozen pipeline ${frozen.path} is missing`);
-	}
-
-	return pipelineDefinitionSchema.parse(JSON.parse(text));
-}
-
-/**
- * A stage or pipeline group is judged per stage it froze, against the skill
- * its frozen pipeline names for that stage, so a later edit to the case's
- * pipeline does not change what the group is compared with.
- */
-async function stageGroupChanges(
-	runsDirectory: string,
-	groupId: string,
-	files: readonly FrozenGroupFile[],
-	instructions: CurrentInstructions,
-	source: CorpusRoot,
-): Promise<JudgedReads> {
-	const paths = confirmationGroupPaths(runsDirectory, groupId);
-	const repIds = await confirmationRepIds(runsDirectory, groupId);
-	const changes: CorpusChanges[] = [];
-	const readFiles: HashedFile[] = [];
-	const readManifest: JudgedReadEntry[] = [];
-	const stages = await frozenStageCorpora(paths, files, instructions, source);
-
-	for (const { stage, corpusFiles, current } of stages) {
-		const judged = await judgedReads(
-			{
-				corpusFiles,
-				readManifest: await repStageManifest(paths, repIds, stage.name),
-			},
-			current,
-			source,
-			stage,
-		);
-		readFiles.push(...judged.readFiles);
-		changes.push(judged);
-		readManifest.push(...judged.readManifest);
-	}
-
-	return { ...mergedChanges(changes), readFiles, readManifest };
-}
-
-const recordedManifestSchema = z
-	.object({ readManifest: readManifestSchema.optional() })
-	.loose();
-
-/**
- * Every read one stage of a group's reps recorded, once per file and hash. A
- * rep keeps it on its stage file, and one that saved a checkpoint keeps it
- * there too, as a rep recorded before its stage file held one does.
- */
-async function repStageManifest(
-	paths: ConfirmationGroupPaths,
-	repIds: readonly string[],
-	stage: string,
-): Promise<readonly ReadManifestEntry[]> {
-	const entries = new Map<string, ReadManifestEntry>();
-	for (const repId of repIds) {
-		const rep = paths.rep(repId);
-		for (const file of [
-			rep.stageFile(stage),
-			checkpointRecordFile(rep.checkpointDirectory(stage)),
-		]) {
-			const text = await textIfPresent(file);
-			if (text === undefined) {
-				continue;
-			}
-
-			const { readManifest } = recordedManifestSchema.parse(JSON.parse(text));
-			for (const entry of readManifest ?? []) {
-				entries.set(readKey(entry), entry);
-			}
-		}
-	}
-
-	return [...entries.values()];
-}
-
-async function sessionGroupChanges(
-	runsDirectory: string,
-	groupId: string,
-	current: () => Promise<StageCorpus>,
-	files: readonly FrozenGroupFile[],
-	source: CorpusRoot,
-): Promise<JudgedReads> {
-	return judgedReads(
-		{
-			corpusFiles: frozenCorpusFiles(files, FROZEN_CORPUS),
-			readManifest: await repAttemptManifest(runsDirectory, groupId),
-		},
-		await current(),
-		source,
-		undefined,
-	);
-}
-
-async function sessionCaseCorpusNow(
-	caseId: string,
-	source: CorpusRoot,
-): Promise<StageCorpus> {
-	const listing = await listCases(undefined, { includeArchived: true });
-	const declaration = sessionCases(listing.declarations).find(
-		({ id }) => id === caseId,
-	);
-	if (declaration === undefined) {
-		throw new Error("corpus files unknown: case no longer declared");
-	}
-
-	return currentCaseCorpus(declaration, source);
-}
-
-/** Every read a session group's rep attempts recorded, once per file and hash. */
-async function repAttemptManifest(
-	runsDirectory: string,
-	groupId: string,
-): Promise<readonly ReadManifestEntry[]> {
-	const paths = confirmationGroupPaths(runsDirectory, groupId);
-	const entries = new Map<string, ReadManifestEntry>();
-	for (const repId of await confirmationRepIds(runsDirectory, groupId)) {
-		for (const entry of await repAttemptReads(paths, repId)) {
-			entries.set(readKey(entry), entry);
-		}
-	}
-
-	return [...entries.values()];
-}
-
-async function repAttemptReads(
-	paths: ConfirmationGroupPaths,
-	repId: string,
-): Promise<readonly ReadManifestEntry[]> {
-	const text = await textIfPresent(paths.rep(repId).attemptFile);
-	if (text === undefined) {
-		return [];
-	}
-
-	const record = parseSessionAttemptRecord(text);
-
-	return record.schemaVersion === 1 ? [] : (record.readManifest ?? []);
-}
-
-function readKey(entry: ReadManifestEntry): string {
-	return `${entry.half}:${entry.path}:${entry.sha256}`;
-}
-
-export interface RepReads {
-	readonly repId: string;
-	/** The pipeline stage it read in, absent for a session rep, which ran none. */
-	readonly stage?: string;
-	readonly readManifest: readonly JudgedReadEntry[];
-}
-
-export interface GroupRepReads {
-	readonly reps: readonly RepReads[];
-	/** Why a rep's reads are missing from `reps` or carry no state. */
-	readonly reasons: readonly string[];
-}
-
-/**
- * What each rep of one group declared and loaded, each stage apart, judged
- * the way `groupStaleness` judges the reads of all its reps together. A rep
- * stage that recorded no reads is left out. The reads are listed whether or
- * not they can be judged: a rep stage whose file does not parse is named in
- * `reasons` and the other reps still stand, and a group that cannot be judged
- * at all, its session case no longer declared or its pipeline never frozen,
- * keeps its reads with no state and says why.
- */
-export async function groupRepReads(
-	runsDirectory: string,
-	groupId: string,
-	source: CorpusRoot,
-): Promise<GroupRepReads> {
-	const paths = confirmationGroupPaths(runsDirectory, groupId);
-	const record = parseConfirmationGroupRecord(
-		await Bun.file(paths.groupFile).text(),
-	);
-	const recorded = await recordedRepReads(runsDirectory, groupId, record);
-	try {
-		const judged = await judgedRepReads(paths, record, recorded.reps, source);
-
-		return {
-			reps: judged.reps,
-			reasons: [...recorded.reasons, ...judged.reasons],
-		};
-	} catch (error) {
-		return {
-			reps: recorded.reps,
-			reasons: [
-				...recorded.reasons,
-				`Reads not judged: ${error instanceof Error ? error.message : String(error)}`,
-			],
-		};
-	}
-}
-
-/** What the reps of one group recorded, with no state yet. */
-export async function recordedRepReads(
-	runsDirectory: string,
-	groupId: string,
-	record: Pick<ParsedConfirmationGroupRecord, "mode">,
-): Promise<GroupRepReads> {
-	const paths = confirmationGroupPaths(runsDirectory, groupId);
-	const reps: RepReads[] = [];
-	const reasons: string[] = [];
-	for (const repId of await confirmationRepIds(runsDirectory, groupId)) {
-		const stages: readonly (string | undefined)[] =
-			record.mode === "session"
-				? [undefined]
-				: await confirmationRepStageNames(runsDirectory, groupId, repId);
-		for (const stage of stages) {
-			try {
-				const readManifest =
-					stage === undefined
-						? await repAttemptReads(paths, repId)
-						: await repStageManifest(paths, [repId], stage);
-				if (readManifest.length > 0) {
-					reps.push(
-						stage === undefined
-							? { repId, readManifest }
-							: { repId, stage, readManifest },
-					);
-				}
-			} catch (error) {
-				reasons.push(
-					`${[repId, stage].filter((part) => part !== undefined).join(" ")} could not be read: ${error instanceof Error ? error.message : String(error)}`,
-				);
-			}
-		}
-	}
-
-	return { reps, reasons };
-}
-
-async function judgedRepReads(
-	paths: ConfirmationGroupPaths,
-	record: Immutable<ParsedConfirmationGroupRecord>,
-	recorded: readonly RepReads[],
-	source: CorpusRoot,
-): Promise<GroupRepReads> {
-	if (record.mode === "session") {
-		const corpusFiles = frozenCorpusFiles(record.inputs.files, FROZEN_CORPUS);
-		const current = await sessionCaseCorpusNow(record.caseId, source);
-		const reps: RepReads[] = [];
-		for (const rep of recorded) {
-			const judged = await judgedReads(
-				{ corpusFiles, readManifest: rep.readManifest },
-				current,
-				source,
-				undefined,
-			);
-			reps.push({ ...rep, readManifest: judged.readManifest });
-		}
-
-		return { reps, reasons: [] };
-	}
-
-	const frozen = await frozenStageCorpora(
-		paths,
-		record.inputs.files,
-		await currentInstructions(source),
-		source,
-	);
-	const corpora = new Map(frozen.map((corpus) => [corpus.stage.name, corpus]));
-	const reps: RepReads[] = [];
-	const unfrozen = new Set<string>();
-	for (const rep of recorded) {
-		const corpus = rep.stage === undefined ? undefined : corpora.get(rep.stage);
-		if (corpus === undefined) {
-			unfrozen.add(rep.stage ?? "");
-			reps.push(rep);
-			continue;
-		}
-
-		const judged = await judgedReads(
-			{ corpusFiles: corpus.corpusFiles, readManifest: rep.readManifest },
-			corpus.current,
-			source,
-			corpus.stage,
-		);
-		reps.push({ ...rep, readManifest: judged.readManifest });
-	}
-
-	return {
-		reps,
-		reasons: [...unfrozen].map(
-			(stage) =>
-				`Reads not judged for stage ${stage}: the group froze no corpus for it`,
-		),
-	};
-}
-
-interface FrozenStageCorpus {
-	readonly stage: StageDefinition;
-	readonly corpusFiles: readonly HashedFile[];
-	readonly current: StageCorpus;
-}
-
-/** Each stage the group froze a corpus for, with that stage's corpus now. */
-async function frozenStageCorpora(
-	paths: ConfirmationGroupPaths,
-	files: readonly FrozenGroupFile[],
-	instructions: CurrentInstructions,
-	source: CorpusRoot,
-): Promise<readonly FrozenStageCorpus[]> {
-	const pipeline = await frozenPipeline(paths.directory, files);
-	const stages: FrozenStageCorpus[] = [];
-	for (const stage of pipeline.stages) {
-		const corpusFiles = frozenCorpusFiles(
-			files,
-			`${FROZEN_CORPUS}${stage.name}/`,
-		);
-		if (corpusFiles.length === 0) {
-			continue;
-		}
-
-		const current = await stageCorpusNow(stage.skill, instructions, source);
-		stages.push({
-			stage,
-			corpusFiles,
-			current: frozeOwnSkill(corpusFiles, stage.skill)
-				? current
-				: withoutSkill(current, stage.skill),
-		});
-	}
-
-	return stages;
-}
-
-/**
- * A stage replay freezes its own skill unless it ran without it, as a
- * comparison's control group does, and a group that ran without it is judged
- * on the rest of the stage's corpus.
- */
-function frozeOwnSkill(
-	corpusFiles: readonly HashedFile[],
-	skill: string,
-): boolean {
-	return corpusFiles.some(({ path }) => path.startsWith(`skills/${skill}/`));
-}
-
-function withoutSkill(corpus: StageCorpus, skill: string): StageCorpus {
-	if ("refused" in corpus) {
-		return corpus;
-	}
-
-	return hashedCorpus(
-		corpus.hashed.filter(({ path }) => !path.startsWith(`skills/${skill}/`)),
+		{ knobs, upstream: await checkpointStaleness(runsDirectory, source) },
 	);
 }
 
@@ -1446,105 +127,20 @@ function withoutSkill(corpus: StageCorpus, skill: string): StageCorpus {
  * upstream of it in the live run records can stale it, and its settings are
  * compared by the checkpoint it froze rather than here.
  */
-export async function groupStaleness(
+async function groupStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
-	return groupStalenessAgainst(
+	return await groupStalenessAgainst(
 		runsDirectory,
 		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
 		knobs,
 	);
 }
 
-async function groupStalenessAgainst(
-	runsDirectory: string,
-	{ source, instructions, underTest }: CorpusJudgedAgainst,
-	knobs: CurrentSessionKnobs,
-): Promise<StalenessReport> {
-	const sessionCorpora = new Map<string, Promise<StageCorpus>>();
-	const currentSessionCorpus = (caseId: string): Promise<StageCorpus> => {
-		let pending = sessionCorpora.get(caseId);
-		if (pending === undefined) {
-			pending = sessionCaseCorpusNow(caseId, source);
-			sessionCorpora.set(caseId, pending);
-		}
-
-		return pending;
-	};
-	const readings = await concurrentMap(
-		await confirmationGroupIds(runsDirectory),
-		async (groupId): Promise<StalenessReport> => {
-			const id = `group:${groupId}`;
-			const paths = confirmationGroupPaths(runsDirectory, groupId);
-			const text = await textIfPresent(paths.groupFile);
-			if (text === undefined) {
-				return { records: [], unreadable: [] };
-			}
-
-			try {
-				const record = parseConfirmationGroupRecord(text);
-				const corpus =
-					record.mode === "session"
-						? await sessionGroupChanges(
-								runsDirectory,
-								groupId,
-								() => currentSessionCorpus(record.caseId),
-								record.inputs.files,
-								source,
-							)
-						: await stageGroupChanges(
-								runsDirectory,
-								groupId,
-								record.inputs.files,
-								instructions,
-								source,
-							);
-				const knobCauses = namedKnobCauses(record.inputs, knobs);
-				const rubric = rubricCauses(corpus.readManifest);
-				const causes = [...knobCauses, ...corpus.causes, ...rubric];
-
-				return {
-					records: [
-						{
-							id,
-							stale: causes.length > 0,
-							causes,
-							changedFiles: corpus.changedFiles,
-							onlyCorpusFiles:
-								knobCauses.length === 0 &&
-								rubric.length === 0 &&
-								readChangedFilesOnly(corpus),
-							distance: underTest.distanceOf(record.inputs.corpusVersion),
-							readFiles: corpus.readFiles,
-							readManifest: corpus.readManifest,
-						},
-					],
-					unreadable: [],
-				};
-			} catch (error) {
-				return {
-					records: [],
-					unreadable: [
-						{
-							id,
-							reason: error instanceof Error ? error.message : String(error),
-						},
-					],
-				};
-			}
-		},
-	);
-
-	return {
-		records: readings.flatMap(({ records }) => records),
-		unreadable: readings.flatMap(({ unreadable }) => unreadable),
-	};
-}
-
 /** Every record kind's staleness, judged with the knobs each was recorded with. */
-export interface EveryRecordStaleness {
+interface EveryRecordStaleness {
 	readonly checkpoints: CheckpointStalenessByRun;
 	readonly sessionAttempts: StalenessReport;
 	readonly replayAttempts: StalenessReport;
@@ -1556,12 +152,12 @@ export interface EveryRecordStaleness {
  * checkpoint judged once: a replay's upstream stages are the checkpoints
  * judged here.
  */
-export function everyRecordStaleness(
+async function everyRecordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	readUnderTest: CorpusUnderTestReader = readCorpusUnderTest,
 ): Promise<EveryRecordStaleness> {
-	return withCorpusReadScope(async () => {
+	return await withCorpusReadScope(async () => {
 		const against = await corpusJudgedAgainst(
 			runsDirectory,
 			source,
@@ -1573,19 +169,62 @@ export function everyRecordStaleness(
 			{},
 		);
 
+		const sessionAttempts = await sessionAttemptStalenessAgainst(
+			runsDirectory,
+			against,
+		);
+		const replayAttempts = await replayAttemptStalenessAgainst(
+			runsDirectory,
+			against,
+			{ knobs: {}, upstream: checkpointReport(checkpoints) },
+		);
+		const groups = await groupStalenessAgainst(runsDirectory, against, {});
+
 		return {
 			checkpoints,
-			sessionAttempts: await sessionAttemptStalenessAgainst(
-				runsDirectory,
-				against,
-			),
-			replayAttempts: await replayAttemptStalenessAgainst(
-				runsDirectory,
-				against,
-				checkpointReport(checkpoints),
-				{},
-			),
-			groups: await groupStalenessAgainst(runsDirectory, against, {}),
+			groups,
+			replayAttempts,
+			sessionAttempts,
 		};
 	});
 }
+
+export { judgeRubricCause } from "./staleness-rubrics";
+
+export { chainRubricCauses } from "./staleness-read-manifest";
+
+export { stopRecordReadsSchema } from "./staleness-checkpoint-history";
+
+export { checkpointReport } from "./staleness-checkpoints";
+
+export { default as judgedStageReads } from "./staleness-stage-reads";
+
+export { frozenPipeline } from "./staleness-frozen-corpus";
+
+export { groupRepReads, recordedRepReads } from "./staleness-group-reads";
+
+export type {
+	RecordStaleness,
+	JudgedReadEntry,
+	UnreadableStaleRecord,
+	StalenessReport,
+	CurrentSessionKnobs,
+} from "./staleness-contract";
+
+export type { CheckpointStalenessByRun } from "./staleness-checkpoints";
+
+export type { CorpusUnderTestReader } from "./staleness-current-corpus";
+
+export type { RepReads, GroupRepReads } from "./staleness-group-reads";
+
+export {
+	checkpointStaleness,
+	checkpointStalenessOfRun,
+	staleCheckpoints,
+	sessionAttemptStaleness,
+	replayAttemptStaleness,
+	groupStaleness,
+	everyRecordStaleness,
+};
+
+export type { EveryRecordStaleness };

@@ -1,4 +1,5 @@
-import { afterEach, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
+
 import {
 	act,
 	fireEvent,
@@ -6,15 +7,20 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import { LiveReply } from "#client/test-support/live-reply";
+
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
+import LiveReply from "#client/test-support/live-reply";
 import {
-	renderAppAt,
 	SHELL_BASELINE,
+	renderAppAt,
 	settingsReading,
 } from "#client/test-support/render-app";
-import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
+import CORPUS_VERSION_HEADER from "#server/corpus-version-header";
+
+import { DRAFT_CORPUS } from "./corpus-test-fixtures";
+
+const expectedPostedCount = 0;
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -31,55 +37,33 @@ function openCorpus(
 	path = "/corpus?file=CLAUDE.md",
 	live = false,
 ): CorpusHarness {
-	const settings = settingsReading(5);
-	const corpus = {
-		root: "/copy",
-		digest: "baseline",
-		files: [
-			{
-				path: "CLAUDE.md",
-				sha256: "123",
-				lastEditedAt: new Date(0).toISOString(),
-				lines: 1,
-				readBy: 0,
-				invalidated: 0,
-			},
-			{
-				path: "skills/build.md",
-				sha256: "456",
-				lastEditedAt: new Date(0).toISOString(),
-				lines: 1,
-				readBy: 0,
-				invalidated: 0,
-			},
-		],
-		refusals: [],
-		lastEdit: { kind: "not-recorded", reason: "none" },
-	};
+	const savedCeilingUsd = 5;
+
+	const settings = settingsReading(savedCeilingUsd);
 	let currentText = "saved text\n";
 	let currentVersion = "baseline";
 	const replies = new Map<string, Reply | LiveReply>([
 		...[...SHELL_BASELINE].map(([apiPath, body]): [string, Reply] => [
 			`GET ${apiPath}`,
-			{ status: 200, body },
+			{ body, status: 200 },
 		]),
 		[
 			"GET /api/settings",
 			{
-				status: 200,
 				body: {
 					...settings,
 					linkedCorpus: { kind: live ? "live" : "directory", root: "/copy" },
 				},
+				status: 200,
 			},
 		],
-		["GET /api/corpus", { status: 200, body: corpus }],
+		["GET /api/corpus", { body: DRAFT_CORPUS, status: 200 }],
 		[
 			"GET /api/corpus/file",
 			new LiveReply(() => ({
-				status: 200,
 				body: new TextEncoder().encode(currentText),
 				headers: { [CORPUS_VERSION_HEADER]: currentVersion },
+				status: 200,
 			})),
 		],
 	]);
@@ -96,7 +80,7 @@ function openCorpus(
 	};
 }
 
-it("recovers a file’s draft after navigation and explicitly discards it", async () => {
+async function recoversAFileSDraftAfterNavigationAndExplicitlyDiscardsIt(): Promise<void> {
 	const { router, server } = openCorpus();
 	fireEvent.change(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
@@ -106,7 +90,7 @@ it("recovers a file’s draft after navigation and explicitly discards it", asyn
 		await router.navigate({ to: "/" });
 	});
 	await act(async () => {
-		await router.navigate({ to: "/corpus", search: { file: "CLAUDE.md" } });
+		await router.navigate({ search: { file: "CLAUDE.md" }, to: "/corpus" });
 	});
 	expect(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
@@ -119,26 +103,45 @@ it("recovers a file’s draft after navigation and explicitly discards it", asyn
 	expect(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
 	).toHaveValue("saved text\n");
-	expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+	expect(server.posted("/api/corpus/edits/apply")).toHaveLength(
+		expectedPostedCount,
+	);
+}
+async function filtersFilesAfterDiscardingDraft(): Promise<void> {
+	const { router } = openCorpus();
+	fireEvent.change(
+		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
+		{ target: { value: "my unapplied draft\n" } },
+	);
+	await act(async () => {
+		await router.navigate({ to: "/" });
+	});
+	await act(async () => {
+		await router.navigate({ search: { file: "CLAUDE.md" }, to: "/corpus" });
+	});
+	fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+	fireEvent.click(screen.getByRole("button", { name: "Edit CLAUDE.md" }));
 	fireEvent.change(
 		screen.getByRole("searchbox", { name: "Search corpus files" }),
 		{ target: { value: "skills/build" } },
 	);
 	await waitFor(() => {
+		const expectedRowCount = 2;
+
 		expect(
 			within(screen.getByRole("table", { name: "Corpus files" })).getAllByRole(
 				"row",
 			),
-		).toHaveLength(2);
+		).toHaveLength(expectedRowCount);
 	});
 	expect(
 		within(screen.getByRole("table", { name: "Corpus files" })).getByText(
 			"skills/build.md",
 		),
 	).toBeInTheDocument();
-});
+}
 
-it("rereads the current baseline while keeping recovered text separate for each source", async () => {
+async function rereadsTheCurrentBaselineWhileKeepingRecoveredTextSeparateForEachSource(): Promise<void> {
 	const { router, updateFile } = openCorpus();
 	fireEvent.change(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
@@ -149,7 +152,7 @@ it("rereads the current baseline while keeping recovered text separate for each 
 	});
 	updateFile();
 	await act(async () => {
-		await router.navigate({ to: "/corpus", search: { file: "CLAUDE.md" } });
+		await router.navigate({ search: { file: "CLAUDE.md" }, to: "/corpus" });
 	});
 	expect(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
@@ -164,21 +167,21 @@ it("rereads the current baseline while keeping recovered text separate for each 
 	).toBeInTheDocument();
 	await act(async () => {
 		await router.navigate({
-			to: "/corpus",
 			search: {
 				file: "CLAUDE.md",
 				sourceRun: "other-source",
 				sourceStep: "build",
 			},
+			to: "/corpus",
 		});
 	});
 	expect(
 		await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
 	).toHaveValue("new saved text\n");
-});
+}
 
-it("opens the editable-copy settings path and returns with its saved source", async () => {
-	const { router, server } = openCorpus(
+async function opensTheEditableCopySettingsPathAndReturnsWithItsSavedSource(): Promise<void> {
+	openCorpus(
 		"/corpus?file=CLAUDE.md&sourceRun=source-run&sourceStep=build&start=2&end=4",
 		true,
 	);
@@ -190,6 +193,15 @@ it("opens the editable-copy settings path and returns with its saved source", as
 	);
 	expect(viewer).toHaveTextContent("Linked lines 2–4");
 	expect(await within(viewer).findByText("saved text")).toBeInTheDocument();
+}
+async function retainsInstructionSourceAcrossSettingsReturn(): Promise<void> {
+	const { router, server } = openCorpus(
+		"/corpus?file=CLAUDE.md&sourceRun=source-run&sourceStep=build&start=2&end=4",
+		true,
+	);
+	fireEvent.click(
+		await screen.findByRole("button", { name: "View CLAUDE.md" }),
+	);
 	fireEvent.click(
 		await screen.findByRole("link", {
 			name: "Link an editable copy in Settings",
@@ -200,11 +212,11 @@ it("opens the editable-copy settings path and returns with its saved source", as
 	);
 	await waitFor(() => {
 		expect(router.state.location.search).toMatchObject({
+			end: 4,
 			file: "CLAUDE.md",
 			sourceRun: "source-run",
 			sourceStep: "build",
 			start: 2,
-			end: 4,
 		});
 	});
 	expect(
@@ -214,10 +226,35 @@ it("opens the editable-copy settings path and returns with its saved source", as
 		await router.navigate({ to: "/settings" });
 	});
 	expect(
-		await screen.findByRole("heading", { name: "Settings", level: 1 }),
+		await screen.findByRole("heading", { level: 1, name: "Settings" }),
 	).toBeInTheDocument();
 	expect(
 		screen.queryByRole("link", { name: "Return to instruction edit" }),
 	).not.toBeInTheDocument();
-	expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+	expect(server.posted("/api/corpus/edits/apply")).toHaveLength(
+		expectedPostedCount,
+	);
+}
+
+describe("recovering instruction drafts", () => {
+	it(
+		"filters the file inventory after discarding a recovered draft",
+		filtersFilesAfterDiscardingDraft,
+	);
+	it(
+		"recovers a file’s draft after navigation and explicitly discards it",
+		recoversAFileSDraftAfterNavigationAndExplicitlyDiscardsIt,
+	);
+	it(
+		"rereads the current baseline while keeping recovered text separate for each source",
+		rereadsTheCurrentBaselineWhileKeepingRecoveredTextSeparateForEachSource,
+	);
+	it(
+		"retains the source through Settings and clears its return link after leaving",
+		retainsInstructionSourceAcrossSettingsReturn,
+	);
+	it(
+		"opens the editable-copy settings path and returns with its saved source",
+		opensTheEditableCopySettingsPathAndReturnsWithItsSavedSource,
+	);
 });

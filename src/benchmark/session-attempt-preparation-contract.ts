@@ -1,0 +1,65 @@
+import type { SessionCase } from "./case";
+import type { HashedFile } from "./checkpoint";
+import type { SessionSettings } from "./claude";
+import type {
+	ContextEvidence,
+	ContextEvidenceSource,
+	ContextRateCatalog,
+} from "./context-evidence";
+import type { SessionCorpusSnapshot } from "./session-corpus";
+
+type ClaudeRunner = (
+	command: readonly string[],
+	cwd: string,
+) => Promise<string>;
+
+interface SessionAttemptRequest {
+	readonly sessionCase: SessionCase;
+	readonly settings: SessionSettings;
+	readonly projectsDirectory: string;
+	readonly recordDirectory: string;
+	readonly runClaude: ClaudeRunner;
+	readonly corpusSnapshot?: SessionCorpusSnapshot | undefined;
+	readonly contextEvidenceSource?: ContextEvidenceSource | undefined;
+	readonly contextRateCatalog?: ContextRateCatalog | undefined;
+}
+
+interface SessionNaming {
+	readonly sessionId: string;
+	readonly resumed: boolean;
+}
+
+class SessionInputError extends Error {
+	public override name = "SessionInputError";
+}
+
+interface CorpusOverlay {
+	readonly styleName: string | undefined;
+	readonly installed: readonly string[];
+}
+
+interface AttemptPreparation {
+	readonly sessionCase: SessionCase;
+	readonly settings: SessionSettings;
+	readonly attemptDirectory: string;
+}
+
+interface PreparedAttempt extends AttemptPreparation {
+	readonly request: SessionAttemptRequest;
+	readonly startingProjectFiles: readonly HashedFile[];
+	readonly overlay: CorpusOverlay;
+	readonly slug: string;
+	readonly session: SessionNaming;
+	readonly transcriptPath: string;
+	readonly contextEvidence: ContextEvidence | undefined;
+}
+
+export { SessionInputError as default };
+export type {
+	ClaudeRunner,
+	SessionAttemptRequest,
+	SessionNaming,
+	AttemptPreparation,
+	PreparedAttempt,
+	CorpusOverlay,
+};

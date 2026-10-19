@@ -1,5 +1,9 @@
 import type { MiddlewareHandler } from "hono";
 
+import { HTTP_STATUS_FORBIDDEN } from "#server/http-status";
+
+const MEDIA_TYPE_COMPONENT_INDEX = 0;
+
 const READ_METHODS = new Set(["GET", "HEAD"]);
 
 /**
@@ -17,38 +21,42 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
  * onto Start, and that request is the client's own, so every response
  * forbids framing.
  */
-export function requestGuard(port: number): MiddlewareHandler {
+function requestGuard(port: number): MiddlewareHandler {
 	const allowed = new Set([
 		`127.0.0.1:${String(port)}`,
 		`localhost:${String(port)}`,
 	]);
 
-	return (context, next) => {
+	return async (context, next) => {
 		context.header("X-Frame-Options", "DENY");
 		context.header("Content-Security-Policy", "frame-ancestors 'none'");
 		const host = context.req.header("host") ?? "";
 		if (!allowed.has(host)) {
-			return Promise.resolve(
-				context.text("Forbidden: not a loopback host", 403),
+			context.res = context.text(
+				"Forbidden: not a loopback host",
+				HTTP_STATUS_FORBIDDEN,
 			);
+			return;
 		}
 		if (
 			!READ_METHODS.has(context.req.method) &&
 			!sameOriginJson(
 				{
-					origin: context.req.header("origin"),
-					fetchSite: context.req.header("sec-fetch-site"),
 					contentType: context.req.header("content-type"),
+					fetchSite: context.req.header("sec-fetch-site"),
+					origin: context.req.header("origin"),
 				},
 				host,
 			)
 		) {
-			return Promise.resolve(
-				context.text("Forbidden: not a same-origin JSON request", 403),
+			context.res = context.text(
+				"Forbidden: not a same-origin JSON request",
+				HTTP_STATUS_FORBIDDEN,
 			);
+			return;
 		}
 
-		return next();
+		await next();
 	};
 }
 
@@ -60,7 +68,8 @@ interface WriteHeaders {
 
 /** A browser that sends no Sec-Fetch-Site is judged on the rest alone. */
 function sameOriginJson(headers: WriteHeaders, host: string): boolean {
-	const mediaType = (headers.contentType ?? "").split(";")[0] ?? "";
+	const mediaType =
+		(headers.contentType ?? "").split(";")[MEDIA_TYPE_COMPONENT_INDEX] ?? "";
 
 	return (
 		headers.origin === `http://${host}` &&
@@ -68,3 +77,5 @@ function sameOriginJson(headers: WriteHeaders, host: string): boolean {
 		mediaType.trim().toLowerCase() === "application/json"
 	);
 }
+
+export { requestGuard as default };

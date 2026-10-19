@@ -1,277 +1,198 @@
-import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
 import {
-	sessionConfirmationGroupRecordSchema,
-	sessionConfirmationRepRecordSchema,
-} from "#benchmark/confirmation-record";
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "bun:test";
+import { constants as HTTP_STATUS } from "node:http2";
+
+import { sessionConfirmationGroupRecordSchema } from "#benchmark/confirmation-record";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
 import {
-	directorySource,
-	nothingRunning,
-	fixedCorpusSource,
-	NO_PROVIDER_PROJECTS,
-} from "#benchmark/run-records-test-support";
-import { sessionAttemptRecordSchema } from "#benchmark/session-record";
-import { createApiApp } from "./api";
+	clearHistoryLinkRoots,
+	digest,
+	recordSessionAttempt,
+} from "#server/comparison-history-test-fixture";
+import ComparisonHarness from "#server/comparison-test-harness";
+import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
+
 import { comparisonAttemptHistoryLink } from "./comparison-history-links";
 
-const roots: string[] = [];
+afterEach(clearHistoryLinkRoots);
 
-afterEach(async () => {
-	await Promise.all(
-		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-	);
-});
-
-function digest(text: string): string {
-	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
-}
-
-interface RecordedSessionAttempt {
-	readonly root: string;
-	readonly runsDirectory: string;
-	readonly paths: ReturnType<typeof confirmationGroupPaths>;
-	readonly repPaths: ReturnType<
-		ReturnType<typeof confirmationGroupPaths>["rep"]
-	>;
-	readonly groupText: string;
-	readonly repText: string;
-	readonly attemptText: string;
-	readonly recorded: (path: string) => string;
-	readonly request: Parameters<typeof comparisonAttemptHistoryLink>[0];
-}
-
-async function recordSessionAttempt(): Promise<RecordedSessionAttempt> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-comparison-history-"));
-	roots.push(root);
-	const runsDirectory = join(root, ".benchmark-runs");
-	const paths = confirmationGroupPaths(runsDirectory, "group-a");
-	const repPaths = paths.rep("group-a-rep-1");
-	await mkdir(repPaths.directory, { recursive: true });
-	const groupText = `${JSON.stringify(
-		sessionConfirmationGroupRecordSchema.parse({
-			schemaVersion: 2,
-			caseId: "case-a",
-			groupId: "group-a",
-			mode: "session",
-			reps: 2,
-			declaredStages: ["checks"],
-			inputs: {
-				lineage: { kind: "SESSION", lineage: "lineage-a" },
-				files: [
-					{ kind: "case", path: "inputs/case.json", sha256: "a".repeat(64) },
-				],
-				model: "sonnet",
-				sessionBudgetUsd: 1,
-			},
-			projectedCost: {
-				reps: 2,
-				perRepMaximumUsd: 1,
-				preflightMaximumUsd: 0,
-				totalMaximumUsd: 2,
-			},
-			preflight: { status: "MISSING", missing: "metrics unavailable" },
-			approval: { method: "yes", approved: true },
-			repRecords: [1, 2].map((ordinal) => ({
-				repId: `group-a-rep-${ordinal}`,
-				ordinal,
-				path: `reps/group-a-rep-${ordinal}/rep.json`,
-			})),
-			reportFile: "report.json",
-			makespanMs: 1,
-		}),
-	)}\n`;
-	const repText = `${JSON.stringify(
-		sessionConfirmationRepRecordSchema.parse({
-			schemaVersion: 2,
-			caseId: "case-a",
-			groupId: "group-a",
-			repId: "group-a-rep-1",
-			ordinal: 1,
-			mode: "session",
-			lineage: { kind: "SESSION", lineage: "lineage-a" },
-			outcome: "UNSUCCESSFUL",
-			stages: [
-				{
-					stage: "checks",
-					status: "NOT_REACHED",
-					reason: "not reached",
-					evidence: { recordFile: "attempt.json" },
-				},
-			],
-			finalOutcome: { status: "NOT_APPLICABLE" },
-			metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
-			workerTrajectorySteps: 0,
-			elapsedMs: 1,
-		}),
-	)}\n`;
-	const attemptText = `${JSON.stringify(
-		sessionAttemptRecordSchema.parse({
-			schemaVersion: 1,
-			caseId: "case-a",
-			lineage: "lineage-a",
-			model: "sonnet",
-			sessionBudgetUsd: 1,
-			corpusFiles: [],
-			prompt: "inspect",
-			reply: "done",
-			transcriptFile: "ignored",
-			outcome: "SUCCESSFUL",
-			checks: [{ kind: "word-band", status: "PASS", detail: "pass" }],
-			elapsedMs: 1,
-		}),
-	)}\n`;
-	await Bun.write(paths.groupFile, groupText);
-	await Bun.write(repPaths.recordFile, repText);
-	await Bun.write(repPaths.attemptFile, attemptText);
-	await Bun.write(
-		repPaths.transcriptFile,
-		`${JSON.stringify({ type: "assistant", message: { content: "saved" } })}\n`,
-	);
-	const manifestDirectory = join(root, "manifests", "nested");
-	const recorded = (path: string): string => relative(manifestDirectory, path);
-	const request = {
-		runsDirectory,
-		caseId: "case-a",
-		group: { path: recorded(paths.groupFile), sha256: digest(groupText) },
-		rep: {
-			repId: "group-a-rep-1",
-			ordinal: 1,
-			path: recorded(repPaths.recordFile),
-			sha256: digest(repText),
-			attempt: {
-				path: recorded(repPaths.attemptFile),
-				sha256: digest(attemptText),
-			},
-		},
-	};
-
-	return {
-		root,
-		runsDirectory,
-		paths,
-		repPaths,
-		groupText,
-		repText,
-		attemptText,
-		recorded,
-		request,
-	};
-}
+const STALE_LINK = {
+	ordinal: 1,
+	repId: "group-a-rep-1",
+	status: "stale",
+} as const;
 
 describe(comparisonAttemptHistoryLink.name, () => {
-	it("links only when the group, rep, and attempt paths and digests agree", async () => {
-		const {
-			root,
-			runsDirectory,
-			paths,
-			repPaths,
-			groupText,
-			repText,
-			attemptText,
-			recorded,
-			request,
-		} = await recordSessionAttempt();
-
-		expect(await comparisonAttemptHistoryLink(request)).toEqual({
-			status: "available",
-			repId: "group-a-rep-1",
-			ordinal: 1,
-			groupId: "group-a",
-			href: "/groups/group-a/reps/group-a-rep-1/attempt",
-		});
-		const response = await createApiApp({
-			projectsDirectory: NO_PROVIDER_PROJECTS,
-			runsDirectory,
-			liveness: nothingRunning,
-			readCorpusSource: fixedCorpusSource(directorySource(root)),
-		}).request("/api/groups/group-a/reps/group-a-rep-1/attempt/history");
-		expect(response.status).toBe(200);
-		const stale = {
-			status: "stale",
-			repId: "group-a-rep-1",
-			ordinal: 1,
-		} as const;
-		expect(
-			await comparisonAttemptHistoryLink({
-				...request,
-				group: { ...request.group, sha256: "0".repeat(64) },
-			}),
-		).toEqual(stale);
-		expect(
-			await comparisonAttemptHistoryLink({
-				...request,
-				rep: { ...request.rep, sha256: "0".repeat(64) },
-			}),
-		).toEqual(stale);
-		expect(
-			await comparisonAttemptHistoryLink({
-				...request,
-				rep: {
-					...request.rep,
-					attempt: { ...request.rep.attempt, sha256: "0".repeat(64) },
-				},
-			}),
-		).toEqual(stale);
-
-		const wrongGroupFile = confirmationGroupPaths(
-			runsDirectory,
-			"group-b",
-		).groupFile;
-		await Bun.write(wrongGroupFile, groupText);
-		expect(
-			await comparisonAttemptHistoryLink({
-				...request,
-				group: { ...request.group, path: recorded(wrongGroupFile) },
-			}),
-		).toEqual(stale);
-
-		const groupRecord = sessionConfirmationGroupRecordSchema.parse(
-			JSON.parse(groupText),
-		);
-		const unownedGroupText = `${JSON.stringify({
-			...groupRecord,
-			repRecords: Array.from(groupRecord.repRecords, (reference) =>
-				reference.repId === "group-a-rep-1"
-					? { ...reference, path: "reps/other/rep.json" }
-					: reference,
-			),
-		})}\n`;
-		await Bun.write(paths.groupFile, unownedGroupText);
-		expect(
-			await comparisonAttemptHistoryLink({
-				...request,
-				group: { ...request.group, sha256: digest(unownedGroupText) },
-			}),
-		).toEqual(stale);
-		await Bun.write(paths.groupFile, groupText);
-
-		await Bun.write(paths.groupFile, `${groupText}\n`);
-		expect(await comparisonAttemptHistoryLink(request)).toEqual(stale);
-		await Bun.write(paths.groupFile, groupText);
-		await Bun.write(repPaths.recordFile, `${repText}\n`);
-		expect(await comparisonAttemptHistoryLink(request)).toEqual(stale);
-		await Bun.write(repPaths.recordFile, repText);
-		await Bun.write(repPaths.attemptFile, `${attemptText}\n`);
-		expect(await comparisonAttemptHistoryLink(request)).toEqual(stale);
+	const harness = Promise.withResolvers<ComparisonHarness>();
+	beforeAll(async () => {
+		await ComparisonHarness.setup().then(harness.resolve, harness.reject);
 	});
+	beforeEach(async () => {
+		const ready = await harness.promise;
+		await ready.reset();
+	});
+	afterAll(async () => {
+		const ready = await harness.promise;
+		await ready.teardown();
+	});
+	async function verifyLinksWhenGroupRepetitionAndAttemptPathsAndDigestsAgree(): Promise<void> {
+		const { driver, runsDirectory } = await harness.promise;
+		const { request } = await recordSessionAttempt(runsDirectory);
 
-	it("links an attempt numbered within its arm, after an earlier group's attempts", async () => {
-		const { request } = await recordSessionAttempt();
-
-		const link = await comparisonAttemptHistoryLink({
-			...request,
-			rep: { ...request.rep, ordinal: 3 },
-		});
+		const link = await comparisonAttemptHistoryLink(request);
 
 		expect(link).toEqual({
-			status: "available",
-			repId: "group-a-rep-1",
-			ordinal: 3,
 			groupId: "group-a",
 			href: "/groups/group-a/reps/group-a-rep-1/attempt",
+			ordinal: 1,
+			repId: "group-a-rep-1",
+			status: "available",
 		});
+
+		const response = await driver.historyRaw({
+			groupId: "group-a",
+			repId: "group-a-rep-1",
+		});
+
+		expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_OK);
+	}
+
+	it(
+		"links when group, repetition and attempt paths and digests agree",
+		verifyLinksWhenGroupRepetitionAndAttemptPathsAndDigestsAgree,
+	);
+	it(
+		"links an attempt numbered within its arm, after an earlier group's attempts",
+		verifyArmOrdinal,
+	);
+});
+
+describe(comparisonAttemptHistoryLink.name, () => {
+	describe("when recorded identities disagree", () => {
+		it.each(["group", "rep", "attempt"] as const)(
+			"marks a mismatched %s digest stale",
+			async (field) => {
+				const { request } = await recordSessionAttempt();
+				const sha256 = "0".repeat(SHA256_HEX_DIGITS);
+				const changed = {
+					...request,
+					group:
+						field === "group" ? { ...request.group, sha256 } : request.group,
+					rep: {
+						...request.rep,
+						attempt:
+							field === "attempt"
+								? { ...request.rep.attempt, sha256 }
+								: request.rep.attempt,
+						sha256: field === "rep" ? sha256 : request.rep.sha256,
+					},
+				};
+
+				const staleLink = await comparisonAttemptHistoryLink(changed);
+
+				expect(staleLink).toEqual(STALE_LINK);
+			},
+		);
+		it(
+			"marks a group stored under another group's path stale",
+			verifyMarksAGroupStoredUnderAnotherGroupSPathStale,
+		);
+		it(
+			"marks a repetition path its group does not own stale",
+			verifyMarksARepetitionPathItsGroupDoesNotOwnStale,
+		);
 	});
 });
+
+describe(comparisonAttemptHistoryLink.name, () => {
+	describe("after a successful read when saved records change", () => {
+		it.each(["group", "rep", "attempt"] as const)(
+			"marks changed %s bytes stale",
+			async (field) => {
+				const saved = await recordSessionAttempt();
+				const records = {
+					attempt: {
+						file: saved.repPaths.attemptFile,
+						text: saved.attemptText,
+					},
+					group: { file: saved.paths.groupFile, text: saved.groupText },
+					rep: { file: saved.repPaths.recordFile, text: saved.repText },
+				};
+				const { file, text } = records[field];
+
+				const availableLink = await comparisonAttemptHistoryLink(saved.request);
+
+				expect(availableLink).toEqual({
+					groupId: "group-a",
+					href: "/groups/group-a/reps/group-a-rep-1/attempt",
+					ordinal: 1,
+					repId: "group-a-rep-1",
+					status: "available",
+				});
+
+				await Bun.write(file, `${text}\n`);
+
+				const staleLink = await comparisonAttemptHistoryLink(saved.request);
+
+				expect(staleLink).toEqual(STALE_LINK);
+			},
+		);
+	});
+});
+
+async function verifyArmOrdinal(): Promise<void> {
+	const { request } = await recordSessionAttempt();
+
+	const link = await comparisonAttemptHistoryLink({
+		...request,
+		rep: { ...request.rep, ordinal: 3 },
+	});
+
+	expect(link).toEqual({
+		groupId: "group-a",
+		href: "/groups/group-a/reps/group-a-rep-1/attempt",
+		ordinal: 3,
+		repId: "group-a-rep-1",
+		status: "available",
+	});
+}
+
+async function verifyMarksAGroupStoredUnderAnotherGroupSPathStale(): Promise<void> {
+	const { request, runsDirectory, groupText, recorded } =
+		await recordSessionAttempt();
+	const wrongGroupFile = confirmationGroupPaths(
+		runsDirectory,
+		"group-b",
+	).groupFile;
+	await Bun.write(wrongGroupFile, groupText);
+
+	const staleLink = await comparisonAttemptHistoryLink({
+		...request,
+		group: { ...request.group, path: recorded(wrongGroupFile) },
+	});
+
+	expect(staleLink).toEqual(STALE_LINK);
+}
+
+async function verifyMarksARepetitionPathItsGroupDoesNotOwnStale(): Promise<void> {
+	const { request, paths, groupText } = await recordSessionAttempt();
+	const groupRecord = sessionConfirmationGroupRecordSchema.parse(
+		JSON.parse(groupText),
+	);
+	const unownedGroupText = `${JSON.stringify({ ...groupRecord, repRecords: Array.from(groupRecord.repRecords, (reference) => (reference.repId === "group-a-rep-1" ? { ...reference, path: "reps/other/rep.json" } : reference)) })}\n`;
+	await Bun.write(paths.groupFile, unownedGroupText);
+
+	const staleLink = await comparisonAttemptHistoryLink({
+		...request,
+		group: { ...request.group, sha256: digest(unownedGroupText) },
+	});
+
+	expect(staleLink).toEqual(STALE_LINK);
+}

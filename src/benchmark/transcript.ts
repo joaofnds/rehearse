@@ -1,625 +1,21 @@
-import { z } from "zod";
 import type { Immutable } from "./contracts";
 import type { LineObserver } from "./file-lines";
-import { fileLines, IGNORE_CARRY } from "./file-lines";
-import type { JsonValue } from "./json-value";
-import { jsonValueSchema } from "./json-value";
-import { instructionsAttachmentSchema } from "./transcript-instruction-loads";
+import { fileLines } from "./file-lines";
+import readLine from "./transcript-line";
+import type { TranscriptLine } from "./transcript-line-contract";
+import type { ToolUse } from "./transcript-message-contract";
 
-/**
- * The session file's format is the provider's, not ours, so a record type this
- * harness does not recognize reads as a record with no tool calls rather than
- * as a failure. A strict schema here would turn a new provider record type into
- * a failed attempt, which is a false negative on the thing being measured.
- */
-const toolUseSchema = z.looseObject({
-	type: z.literal("tool_use"),
-	id: z.string().min(1).optional(),
-	name: z.string().min(1),
-	input: z.looseObject({
-		file_path: z.string().optional(),
-		command: z.string().optional(),
-	}),
-});
+const TRANSCRIPT_LINE_NUMBER_BASE = 1;
 
-const transcriptRecordSchema = z.looseObject({
-	type: z.string().optional(),
-	message: z
-		.looseObject({
-			content: z.unknown().optional(),
-		})
-		.optional(),
-});
+const TRANSCRIPT_LINE_NUMBER_STEP = 1;
 
-const assistantRecordSchema = z.looseObject({
-	type: z.literal("assistant"),
-	message: z.looseObject({ content: z.array(z.unknown()) }),
-});
-
-/**
- * Read apart from the record schemas, so a drifted id loses only itself and
- * never the row's tool calls.
- */
-const providerIdSchema = z.string().min(1);
-
-const userRecordSchema = z.looseObject({
-	type: z.literal("user"),
-	message: z.looseObject({
-		content: z.union([z.string(), z.array(z.unknown())]),
-	}),
-});
-
-type UserRecord = z.infer<typeof userRecordSchema>;
-
-/**
- * An Agent call's result, and a Skill call's that forked into its own context,
- * name the sub-agent the provider ran on the record's `toolUseResult`.
- */
-const namedAgentRecordSchema = z.looseObject({
-	type: z.literal("user"),
-	toolUseResult: z.looseObject({ agentId: z.string().min(1) }),
-});
-
-const toolResultSchema = z.looseObject({
-	type: z.literal("tool_result"),
-	tool_use_id: z.string().min(1).optional(),
-	is_error: z.boolean().optional(),
-});
-
-const contentBlockSchema = z.looseObject({ type: z.string().min(1) });
-
-const outputStyleAttachmentSchema = z.looseObject({
-	type: z.literal("output_style"),
-	style: z.string().min(1),
-});
-
-const attachmentRecordSchema = z.looseObject({
-	type: z.literal("attachment"),
-	attachment: z.unknown(),
-});
-
-const metaRecordSchema = z.looseObject({ isMeta: z.literal(true) });
-
-const textBlockSchema = z.looseObject({
-	type: z.literal("text"),
-	text: z.string(),
-});
-
-/**
- * The provider opens a loaded skill's body with this line, in a user record it
- * marks as meta, whether a slash command or a Skill call loaded it, and a Skill
- * call it refuses gets no body, so this line rather than the call is the
- * evidence the skill loaded.
- */
-const SKILL_BODY_OPENING =
-	/^Base directory for this skill: (?<directory>[^\n]+)/u;
-
-/** The skill directory a loaded skill's body opens with, if the text is one. */
-export function skillBodyDirectory(text: string): string | undefined {
-	return SKILL_BODY_OPENING.exec(text)?.groups?.["directory"];
-}
-
-const INTERRUPTION_MARKER = "[Request interrupted by user";
-
-/**
- * What a user row is, beyond a tool result or a meta row the harness wrote: a
- * compaction summary, an interruption marker, a background agent's
- * notification, or a prompt.
- */
-export type UserTurn =
-	| "compaction summary"
-	| "interruption"
-	| "prompt"
-	| "task notification";
-
-/** The provider's mark on a row reporting that a background agent finished. */
-const taskNotificationSchema = z.looseObject({
-	origin: z.looseObject({ kind: z.literal("task-notification") }),
-});
-
-export type ToolUse = z.infer<typeof toolUseSchema>;
-
-export const transcriptLocationSchema = z
-	.object({
-		line: z.number().int().positive(),
-		block: z.number().int().positive(),
-	})
-	.strict();
-
-export type TranscriptLocation = z.infer<typeof transcriptLocationSchema>;
-
-const diagnosticIssueKindSchema = z.enum([
-	"empty-measured-transcript",
-	"invalid-json",
-	"invalid-message-content",
-	"unsupported-content-block",
-	"invalid-tool-use",
-	"invalid-tool-result",
-	"missing-tool-use-id",
-	"duplicate-tool-use-id",
-	"missing-tool-result-id",
-	"duplicate-tool-result",
-	"unmatched-tool-result",
-	"missing-tool-result",
-	"invalid-bash-command",
-]);
-
-const diagnosticIssueSchema = z
-	.object({
-		kind: diagnosticIssueKindSchema,
-		occurrences: z.number().int().positive(),
-		locations: z.array(transcriptLocationSchema),
-		locationsTruncated: z.boolean(),
-	})
-	.strict();
-
-const observedToolUseCountsSchema = z
-	.object({
-		total: z.number().int().nonnegative(),
-		byName: z.array(
-			z
-				.object({
-					name: z.string().min(1),
-					count: z.number().int().positive(),
-				})
-				.strict(),
-		),
-	})
-	.strict();
-
-const MAX_PREVIEW_CODE_UNITS = 160;
-
-const toolErrorSchema = z
-	.object({
-		toolUseId: z.string().min(1).optional(),
-		toolName: z.string().min(1).optional(),
-		call: transcriptLocationSchema.optional(),
-		result: transcriptLocationSchema,
-	})
-	.strict();
-
-const repeatedBashCommandSchema = z
-	.object({
-		commandSha256: z
-			.string()
-			.regex(/^[0-9a-f]{64}$/u, "Invalid SHA-256 digest"),
-		commandCharacters: z.number().int().nonnegative(),
-		preview: z.string().max(MAX_PREVIEW_CODE_UNITS),
-		previewTruncated: z.boolean(),
-		occurrences: z
-			.array(
-				z
-					.object({
-						toolUseId: z.string().min(1),
-						location: transcriptLocationSchema,
-					})
-					.strict(),
-			)
-			.min(2),
-	})
-	.strict();
-
-const transcriptObservationFields = {
-	prefixLinesExcluded: z.number().int().nonnegative(),
-	sourceLineCount: z.number().int().nonnegative(),
-	measuredLineCount: z.number().int().nonnegative(),
-	toolUseOccurrences: observedToolUseCountsSchema,
-	toolErrors: z.array(toolErrorSchema),
-	repeatedBashCommands: z.array(repeatedBashCommandSchema),
-};
-
-export const transcriptDiagnosticsSchema = z
-	.discriminatedUnion("state", [
-		z
-			.object({
-				state: z.literal("complete"),
-				...transcriptObservationFields,
-				issues: z.array(diagnosticIssueSchema).length(0),
-			})
-			.strict(),
-		z
-			.object({
-				state: z.literal("partial"),
-				...transcriptObservationFields,
-				issues: z.array(diagnosticIssueSchema).min(1),
-			})
-			.strict(),
-		z
-			.object({
-				state: z.literal("unavailable"),
-				prefixLinesExcluded: z.number().int().nonnegative(),
-			})
-			.strict(),
-	])
-	.superRefine((diagnostics, context) => {
-		if (diagnostics.state === "unavailable") {
-			return;
-		}
-
-		const namedTotal = diagnostics.toolUseOccurrences.byName.reduce(
-			(total, tool) => total + tool.count,
-			0,
-		);
-		if (namedTotal !== diagnostics.toolUseOccurrences.total) {
-			context.addIssue({
-				code: "custom",
-				message: "Per-tool occurrence counts must sum to the total",
-				path: ["toolUseOccurrences"],
-			});
-		}
-		const names = diagnostics.toolUseOccurrences.byName.map(({ name }) => name);
-		if (new Set(names).size !== names.length) {
-			context.addIssue({
-				code: "custom",
-				message: "Per-tool occurrence names must be unique",
-				path: ["toolUseOccurrences", "byName"],
-			});
-		}
-
-		let previousGroup: TranscriptLocation | undefined;
-		for (const [
-			groupIndex,
-			group,
-		] of diagnostics.repeatedBashCommands.entries()) {
-			const ids = group.occurrences.map(({ toolUseId }) => toolUseId);
-			if (new Set(ids).size !== ids.length) {
-				context.addIssue({
-					code: "custom",
-					message: "Repeated commands require distinct tool-use IDs",
-					path: ["repeatedBashCommands", groupIndex, "occurrences"],
-				});
-			}
-
-			for (let index = 1; index < group.occurrences.length; index += 1) {
-				const previous = group.occurrences[index - 1];
-				const current = group.occurrences[index];
-				if (
-					previous !== undefined &&
-					current !== undefined &&
-					!locationPrecedes(previous.location, current.location)
-				) {
-					context.addIssue({
-						code: "custom",
-						message: "Repeated-command occurrences must follow source order",
-						path: ["repeatedBashCommands", groupIndex, "occurrences", index],
-					});
-				}
-			}
-
-			const first = group.occurrences[0]?.location;
-			if (
-				previousGroup !== undefined &&
-				first !== undefined &&
-				!locationPrecedes(previousGroup, first)
-			) {
-				context.addIssue({
-					code: "custom",
-					message: "Repeated-command groups must follow source order",
-					path: ["repeatedBashCommands", groupIndex],
-				});
-			}
-			previousGroup = first;
-		}
-	});
-
-export type TranscriptDiagnostics = z.infer<typeof transcriptDiagnosticsSchema>;
-
-function locationPrecedes(
-	left: Readonly<TranscriptLocation>,
-	right: Readonly<TranscriptLocation>,
-): boolean {
-	return (
-		left.line < right.line ||
-		(left.line === right.line && left.block < right.block)
-	);
-}
-
-interface LocatedToolUse {
-	readonly use: ToolUse;
-	readonly toolUseId: string | undefined;
-	readonly location: TranscriptLocation;
-}
-
-interface LocatedToolResult {
-	readonly toolUseId: string | undefined;
-	readonly isError: boolean;
-	readonly location: TranscriptLocation;
-}
-
-interface LocatedToolIdentity {
-	readonly toolUseId: string | undefined;
-	readonly location: TranscriptLocation;
-}
-
-interface LocatedDiagnosticIssue {
-	readonly kind: z.infer<typeof diagnosticIssueKindSchema>;
-	readonly location: TranscriptLocation;
-}
-
-interface IdentifiedToolUse {
-	readonly toolUseId: string;
-	readonly location: TranscriptLocation;
-}
-
-interface DiagnosticGrouping<Entry extends Immutable<LocatedToolIdentity>> {
-	readonly byId: ReadonlyMap<string, readonly Entry[]>;
-	readonly issues: readonly LocatedDiagnosticIssue[];
-}
-
-type LocatedToolUseMap = ReadonlyMap<
-	string,
-	Immutable<readonly LocatedToolUse[]>
->;
-type LocatedToolResultMap = ReadonlyMap<
-	string,
-	Immutable<readonly LocatedToolResult[]>
->;
-
-interface RepeatedBashDiagnostics {
-	readonly commands: z.infer<typeof repeatedBashCommandSchema>[];
-	readonly issues: readonly LocatedDiagnosticIssue[];
-}
-
-export interface TranscriptLine {
-	readonly line: number;
-	readonly toolUses: readonly ToolUse[];
-	readonly outputStyle: string | undefined;
-	readonly instructionFiles: readonly string[];
-	readonly skillDirectories: readonly string[];
-	readonly locatedToolUses: readonly LocatedToolUse[];
-	readonly locatedToolResults: readonly LocatedToolResult[];
-	readonly diagnosticIssues: readonly LocatedDiagnosticIssue[];
-	readonly namedAgent: string | undefined;
-	readonly userTurn: UserTurn | undefined;
-	/** A user row that names no parent row, as a conversation's first does. */
-	readonly startsWithoutParent: boolean;
-	/** The provider's id for the request an assistant row belongs to. */
-	readonly requestId: string | undefined;
-	/** The tool call whose output a meta row carries, such as a skill's body. */
-	readonly sourceToolUseId: string | undefined;
-}
-
-function readNamedAgent(record: JsonValue): string | undefined {
-	const named = namedAgentRecordSchema.safeParse(record);
-
-	return named.success ? named.data.toolUseResult.agentId : undefined;
-}
-
-function readOutputStyle(record: JsonValue): string | undefined {
-	const attachmentRecord = attachmentRecordSchema.safeParse(record);
-	if (!attachmentRecord.success) {
-		return undefined;
-	}
-
-	const outputStyle = outputStyleAttachmentSchema.safeParse(
-		attachmentRecord.data.attachment,
-	);
-
-	return outputStyle.success ? outputStyle.data.style : undefined;
-}
-
-function readSkillDirectories(blocks: readonly unknown[]): readonly string[] {
-	return blocks
-		.map((block) => textBlockSchema.safeParse(block))
-		.filter((parsed) => parsed.success)
-		.map((parsed) => skillBodyDirectory(parsed.data.text))
-		.filter((directory) => directory !== undefined);
-}
-
-function readUserTurn(
-	record: Immutable<UserRecord>,
-	blocks: readonly unknown[],
-): UserTurn | undefined {
-	if (record["isMeta"] === true) {
-		return undefined;
-	}
-
-	if (record["isCompactSummary"] === true) {
-		return "compaction summary";
-	}
-
-	if (taskNotificationSchema.safeParse(record).success) {
-		return "task notification";
-	}
-
-	if (
-		blocks.some(
-			(block) =>
-				contentBlockSchema.safeParse(block).data?.type === "tool_result",
-		)
-	) {
-		return undefined;
-	}
-
-	const plain = z.string().safeParse(record.message.content);
-	const texts = plain.success
-		? [plain.data]
-		: blocks
-				.map((block) => textBlockSchema.safeParse(block))
-				.filter((parsed) => parsed.success)
-				.map((parsed) => parsed.data.text);
-
-	return texts.some((text) => text.startsWith(INTERRUPTION_MARKER))
-		? "interruption"
-		: "prompt";
-}
-
-function readUserFields(
-	record: Immutable<UserRecord> | undefined,
-	blocks: readonly unknown[],
-): Pick<
-	TranscriptLine,
-	"userTurn" | "startsWithoutParent" | "sourceToolUseId"
-> {
-	if (record === undefined) {
-		return {
-			userTurn: undefined,
-			startsWithoutParent: false,
-			sourceToolUseId: undefined,
-		};
-	}
-
-	return {
-		userTurn: readUserTurn(record, blocks),
-		startsWithoutParent:
-			record["parentUuid"] === null || record["parentUuid"] === undefined,
-		sourceToolUseId:
-			record["isMeta"] === true
-				? providerIdSchema.safeParse(record["sourceToolUseID"]).data
-				: undefined,
-	};
-}
-
-function readInstructionFiles(record: JsonValue): readonly string[] {
-	const instructions = instructionsAttachmentSchema.safeParse(record);
-
-	return instructions.success
-		? instructions.data.attachment.files.map((file) => file.path)
-		: [];
-}
-
-const SUPPORTED_NON_TOOL_BLOCKS = new Set([
-	"image",
-	"redacted_thinking",
-	"text",
-	"thinking",
-]);
-
-function readLine(line: string, lineNumber: number): TranscriptLine {
-	const parsed = readJson(line);
-	if (parsed === undefined) {
-		return emptyTranscriptLine(lineNumber, "invalid-json");
-	}
-
-	const record = transcriptRecordSchema.safeParse(parsed);
-	if (!record.success) {
-		return emptyTranscriptLine(lineNumber, "invalid-message-content");
-	}
-
-	let blocks: readonly unknown[] = [];
-	let user: UserRecord | undefined;
-	let requestId: string | undefined;
-	if (record.data.type === "assistant") {
-		const assistant = assistantRecordSchema.safeParse(parsed);
-		if (!assistant.success) {
-			return emptyTranscriptLine(lineNumber, "invalid-message-content");
-		}
-		requestId = providerIdSchema.safeParse(assistant.data["requestId"]).data;
-		blocks = assistant.data.message.content;
-	} else if (record.data.type === "user") {
-		const userRecord = userRecordSchema.safeParse(parsed);
-		if (!userRecord.success) {
-			return emptyTranscriptLine(lineNumber, "invalid-message-content");
-		}
-		user = userRecord.data;
-		blocks = Array.isArray(user.message.content) ? user.message.content : [];
-	} else if (record.data.message !== undefined) {
-		return emptyTranscriptLine(lineNumber, "invalid-message-content");
-	}
-	const locatedToolUses: LocatedToolUse[] = [];
-	const locatedToolResults: LocatedToolResult[] = [];
-	const diagnosticIssues: LocatedDiagnosticIssue[] = [];
-
-	for (const [index, block] of blocks.entries()) {
-		const location = { line: lineNumber, block: index + 1 };
-		const typed = contentBlockSchema.safeParse(block);
-		if (!typed.success) {
-			diagnosticIssues.push({
-				kind: "unsupported-content-block",
-				location,
-			});
-			continue;
-		}
-
-		if (typed.data.type === "tool_use") {
-			const use = toolUseSchema.safeParse(block);
-			if (use.success) {
-				locatedToolUses.push({
-					use: use.data,
-					toolUseId: use.data.id,
-					location,
-				});
-			} else {
-				diagnosticIssues.push({ kind: "invalid-tool-use", location });
-			}
-			continue;
-		}
-
-		if (typed.data.type === "tool_result") {
-			const result = toolResultSchema.safeParse(block);
-			if (result.success) {
-				locatedToolResults.push({
-					toolUseId: result.data.tool_use_id,
-					isError: result.data.is_error === true,
-					location,
-				});
-			} else {
-				diagnosticIssues.push({ kind: "invalid-tool-result", location });
-			}
-			continue;
-		}
-
-		if (!SUPPORTED_NON_TOOL_BLOCKS.has(typed.data.type)) {
-			diagnosticIssues.push({
-				kind: "unsupported-content-block",
-				location,
-			});
-		}
-	}
-
-	return {
-		line: lineNumber,
-		toolUses: locatedToolUses.map(({ use }) => use),
-		outputStyle: readOutputStyle(parsed),
-		instructionFiles: readInstructionFiles(parsed),
-		skillDirectories:
-			record.data.type === "user" && metaRecordSchema.safeParse(parsed).success
-				? readSkillDirectories(blocks)
-				: [],
-		locatedToolUses,
-		locatedToolResults,
-		diagnosticIssues,
-		namedAgent: readNamedAgent(parsed),
-		...readUserFields(user, blocks),
-		requestId,
-	};
-}
-
-function emptyTranscriptLine(
-	line: number,
-	kind: LocatedDiagnosticIssue["kind"],
-): TranscriptLine {
-	return {
-		line,
-		toolUses: [],
-		outputStyle: undefined,
-		instructionFiles: [],
-		skillDirectories: [],
-		locatedToolUses: [],
-		locatedToolResults: [],
-		diagnosticIssues: [{ kind, location: { line, block: 1 } }],
-		namedAgent: undefined,
-		userTurn: undefined,
-		startsWithoutParent: false,
-		requestId: undefined,
-		sourceToolUseId: undefined,
-	};
-}
-
-function readJson(line: string): JsonValue | undefined {
-	try {
-		const parsed = jsonValueSchema.safeParse(JSON.parse(line));
-
-		return parsed.success ? parsed.data : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-export function parseTranscript(text: string): readonly TranscriptLine[] {
+function parseTranscript(text: string): readonly TranscriptLine[] {
 	return text
 		.split("\n")
-		.map((line, index) => ({ line, lineNumber: index + 1 }))
+		.map((line, index) => ({
+			line,
+			lineNumber: index + TRANSCRIPT_LINE_NUMBER_BASE,
+		}))
 		.filter(({ line }) => line.trim() !== "")
 		.map(({ line, lineNumber }) => readLine(line, lineNumber));
 }
@@ -630,9 +26,9 @@ export function parseTranscript(text: string): readonly TranscriptLine[] {
  * a string. A transcript the provider never wrote reads as no records, which is
  * the same thing an empty one reads as.
  */
-export async function parseTranscriptFile(
+async function parseTranscriptFile(
 	path: string,
-	observer: LineObserver = IGNORE_CARRY,
+	observer?: LineObserver,
 ): Promise<readonly TranscriptLine[]> {
 	if (!(await Bun.file(path).exists())) {
 		return [];
@@ -641,7 +37,7 @@ export async function parseTranscriptFile(
 	const lines: TranscriptLine[] = [];
 	let lineNumber = 0;
 	for await (const line of fileLines(path, observer)) {
-		lineNumber += 1;
+		lineNumber += TRANSCRIPT_LINE_NUMBER_STEP;
 		if (line.trim() !== "") {
 			lines.push(readLine(line, lineNumber));
 		}
@@ -650,277 +46,13 @@ export async function parseTranscriptFile(
 	return lines;
 }
 
-export interface TranscriptDiagnosticsInput {
-	readonly lines: Immutable<readonly TranscriptLine[]>;
-	readonly prefixLinesExcluded: number;
-	readonly sourceAvailable: boolean;
-}
-
-const MAX_ISSUE_LOCATIONS = 20;
-
-export function transcriptDiagnostics(
-	input: Readonly<TranscriptDiagnosticsInput>,
-): TranscriptDiagnostics {
-	if (!input.sourceAvailable) {
-		return {
-			state: "unavailable",
-			prefixLinesExcluded: input.prefixLinesExcluded,
-		};
-	}
-
-	const sourceLineCount = input.lines.at(-1)?.line ?? 0;
-	const measured = input.lines.slice(input.prefixLinesExcluded);
-	const uses = measured.flatMap(({ locatedToolUses }) => locatedToolUses);
-	const results = measured.flatMap(
-		({ locatedToolResults }) => locatedToolResults,
-	);
-	const issues = measured.flatMap(({ diagnosticIssues }) => diagnosticIssues);
-	if (measured.length === 0) {
-		issues.push({
-			kind: "empty-measured-transcript",
-			location: {
-				line: Math.max(1, input.prefixLinesExcluded + 1),
-				block: 1,
-			},
-		});
-	}
-
-	const groupedUses = groupByToolUseId(
-		uses,
-		"missing-tool-use-id",
-		"duplicate-tool-use-id",
-	);
-	const groupedResults = groupByToolUseId(
-		results,
-		"missing-tool-result-id",
-		"duplicate-tool-result",
-	);
-	const joiningIssues = joinIssues(groupedUses.byId, groupedResults.byId);
-	const repeated = repeatedBashCommands(uses, groupedUses.byId);
-	issues.push(
-		...groupedUses.issues,
-		...groupedResults.issues,
-		...joiningIssues,
-		...repeated.issues,
-	);
-
-	const observations = {
-		prefixLinesExcluded: input.prefixLinesExcluded,
-		sourceLineCount,
-		measuredLineCount: measured.length,
-		toolUseOccurrences: countToolUses(uses),
-		toolErrors: observedErrors(results, groupedUses.byId),
-		repeatedBashCommands: repeated.commands,
-		issues: summarizeIssues(issues),
-	};
-
-	return transcriptDiagnosticsSchema.parse({
-		state: observations.issues.length === 0 ? "complete" : "partial",
-		...observations,
-	});
-}
-
-function groupByToolUseId<Entry extends Immutable<LocatedToolIdentity>>(
-	entries: readonly Entry[],
-	missingKind: LocatedDiagnosticIssue["kind"],
-	duplicateKind: LocatedDiagnosticIssue["kind"],
-): DiagnosticGrouping<Entry> {
-	const grouped = new Map<string, Entry[]>();
-	const issues: LocatedDiagnosticIssue[] = [];
-	for (const entry of entries) {
-		if (entry.toolUseId === undefined) {
-			issues.push({ kind: missingKind, location: entry.location });
-			continue;
-		}
-
-		const occurrences = grouped.get(entry.toolUseId) ?? [];
-		occurrences.push(entry);
-		grouped.set(entry.toolUseId, occurrences);
-	}
-	for (const occurrences of grouped.values()) {
-		if (occurrences.length > 1) {
-			issues.push(
-				...occurrences.map(({ location }) => ({
-					kind: duplicateKind,
-					location,
-				})),
-			);
-		}
-	}
-
-	return { byId: grouped, issues };
-}
-
-function joinIssues(
-	usesById: LocatedToolUseMap,
-	resultsById: LocatedToolResultMap,
-): readonly LocatedDiagnosticIssue[] {
-	const issues: LocatedDiagnosticIssue[] = [];
-	for (const [id, uses] of usesById) {
-		if (!resultsById.has(id)) {
-			issues.push(
-				...uses.map(({ location }) => ({
-					kind: "missing-tool-result" as const,
-					location,
-				})),
-			);
-		}
-	}
-	for (const [id, results] of resultsById) {
-		if (!usesById.has(id)) {
-			issues.push(
-				...results.map(({ location }) => ({
-					kind: "unmatched-tool-result" as const,
-					location,
-				})),
-			);
-		}
-	}
-
-	return issues;
-}
-
-function countToolUses(
-	uses: Immutable<readonly LocatedToolUse[]>,
-): z.infer<typeof observedToolUseCountsSchema> {
-	const byName = new Map<string, number>();
-	for (const { use } of uses) {
-		byName.set(use.name, (byName.get(use.name) ?? 0) + 1);
-	}
-
-	return {
-		total: uses.length,
-		byName: [...byName].map(([name, count]) => ({ name, count })),
-	};
-}
-
-function observedErrors(
-	results: Immutable<readonly LocatedToolResult[]>,
-	usesById: LocatedToolUseMap,
-): z.infer<typeof toolErrorSchema>[] {
-	const errors: z.infer<typeof toolErrorSchema>[] = [];
-	for (const result of results) {
-		if (!result.isError) {
-			continue;
-		}
-
-		const matches =
-			result.toolUseId === undefined
-				? []
-				: (usesById.get(result.toolUseId) ?? []);
-		const [match] = matches.length === 1 ? matches : [];
-		const observed: z.infer<typeof toolErrorSchema> = {
-			result: result.location,
-		};
-		if (result.toolUseId !== undefined) {
-			observed.toolUseId = result.toolUseId;
-		}
-		if (match !== undefined) {
-			observed.toolName = match.use.name;
-			observed.call = match.location;
-		}
-		errors.push(observed);
-	}
-
-	return errors;
-}
-
-function repeatedBashCommands(
-	uses: Immutable<readonly LocatedToolUse[]>,
-	usesById: LocatedToolUseMap,
-): RepeatedBashDiagnostics {
-	const grouped = new Map<string, IdentifiedToolUse[]>();
-	const issues: LocatedDiagnosticIssue[] = [];
-	for (const use of uses) {
-		if (use.use.name !== "Bash") {
-			continue;
-		}
-
-		const { command } = use.use.input;
-		if (command === undefined) {
-			issues.push({ kind: "invalid-bash-command", location: use.location });
-			continue;
-		}
-
-		const { toolUseId } = use;
-		if (toolUseId === undefined || usesById.get(toolUseId)?.length !== 1) {
-			continue;
-		}
-
-		const occurrences = grouped.get(command) ?? [];
-		occurrences.push({ toolUseId, location: use.location });
-		grouped.set(command, occurrences);
-	}
-
-	return {
-		commands: [...grouped]
-			.filter(([_command, occurrences]) => occurrences.length > 1)
-			.map(([command, occurrences]) =>
-				describeRepeatedCommand(command, occurrences),
-			),
-		issues,
-	};
-}
-
-function describeRepeatedCommand(
-	command: string,
-	occurrences: Immutable<readonly IdentifiedToolUse[]>,
-): z.infer<typeof repeatedBashCommandSchema> {
-	let commandCharacters = 0;
-	let preview = "";
-	let previewComplete = true;
-	for (const character of command) {
-		commandCharacters += 1;
-		if (
-			!previewComplete ||
-			preview.length + character.length > MAX_PREVIEW_CODE_UNITS
-		) {
-			previewComplete = false;
-			continue;
-		}
-		preview += character;
-	}
-
-	return {
-		commandSha256: new Bun.CryptoHasher("sha256").update(command).digest("hex"),
-		commandCharacters,
-		preview,
-		previewTruncated: !previewComplete,
-		occurrences: occurrences.map(({ toolUseId, location }) => ({
-			toolUseId,
-			location,
-		})),
-	};
-}
-
-function summarizeIssues(
-	issues: Immutable<readonly LocatedDiagnosticIssue[]>,
-): z.infer<typeof diagnosticIssueSchema>[] {
-	const grouped = new Map<
-		LocatedDiagnosticIssue["kind"],
-		TranscriptLocation[]
-	>();
-	for (const issue of issues) {
-		const locations = grouped.get(issue.kind) ?? [];
-		locations.push(issue.location);
-		grouped.set(issue.kind, locations);
-	}
-
-	return [...grouped].map(([kind, locations]) => ({
-		kind,
-		occurrences: locations.length,
-		locations: locations.slice(0, MAX_ISSUE_LOCATIONS),
-		locationsTruncated: locations.length > MAX_ISSUE_LOCATIONS,
-	}));
-}
-
-export function toolUses(
+function toolUses(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly ToolUse[] {
 	return lines.flatMap((line) => [...line.toolUses]);
 }
 
-export function toolUsesExceptFailed(
+function toolUsesExceptFailed(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly ToolUse[] {
 	const failed = new Set(
@@ -936,16 +68,14 @@ export function toolUsesExceptFailed(
 	);
 }
 
-export function filesRead(
-	uses: Immutable<readonly ToolUse[]>,
-): readonly string[] {
+function filesRead(uses: Immutable<readonly ToolUse[]>): readonly string[] {
 	return uses
 		.filter((use) => use.name === "Read")
 		.map((use) => use.input.file_path)
 		.filter((path) => path !== undefined);
 }
 
-export function outputStyles(
+function outputStyles(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly string[] {
 	return lines
@@ -953,14 +83,45 @@ export function outputStyles(
 		.filter((style) => style !== undefined);
 }
 
-export function instructionFiles(
+function instructionFiles(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly string[] {
 	return lines.flatMap((line) => [...line.instructionFiles]);
 }
 
-export function skillDirectories(
+function skillDirectories(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly string[] {
 	return lines.flatMap((line) => [...line.skillDirectories]);
 }
+
+export { skillBodyDirectory } from "./transcript-instruction-sources";
+
+export {
+	transcriptLocationSchema,
+	transcriptDiagnosticsSchema,
+} from "./transcript-diagnostics-contract";
+
+export { default as transcriptDiagnostics } from "./transcript-diagnostics";
+
+export type { UserTurn, TranscriptLine } from "./transcript-line-contract";
+
+export type { ToolUse } from "./transcript-message-contract";
+
+export type {
+	TranscriptLocation,
+	TranscriptDiagnostics,
+} from "./transcript-diagnostics-contract";
+
+export type { TranscriptDiagnosticsInput } from "./transcript-diagnostics";
+
+export {
+	parseTranscript,
+	parseTranscriptFile,
+	toolUses,
+	toolUsesExceptFailed,
+	filesRead,
+	outputStyles,
+	instructionFiles,
+	skillDirectories,
+};

@@ -1,3 +1,15 @@
+import type {
+	ComparisonContrast,
+	PairedEstimate,
+	SingleCaseProportionEstimate,
+} from "./comparison-estimator";
+import {
+	COMPARISON_CONTRASTS,
+	buildPairedEstimate,
+	buildSingleCaseProportionEstimate,
+} from "./comparison-estimator";
+import type { ComparisonProjectionInput } from "./comparison-evidence";
+import type { ComparisonArm } from "./comparison-record";
 import type { ParsedConfirmationRepRecord } from "./confirmation-record";
 import type {
 	ConfirmationReliabilityRep,
@@ -7,32 +19,24 @@ import {
 	buildReliabilityReport,
 	reliabilitySummaryNamed,
 } from "./confirmation-report";
-import type { ComparisonProjectionInput } from "./comparison-evidence";
-import type {
-	ComparisonContrast,
-	PairedEstimate,
-	SingleCaseProportionEstimate,
-} from "./comparison-estimator";
-import {
-	buildPairedEstimate,
-	buildSingleCaseProportionEstimate,
-	COMPARISON_CONTRASTS,
-} from "./comparison-estimator";
-import type { ComparisonArm } from "./comparison-record";
 import type { Immutable } from "./contracts";
 
-export interface ComparisonQualityCase {
+const PREFIX_START_INDEX = 0;
+
+const SINGLE_ITEM_COUNT = 1;
+
+interface ComparisonQualityCase {
 	readonly caseId: string;
 	readonly arms: Readonly<Record<ComparisonArm, readonly ReliabilitySummary[]>>;
 }
 
-export interface QualityContrastEstimate {
+interface QualityContrastEstimate {
 	readonly name: string;
 	readonly successRate: PairedEstimate;
 	readonly passK: PairedEstimate;
 }
 
-export interface SingleCaseQualityContrastEstimate {
+interface SingleCaseQualityContrastEstimate {
 	readonly name: string;
 	readonly successRate: SingleCaseProportionEstimate;
 	readonly passK: {
@@ -42,22 +46,22 @@ export interface SingleCaseQualityContrastEstimate {
 	};
 }
 
-export interface QualityContrastReport {
+interface QualityContrastReport {
 	readonly quality: readonly QualityContrastEstimate[];
 }
 
-export interface SingleCaseQualityContrastReport {
+interface SingleCaseQualityContrastReport {
 	readonly quality: readonly SingleCaseQualityContrastEstimate[];
 }
 
-export interface ComparisonQualityReport {
+interface ComparisonQualityReport {
 	readonly cases: readonly ComparisonQualityCase[];
 	readonly contrasts: Readonly<
 		Record<ComparisonContrast, QualityContrastReport>
 	>;
 }
 
-export interface SingleCaseComparisonQualityReport {
+interface SingleCaseComparisonQualityReport {
 	readonly samplingUnit: "rep";
 	readonly cases: readonly ComparisonQualityCase[];
 	readonly contrasts: Readonly<
@@ -65,15 +69,15 @@ export interface SingleCaseComparisonQualityReport {
 	>;
 }
 
-export function comparisonReliabilityRep(
+function comparisonReliabilityRep(
 	contract: Immutable<ComparisonProjectionInput["contract"]>,
 	rep: Immutable<ParsedConfirmationRepRecord>,
 ): ConfirmationReliabilityRep {
 	if (contract.mode === "stage" || contract.mode === "session") {
 		return {
+			finalOutcome: { status: "NOT_REACHED" },
 			metricsComplete: rep.metrics.status === "COMPLETE",
 			stages: rep.stages,
-			finalOutcome: { status: "NOT_REACHED" },
 		};
 	}
 	if (rep.finalOutcome.status === "NOT_APPLICABLE") {
@@ -81,9 +85,9 @@ export function comparisonReliabilityRep(
 	}
 
 	return {
+		finalOutcome: rep.finalOutcome,
 		metricsComplete: rep.metrics.status === "COMPLETE",
 		stages: rep.stages,
-		finalOutcome: rep.finalOutcome,
 	};
 }
 
@@ -95,7 +99,7 @@ function armQuality(
 	const quality = buildReliabilityReport(contract.declaredStages, inputs);
 
 	return contract.mode === "stage" || contract.mode === "session"
-		? quality.slice(0, contract.declaredStages.length)
+		? quality.slice(PREFIX_START_INDEX, contract.declaredStages.length)
 		: quality;
 }
 
@@ -125,18 +129,18 @@ function buildQualityContrast(
 
 			return {
 				name,
-				successRate: buildPairedEstimate(
-					summaries.map(({ caseId, minuend, subtrahend }) => ({
-						caseId,
-						minuend: [minuend.successRate],
-						subtrahend: [subtrahend.successRate],
-					})),
-				),
 				passK: buildPairedEstimate(
 					summaries.map(({ caseId, minuend, subtrahend }) => ({
 						caseId,
 						minuend: [minuend.passK],
 						subtrahend: [subtrahend.passK],
+					})),
+				),
+				successRate: buildPairedEstimate(
+					summaries.map(({ caseId, minuend, subtrahend }) => ({
+						caseId,
+						minuend: [minuend.successRate],
+						subtrahend: [subtrahend.successRate],
 					})),
 				),
 			};
@@ -169,78 +173,105 @@ function buildSingleCaseQualityContrast(
 
 			return {
 				name,
-				successRate: buildSingleCaseProportionEstimate({ minuend, subtrahend }),
 				passK: {
+					delta: minuend.passK - subtrahend.passK,
 					minuend: minuend.passK,
 					subtrahend: subtrahend.passK,
-					delta: minuend.passK - subtrahend.passK,
 				},
+				successRate: buildSingleCaseProportionEstimate({ minuend, subtrahend }),
 			};
 		}),
 	};
 }
 
-export function buildComparisonQuality(
+interface SingleCaseQualityRequest {
+	readonly cases: readonly ComparisonQualityCase[];
+	readonly names: readonly string[];
+	readonly benchmarkCase: ComparisonQualityCase;
+}
+
+function singleCaseQualityReport(
+	request: Immutable<SingleCaseQualityRequest>,
+): SingleCaseComparisonQualityReport {
+	const { cases, names, benchmarkCase } = request;
+	const [candidateMinusBaseline, candidateMinusControl, baselineMinusControl] =
+		COMPARISON_CONTRASTS;
+
+	return {
+		cases,
+		contrasts: {
+			baselineMinusControl: buildSingleCaseQualityContrast({
+				benchmarkCase,
+				names,
+				...baselineMinusControl,
+			}),
+			candidateMinusBaseline: buildSingleCaseQualityContrast({
+				benchmarkCase,
+				names,
+				...candidateMinusBaseline,
+			}),
+			candidateMinusControl: buildSingleCaseQualityContrast({
+				benchmarkCase,
+				names,
+				...candidateMinusControl,
+			}),
+		},
+		samplingUnit: "rep",
+	};
+}
+
+function buildComparisonQuality(
 	request: Immutable<ComparisonProjectionInput>,
 ): ComparisonQualityReport | SingleCaseComparisonQualityReport {
 	const cases = request.cases.map((benchmarkCase) => ({
-		caseId: benchmarkCase.caseId,
 		arms: {
 			baseline: armQuality(request.contract, benchmarkCase.arms.baseline),
 			candidate: armQuality(request.contract, benchmarkCase.arms.candidate),
 			control: armQuality(request.contract, benchmarkCase.arms.control),
 		},
+		caseId: benchmarkCase.caseId,
 	}));
 	const names = [
 		...request.contract.declaredStages,
 		...(request.contract.mode === "pipeline" ? ["final"] : []),
 	];
+	const [benchmarkCase] = cases;
+	if (benchmarkCase !== undefined && cases.length === SINGLE_ITEM_COUNT) {
+		return singleCaseQualityReport({ benchmarkCase, cases, names });
+	}
+
 	const [candidateMinusBaseline, candidateMinusControl, baselineMinusControl] =
 		COMPARISON_CONTRASTS;
-
-	const [benchmarkCase] = cases;
-	if (benchmarkCase !== undefined && cases.length === 1) {
-		return {
-			samplingUnit: "rep",
-			cases,
-			contrasts: {
-				candidateMinusBaseline: buildSingleCaseQualityContrast({
-					names,
-					benchmarkCase,
-					...candidateMinusBaseline,
-				}),
-				candidateMinusControl: buildSingleCaseQualityContrast({
-					names,
-					benchmarkCase,
-					...candidateMinusControl,
-				}),
-				baselineMinusControl: buildSingleCaseQualityContrast({
-					names,
-					benchmarkCase,
-					...baselineMinusControl,
-				}),
-			},
-		};
-	}
 
 	return {
 		cases,
 		contrasts: {
-			candidateMinusBaseline: buildQualityContrast({
-				names,
+			baselineMinusControl: buildQualityContrast({
 				cases,
+				names,
+				...baselineMinusControl,
+			}),
+			candidateMinusBaseline: buildQualityContrast({
+				cases,
+				names,
 				...candidateMinusBaseline,
 			}),
 			candidateMinusControl: buildQualityContrast({
-				names,
 				cases,
+				names,
 				...candidateMinusControl,
-			}),
-			baselineMinusControl: buildQualityContrast({
-				names,
-				cases,
-				...baselineMinusControl,
 			}),
 		},
 	};
 }
+
+export { comparisonReliabilityRep, buildComparisonQuality };
+export type {
+	ComparisonQualityCase,
+	QualityContrastEstimate,
+	SingleCaseQualityContrastEstimate,
+	QualityContrastReport,
+	SingleCaseQualityContrastReport,
+	ComparisonQualityReport,
+	SingleCaseComparisonQualityReport,
+};

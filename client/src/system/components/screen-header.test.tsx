@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+
 import { render, screen } from "@testing-library/react";
-import { ScreenHeader } from "./screen-header";
+
+import ScreenHeader from "./screen-header";
 
 describe(ScreenHeader.name, () => {
 	it("renders the title as the screen's level-one heading", () => {

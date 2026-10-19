@@ -1,7 +1,8 @@
 import { expect } from "bun:test";
+
 import { SessionHistoryReaderError } from "./session-history-reader";
 
-export async function expectHistoryError<Value>(
+async function expectHistoryError<Value>(
 	operation: Promise<Value>,
 	kind: SessionHistoryReaderError["kind"],
 ): Promise<void> {
@@ -18,3 +19,5 @@ export async function expectHistoryError<Value>(
 		"The saved evidence reader unexpectedly accepted the request",
 	);
 }
+
+export { expectHistoryError as default };

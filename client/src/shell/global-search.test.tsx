@@ -1,119 +1,65 @@
-import { afterEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+
 import { renderAppWithStub } from "#client/test-support/render-app";
 
 import {
-	UNREAD_RUN_FIGURES,
-	UNREAD_REPLAY_FIGURES,
-} from "#client/test-support/run-figures";
+	matchingInstructionReplies,
+	matchingRunReplies,
+	searchCollectionReplies,
+} from "./search-collection-test-fixtures";
+
+const expectedLinkCount = 1;
 
 const originalFetch = globalThis.fetch;
+
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-it("opens with the keyboard, searches existing collections, and closes with Escape", async () => {
-	renderAppWithStub(
-		"/",
-		new Map([
-			[
-				"/api/run-listing",
-				{
-					rows: [
-						{
-							...UNREAD_RUN_FIGURES,
-							kind: "run",
-							recordId: "run:audit-run",
-							run: "audit-run",
-							shortId: "audit/r2",
-							caseId: "audit",
-							status: "RUNNING",
-							stage: "build",
-							grade: "A",
-							launchId: undefined,
-							checkpoints: [],
-							links: [],
-							corpusVersion: { kind: "version", digest: "abc" },
-							corpusChangedDuringRun: false,
-							progress: {
-								state: "running",
-								spentUsd: 0,
-								spendScope: "this run",
-							},
-						},
-						{
-							...UNREAD_REPLAY_FIGURES,
-							kind: "replay",
-							recordId: "replay:lineage/audit-replay",
-							lineage: "lineage",
-							timestamp: "audit-replay",
-							shortId: "audit/rp",
-							checkpointShortId: undefined,
-							attempt: undefined,
-							caseId: "audit",
-							stage: "build",
-							grade: "C",
-							status: "STOP",
-							corpusVersion: { kind: "version", digest: "abc" },
-							links: [
-								{
-									state: "available",
-									label: "comparison",
-									href: "/comparisons/audit-related",
-								},
-								{
-									state: "available",
-									label: "context",
-									href: "/replays/lineage/audit-replay",
-								},
-							],
-						},
-					],
-					launches: [],
-					unreadable: [],
-				},
-			],
-			[
-				"/api/cases",
-				{
-					cases: [{ id: "audit", title: "Audit sessions", kind: "session" }],
-					unreadable: [],
-					unreadableRecords: [],
-				},
-			],
-			[
-				"/api/corpus",
-				{
-					root: "/corpus",
-					digest: "abc",
-					files: [{ path: "skills/audit.md", sha256: "123" }],
-					refusals: [],
-					lastEdit: { kind: "not-recorded", reason: "none" },
-				},
-			],
-			[
-				"/api/comparisons",
-				{
-					comparisons: [
-						{
-							digest: "audit-comparison",
-							caseIds: ["audit"],
-							mode: "stage",
-							reps: 2,
-						},
-					],
-					unreadable: [],
-				},
-			],
-		]),
+describe("keyboard search across saved collections", () => {
+	beforeEach(opensKeyboardSearch);
+	it("focuses its query", focusesKeyboardSearch);
+	it(
+		"links each recorded destination and ranks the exact case",
+		readsSearchDestinations,
 	);
+	it("filters to instructions", filtersSearchInstructions);
+	it("closes with Escape and restores focus", closesSearchWithEscape);
+});
+
+it(
+	"keeps an exact case ahead of many run matches and previews their outcome and cost",
+	keepsAnExactCaseAheadOfManyRunMatchesAndPreviewsTheirOutcomeAndCost,
+);
+
+it(
+	"ranks an exact instruction path above a case whose ID only starts with the query",
+	ranksAnExactInstructionPathAboveACaseWhoseIDOnlyStartsWithTheQuery,
+);
+
+async function opensKeyboardSearch(): Promise<void> {
+	renderAppWithStub("/", searchCollectionReplies);
 	await screen.findByRole("button", { name: /Search everything/u });
-	fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+	fireEvent.keyDown(document.body, { ctrlKey: true, key: "k" });
+	await screen.findByRole("dialog", {
+		name: "Search everything",
+	});
+}
+
+async function focusesKeyboardSearch(): Promise<void> {
 	const dialog = await screen.findByRole("dialog", {
 		name: "Search everything",
 	});
 	await waitFor(() => {
 		expect(within(dialog).getByRole("searchbox")).toHaveFocus();
+	});
+}
+
+async function readsSearchDestinations(): Promise<void> {
+	const dialog = await screen.findByRole("dialog", {
+		name: "Search everything",
 	});
 	fireEvent.change(within(dialog).getByRole("searchbox"), {
 		target: { value: "audit" },
@@ -134,17 +80,36 @@ it("opens with the keyboard, searches existing collections, and closes with Esca
 	expect(
 		within(dialog).getByRole("link", { name: /Replay rp/u }),
 	).toHaveAttribute("href", "/replays/lineage/audit-replay");
-	expect(within(dialog).getAllByRole("link")[0]).toHaveAttribute(
-		"href",
-		"/cases?caseId=audit",
-	);
+	const [observedFirstLink] = within(dialog).getAllByRole("link");
+	expect(observedFirstLink).toHaveAttribute("href", "/cases?caseId=audit");
 	expect(within(dialog).getByText(/Saved metadata only/u)).toBeInTheDocument();
+}
+
+async function filtersSearchInstructions(): Promise<void> {
+	const dialog = await screen.findByRole("dialog", {
+		name: "Search everything",
+	});
+	fireEvent.change(within(dialog).getByRole("searchbox"), {
+		target: { value: "audit" },
+	});
+	await within(dialog).findByRole("link", { name: /skills\/audit.md/u });
 	fireEvent.click(within(dialog).getByRole("button", { name: "Instructions" }));
-	expect(within(dialog).getAllByRole("link")).toHaveLength(1);
+	expect(within(dialog).getAllByRole("link")).toHaveLength(expectedLinkCount);
 	expect(within(dialog).getByRole("link")).toHaveAttribute(
 		"href",
 		"/corpus?file=skills%2Faudit.md",
 	);
+}
+
+async function closesSearchWithEscape(): Promise<void> {
+	const dialog = await screen.findByRole("dialog", {
+		name: "Search everything",
+	});
+	fireEvent.change(within(dialog).getByRole("searchbox"), {
+		target: { value: "audit" },
+	});
+	await within(dialog).findByRole("link", { name: /skills\/audit.md/u });
+	fireEvent.click(within(dialog).getByRole("button", { name: "Instructions" }));
 	fireEvent.keyDown(document.body, { key: "Escape" });
 	await waitFor(() => {
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -152,47 +117,10 @@ it("opens with the keyboard, searches existing collections, and closes with Esca
 	expect(
 		screen.getByRole("button", { name: "Search everything" }),
 	).toHaveFocus();
-});
+}
 
-it("keeps an exact case ahead of many run matches and previews their outcome and cost", async () => {
-	renderAppWithStub(
-		"/",
-		new Map<string, unknown>([
-			[
-				"/api/cases",
-				{
-					cases: [
-						{ id: "audit-log", title: "Audit log case", kind: "pipeline" },
-					],
-					unreadable: [],
-					unreadableRecords: [],
-				},
-			],
-			[
-				"/api/run-listing",
-				{
-					rows: Array.from({ length: 40 }, (_unused, index) => ({
-						...UNREAD_RUN_FIGURES,
-						kind: "run",
-						recordId: `run:${String(index)}`,
-						run: `2026-10-02T09-00-${String(index).padStart(2, "0")}.000Z`,
-						caseId: "audit-log",
-						status: "COMPLETE",
-						links: [],
-						progress: { state: "recorded" },
-						finalOutcome: {
-							state: "available",
-							status: "JUDGED",
-							verdict: "FAIL",
-						},
-						cost: { state: "available", usd: 1.23, parts: [], missing: [] },
-					})),
-					launches: [],
-					unreadable: [],
-				},
-			],
-		]),
-	);
+async function keepsAnExactCaseAheadOfManyRunMatchesAndPreviewsTheirOutcomeAndCost(): Promise<void> {
+	renderAppWithStub("/", matchingRunReplies);
 	fireEvent.click(
 		await screen.findByRole("button", { name: "Search everything" }),
 	);
@@ -203,41 +131,18 @@ it("keeps an exact case ahead of many run matches and previews their outcome and
 		target: { value: "audit-log" },
 	});
 	await within(dialog).findByRole("link", { name: /Case audit-log/u });
-	expect(within(dialog).getAllByRole("link")[0]).toHaveAttribute(
-		"href",
-		"/cases?caseId=audit-log",
-	);
+	const [observedFirstLink] = within(dialog).getAllByRole("link");
+
+	expect(observedFirstLink).toHaveAttribute("href", "/cases?caseId=audit-log");
 	expect(
 		within(dialog).getByRole("region", { name: "Runs search results" }),
 	).toHaveTextContent("Final FAIL · $1.23 reported cost");
 	fireEvent.click(within(dialog).getByRole("button", { name: "Cases" }));
-	expect(within(dialog).getAllByRole("link")).toHaveLength(1);
-});
+	expect(within(dialog).getAllByRole("link")).toHaveLength(expectedLinkCount);
+}
 
-it("ranks an exact instruction path above a case whose ID only starts with the query", async () => {
-	renderAppWithStub(
-		"/",
-		new Map<string, unknown>([
-			[
-				"/api/cases",
-				{
-					cases: [{ id: "guide-case", title: "A guide case", kind: "session" }],
-					unreadable: [],
-					unreadableRecords: [],
-				},
-			],
-			[
-				"/api/corpus",
-				{
-					root: "/corpus",
-					digest: "abc",
-					files: [{ path: "guide", sha256: "123" }],
-					refusals: [],
-					lastEdit: { kind: "not-recorded", reason: "none" },
-				},
-			],
-		]),
-	);
+async function ranksAnExactInstructionPathAboveACaseWhoseIDOnlyStartsWithTheQuery(): Promise<void> {
+	renderAppWithStub("/", matchingInstructionReplies);
 	fireEvent.click(
 		await screen.findByRole("button", { name: "Search everything" }),
 	);
@@ -253,4 +158,4 @@ it("ranks an exact instruction path above a case whose ID only starts with the q
 			.getAllByRole("link")
 			.map((link) => link.getAttribute("href")),
 	).toEqual(["/corpus?file=guide", "/cases?caseId=guide-case"]);
-});
+}

@@ -1,19 +1,21 @@
 import { LaunchDialog } from "#client/launch/launch-dialog";
-import { stageReplayRefusal } from "#client/monitor/run-record-query";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
+import { stageReplayRefusal } from "#client/monitor/run-record-query";
 import { Button } from "#client/system/ui/button";
 
-export function ReplayButton({
-	run,
-	record,
-	stage,
-	label,
-}: {
+interface ReplayButtonProps {
 	readonly run: string;
 	readonly record: RunRecordResponse;
 	readonly stage: string;
 	readonly label: string;
-}): React.JSX.Element {
+}
+
+function ReplayButton({
+	run,
+	record,
+	stage,
+	label,
+}: ReplayButtonProps): React.JSX.Element {
 	const refusal = stageReplayRefusal(record, stage);
 	if (refusal !== undefined) {
 		return (
@@ -39,3 +41,5 @@ export function ReplayButton({
 		/>
 	);
 }
+
+export { ReplayButton as default };

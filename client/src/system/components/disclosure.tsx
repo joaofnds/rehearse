@@ -1,6 +1,6 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface DisclosureProps {
 	readonly collapsedLabel: string;
@@ -9,7 +9,7 @@ interface DisclosureProps {
 	readonly align?: "start" | "end";
 }
 
-export function Disclosure({
+function Disclosure({
 	collapsedLabel,
 	expandedLabel,
 	children,
@@ -40,3 +40,5 @@ export function Disclosure({
 		</span>
 	);
 }
+
+export { Disclosure as default };

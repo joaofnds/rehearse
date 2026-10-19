@@ -25,9 +25,7 @@ const IDLE_POLL_MS = 10_000;
  * process is alive, or a pipeline run in progress. A launch the operator
  * stopped stays listed after its process ends, so it does not count.
  */
-export function somethingRuns(
-	response: Readonly<RunListingResponse> | undefined,
-): boolean {
+function somethingRuns(response?: Readonly<RunListingResponse>): boolean {
 	return (
 		(response?.launches ?? []).some((launch) => launch.status === "RUNNING") ||
 		(response?.rows ?? []).some(
@@ -37,11 +35,11 @@ export function somethingRuns(
 }
 
 /** Often while anything runs and seldom while nothing does. */
-function pollInterval({
-	state,
-}: {
+interface PollIntervalProps {
 	readonly state: { readonly data?: RunListingResponse | undefined };
-}): number {
+}
+
+function pollInterval({ state }: PollIntervalProps): number {
 	return somethingRuns(state.data) ? RUNNING_POLL_MS : IDLE_POLL_MS;
 }
 
@@ -49,13 +47,15 @@ function pollInterval({
  * The run-history query, polled for the screens that show readings of a run
  * in flight beside each record's staleness.
  */
-export const polledRunHistoryQuery = {
+const polledRunHistoryQuery = {
 	...runHistoryQuery,
 	refetchInterval: pollInterval,
 };
 
 /** The run listing, polled for every other reader of a run in flight. */
-export const polledRunListingQuery = {
+const polledRunListingQuery = {
 	...runListingQuery,
 	refetchInterval: pollInterval,
 };
+
+export { polledRunHistoryQuery, polledRunListingQuery, somethingRuns };

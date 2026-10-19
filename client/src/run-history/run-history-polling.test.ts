@@ -1,42 +1,45 @@
 import { describe, expect, it } from "bun:test";
-import type { RunHistoryResponse } from "./run-history-query";
+
 import {
 	polledRunHistoryQuery,
 	polledRunListingQuery,
 	somethingRuns,
 } from "./run-history-polling";
+import type { RunHistoryResponse } from "./run-history-query";
 
 type LaunchRow = RunHistoryResponse["launches"][number];
 
 function launch(status: LaunchRow["status"]): LaunchRow {
 	return {
-		kind: "launch",
-		id: `launch-${status}`,
-		target: "case",
+		attempts: 1,
 		caseId: "audit-log",
+		id: `launch-${status}`,
+		kind: "launch",
+		launchedAt: "2026-09-29T00:00:00.000Z",
 		run: undefined,
 		stage: undefined,
-		attempts: 1,
-		launchedAt: "2026-09-29T00:00:00.000Z",
 		status,
+		target: "case",
 	};
 }
 
 function response(launches: readonly LaunchRow[]): RunHistoryResponse {
-	return { rows: [], launches: [...launches], unreadable: [] };
+	return { launches: [...launches], rows: [], unreadable: [] };
 }
 
 describe(somethingRuns.name, () => {
 	it("counts a launch whose process is still running", () => {
-		expect(somethingRuns(response([launch("RUNNING")]))).toBe(true);
+		const listing = response([launch("RUNNING")]);
+		expect(somethingRuns(listing)).toBe(true);
 	});
 
 	it("does not count a launch the operator stopped", () => {
-		expect(somethingRuns(response([launch("OPERATOR_STOPPED")]))).toBe(false);
+		const listing = response([launch("OPERATOR_STOPPED")]);
+		expect(somethingRuns(listing)).toBe(false);
 	});
 
 	it("counts nothing before the first response", () => {
-		expect(somethingRuns(undefined)).toBe(false);
+		expect(somethingRuns()).toBe(false);
 	});
 });
 

@@ -1,22 +1,18 @@
 import { defineRule } from "@oxlint/plugins";
+import type { ESTree } from "@oxlint/plugins";
 
-import type { ESTree, SourceCode } from "@oxlint/plugins";
+import functionContractVisitors from "./function-contract-visitors.ts";
+import type { FunctionContract } from "./function-contract-visitors.ts";
+import lexicalTypeParameterNames from "./lexical-type-parameters.ts";
+import { localTypeAliases } from "./local-type-aliases.ts";
+import resolvesToObject from "./object-parameter-types.ts";
+import type { Syntax } from "./syntax.ts";
 
-import { lexicalTypeParameterNames } from "../shared/lexical-type-parameters.ts";
-
-type Parameter = ESTree.ParamPattern;
-type ParameterOwner =
-	| ESTree.ArrowFunctionExpression
-	| ESTree.Function
-	| ESTree.TSCallSignatureDeclaration
-	| ESTree.TSConstructSignatureDeclaration
-	| ESTree.TSConstructorType
-	| ESTree.TSFunctionType
-	| ESTree.TSMethodSignature;
+type Parameter = Syntax<ESTree.ParamPattern>;
 
 function parameterAnnotation(
 	parameter: Parameter,
-): ESTree.TSTypeAnnotation | null | undefined {
+): Syntax<ESTree.TSTypeAnnotation> | null | undefined {
 	if (parameter.type === "TSParameterProperty") {
 		return parameterAnnotation(parameter.parameter);
 	}
@@ -29,16 +25,68 @@ function parameterAnnotation(
 	return parameter.typeAnnotation;
 }
 
-function parameterName(parameter: Parameter, sourceCode: SourceCode): string {
+function parameterName(
+	parameter: Parameter,
+	sourceCode: Readonly<{ text: string }>,
+): string {
 	return parameter.type === "Identifier"
 		? parameter.name
-		: sourceCode.getText(parameter).replace(/\s*:\s*object\s*$/u, "");
+		: sourceCode.text
+				.slice(parameter.start, parameter.end)
+				.replace(/\s*:\s*object\s*$/u, "");
 }
 
 /** Ban the broad object type on function inputs, including local aliases to object. */
-export const noObjectParametersRule = defineRule({
+const noObjectParametersRule = defineRule({
+	createOnce(context) {
+		const aliases = new Map<string, Syntax<ESTree.TSTypeAliasDeclaration>>();
+
+		const checkParameters = (node: FunctionContract): void => {
+			const shadowedAliases = lexicalTypeParameterNames(
+				node,
+				context.sourceCode.visitorKeys,
+			);
+			for (const parameter of node.params) {
+				const annotation = parameterAnnotation(parameter);
+				if (
+					annotation !== null &&
+					annotation !== undefined &&
+					resolvesToObject(annotation.typeAnnotation, {
+						aliases,
+						shadowedAliases,
+						visited: new Set(),
+					})
+				) {
+					context.report({
+						data: { parameter: parameterName(parameter, context.sourceCode) },
+						messageId: "objectParameter",
+						node: {
+							range: [
+								annotation.typeAnnotation.start,
+								annotation.typeAnnotation.end,
+							],
+						},
+					});
+				}
+			}
+		};
+
+		return {
+			Program(node) {
+				aliases.clear();
+				for (const alias of localTypeAliases(node)) {
+					if (
+						alias.typeParameters === null ||
+						alias.typeParameters === undefined
+					) {
+						aliases.set(alias.id.name, alias);
+					}
+				}
+			},
+			...functionContractVisitors(checkParameters),
+		};
+	},
 	meta: {
-		type: "problem",
 		docs: {
 			description:
 				"Disallow object function parameters; inputs must use an owner-provided type and be parsed at their boundary.",
@@ -47,86 +95,8 @@ export const noObjectParametersRule = defineRule({
 			objectParameter:
 				"Parameter `{{parameter}}` uses the broad `object` type. Accept a named owner type; parse external input at its boundary before calling this function.",
 		},
-	},
-	createOnce(context) {
-		const aliases = new Map<string, ESTree.TSType>();
-
-		const resolvesToObject = (
-			type: ESTree.TSType,
-			shadowedAliases: ReadonlySet<string>,
-			visited = new Set<string>(),
-		): boolean => {
-			if (type.type === "TSObjectKeyword") return true;
-			if (type.type === "TSParenthesizedType")
-				return resolvesToObject(type.typeAnnotation, shadowedAliases, visited);
-			if (type.type === "TSUnionType") {
-				return type.types.some((member) =>
-					resolvesToObject(member, shadowedAliases, visited),
-				);
-			}
-			if (
-				type.type !== "TSTypeReference" ||
-				type.typeName.type !== "Identifier" ||
-				(type.typeArguments !== null &&
-					type.typeArguments !== undefined &&
-					type.typeArguments.params.length > 0) ||
-				visited.has(type.typeName.name) ||
-				shadowedAliases.has(type.typeName.name)
-			) {
-				return false;
-			}
-			const alias = aliases.get(type.typeName.name);
-			if (alias === undefined) return false;
-			const nextVisited = new Set(visited);
-			nextVisited.add(type.typeName.name);
-			return resolvesToObject(alias, shadowedAliases, nextVisited);
-		};
-
-		const checkParameters = (node: ParameterOwner) => {
-			const shadowedAliases = lexicalTypeParameterNames(
-				node,
-				context.sourceCode.visitorKeys,
-			);
-			for (const parameter of node.params) {
-				const annotation = parameterAnnotation(parameter);
-				if (annotation === null || annotation === undefined) continue;
-				if (!resolvesToObject(annotation.typeAnnotation, shadowedAliases))
-					continue;
-				context.report({
-					node: annotation.typeAnnotation,
-					messageId: "objectParameter",
-					data: { parameter: parameterName(parameter, context.sourceCode) },
-				});
-			}
-		};
-
-		return {
-			Program(node) {
-				aliases.clear();
-				for (const statement of node.body) {
-					const declaration =
-						statement.type === "ExportNamedDeclaration"
-							? statement.declaration
-							: statement;
-					if (
-						declaration?.type === "TSTypeAliasDeclaration" &&
-						(declaration.typeParameters === null ||
-							declaration.typeParameters === undefined)
-					) {
-						aliases.set(declaration.id.name, declaration.typeAnnotation);
-					}
-				}
-			},
-			ArrowFunctionExpression: checkParameters,
-			FunctionDeclaration: checkParameters,
-			FunctionExpression: checkParameters,
-			TSCallSignatureDeclaration: checkParameters,
-			TSConstructSignatureDeclaration: checkParameters,
-			TSConstructorType: checkParameters,
-			TSDeclareFunction: checkParameters,
-			TSEmptyBodyFunctionExpression: checkParameters,
-			TSFunctionType: checkParameters,
-			TSMethodSignature: checkParameters,
-		};
+		type: "problem",
 	},
 });
+
+export { noObjectParametersRule as default };

@@ -1,6 +1,6 @@
 import { REQUIRED_BUN_VERSION } from "./config";
 
-export function pinnedBunRefusal(versions: {
+function pinnedBunRefusal(versions: {
 	readonly required: string;
 	readonly running: string;
 }): string | null {
@@ -11,11 +11,11 @@ export function pinnedBunRefusal(versions: {
 	return `Use Bun ${versions.required}; current version is ${versions.running}`;
 }
 
-export function assertPinnedBunVersion(
-	required: string = REQUIRED_BUN_VERSION,
-): void {
+function assertPinnedBunVersion(required: string = REQUIRED_BUN_VERSION): void {
 	const refusal = pinnedBunRefusal({ required, running: Bun.version });
 	if (refusal !== null) {
 		throw new Error(refusal);
 	}
 }
+
+export { pinnedBunRefusal, assertPinnedBunVersion };

@@ -1,11 +1,12 @@
 import { launchClient } from "#client/api-client";
-import { SettingsRefusedError } from "#client/launch/settings-query";
+import HTTP_STATUS from "#client/http-status";
 import type { SettingsReading } from "#client/launch/settings-query";
-import { refusalReason } from "#client/refusal-reason";
+import { SettingsRefusedError } from "#client/launch/settings-query";
+import refusalReason from "#client/refusal-reason";
 
 async function fetchRecordsSize(): Promise<number> {
 	const response = await launchClient.api.settings.records.$get();
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
@@ -15,37 +16,37 @@ async function fetchRecordsSize(): Promise<number> {
 }
 
 /** Read apart from the settings, because it walks the whole records tree. */
-export const recordsSizeQuery = {
-	queryKey: ["records-size"],
+const recordsSizeQuery = {
 	queryFn: fetchRecordsSize,
+	queryKey: ["records-size"],
 } as const;
 
-export async function linkCorpusDirectory(
+async function linkCorpusDirectory(
 	directory: string,
 ): Promise<SettingsReading> {
 	const response = await launchClient.api.settings.corpus.$put({
 		json: { directory },
 	});
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
-	return response.json();
+	return await response.json();
 }
 
-export async function unlinkCorpusDirectory(): Promise<SettingsReading> {
+async function unlinkCorpusDirectory(): Promise<SettingsReading> {
 	const response = await launchClient.api.settings.corpus.$delete();
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
-	return response.json();
+	return await response.json();
 }
 
 /** Records a version of the linked corpus now, answering its label. */
-export async function rehashCorpus(): Promise<string> {
+async function rehashCorpus(): Promise<string> {
 	const response = await launchClient.api.settings.corpus.rehash.$post();
-	if (response.status !== 200) {
+	if (response.status !== HTTP_STATUS.ok) {
 		throw new SettingsRefusedError(await refusalReason(response));
 	}
 
@@ -53,3 +54,10 @@ export async function rehashCorpus(): Promise<string> {
 
 	return label;
 }
+
+export {
+	linkCorpusDirectory,
+	recordsSizeQuery,
+	rehashCorpus,
+	unlinkCorpusDirectory,
+};

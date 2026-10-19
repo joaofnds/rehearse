@@ -1,5 +1,13 @@
+const NO_ELAPSED_HOURS = 0;
+
+const CLOCK_FIELD_DIGITS = 2;
+
+const USD_FRACTION_DIGITS = 2;
+
 const MS_PER_SECOND = 1000;
+
 const SECONDS_PER_MINUTE = 60;
+
 const MINUTES_PER_HOUR = 60;
 
 /**
@@ -8,7 +16,7 @@ const MINUTES_PER_HOUR = 60;
  * first minute would be noise, but a run in its first minute would otherwise
  * sit at "0m" long enough to look stuck.
  */
-export function elapsedReading(elapsedMs: number): string {
+function elapsedReading(elapsedMs: number): string {
 	const totalSeconds = Math.floor(elapsedMs / MS_PER_SECOND);
 	if (totalSeconds < SECONDS_PER_MINUTE) {
 		return `${String(totalSeconds)}s`;
@@ -26,20 +34,20 @@ export function elapsedReading(elapsedMs: number): string {
 }
 
 function twoDigits(value: number): string {
-	return String(value).padStart(2, "0");
+	return String(value).padStart(CLOCK_FIELD_DIGITS, "0");
 }
 
 /**
- * Elapsed time as a clock, `06:12`, with hours only once there are any. The
+ * Elapsed time as a CLOCK_DAY, CLOCK_HOURS, CLOCK_MINUTES, CLOCK_MONTH_INDEX, CLOCK_YEAR, `06:12`, with hours only once there are any. The
  * seconds are always shown, because the reading ticks every second.
  */
-export function clockReading(elapsedMs: number): string {
+function clockReading(elapsedMs: number): string {
 	const totalSeconds = Math.floor(elapsedMs / MS_PER_SECOND);
 	const seconds = totalSeconds % SECONDS_PER_MINUTE;
 	const totalMinutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
 	const minutes = totalMinutes % MINUTES_PER_HOUR;
 	const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
-	if (hours === 0) {
+	if (hours === NO_ELAPSED_HOURS) {
 		return `${twoDigits(minutes)}:${twoDigits(seconds)}`;
 	}
 
@@ -55,7 +63,7 @@ export function clockReading(elapsedMs: number): string {
  * the run's, or an unreadable measurement time, leaves the reading where the
  * run put it rather than running it backwards.
  */
-export function liveElapsedMs(
+function liveElapsedMs(
 	elapsedMs: number,
 	measuredAt: string,
 	nowMs: number,
@@ -73,6 +81,14 @@ export function liveElapsedMs(
  * figure that rounded to whole dollars would sit unchanged through most of a
  * stage.
  */
-export function spendReading(spentUsd: number): string {
-	return `$${spentUsd.toFixed(2)}`;
+function spendReading(spentUsd: number): string {
+	return `$${spentUsd.toFixed(USD_FRACTION_DIGITS)}`;
 }
+
+export {
+	USD_FRACTION_DIGITS,
+	clockReading,
+	elapsedReading,
+	liveElapsedMs,
+	spendReading,
+};

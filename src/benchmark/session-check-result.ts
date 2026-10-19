@@ -5,7 +5,7 @@ import { z } from "zod";
  * recorded result naming a sixth is a typo, not a check the reader has yet to
  * learn about.
  */
-export const checkKindSchema = z.enum([
+const checkKindSchema = z.enum([
 	"word-band",
 	"forbidden-text",
 	"forbidden-pattern",
@@ -13,14 +13,17 @@ export const checkKindSchema = z.enum([
 	"files-read",
 ]);
 
-export type CheckKind = z.infer<typeof checkKindSchema>;
+type CheckKind = z.infer<typeof checkKindSchema>;
 
-export const checkResultSchema = z
+const checkResultSchema = z
 	.object({
+		detail: z.string().nonempty(),
 		kind: checkKindSchema,
 		status: z.enum(["PASS", "FAIL"]),
-		detail: z.string().min(1),
 	})
 	.strict();
 
-export type CheckResult = z.infer<typeof checkResultSchema>;
+type CheckResult = z.infer<typeof checkResultSchema>;
+
+export { checkKindSchema, checkResultSchema };
+export type { CheckKind, CheckResult };

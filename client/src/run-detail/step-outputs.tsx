@@ -1,6 +1,9 @@
 import { useId } from "react";
+
 import type { MonitoredStage } from "#client/monitor/run-record-query";
 import { hasEnded } from "#client/monitor/run-record-query";
+
+const EMPTY_COLLECTION_LENGTH = 0;
 
 type MissingPart = MonitoredStage["artifactsIn"]["missing"][number];
 
@@ -17,26 +20,26 @@ function artifactOutRows(stage: MonitoredStage): readonly ArtifactOutRow[] {
 	return [
 		...(declared.state === "available"
 			? declared.paths.map((path) => ({
-					name: path,
 					detail: "declared artifact",
+					name: path,
 				}))
 			: []),
 		...(workflowState.state === "available"
 			? workflowState.changes.map(({ path, change }) => ({
-					name: path,
 					detail: `workflow state · ${change}`,
+					name: path,
 				}))
 			: []),
 		...(commitSubjects.state === "available"
 			? commitSubjects.subjects.map((subject) => ({
-					name: subject,
 					detail: "commit",
+					name: subject,
 				}))
 			: []),
 		...(changedPaths.state === "available"
 			? changedPaths.paths.map((path) => ({
-					name: path,
 					detail: "changed path",
+					name: path,
 				}))
 			: []),
 	];
@@ -66,15 +69,18 @@ function unreadArtifactsOut(stage: MonitoredStage): readonly MissingPart[] {
 	);
 }
 
-export function StepOutputs({
-	stage,
-}: {
+interface StepOutputsProps {
 	readonly stage: MonitoredStage;
-}): React.JSX.Element | null {
+}
+
+function StepOutputs({ stage }: StepOutputsProps): React.JSX.Element | null {
 	const headingId = useId();
 	const rows = artifactOutRows(stage);
 	const unread = unreadArtifactsOut(stage);
-	if (rows.length === 0 && unread.length === 0) {
+	if (
+		rows.length === EMPTY_COLLECTION_LENGTH &&
+		unread.length === EMPTY_COLLECTION_LENGTH
+	) {
 		return null;
 	}
 
@@ -112,3 +118,5 @@ export function StepOutputs({
 		</>
 	);
 }
+
+export { StepOutputs as default };

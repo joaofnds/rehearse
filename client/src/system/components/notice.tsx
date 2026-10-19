@@ -1,17 +1,22 @@
 import type { ReactNode } from "react";
-import { Disclosure } from "./disclosure";
 
-export function Notice({
-	message,
-	items,
-	children,
-	collapsible = false,
-}: {
+import Disclosure from "./disclosure";
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+interface NoticeProps {
 	readonly message: string;
 	readonly items: readonly string[];
 	readonly children?: ReactNode;
 	readonly collapsible?: boolean;
-}): React.JSX.Element {
+}
+
+function Notice({
+	message,
+	items,
+	children,
+	collapsible = false,
+}: NoticeProps): React.JSX.Element {
 	const details = (
 		<ul className="flex w-full min-w-0 flex-col gap-2 font-mono text-13 leading-transcript text-muted-foreground">
 			{items.map((item) => (
@@ -31,7 +36,7 @@ export function Notice({
 				</span>
 				{message}
 			</p>
-			{items.length > 0 ? (
+			{items.length > EMPTY_COLLECTION_LENGTH ? (
 				<div className="mt-1.5 min-w-0">
 					{collapsible ? (
 						<Disclosure
@@ -51,3 +56,5 @@ export function Notice({
 		</div>
 	);
 }
+
+export { Notice as default };

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+
 import type { SessionHistoryEvent } from "#benchmark/session-history";
+
 import {
 	filterEvidenceEvents,
 	preferredEvidenceEvent,
@@ -7,23 +9,23 @@ import {
 
 const raw: SessionHistoryEvent = {
 	id: "1:1",
-	locator: { line: 1, block: 1 },
-	region: "attempt",
 	kind: "unclassified",
-	state: "recorded",
 	label: "Unclassified recorded content",
-	measurement: { state: "unavailable", reasons: ["unsupported"] },
+	locator: { block: 1, line: 1 },
+	measurement: { reasons: ["unsupported"], state: "unavailable" },
+	region: "attempt",
 	relatedEventIds: [],
+	state: "recorded",
 };
 const delivered: SessionHistoryEvent = {
 	...raw,
 	id: "4:1",
-	locator: { line: 4, block: 1 },
 	kind: "instruction-delivery",
-	state: "delivered",
 	label: "Skill delivered",
+	locator: { block: 1, line: 4 },
+	measurement: { characters: 120, state: "complete" },
 	sourceId: "skill:build",
-	measurement: { state: "complete", characters: 120 },
+	state: "delivered",
 };
 
 describe("evidence discovery", () => {
@@ -32,12 +34,10 @@ describe("evidence discovery", () => {
 			...raw,
 			id: "2:1",
 			kind: "result",
-			measurement: { state: "complete", characters: 20 },
+			measurement: { characters: 20, state: "complete" },
 		};
 
-		expect(
-			preferredEvidenceEvent([raw, measured, delivered], undefined)?.id,
-		).toBe("4:1");
+		expect(preferredEvidenceEvent([raw, measured, delivered])?.id).toBe("4:1");
 	});
 
 	it("keeps an explicit raw-record selection", () => {
@@ -56,8 +56,8 @@ describe("evidence discovery", () => {
 				...raw,
 				id: "5:1",
 				kind: "result",
-				state: "failed",
 				label: "Tool failed",
+				state: "failed",
 			};
 
 			expect(

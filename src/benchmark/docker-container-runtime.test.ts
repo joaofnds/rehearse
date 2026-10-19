@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	dockerRunArguments,
 	ownedContainersIn,
@@ -8,17 +9,17 @@ import {
 describe(dockerRunArguments.name, () => {
 	it("publishes the service on a loopback port, labeled with its owner", () => {
 		const postgres = {
-			name: "postgres",
-			image: "postgres:18-alpine",
-			port: 5432,
 			env: { POSTGRES_DB: "app" },
-			ready: ["pg_isready"],
 			exports: {},
+			image: "postgres:18-alpine",
+			name: "postgres",
+			port: 5432,
+			ready: ["pg_isready"],
 		};
 
 		const args = dockerRunArguments(postgres, {
-			run: "group-1",
 			attempt: "group-1-rep-1",
+			run: "group-1",
 		});
 
 		expect(args).toEqual([
@@ -56,7 +57,11 @@ describe(ownedContainersIn.name, () => {
 
 describe(publishedHostPort.name, () => {
 	it("reads the host port docker published on the loopback address", () => {
-		expect(publishedHostPort("127.0.0.1:32768\n")).toBe(32_768);
+		const expectedPublishedHostPort = 32_768;
+
+		expect(publishedHostPort("127.0.0.1:32768\n")).toBe(
+			expectedPublishedHostPort,
+		);
 	});
 
 	it("refuses output that names no port", () => {

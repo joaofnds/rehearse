@@ -1,29 +1,31 @@
 import { z } from "zod";
-import type { RunManifest } from "#benchmark/manifest";
+
 import {
 	recordedStageEvidenceSchema,
 	stageLetterGradeSchema,
 } from "#benchmark/contracts";
+import type { RunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
+
 import {
+	SessionHistoryReaderError,
 	canonicalRunsRoot,
 	parseIdentity,
 	readVerifiedFile,
 	runManifest,
-	SessionHistoryReaderError,
 	verifiedDirectory,
 	verifiedFile,
 } from "./session-history-reader";
 
 /** A stage of a recorded run, its names checked and its pipeline holding it. */
-export interface StageOfRun {
+interface StageOfRun {
 	readonly runsRoot: string;
 	readonly manifest: RunManifest;
 	readonly run: string;
 	readonly stage: string;
 }
 
-export async function verifiedStageOfRun(request: {
+async function verifiedStageOfRun(request: {
 	readonly runsDirectory: string;
 	readonly run: string;
 	readonly stage: string;
@@ -42,30 +44,28 @@ export async function verifiedStageOfRun(request: {
 		);
 	}
 
-	return { runsRoot, manifest, run, stage };
+	return { manifest, run, runsRoot, stage };
 }
 
 const passFailItemSchema = z.looseObject({
+	evidence: z.array(recordedStageEvidenceSchema).readonly(),
 	id: z.string(),
 	status: z.enum(["PASS", "FAIL"]),
-	evidence: z.array(recordedStageEvidenceSchema).readonly(),
 });
 
-export const judgedGradeSchema = z.looseObject({
+const judgedDimensionSchema = z.looseObject({
+	evidence: z.array(recordedStageEvidenceSchema).readonly(),
+	grade: stageLetterGradeSchema,
+	id: z.string(),
+});
+
+const judgedGradeSchema = z.looseObject({
+	dimensions: z.array(judgedDimensionSchema).readonly(),
 	hardBlockers: z.array(passFailItemSchema).readonly(),
 	requirements: z.array(passFailItemSchema).readonly(),
-	dimensions: z
-		.array(
-			z.looseObject({
-				id: z.string(),
-				grade: stageLetterGradeSchema,
-				evidence: z.array(recordedStageEvidenceSchema).readonly(),
-			}),
-		)
-		.readonly(),
 });
 
-export type JudgedGrade = z.infer<typeof judgedGradeSchema>;
+type JudgedGrade = z.infer<typeof judgedGradeSchema>;
 
 /**
  * Where a stage's record rests. The harness writes an awaiting record before
@@ -73,7 +73,7 @@ export type JudgedGrade = z.infer<typeof judgedGradeSchema>;
  * the judged items of the stage that stopped the run, or with a stop the judge
  * never graded.
  */
-export type StageRecord =
+type StageRecord =
 	| { readonly state: "absent" }
 	| { readonly state: "awaiting-judgment" }
 	| { readonly state: "judged"; readonly grade: JudgedGrade }
@@ -82,7 +82,7 @@ export type StageRecord =
 /** The record of the stage that stopped the run keeps its judged items beside its grade letter. */
 const stopRecordSchema = judgedGradeSchema
 	.extend({ status: z.literal("STAGE_JUDGE_FAILED") })
-	.transform((grade): StageRecord => ({ state: "judged", grade }));
+	.transform((grade): StageRecord => ({ grade, state: "judged" }));
 
 const stageRecordSchema = z.union([
 	stopRecordSchema,
@@ -94,20 +94,17 @@ const stageRecordSchema = z.union([
 		.transform(({ grade }): StageRecord =>
 			grade === undefined
 				? { state: "not-judged" }
-				: { state: "judged", grade },
+				: { grade, state: "judged" },
 		),
 ]);
 
-export async function readStageRecord(
-	stageOfRun: StageOfRun,
-): Promise<StageRecord> {
+async function readStageRecord(stageOfRun: StageOfRun): Promise<StageRecord> {
 	const { runsRoot, run, stage } = stageOfRun;
-	const recordFile = await verifiedFile(
-		runsRoot,
-		runsRoot,
-		`${run}.${stage}.json`,
-		false,
-	);
+	const recordFile = await verifiedFile(runsRoot, {
+		directory: runsRoot,
+		name: `${run}.${stage}.json`,
+		required: false,
+	});
 	if (recordFile === undefined) {
 		return { state: "absent" };
 	}
@@ -116,3 +113,6 @@ export async function readStageRecord(
 		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
 	);
 }
+
+export { verifiedStageOfRun, judgedGradeSchema, readStageRecord };
+export type { StageOfRun, JudgedGrade, StageRecord };

@@ -1,41 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import type { InferResponseType } from "hono/client";
-import { apiClient } from "#client/api-client";
-import { plural } from "#client/plural";
-import { DiffPreview } from "#client/corpus/diff-preview";
-import { Button } from "#client/system/ui/button";
+
 import type { ComparisonArm } from "#benchmark/comparison-record";
+import DiffPreview from "#client/corpus/diff-preview";
+import plural from "#client/plural";
+import { Button } from "#client/system/ui/button";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
-import type { ComparisonResponse } from "./comparison-response";
+
+import type {
+	ArmDiffResponse,
+	ComparisonResponse,
+} from "./comparison-response";
+import { fetchArmDiff } from "./comparison-response";
 import { armRole } from "./design-arms";
 import { MoreAttempts } from "./pairing-cards";
 
-type ArmDiffResponse = InferResponseType<
-	(typeof apiClient.api.comparisons)[":digest"]["arm-diff"]["$get"],
-	200
->;
 type ArmFileDiff = ArmDiffResponse[string][number];
+
 type ArmFileText = ArmFileDiff["baseline"];
+
 type BaselineArm = ComparisonResponse["baselineArm"];
+
 type MoreAttemptsCost = ComparisonResponse["summary"][string]["moreAttempts"];
 
-async function fetchArmDiff(digest: string): Promise<ArmDiffResponse> {
-	const response = await apiClient.api.comparisons[":digest"]["arm-diff"].$get({
-		param: { digest },
-	});
-	if (!response.ok) {
-		throw new Error(`Could not load the diff between arms of ${digest}`);
-	}
-
-	return response.json();
+interface ClaimProps {
+	readonly attribution: ComparisonAttribution;
 }
 
-function Claim({
-	attribution,
-}: {
-	readonly attribution: ComparisonAttribution;
-}): React.JSX.Element {
+function Claim({ attribution }: ClaimProps): React.JSX.Element {
 	switch (attribution.claim) {
 		case "attributable": {
 			return (
@@ -115,7 +107,11 @@ function textOf(text: ArmFileText): string | undefined {
 	}
 }
 
-function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
+interface FileDiffProps {
+	readonly file: ArmFileDiff;
+}
+
+function FileDiff({ file }: FileDiffProps): React.JSX.Element {
 	const notes = [
 		unshownText("baseline", file.path, file.baseline),
 		unshownText("candidate", file.path, file.candidate),
@@ -143,16 +139,15 @@ function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
 	);
 }
 
-function ArmDiff({
-	digest,
-	caseId,
-}: {
+interface ArmDiffProps {
 	readonly digest: string;
 	readonly caseId: string;
-}): React.JSX.Element {
+}
+
+function ArmDiff({ digest, caseId }: ArmDiffProps): React.JSX.Element {
 	const query = useQuery({
+		queryFn: async () => await fetchArmDiff(digest),
 		queryKey: ["comparison-arm-diff", digest],
-		queryFn: () => fetchArmDiff(digest),
 	});
 	if (query.isPending) {
 		return <p className="text-14 text-muted-foreground">Reading both arms…</p>;
@@ -175,19 +170,21 @@ function ArmDiff({
 }
 
 /** What a movement between baseline and candidate can be put down to, and how to see it. */
-export function AttributionCard({
-	digest,
-	caseId,
-	attribution,
-	baselineArm,
-	moreAttempts,
-}: {
+interface AttributionCardProps {
 	readonly digest: string;
 	readonly caseId: string;
 	readonly attribution: ComparisonAttribution;
 	readonly baselineArm: BaselineArm;
 	readonly moreAttempts: MoreAttemptsCost;
-}): React.JSX.Element {
+}
+
+function AttributionCard({
+	digest,
+	caseId,
+	attribution,
+	baselineArm,
+	moreAttempts,
+}: AttributionCardProps): React.JSX.Element {
 	const [diffOpen, setDiffOpen] = useState(false);
 
 	return (
@@ -222,3 +219,5 @@ export function AttributionCard({
 		</section>
 	);
 }
+
+export { AttributionCard as default };

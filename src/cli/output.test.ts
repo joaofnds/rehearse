@@ -1,34 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { CliTestWorkspace } from "#cli/cli-test-support";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeDiagnostic, writeRecord } from "#cli/output";
 
+const workspace = CliTestWorkspace.forEachTest();
+
 describe(writeRecord.name, () => {
-	const temporaryDirectories: string[] = [];
 	const written: string[] = [];
 	const output: CommandOutput = {
-		stdout: (text) => {
-			written.push(text);
-		},
 		stderr: () => {
 			throw new Error("a record never goes to stderr");
 		},
+		stdout: (text) => {
+			written.push(text);
+		},
 	};
 
-	afterEach(async () => {
+	afterEach(() => {
 		written.length = 0;
-		await Promise.all(
-			temporaryDirectories
-				.splice(0)
-				.map((directory) => rm(directory, { force: true, recursive: true })),
-		);
 	});
 
 	it("writes the record's own bytes when json output is requested", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "rehearse-record-"));
-		temporaryDirectories.push(directory);
+		const directory = await workspace.createDirectory("rehearse-record-");
 		const recordFile = join(directory, "record.json");
 		await Bun.write(recordFile, '{\n  "schemaVersion": 1\n}\n');
 
@@ -48,11 +43,11 @@ describe(diagnosticWriter.name, () => {
 	it("terminates each diagnostic with a newline on stderr", () => {
 		const stderr: string[] = [];
 		const output: CommandOutput = {
-			stdout: () => {
-				throw new Error("a diagnostic never goes to stdout");
-			},
 			stderr: (text) => {
 				stderr.push(text);
+			},
+			stdout: () => {
+				throw new Error("a diagnostic never goes to stdout");
 			},
 		};
 
@@ -67,11 +62,11 @@ describe(diagnosticWriter.name, () => {
 describe(writeDiagnostic.name, () => {
 	const stderr: string[] = [];
 	const output: CommandOutput = {
-		stdout: () => {
-			throw new Error("a diagnostic never goes to stdout");
-		},
 		stderr: (text) => {
 			stderr.push(text);
+		},
+		stdout: () => {
+			throw new Error("a diagnostic never goes to stdout");
 		},
 	};
 
@@ -86,7 +81,7 @@ describe(writeDiagnostic.name, () => {
 	});
 
 	it("writes nothing when there is no diagnostic", () => {
-		writeDiagnostic(output, undefined);
+		writeDiagnostic(output);
 
 		expect(stderr).toEqual([]);
 	});

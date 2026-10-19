@@ -1,47 +1,17 @@
-import {
-	readConfirmationArchive,
-	hasConfirmationSummary,
-	listConfirmationArchives,
-} from "#benchmark/confirmation-archive";
-import { readdir } from "node:fs/promises";
-import { listCases } from "#benchmark/case";
-import { parseCheckpointRecord } from "#benchmark/checkpoint";
-import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { unhandled } from "#benchmark/contracts";
-import { parseComparisonReport } from "#benchmark/comparison-record";
-import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
-import { loadRunManifest } from "#benchmark/manifest";
-import { parseRunSummaryRecord } from "#benchmark/record-summary";
-import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
-import { readReplayRecord } from "#benchmark/replay";
-import { stoppedStage } from "#benchmark/run-outcome";
-import { stoppedStatus } from "#benchmark/stopped-status";
-import {
-	benchmarkRunPaths,
-	checkpointRecordFile,
-	comparisonReportPaths,
-	confirmationGroupIds,
-	confirmationGroupPaths,
-	recordedRunNames,
-	replayAttemptIds,
-	replayRecordFile,
-	sessionAttemptIds,
-	sessionAttemptPaths,
-} from "#benchmark/run-layout";
-import { parseSessionAttemptRecord } from "#benchmark/session-record";
-import { UsageError } from "#cli/commands";
-import type { CommandOutput, UnreadableRecord } from "#cli/output";
-import { controlRelative, writeUnreadable } from "#cli/output";
-import type { RecordId } from "#cli/record-id";
-import { formatRecordId } from "#cli/record-id";
-import {
-	checkpointShortId,
-	NO_SHORT_ID,
-	shortIdsByRecordId,
-} from "#cli/short-id-column";
-import type { ShortIdColumn } from "#cli/short-id-column";
+import { UsageError } from "#cli/command-usage";
+import type { CommandOutput } from "#cli/output";
+import { writeUnreadable } from "#cli/output";
 
-export const LIST_KINDS = [
+import listAttempts from "./list-attempt-records";
+import { listCheckpoints } from "./list-checkpoint-records";
+import listComparisons from "./list-comparison-records";
+import { listArchivedGroups, listGroups } from "./list-confirmation-records";
+import listDeclaredCases from "./list-declared-cases";
+import listRuns from "./list-run-records";
+import type { RecordListing } from "./record-listing";
+
+const LIST_KINDS = [
 	"cases",
 	"runs",
 	"checkpoints",
@@ -51,17 +21,7 @@ export const LIST_KINDS = [
 	"comparisons",
 ] as const;
 
-export type ListKind = (typeof LIST_KINDS)[number];
-
-export interface ListedRecord {
-	readonly id: string;
-	readonly fields: readonly string[];
-}
-
-export interface RecordListing {
-	readonly entries: readonly ListedRecord[];
-	readonly unreadable: readonly UnreadableRecord[];
-}
+type ListKind = (typeof LIST_KINDS)[number];
 
 function parseListKind(kind: string | undefined): ListKind {
 	const found = LIST_KINDS.find((candidate) => candidate === kind);
@@ -74,320 +34,31 @@ function parseListKind(kind: string | undefined): ListKind {
 	return found;
 }
 
-/**
- * One unreadable record must not hide the valid ones: a half-written group or
- * an attempt directory whose run died before it wrote anything is reported by
- * id and reason while every record that parses still prints. This is the
- * `case list` precedent, and it is why each listing collects rather than
- * throws.
- */
-async function collect<Named>(
-	named: readonly Named[],
-	idOf: (name: Named) => RecordId,
-	read: (name: Named) => Promise<readonly string[] | undefined>,
-): Promise<RecordListing> {
-	const entries: ListedRecord[] = [];
-	const unreadable: UnreadableRecord[] = [];
-
-	for (const name of named) {
-		const id = formatRecordId(idOf(name));
-		try {
-			const fields = await read(name);
-			if (fields !== undefined) {
-				entries.push({ id, fields });
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({ id, reason: controlRelative(message) });
-		}
-	}
-
-	return { entries, unreadable };
-}
-
-/**
- * The short id goes second, beside the Record ID it abbreviates, so a reader
- * finds both ids of a record in the first two columns whatever its kind.
- */
-function withShortIds(
-	listing: RecordListing,
-	{ shortIds, unreadable }: ShortIdColumn,
-): RecordListing {
-	return {
-		entries: listing.entries.map(({ id, fields }) => ({
-			id,
-			fields: [shortIds.get(id) ?? NO_SHORT_ID, ...fields],
-		})),
-		unreadable: [...listing.unreadable, ...unreadable],
-	};
-}
-
-async function numbered(
-	runsDirectory: string,
-	listing: RecordListing,
-): Promise<RecordListing> {
-	return withShortIds(listing, await shortIdsByRecordId(runsDirectory));
-}
-
-async function listDeclaredCases(): Promise<RecordListing> {
-	const listing = await listCases(undefined, { includeArchived: false });
-
-	return {
-		entries: listing.declarations.map((declaration) => ({
-			id: formatRecordId({ kind: "case", caseId: declaration.id }),
-			fields: [declaration.title],
-		})),
-		unreadable: listing.unreadable.map(({ id, reason }) => ({
-			id: formatRecordId({ kind: "case", caseId: id }),
-			reason,
-		})),
-	};
-}
-
-/**
- * A run that stopped at a stage never writes an artifact, and stopping is a
- * normal outcome the pipeline takes whenever a judge grades below the
- * minimum, not a failure to report as unreadable: the stage it stopped at,
- * read from the stop record that stage's file holds, replaces the artifact's
- * status. A run that also has no stop record and no artifact died before any
- * stage finished; it gets a plain line saying so rather than a raw ENOENT. A
- * stopped run whose manifest was never written is reported unreadable rather
- * than replayable.
- */
-async function listRuns(runsDirectory: string): Promise<RecordListing> {
-	const names = await recordedRunNames(runsDirectory);
-
-	return numbered(
-		runsDirectory,
-		await collect(
-			names,
-			(run) => ({ kind: "run", run }),
-			async (run) => {
-				const paths = benchmarkRunPaths(runsDirectory, run);
-				if (await Bun.file(paths.artifactFile).exists()) {
-					const record = parseRunSummaryRecord(
-						await Bun.file(paths.artifactFile).text(),
-					);
-					const replayable = await Bun.file(paths.manifestFile).exists();
-
-					return [
-						record.caseId,
-						record.status,
-						replayable ? "replayable" : "not replayable",
-					];
-				}
-
-				const stopped = await stoppedStage(runsDirectory, run);
-				if (stopped === undefined) {
-					return ["no record"];
-				}
-
-				const { caseId } = await loadRunManifest(paths.manifestFile).catch(
-					(): never => {
-						throw new Error(
-							`incomplete: no manifest.json at ${paths.manifestFile}`,
-						);
-					},
-				);
-
-				return [caseId, stoppedStatus(stopped.stage), "replayable"];
-			},
-		),
-	);
-}
-
-export interface RunCheckpoint {
-	readonly run: string;
-	readonly stage: string;
-}
-
-export async function recordedCheckpoints(
-	runsDirectory: string,
-): Promise<readonly RunCheckpoint[]> {
-	const checkpoints: RunCheckpoint[] = [];
-
-	for (const run of await recordedRunNames(runsDirectory)) {
-		const paths = benchmarkRunPaths(runsDirectory, run);
-		const stages = await stageDirectories(paths.checkpointsDirectory);
-		checkpoints.push(...stages.map((stage) => ({ run, stage })));
-	}
-
-	return checkpoints;
-}
-
-async function stageDirectories(
-	checkpointsDirectory: string,
-): Promise<readonly string[]> {
-	const entries = await readdir(checkpointsDirectory, {
-		withFileTypes: true,
-	}).catch(() => []);
-
-	return entries
-		.filter((entry) => entry.isDirectory())
-		.map(({ name }) => name)
-		.toSorted((left, right) => (left < right ? -1 : 1));
-}
-
-async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
-	const checkpoints = await recordedCheckpoints(runsDirectory);
-	const { shortIds, unreadable } = await shortIdsByRecordId(runsDirectory);
-	const labelled = new Map<string, string>();
-	for (const { run, stage } of checkpoints) {
-		const label = await checkpointShortId(runsDirectory, shortIds, run, stage);
-		if (label !== undefined) {
-			labelled.set(formatRecordId({ kind: "checkpoint", run, stage }), label);
-		}
-	}
-
-	const listing = await collect(
-		checkpoints,
-		({ run, stage }) => ({ kind: "checkpoint", run, stage }),
-		async ({ run, stage }) => {
-			const paths = benchmarkRunPaths(runsDirectory, run);
-			const recordFile = checkpointRecordFile(paths.checkpointDirectory(stage));
-			if (!(await Bun.file(recordFile).exists())) {
-				throw new Error("incomplete: no checkpoint.json recorded");
-			}
-
-			const record = parseCheckpointRecord(await Bun.file(recordFile).text());
-
-			return [record.stage, record.lineage];
-		},
-	);
-
-	return withShortIds(listing, { shortIds: labelled, unreadable });
-}
-
-async function listGroups(runsDirectory: string): Promise<RecordListing> {
-	return numbered(
-		runsDirectory,
-		await collect(
-			await confirmationGroupIds(runsDirectory),
-			(groupId) => ({ kind: "group", groupId }),
-			async (groupId) => {
-				const paths = confirmationGroupPaths(runsDirectory, groupId);
-				if (!(await hasConfirmationSummary({ runsDirectory, groupId }))) {
-					if (await stoppedBeforeGroupRecord(paths)) {
-						return undefined;
-					}
-					if (
-						(await readConfirmationArchive({ runsDirectory, groupId })) !==
-						undefined
-					) {
-						return undefined;
-					}
-				}
-				const record = parseConfirmationGroupRecord(
-					await Bun.file(paths.groupFile).text(),
-				);
-
-				return [record.caseId, record.mode, `${String(record.reps)} reps`];
-			},
-		),
-	);
-}
-
-async function listComparisons(runsDirectory: string): Promise<RecordListing> {
-	const digests = await listedComparisonDigests(runsDirectory);
-
-	return collect(
-		digests,
-		(manifestDigest) => ({ kind: "comparison", manifestDigest }),
-		async (manifestDigest) => {
-			const paths = comparisonReportPaths(runsDirectory, manifestDigest);
-			const report = parseComparisonReport(
-				await Bun.file(paths.reportFile).text(),
-			);
-
-			return [
-				`${String(report.cases.length)} ${report.cases.length === 1 ? "case" : "cases"}`,
-				`${String(report.reps)} reps`,
-			];
-		},
-	);
-}
-
-/**
- * Both kinds the glossary's Attempt entry names: one session of a session case,
- * and one stage replayed from a checkpoint. They are one listing because a
- * session choosing what to re-run wants every prior measurement, and the id's
- * kind is what keeps the two apart.
- */
-async function listAttempts(runsDirectory: string): Promise<RecordListing> {
-	const sessions = await collect(
-		await sessionAttemptIds(runsDirectory),
-		({ caseId, uuid }) => ({ kind: "attempt:session", caseId, uuid }),
-		async (attempt) => {
-			const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
-			if (!(await Bun.file(recordFile).exists())) {
-				throw new Error("incomplete: no attempt.json recorded");
-			}
-
-			const record = parseSessionAttemptRecord(
-				await Bun.file(recordFile).text(),
-			);
-
-			return [record.caseId, record.outcome, record.model];
-		},
-	);
-	const replays = await collect(
-		await replayAttemptIds(runsDirectory),
-		({ lineage, timestamp }) => ({ kind: "attempt:stage", lineage, timestamp }),
-		async ({ lineage, timestamp }) => {
-			const record = await readReplayRecord(
-				replayRecordFile(runsDirectory, lineage, timestamp),
-			);
-
-			return [
-				record.stage,
-				`${record.scorecard.grade.grade} ${record.scorecard.grade.verdict}`,
-				record.model,
-			];
-		},
-	);
-
-	return numbered(runsDirectory, {
-		entries: [...sessions.entries, ...replays.entries],
-		unreadable: [...sessions.unreadable, ...replays.unreadable],
-	});
-}
-
-export function listRecords(
+async function listRecords(
 	kind: ListKind,
 	runsDirectory: string,
 ): Promise<RecordListing> {
 	switch (kind) {
 		case "cases": {
-			return listDeclaredCases();
+			return await listDeclaredCases();
 		}
 		case "runs": {
-			return listRuns(runsDirectory);
+			return await listRuns(runsDirectory);
 		}
 		case "checkpoints": {
-			return listCheckpoints(runsDirectory);
+			return await listCheckpoints(runsDirectory);
 		}
 		case "attempts": {
-			return listAttempts(runsDirectory);
+			return await listAttempts(runsDirectory);
 		}
 		case "groups": {
-			return listGroups(runsDirectory);
+			return await listGroups(runsDirectory);
 		}
 		case "archived-groups": {
-			return listConfirmationArchives(runsDirectory).then(
-				({ archived, unreadable }) => ({
-					entries: archived.map(({ groupId, archivedAt }) => ({
-						id: formatRecordId({ kind: "group", groupId }),
-						fields: [archivedAt, "no saved summary"],
-					})),
-					unreadable: unreadable.map(({ id, reason }) => ({
-						id: formatRecordId({ kind: "group", groupId: id }),
-						reason: controlRelative(reason),
-					})),
-				}),
-			);
+			return await listArchivedGroups(runsDirectory);
 		}
 		case "comparisons": {
-			return listComparisons(runsDirectory);
+			return await listComparisons(runsDirectory);
 		}
 		default: {
 			return unhandled(kind, "list kind");
@@ -395,12 +66,12 @@ export function listRecords(
 	}
 }
 
-export interface ListRequest {
+interface ListRequest {
 	readonly kind: string | undefined;
 	readonly runsDirectory: string;
 }
 
-export async function runList(
+async function runList(
 	request: ListRequest,
 	output: CommandOutput,
 ): Promise<void> {
@@ -414,3 +85,13 @@ export async function runList(
 		output.stdout(`${[id, ...fields].join("\t")}\n`);
 	}
 }
+
+export { recordedCheckpoints } from "./list-checkpoint-records";
+
+export type { ListedRecord, RecordListing } from "./record-listing";
+
+export type { RunCheckpoint } from "./list-checkpoint-records";
+
+export { LIST_KINDS, listRecords, runList };
+
+export type { ListKind, ListRequest };

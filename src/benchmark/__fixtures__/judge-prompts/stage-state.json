@@ -1,0 +1,27 @@
+{
+	"build": {
+		"commitSubjects": ["feat: build"],
+		"diff": "Changed context",
+		"resultSha": "result"
+	},
+	"candidate": {
+		"changedPaths": ["context.md"],
+		"diff": "Changed context",
+		"resultSha": "candidate"
+	},
+	"changedPaths": ["context.md"],
+	"corpusFiles": [],
+	"corpusVersion": {
+		"digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		"kind": "version"
+	},
+	"planning": {
+		"changedPaths": ["context.md"],
+		"commitSubjects": ["docs: add plan"],
+		"diff": "Changed context",
+		"resultSha": "result",
+		"taskState": "State"
+	},
+	"taskCard": "Task state",
+	"taskOutput": "{\"task\": {\"acceptanceCriteria\": [], \"documentation\": []}}"
+}

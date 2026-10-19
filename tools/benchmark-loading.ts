@@ -1,47 +1,76 @@
-import { z } from "zod";
 import { cpus } from "node:os";
 import { parseArgs } from "node:util";
+
+import { z } from "zod";
+
 import {
+	LOADING_BENCHMARK_POLICY,
+	isApiEndpoint,
 	loadingBenchmarkSchema,
 	loadingPerformanceChecks,
-	isApiEndpoint,
 } from "./loading-performance";
 
+const SUPPORTED_POSITIONAL_ARGUMENT_COUNT = 2;
+const QUANTILE_RANK_BASE = 1;
+const PRIMARY_CPU_INDEX = 0;
+
+const CLI_USER_ARGUMENTS_START_INDEX = 2;
+
+const MIDPOINT_DIVISOR = 2;
+
+const FINAL_TIMING_SAMPLE_OFFSET = -1;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const REQUEST_TIMEOUT_MS = 60_000;
+const TIMING_TENTHS_PER_MS = 10;
+const P95_QUANTILE = 0.95;
+const REPORT_INDENT_SPACES = 2;
+
 const { values, positionals } = parseArgs({
-	args: Bun.argv.slice(2),
 	allowPositionals: true,
+	args: Bun.argv.slice(CLI_USER_ARGUMENTS_START_INDEX),
 	options: {
+		"allowance-ms": { default: "5", type: "string" },
 		baseline: { type: "string" },
-		"max-list-ms": { type: "string", default: "100" },
-		"max-regression-percent": { type: "string", default: "20" },
-		"allowance-ms": { type: "string", default: "5" },
+		"max-list-ms": { default: "100", type: "string" },
+		"max-regression-percent": { default: "20", type: "string" },
 	},
 });
 const limits = z
 	.object({
+		allowanceMs: z.coerce.number().nonnegative(),
 		maximumListMs: z.coerce.number().positive(),
 		maximumRegressionPercent: z.coerce.number().nonnegative(),
-		allowanceMs: z.coerce.number().nonnegative(),
 	})
 	.parse({
+		allowanceMs: values["allowance-ms"],
 		maximumListMs: values["max-list-ms"],
 		maximumRegressionPercent: values["max-regression-percent"],
-		allowanceMs: values["allowance-ms"],
 	});
 
 const argumentsSchema = z.tuple([
 	z.url().default("http://localhost:4173"),
-	z.coerce.number().int().min(1).max(50).default(5),
+	z.coerce
+		.number()
+		.int()
+		.min(LOADING_BENCHMARK_POLICY.minimumRepetitions)
+		.max(LOADING_BENCHMARK_POLICY.maximumRepetitions)
+		.default(LOADING_BENCHMARK_POLICY.defaultRepetitions),
 ]);
+const [requestedBase, requestedRepetitions] = positionals;
 const [base, repetitions] = argumentsSchema.parse([
-	positionals[0],
-	positionals[1],
+	requestedBase,
+	requestedRepetitions,
 ]);
 const baseline =
 	values.baseline === undefined
 		? undefined
 		: loadingBenchmarkSchema.parse(await Bun.file(values.baseline).json());
-if (baseline !== undefined && repetitions < 5) {
+if (
+	baseline !== undefined &&
+	repetitions < LOADING_BENCHMARK_POLICY.minimumComparisonRepetitions
+) {
 	throw new Error("Baseline comparisons require at least five repetitions");
 }
 const DEFAULT_PATHS = [
@@ -67,13 +96,13 @@ interface Reading {
 }
 
 function rounded(value: number): number {
-	return Math.round(value * 10) / 10;
+	return Math.round(value * TIMING_TENTHS_PER_MS) / TIMING_TENTHS_PER_MS;
 }
 
 async function read(path: string): Promise<Reading> {
 	const started = performance.now();
 	const response = await fetch(new URL(path, base), {
-		signal: AbortSignal.timeout(60_000),
+		signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 	});
 	const bytes = await response.bytes();
 	const ms = rounded(performance.now() - started);
@@ -90,9 +119,9 @@ async function read(path: string): Promise<Reading> {
 	}
 
 	return {
-		path,
-		ms,
 		bytes: bytes.length,
+		ms,
+		path,
 		sha256: isApiEndpoint(path, base)
 			? new Bun.CryptoHasher("sha256").update(bytes).digest("hex")
 			: null,
@@ -113,7 +142,7 @@ async function initialReading(
 	const requests = await Promise.all([
 		listing,
 		settings,
-		...STARTUP_PATHS.map((path) => read(path)),
+		...STARTUP_PATHS.map(async (path) => await read(path)),
 	]);
 	return { ms: rounded(performance.now() - started), requests };
 }
@@ -132,58 +161,69 @@ async function freshnessReading(
 	return { readyMs: rounded(performance.now() - started), request };
 }
 
-const paths = positionals.length > 2 ? positionals.slice(2) : DEFAULT_PATHS;
-const startup = [];
-for (let index = 0; index < repetitions; index += 1) {
-	const started = performance.now();
-	const listing = read("/api/run-listing");
-	const settings = read("/api/settings");
-	const [initial, freshness, list] = await Promise.all([
-		initialReading(listing, settings, started),
-		freshnessReading(listing, started),
-		listing,
-	]);
-	startup.push({ ...initial, listReadyMs: list.ms, freshness });
-}
+const paths =
+	positionals.length > SUPPORTED_POSITIONAL_ARGUMENT_COUNT
+		? positionals.slice(SUPPORTED_POSITIONAL_ARGUMENT_COUNT)
+		: DEFAULT_PATHS;
+const startup = await Array.fromAsync(
+	Array.from({ length: repetitions }),
+	async () => {
+		const started = performance.now();
+		const listing = read("/api/run-listing");
+		const settings = read("/api/settings");
+		const [initial, freshness, list] = await Promise.all([
+			initialReading(listing, settings, started),
+			freshnessReading(listing, started),
+			listing,
+		]);
+		return { ...initial, freshness, listReadyMs: list.ms };
+	},
+);
 
-const endpoints = [];
-for (const path of paths) {
+const endpoints = await Array.fromAsync(paths, async (path) => {
 	const samples: Reading[] = [];
-	for (let index = 0; index < repetitions; index += 1) {
+	await Array.fromAsync(Array.from({ length: repetitions }), async () => {
 		samples.push(await read(path));
-	}
+	});
+	const [firstSample] = samples;
 	const sorted = samples
 		.map(({ ms }) => ms)
 		.toSorted((left, right) => left - right);
-	endpoints.push({
+	return {
+		bytes: samples.at(FINAL_TIMING_SAMPLE_OFFSET)?.bytes,
+		firstMs: firstSample?.ms,
+		medianMs: sorted[Math.floor(sorted.length / MIDPOINT_DIVISOR)],
+		p95Ms: sorted[Math.ceil(sorted.length * P95_QUANTILE) - QUANTILE_RANK_BASE],
 		path,
-		firstMs: samples[0]?.ms,
-		medianMs: sorted[Math.floor(sorted.length / 2)],
-		p95Ms: sorted[Math.ceil(sorted.length * 0.95) - 1],
-		bytes: samples.at(-1)?.bytes,
-		sha256: samples.every(({ sha256 }) => sha256 === samples[0]?.sha256)
-			? samples[0]?.sha256
-			: null,
 		samplesMs: samples.map(({ ms }) => ms),
-	});
-}
+		sha256: samples.every(({ sha256 }) => sha256 === firstSample?.sha256)
+			? firstSample?.sha256
+			: null,
+	};
+});
 
 const report = loadingBenchmarkSchema.parse({
-	version: 1,
 	base,
-	repetitions,
-	environment: {
-		bun: Bun.version,
-		platform: process.platform,
-		arch: process.arch,
-		cpu: cpus()[0]?.model ?? "unknown",
-	},
 	endpoints,
+	environment: {
+		arch: process.arch,
+		bun: Bun.version,
+		cpu: cpus()[PRIMARY_CPU_INDEX]?.model ?? "unknown",
+		platform: process.platform,
+	},
+	repetitions,
 	startup,
+	version: LOADING_BENCHMARK_POLICY.schemaVersion,
 });
 const gate = loadingPerformanceChecks(report, { ...limits, baseline });
-console.log(JSON.stringify({ ...report, limits, gate }, undefined, 2));
-if (gate.failures.length > 0) {
-	console.error(gate.failures.join("\n"));
+process.stdout.write(
+	`${JSON.stringify(
+		{ ...report, gate, limits },
+		undefined,
+		REPORT_INDENT_SPACES,
+	)}\n`,
+);
+if (gate.failures.length > EMPTY_COLLECTION_LENGTH) {
+	process.stderr.write(`${gate.failures.join("\n")}\n`);
 	process.exitCode = 1;
 }

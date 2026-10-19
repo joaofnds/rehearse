@@ -1,43 +1,45 @@
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { loadRunManifest } from "#benchmark/manifest";
 import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
+import readOptionalRecord from "#server/optional-record";
+
 import type { Reading } from "./run-record";
 import { readStageFile, stageStatus } from "./run-record";
 
-export const NO_PRIOR_RUN_REASON = "no prior run of this case";
+const MEDIAN_PAIR_SIZE = 2;
+const EVEN_SAMPLE_COUNT_REMAINDER = 0;
+const LOWER_MEDIAN_INDEX_OFFSET = 1;
 
-export function noRecordedTimeReason(stage: string): string {
+const MIDPOINT_DIVISOR = 2;
+
+const NO_STAGE_TIME_SAMPLE_MS = 0;
+
+const EMPTY_COLLECTION_LENGTH = 0;
+
+const NO_PRIOR_RUN_REASON = "no prior run of this case";
+
+function noRecordedTimeReason(stage: string): string {
 	return `no prior run of this case recorded a time for ${stage}`;
 }
 
-export type StageTime = { readonly stage: string } & Reading<{
+type StageTime = { readonly stage: string } & Reading<{
 	readonly medianMs: number;
 }>;
 
 /** How long each stage of a run took in earlier runs of its case, in pipeline order. */
-export interface StageTimes {
+interface StageTimes {
 	readonly stages: readonly StageTime[];
 }
 
 function median(values: readonly number[]): number {
 	const sorted = values.toSorted((left, right) => left - right);
-	const middle = Math.floor(sorted.length / 2);
+	const middle = Math.floor(sorted.length / MIDPOINT_DIVISOR);
 
-	return sorted.length % 2 === 0
-		? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
-		: (sorted[middle] ?? 0);
-}
-
-/**
- * An earlier run's record, or nothing where it does not parse. One unreadable
- * record never hides the others, and run history lists it with its reason.
- */
-async function readable<T>(read: () => Promise<T>): Promise<T | undefined> {
-	try {
-		return await read();
-	} catch {
-		return undefined;
-	}
+	return sorted.length % MEDIAN_PAIR_SIZE === EVEN_SAMPLE_COUNT_REMAINDER
+		? ((sorted[middle - LOWER_MEDIAN_INDEX_OFFSET] ?? NO_STAGE_TIME_SAMPLE_MS) +
+				(sorted[middle] ?? NO_STAGE_TIME_SAMPLE_MS)) /
+				MEDIAN_PAIR_SIZE
+		: (sorted[middle] ?? NO_STAGE_TIME_SAMPLE_MS);
 }
 
 /**
@@ -50,15 +52,17 @@ async function earlierRunsOfCase(
 	caseId: string,
 ): Promise<readonly string[]> {
 	const earlier: string[] = [];
-	for (const name of await recordedRunNames(runsDirectory)) {
+	await Array.fromAsync(await recordedRunNames(runsDirectory), async (name) => {
 		const { manifestFile } = benchmarkRunPaths(runsDirectory, name);
 		if (name < run && (await Bun.file(manifestFile).exists())) {
-			const manifest = await readable(() => loadRunManifest(manifestFile));
+			const manifest = await readOptionalRecord(
+				async () => await loadRunManifest(manifestFile),
+			);
 			if (manifest?.caseId === caseId) {
 				earlier.push(name);
 			}
 		}
-	}
+	});
 
 	return earlier;
 }
@@ -73,14 +77,15 @@ async function recordedTimes(
 	stage: string,
 ): Promise<readonly number[]> {
 	const times: number[] = [];
-	for (const run of runs) {
-		const file = await readable(() =>
-			readStageFile(benchmarkRunPaths(runsDirectory, run), stage),
+	await Array.fromAsync(runs, async (run) => {
+		const file = await readOptionalRecord(
+			async () =>
+				await readStageFile(benchmarkRunPaths(runsDirectory, run), stage),
 		);
 		if (stageStatus(file) === "graded" && file?.elapsedMs !== undefined) {
 			times.push(file.elapsedMs);
 		}
-	}
+	});
 
 	return times;
 }
@@ -89,7 +94,7 @@ async function recordedTimes(
  * The median elapsed time each stage of the run recorded in earlier runs of
  * the same case, the basis of the run's remaining estimate (doc-186 Decision 6).
  */
-export async function readStageTimes(
+async function readStageTimes(
 	runsDirectory: string,
 	run: string,
 ): Promise<StageTimes> {
@@ -101,22 +106,25 @@ export async function readStageTimes(
 	const earlier = await earlierRunsOfCase(runsDirectory, run, manifest.caseId);
 
 	const stages: StageTime[] = [];
-	for (const { name } of manifest.pipeline.stages) {
+	await Array.fromAsync(manifest.pipeline.stages, async ({ name }) => {
 		const times = await recordedTimes(runsDirectory, earlier, name);
-		if (times.length === 0) {
+		if (times.length === EMPTY_COLLECTION_LENGTH) {
 			stages.push({
-				stage: name,
-				state: "unavailable",
 				reasons: [
-					earlier.length === 0
+					earlier.length === EMPTY_COLLECTION_LENGTH
 						? NO_PRIOR_RUN_REASON
 						: noRecordedTimeReason(name),
 				],
+				stage: name,
+				state: "unavailable",
 			});
 		} else {
-			stages.push({ stage: name, state: "available", medianMs: median(times) });
+			stages.push({ medianMs: median(times), stage: name, state: "available" });
 		}
-	}
+	});
 
 	return { stages };
 }
+
+export { NO_PRIOR_RUN_REASON, noRecordedTimeReason, readStageTimes };
+export type { StageTime, StageTimes };

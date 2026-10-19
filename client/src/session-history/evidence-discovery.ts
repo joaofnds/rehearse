@@ -1,16 +1,19 @@
 import type { SessionHistoryEvent } from "#benchmark/session-history";
 
-export const EVENT_FILTERS = [
+const FALLBACK_EVIDENCE_EVENT_INDEX = 0;
+
+const EVENT_FILTERS = [
 	"Activity",
 	"Deliveries",
 	"Errors",
 	"All records",
 ] as const;
-export type EventFilter = (typeof EVENT_FILTERS)[number];
 
-export function preferredEvidenceEvent(
+type EventFilter = (typeof EVENT_FILTERS)[number];
+
+function preferredEvidenceEvent(
 	events: readonly SessionHistoryEvent[],
-	selected: string | undefined,
+	selected?: string,
 ): SessionHistoryEvent | undefined {
 	return (
 		events.find(({ id }) => id === selected) ??
@@ -24,11 +27,11 @@ export function preferredEvidenceEvent(
 				event.kind !== "unclassified" && event.measurement.state === "complete",
 		) ??
 		events.find((event) => event.kind !== "unclassified") ??
-		events[0]
+		events[FALLBACK_EVIDENCE_EVENT_INDEX]
 	);
 }
 
-export function filterEvidenceEvents(
+function filterEvidenceEvents(
 	events: readonly SessionHistoryEvent[],
 	query: string,
 	filter: EventFilter,
@@ -63,3 +66,6 @@ export function filterEvidenceEvents(
 			.includes(search);
 	});
 }
+
+export { EVENT_FILTERS, filterEvidenceEvents, preferredEvidenceEvent };
+export type { EventFilter };

@@ -1,35 +1,37 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+
 import { z } from "zod";
+
 import { RefusedPreconditionError } from "./exit-codes";
 import { textIfPresent } from "./file-presence";
 
+const POSITIVE_CEILING_BOUNDARY_USD = 0;
+
+const RECORD_JSON_INDENT_SPACES = 2;
+
 const SETTINGS_FILE = "settings.json";
 
-export const SET_SPEND_CEILING_COMMAND =
-	"rehearse settings --spend-ceiling-usd <USD>";
+const SET_SPEND_CEILING_COMMAND = "rehearse settings --spend-ceiling-usd <USD>";
 
-export const LINK_CORPUS_COMMAND =
-	"rehearse settings --link-corpus <directory>";
+const LINK_CORPUS_COMMAND = "rehearse settings --link-corpus <directory>";
 
-export const UNLINK_CORPUS_COMMAND = "rehearse settings --unlink-corpus";
+const UNLINK_CORPUS_COMMAND = "rehearse settings --unlink-corpus";
 
 /** Loose, so storing a ceiling keeps settings a later version wrote. */
 const settingsSchema = z.looseObject({
-	spendCeilingUsd: z.number().positive().optional(),
 	linkedCorpusDirectory: z.string().refine(isAbsolute).optional(),
+	spendCeilingUsd: z.number().positive().optional(),
 });
 
-export type Settings = z.infer<typeof settingsSchema>;
+type Settings = z.infer<typeof settingsSchema>;
 
 function settingsFile(recordsDirectory: string): string {
 	return join(recordsDirectory, SETTINGS_FILE);
 }
 
-export async function readSettings(
-	recordsDirectory: string,
-): Promise<Settings> {
+async function readSettings(recordsDirectory: string): Promise<Settings> {
 	const file = settingsFile(recordsDirectory);
 	const contents = await textIfPresent(file);
 	if (contents === undefined) {
@@ -66,11 +68,14 @@ async function writeSettings(
 	const file = settingsFile(recordsDirectory);
 	const temporary = `${file}.${randomUUID()}.tmp`;
 	await mkdir(recordsDirectory, { recursive: true });
-	await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`);
+	await writeFile(
+		temporary,
+		`${JSON.stringify(settings, null, RECORD_JSON_INDENT_SPACES)}\n`,
+	);
 	await rename(temporary, file);
 }
 
-let pendingChange: Promise<undefined> = Promise.resolve(undefined);
+let pendingChange: Promise<undefined> = Promise.try((): undefined => undefined);
 
 /**
  * Each change reads settings after the one before it has written, so two
@@ -89,15 +94,18 @@ async function changeSettings(
 		const settings = await readSettings(recordsDirectory);
 		await writeSettings(recordsDirectory, change(settings));
 	} finally {
-		finish(undefined);
+		finish();
 	}
 }
 
-export async function storeSpendCeiling(
+async function storeSpendCeiling(
 	recordsDirectory: string,
 	ceilingUsd: number,
 ): Promise<void> {
-	if (!Number.isFinite(ceilingUsd) || ceilingUsd <= 0) {
+	if (
+		!Number.isFinite(ceilingUsd) ||
+		ceilingUsd <= POSITIVE_CEILING_BOUNDARY_USD
+	) {
 		throw new RangeError(
 			`A spend ceiling is a positive number of USD, not ${String(ceilingUsd)}`,
 		);
@@ -110,9 +118,9 @@ export async function storeSpendCeiling(
 }
 
 /** Undefined removes the link, which leaves the live install linked. */
-export async function storeLinkedCorpusDirectory(
+async function storeLinkedCorpusDirectory(
 	recordsDirectory: string,
-	root: string | undefined,
+	root?: string,
 ): Promise<void> {
 	await changeSettings(recordsDirectory, (settings) => ({
 		...settings,
@@ -125,9 +133,7 @@ export async function storeLinkedCorpusDirectory(
  * call, so a missing ceiling refuses the command rather than letting it spend
  * without one.
  */
-export async function requireSpendCeiling(
-	recordsDirectory: string,
-): Promise<number> {
+async function requireSpendCeiling(recordsDirectory: string): Promise<number> {
 	const { spendCeilingUsd } = await readSettings(recordsDirectory);
 	if (spendCeilingUsd === undefined) {
 		throw new RefusedPreconditionError(
@@ -137,3 +143,14 @@ export async function requireSpendCeiling(
 
 	return spendCeilingUsd;
 }
+
+export {
+	SET_SPEND_CEILING_COMMAND,
+	LINK_CORPUS_COMMAND,
+	UNLINK_CORPUS_COMMAND,
+	readSettings,
+	storeSpendCeiling,
+	storeLinkedCorpusDirectory,
+	requireSpendCeiling,
+};
+export type { Settings };

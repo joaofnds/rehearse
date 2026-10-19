@@ -383,7 +383,8 @@ mise exec -- bun run build:client
 mise exec -- bun run serve
 ```
 
-Open `http://localhost:4173`. `PORT` overrides the server port. The server reads
+Open `http://localhost:4173`. `PORT` overrides the server port. Invalid port
+settings stop startup before run records are reconciled. The server reads
 local records and the linked corpus, or the live install when nothing is
 linked. It writes a case declared from the Cases screen to
 `cases/<id>/case.json` in this checkout and leaves it uncommitted. It has no authentication and binds to

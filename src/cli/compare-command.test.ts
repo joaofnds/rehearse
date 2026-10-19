@@ -1,85 +1,104 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { ComparisonEvidenceFixture } from "#benchmark/comparison-evidence-test-support";
+
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { runCompare } from "#cli/compare-command";
-import { UsageError } from "#cli/commands";
-import type { OutputRecorder } from "#cli/cli-test-support";
 import { recordOutput } from "#cli/cli-test-support";
+import { UsageError } from "#cli/command-usage";
+import runCompare from "#cli/compare-command";
+
+import { comparisonCliFixture } from "./cli-record-observation";
+
+const FIRST_REP_ORDINAL = 1;
+
+const { temporaryDirectory, runsDirectory, fixture } = comparisonCliFixture();
+
+async function printsOnlyTheReportPathWhenJsonIsAbsent(): Promise<void> {
+	const expectedCaseCount = 2;
+
+	const recorder = recordOutput();
+
+	await runCompare(
+		{ json: false, manifestPath: fixture.manifestFile, runsDirectory },
+		recorder.output,
+	);
+
+	const reportFile = recorder.stdout.join("").trim();
+	expect(recorder.stdout.join("")).toBe(`${reportFile}\n`);
+	expect(dirname(dirname(reportFile))).toBe(join(runsDirectory, "comparisons"));
+	expect(
+		parseComparisonReport(await Bun.file(reportFile).text()).cases,
+	).toHaveLength(expectedCaseCount);
+}
+
+async function printsTheReportFileSExactBytesOnStdout(): Promise<void> {
+	const recorder = recordOutput();
+
+	await runCompare(
+		{ json: true, manifestPath: fixture.manifestFile, runsDirectory },
+		recorder.output,
+	);
+
+	const printed = recorder.stdout.join("");
+	const report = parseComparisonReport(printed);
+	const reportFile = join(
+		runsDirectory,
+		"comparisons",
+		report.manifest.sha256,
+		"report.json",
+	);
+	expect(printed).toBe(await Bun.file(reportFile).text());
+	expect(recorder.stderr).toEqual([]);
+}
+
+function refusesAMissingManifestArgumentAsAUsageError(): void {
+	const recorder = recordOutput();
+
+	expect(
+		runCompare(
+			{ json: false, manifestPath: undefined, runsDirectory },
+			recorder.output,
+		),
+	).rejects.toThrow(UsageError);
+}
+
+async function classifiesMalformedComparisonEvidenceAsARefusedPrecondition(): Promise<void> {
+	const recorder = recordOutput();
+
+	await rm(fixture.repFile("case-1", "baseline", FIRST_REP_ORDINAL));
+
+	expect(
+		runCompare(
+			{ json: false, manifestPath: fixture.manifestFile, runsDirectory },
+			recorder.output,
+		),
+	).rejects.toBeInstanceOf(RefusedPreconditionError);
+}
 
 describe(runCompare.name, () => {
-	let temporaryDirectory: string;
-	let runsDirectory: string;
-	let fixture: ComparisonEvidenceFixture;
-	let recorder: OutputRecorder;
-
 	beforeEach(async () => {
-		recorder = recordOutput();
-		temporaryDirectory = await mkdtemp(join(tmpdir(), "rehearse-compare-cli-"));
-		runsDirectory = join(temporaryDirectory, "runs");
+		await mkdir(temporaryDirectory, { recursive: true });
 		await mkdir(runsDirectory);
-		fixture = new ComparisonEvidenceFixture(temporaryDirectory);
 		await fixture.write();
 	});
-
 	afterEach(async () => {
 		await rm(temporaryDirectory, { force: true, recursive: true });
 	});
-
-	it("prints only the report path when --json is absent", async () => {
-		await runCompare(
-			{ manifestPath: fixture.manifestFile, runsDirectory, json: false },
-			recorder.output,
-		);
-
-		const reportFile = recorder.stdout.join("").trim();
-		expect(recorder.stdout.join("")).toBe(`${reportFile}\n`);
-		expect(dirname(dirname(reportFile))).toBe(
-			join(runsDirectory, "comparisons"),
-		);
-		expect(
-			parseComparisonReport(await Bun.file(reportFile).text()).cases,
-		).toHaveLength(2);
-	});
-
-	it("prints the report file's exact bytes on stdout with --json", async () => {
-		await runCompare(
-			{ manifestPath: fixture.manifestFile, runsDirectory, json: true },
-			recorder.output,
-		);
-
-		const printed = recorder.stdout.join("");
-		const report = parseComparisonReport(printed);
-		const reportFile = join(
-			runsDirectory,
-			"comparisons",
-			report.manifest.sha256,
-			"report.json",
-		);
-		expect(printed).toBe(await Bun.file(reportFile).text());
-		expect(recorder.stderr).toEqual([]);
-	});
-
-	it("refuses a missing manifest argument as a usage error", () => {
-		expect(
-			runCompare(
-				{ manifestPath: undefined, runsDirectory, json: false },
-				recorder.output,
-			),
-		).rejects.toThrow(UsageError);
-	});
-
-	it("classifies malformed comparison evidence as a refused precondition", async () => {
-		await rm(fixture.repFile("case-1", "baseline", 1));
-
-		expect(
-			runCompare(
-				{ manifestPath: fixture.manifestFile, runsDirectory, json: false },
-				recorder.output,
-			),
-		).rejects.toBeInstanceOf(RefusedPreconditionError);
-	});
+	it(
+		"prints only the report path when --json is absent",
+		printsOnlyTheReportPathWhenJsonIsAbsent,
+	);
+	it(
+		"prints the report file's exact bytes on stdout with --json",
+		printsTheReportFileSExactBytesOnStdout,
+	);
+	it(
+		"refuses a missing manifest argument as a usage error",
+		refusesAMissingManifestArgumentAsAUsageError,
+	);
+	it(
+		"classifies malformed comparison evidence as a refused precondition",
+		classifiesMalformedComparisonEvidenceAsARefusedPrecondition,
+	);
 });

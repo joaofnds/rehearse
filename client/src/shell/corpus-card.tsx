@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
+
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusSummaryQuery } from "#client/corpus/corpus-query";
-import { plural } from "#client/plural";
-import { SectionLabel } from "#client/system/components/section-label";
+import plural from "#client/plural";
+import SectionLabel from "#client/system/components/section-label";
+
+const FINAL_CORPUS_CAPTURE_TIME_OFFSET = -1;
 
 function latestEdit(
 	files: readonly Pick<CorpusResponse["files"][number], "lastEditedAt">[],
 ): string | undefined {
 	const times = files.map((file) => file.lastEditedAt).toSorted();
 
-	return times.at(-1);
+	return times.at(FINAL_CORPUS_CAPTURE_TIME_OFFSET);
 }
 
 /**
@@ -19,13 +22,12 @@ function latestEdit(
  * a partial tree would name a corpus that does not exist. The refusal is
  * reported in words rather than by the hash's absence alone (SPEC.md:402).
  */
-function DigestLine({
-	digest,
-	refusals,
-}: {
+interface DigestLineProps {
 	readonly digest: string | undefined;
 	readonly refusals: readonly string[];
-}): React.JSX.Element {
+}
+
+function DigestLine({ digest, refusals }: DigestLineProps): React.JSX.Element {
 	if (digest === undefined) {
 		return (
 			<span className="font-mono text-14 text-attention">
@@ -43,11 +45,11 @@ function DigestLine({
 }
 
 /** The always-visible answer to which corpus am I looking at (SPEC.md:62). */
-export function CorpusCard({
-	enabled,
-}: {
+interface CorpusCardProps {
 	readonly enabled: boolean;
-}): React.JSX.Element {
+}
+
+function CorpusCard({ enabled }: CorpusCardProps): React.JSX.Element {
 	const query = useQuery({ ...corpusSummaryQuery, enabled });
 	const edited =
 		query.data === undefined ? undefined : latestEdit(query.data.files);
@@ -96,3 +98,5 @@ export function CorpusCard({
 		</section>
 	);
 }
+
+export { CorpusCard as default };

@@ -1,13 +1,15 @@
 import { useId } from "react";
 
 /** One of the screen's cards, named by its heading. */
-export function SettingsCard({
-	title,
-	children,
-}: {
+interface SettingsCardProps {
 	readonly title: string;
 	readonly children: React.ReactNode;
-}): React.JSX.Element {
+}
+
+function SettingsCard({
+	title,
+	children,
+}: SettingsCardProps): React.JSX.Element {
 	const heading = useId();
 
 	return (
@@ -22,3 +24,5 @@ export function SettingsCard({
 		</section>
 	);
 }
+
+export { SettingsCard as default };

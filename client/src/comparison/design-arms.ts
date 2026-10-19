@@ -1,33 +1,36 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
+
 import type { ComparisonResponse } from "./comparison-response";
 
 type ArmCorpusVersion =
 	ComparisonResponse["corpusVersions"][string][ComparisonArm];
 
 const NAMES = {
-	control: { role: "Control", prose: "the control arm" },
-	baseline: { role: "Baseline (before)", prose: "baseline (before)" },
-	candidate: { role: "Candidate (after)", prose: "candidate (after)" },
+	baseline: { prose: "baseline (before)", role: "Baseline (before)" },
+	candidate: { prose: "candidate (after)", role: "Candidate (after)" },
+	control: { prose: "the control arm", role: "Control" },
 } as const satisfies Readonly<
 	Record<ComparisonArm, { readonly role: string; readonly prose: string }>
 >;
 
 /** The arms in the order the screen draws them. */
-export const DESIGN_ARMS = (["control", "baseline", "candidate"] as const).map(
+const DESIGN_ARMS = (["control", "baseline", "candidate"] as const).map(
 	(arm) => ({ arm, role: NAMES[arm].role }),
 );
 
-export function armProse(arm: ComparisonArm): string {
+function armProse(arm: ComparisonArm): string {
 	return NAMES[arm].prose;
 }
 
-export function armRole(arm: ComparisonArm): string {
+function armRole(arm: ComparisonArm): string {
 	return NAMES[arm].role;
 }
 
-export function corpusVersionText(version: ArmCorpusVersion): string {
+function corpusVersionText(version: ArmCorpusVersion): string {
 	return version.state === "available"
 		? corpusVersionLabel(version.digest)
 		: version.reasons.join("; ");
 }
+
+export { armProse, armRole, corpusVersionText, DESIGN_ARMS };

@@ -1,7 +1,16 @@
 import { gradeStep } from "#benchmark/stage-letter-grades";
 import type { RunListingResponse } from "#client/run-history/run-history-query";
 
+const NO_GRADE_STEP_VARIATION = 0;
+
+const FIRST_SPREAD_WORD_OFFSET = 1;
+
+const SINGLE_GRADE_STEP = 1;
+
+const MINIMUM_RERUN_GRADES = 2;
+
 type HistoryRow = RunListingResponse["rows"][number];
+
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 const STEP_WORDS = ["one", "two", "three", "four"] as const;
@@ -33,9 +42,14 @@ function letterStep(row: PipelineRow, stage: string): number | undefined {
  * corpus version, in letter steps. A run whose corpus changed while it ran is
  * no identical rerun, and with fewer than two grades nothing is measured.
  */
-export function rerunSpreadSentence(
+interface RerunSpreadSentenceContext {
+	readonly run: string;
+	readonly stage: string;
+}
+
+function rerunSpreadSentence(
 	rows: readonly HistoryRow[],
-	watched: { readonly run: string; readonly stage: string },
+	watched: RerunSpreadSentenceContext,
 ): string {
 	const current = rows.find(
 		(row): row is PipelineRow => row.kind === "run" && row.run === watched.run,
@@ -53,14 +67,16 @@ export function rerunSpreadSentence(
 							versionDigest(row) === digest,
 					)
 					.flatMap((row) => letterStep(row, watched.stage) ?? []);
-	if (steps.length < 2) {
+	if (steps.length < MINIMUM_RERUN_GRADES) {
 		return "Fewer than two identical reruns of this case have graded this step, so how far its grade varies here is not known yet.";
 	}
 
 	const spread = Math.max(...steps) - Math.min(...steps);
-	if (spread === 0) {
+	if (spread === NO_GRADE_STEP_VARIATION) {
 		return "Identical reruns of this case have not varied here.";
 	}
 
-	return `Identical reruns of this case have varied by ${STEP_WORDS[spread - 1] ?? String(spread)} letter ${spread === 1 ? "step" : "steps"} here.`;
+	return `Identical reruns of this case have varied by ${STEP_WORDS[spread - FIRST_SPREAD_WORD_OFFSET] ?? String(spread)} letter ${spread === SINGLE_GRADE_STEP ? "step" : "steps"} here.`;
 }
+
+export { rerunSpreadSentence as default };
