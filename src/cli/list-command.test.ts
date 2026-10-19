@@ -1,3 +1,4 @@
+import { archiveConfirmation } from "#benchmark/confirmation-archive";
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -609,6 +610,48 @@ describe(runList.name, () => {
 		expect(recorder.stderr.join("")).not.toContain("group-stopped");
 	});
 
+	it("prints explicit archives separately with their stable group ID and timestamp", async () => {
+		const fixture = await writtenFixture();
+		const group = confirmationGroupPaths(
+			fixture.runsDirectory,
+			"reviewed-group",
+		);
+		await Bun.write(join(group.inputsDirectory, "input.txt"), "saved input");
+		await archiveConfirmation({
+			runsDirectory: fixture.runsDirectory,
+			groupId: "reviewed-group",
+			archivedAt: "2026-10-18T12:00:00.000Z",
+		});
+		const recorder = recordOutput();
+
+		await runList(
+			{ kind: "archived-groups", runsDirectory: fixture.runsDirectory },
+			recorder.output,
+		);
+
+		expect(lines(recorder.stdout)).toEqual([
+			"group:reviewed-group\t2026-10-18T12:00:00.000Z\tno saved summary",
+		]);
+		expect(recorder.stderr).toEqual([]);
+	});
+	it("isolates a malformed operator-stop record without hiding valid groups", async () => {
+		const fixture = await writtenFixture();
+		await Bun.write(
+			confirmationGroupPaths(fixture.runsDirectory, "bad-stop")
+				.operatorStopFile,
+			"not-json",
+		);
+		const recorder = recordOutput();
+
+		await runList(
+			{ kind: "groups", runsDirectory: fixture.runsDirectory },
+			recorder.output,
+		);
+
+		expect(ids(recorder.stdout)).toEqual([`group:${fixture.groupId}`]);
+		expect(recorder.stderr.join("")).toContain("group:bad-stop");
+	});
+
 	it("prints one line per comparison report with its case and rep counts", async () => {
 		const fixture = await writtenFixture();
 		const recorder = recordOutput();
@@ -726,7 +769,7 @@ describe(runList.name, () => {
 		expect(recorder.stderr).toEqual([]);
 	});
 
-	it.each([...LIST_KINDS])(
+	it.each(LIST_KINDS.filter((kind) => kind !== "archived-groups"))(
 		"prints ids show accepts back for %s",
 		async (kind) => {
 			const fixture = await writtenFixture();
@@ -837,6 +880,7 @@ describe(runList.name, () => {
 			"checkpoints",
 			"attempts",
 			"groups",
+			"archived-groups",
 			"comparisons",
 		] as const)("prints nothing for %s", async (kind) => {
 			const recorder = recordOutput();
@@ -850,7 +894,7 @@ describe(runList.name, () => {
 		});
 	});
 
-	describe("when the kind is not one of the six", () => {
+	describe("when the kind is not accepted", () => {
 		it("refuses it as a usage error naming the accepted kinds", async () => {
 			const recorder = recordOutput();
 

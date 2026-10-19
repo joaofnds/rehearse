@@ -16,6 +16,13 @@ variants and harness diagnostics are archived from case and New run lists.
 `case list --all` and explicit case IDs still reach them; saved evidence and
 freshness checks remain available.
 
+Runs offers reversible archiving for confirmation runs with no saved summary.
+Their IDs and unknown execution/cost remain visible until explicitly archived;
+the archived list and `list archived-groups` retain them for review and restoration.
+The decision is shared through the records directory and leaves experiment files
+unchanged. A later summary appears normally. This does not reconstruct lost
+measurements or establish whether an incomplete run is still executing.
+
 ## Implemented
 
 | Capability                     | Current boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                                                                                                                           |

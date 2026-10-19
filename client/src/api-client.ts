@@ -2,6 +2,7 @@ import { hc } from "hono/client";
 import type { ApiRoutes } from "#server/api";
 import type { CalibrationRoutes } from "#server/calibration";
 import type { LaunchRoutes } from "#server/launches";
+import type { ConfirmationArchiveRoutes } from "#server/confirmation-archives";
 
 /**
  * The one Hono RPC client every screen fetches through, so a response shape
@@ -22,3 +23,7 @@ export const launchClient = hc<LaunchRoutes>("", {
 
 /** The calibration routes' client, typed from `CalibrationRoutes` for the same reason. */
 export const calibrationClient = hc<CalibrationRoutes>("");
+
+export const confirmationArchiveClient = hc<ConfirmationArchiveRoutes>("", {
+	headers: { "content-type": "application/json" },
+});

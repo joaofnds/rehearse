@@ -1,3 +1,8 @@
+import {
+	readConfirmationArchive,
+	hasConfirmationSummary,
+	listConfirmationArchives,
+} from "#benchmark/confirmation-archive";
 import { readdir } from "node:fs/promises";
 import { listCases } from "#benchmark/case";
 import { parseCheckpointRecord } from "#benchmark/checkpoint";
@@ -42,6 +47,7 @@ export const LIST_KINDS = [
 	"checkpoints",
 	"attempts",
 	"groups",
+	"archived-groups",
 	"comparisons",
 ] as const;
 
@@ -78,7 +84,7 @@ function parseListKind(kind: string | undefined): ListKind {
 async function collect<Named>(
 	named: readonly Named[],
 	idOf: (name: Named) => RecordId,
-	read: (name: Named) => Promise<readonly string[]>,
+	read: (name: Named) => Promise<readonly string[] | undefined>,
 ): Promise<RecordListing> {
 	const entries: ListedRecord[] = [];
 	const unreadable: UnreadableRecord[] = [];
@@ -86,7 +92,10 @@ async function collect<Named>(
 	for (const name of named) {
 		const id = formatRecordId(idOf(name));
 		try {
-			entries.push({ id, fields: await read(name) });
+			const fields = await read(name);
+			if (fields !== undefined) {
+				entries.push({ id, fields });
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			unreadable.push({ id, reason: controlRelative(message) });
@@ -250,25 +259,24 @@ async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 }
 
 async function listGroups(runsDirectory: string): Promise<RecordListing> {
-	const recordedIds = await confirmationGroupIds(runsDirectory);
-	const listed = await Promise.all(
-		recordedIds.map(async (groupId) =>
-			(await stoppedBeforeGroupRecord(
-				confirmationGroupPaths(runsDirectory, groupId),
-			))
-				? []
-				: [groupId],
-		),
-	);
-	const groupIds = listed.flat();
-
 	return numbered(
 		runsDirectory,
 		await collect(
-			groupIds,
+			await confirmationGroupIds(runsDirectory),
 			(groupId) => ({ kind: "group", groupId }),
 			async (groupId) => {
 				const paths = confirmationGroupPaths(runsDirectory, groupId);
+				if (!(await hasConfirmationSummary({ runsDirectory, groupId }))) {
+					if (await stoppedBeforeGroupRecord(paths)) {
+						return undefined;
+					}
+					if (
+						(await readConfirmationArchive({ runsDirectory, groupId })) !==
+						undefined
+					) {
+						return undefined;
+					}
+				}
 				const record = parseConfirmationGroupRecord(
 					await Bun.file(paths.groupFile).text(),
 				);
@@ -363,6 +371,20 @@ export function listRecords(
 		}
 		case "groups": {
 			return listGroups(runsDirectory);
+		}
+		case "archived-groups": {
+			return listConfirmationArchives(runsDirectory).then(
+				({ archived, unreadable }) => ({
+					entries: archived.map(({ groupId, archivedAt }) => ({
+						id: formatRecordId({ kind: "group", groupId }),
+						fields: [archivedAt, "no saved summary"],
+					})),
+					unreadable: unreadable.map(({ id, reason }) => ({
+						id: formatRecordId({ kind: "group", groupId: id }),
+						reason: controlRelative(reason),
+					})),
+				}),
+			);
 		}
 		case "comparisons": {
 			return listComparisons(runsDirectory);

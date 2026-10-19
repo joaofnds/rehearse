@@ -101,7 +101,8 @@
 					"ButtonProps",
 					"NativeSelectProps",
 					"SearchInputProps",
-					"CurrentAnchorProps"
+					"CurrentAnchorProps",
+					"DisclosureProps"
 				]
 			}
 		],

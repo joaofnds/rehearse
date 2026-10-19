@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { ApiDependencies } from "./api";
 import { createApiApp } from "./api";
+import { createConfirmationArchiveApp } from "./confirmation-archives";
 import { createCalibrationApp } from "./calibration";
 import type { LaunchDependencies } from "./launches";
 import { createLaunchApp } from "./launches";
@@ -34,6 +35,7 @@ export function createAppServer(dependencies: AppServerDependencies): Hono {
 	app.route("/", createApiApp(dependencies));
 	app.route("/", createLaunchApp(dependencies));
 	app.route("/", createCalibrationApp(dependencies));
+	app.route("/", createConfirmationArchiveApp(dependencies));
 	app.get(
 		"*",
 		serveStatic({

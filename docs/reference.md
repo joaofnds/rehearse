@@ -1497,6 +1497,26 @@ leaves transcripts and run artifacts where git can see them.
 | `rep:session:<group-id>/<rep-id>`       | `confirmations/<group-id>/reps/<rep-id>/attempt.json`        |
 | `comparison:<digest>`                   | `comparisons/<digest>/report.json`                           |
 
+Runs keeps confirmation directories with no `group.json` visible as incomplete:
+their execution and cost are unknown, and they may still be recording. Its Archive
+action saves `confirmation-archives/<group-id>.json` with `schemaVersion: 1`,
+`groupId` and `archivedAt`, without moving or deleting experiment files. Restore
+removes that metadata. Archived incomplete runs remain available in the browser
+and through `rehearse list archived-groups`, which prints the group record ID,
+archive timestamp and `no saved summary` as tab-separated fields. Ordinary
+`list groups` retains diagnostics for unarchived incomplete runs. A later
+`group.json` takes precedence over archiving, whether it parses or is malformed.
+
+`GET /api/confirmation-archives` lists `archived` entries and per-ID `unreadable`
+metadata diagnostics. A diagnostic with `groupId` offers clearing invalid archive
+metadata through Restore; only regular files in the archive store qualify.
+`POST /api/confirmation-archives/<group-id>/archive` and
+`POST /api/confirmation-archives/<group-id>/restore` perform those operations.
+Writes require the server's same-origin JSON request headers. Archive refuses a
+group that already has a summary; it does not repair or resume a run, stop a
+process, or change its recorded outcome. These choices belong to the records
+directory and are shared by browsers and server instances using it.
+
 `compare attempts` and `compare extend` also write the baseline corpus they replay under
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the

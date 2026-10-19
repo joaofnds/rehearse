@@ -113,6 +113,11 @@ See [current state](docs/status.md) for implementation coverage and
   **attempts** (`group · 6 attempts`, the `×1/×3/×6/×12` replay control, the
   Cases screen's **Run group** action); the word in code, records, and this
   glossary stays confirmation run (see [UI vocabulary](docs/design-handoff/README.md)).
+- **Archived incomplete confirmation** — a confirmation run with no saved summary
+  that the operator has removed from active history. Its identity remains available
+  under archived incomplete runs and can be restored. Archiving preserves saved
+  files and does not stop execution or establish its cost. A summary saved later
+  takes precedence over the archive decision.
 - **Command** — one named verb of the `rehearse` executable (`run`, `replay`,
   `compare`, `review`, `calibrate`, `list`, `show`, `stale`, `case list`,
   `case show`, `case capture`), declaring its own flags with their defaults, environment

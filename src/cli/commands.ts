@@ -332,8 +332,9 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		name: "list",
 		confinement: "never",
 		summary:
-			"List recorded cases, runs, checkpoints, attempts, groups, or comparisons",
-		argument: "cases|runs|checkpoints|attempts|groups|comparisons",
+			"List recorded cases, runs, checkpoints, attempts, groups, archived groups, or comparisons",
+		argument:
+			"cases|runs|checkpoints|attempts|groups|archived-groups|comparisons",
 		flags: [],
 	},
 	{

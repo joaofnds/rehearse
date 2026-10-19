@@ -133,6 +133,13 @@ retain grading inputs, outcomes, provider metrics when available, and failures.
 Record schemas are versioned where their contracts differ. Readers preserve
 supported historical formats rather than rewriting old evidence.
 
+An incomplete confirmation can be archived explicitly through the browser. One
+validated metadata file per group under `confirmation-archives/` records that
+decision separately from experimental evidence. Readers consult it only while the
+group summary is absent; a later summary takes precedence. Restore removes the
+metadata, leaving inputs and partial results untouched. Runs and the CLI share
+this state, while calibration still discovers partial rep-stage evidence.
+
 The SQLite database at `.benchmark-runs/run-events.sqlite` stores progress
 notifications. Each event also carries the run spend the harness had charged
 against the run's ceiling when it was recorded, Judge and Product Owner calls

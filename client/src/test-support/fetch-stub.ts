@@ -16,6 +16,9 @@ export function stubFetch(body: RunHistoryResponseBody): void {
 			request instanceof Request ? request.url : request,
 			"http://localhost",
 		);
+		if (pathname === "/api/confirmation-archives") {
+			return Promise.resolve(Response.json({ archived: [], unreadable: [] }));
+		}
 		return Promise.resolve(
 			Response.json(
 				pathname === "/api/run-staleness" ? stalenessBody(body) : body,
@@ -31,6 +34,7 @@ export function runHistoryReplies(
 	history: RunHistoryResponseBody,
 ): ReadonlyMap<string, unknown> {
 	return new Map<string, unknown>([
+		["/api/confirmation-archives", { archived: [], unreadable: [] }],
 		["/api/runs", history],
 		["/api/run-listing", history],
 		["/api/run-staleness", stalenessBody(history)],

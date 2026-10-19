@@ -5,7 +5,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 import { useId, useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
-import { Notice } from "#client/system/components/notice";
+import { RecordIssues } from "./record-issues";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Status } from "#client/system/components/status";
@@ -74,7 +74,6 @@ type ContextLink = HistoryRow["links"][number];
 function pipelineRuns(rows: readonly HistoryRow[]): readonly RunHistoryRow[] {
 	return rows.filter((row): row is RunHistoryRow => row.kind === "run");
 }
-type UnreadableRecord = RunHistoryResponse["unreadable"][number];
 type LaunchRow = RunHistoryResponse["launches"][number];
 
 const COLUMNS = [
@@ -89,43 +88,6 @@ const COLUMNS = [
 ] as const;
 
 const NUMERIC_COLUMNS = ["Cost", "Wall"] as const;
-
-const UNREADABLE_NOUNS = {
-	run: ["run", "runs"],
-	"session-attempt": ["session attempt", "session attempts"],
-	replay: ["replay", "replays"],
-	group: ["confirmation run", "confirmation runs"],
-	launch: ["launch", "launches"],
-	"short-ids": ["short id registry", "short id registries"],
-} as const satisfies Readonly<
-	Record<UnreadableRecord["kind"], readonly [string, string]>
->;
-
-function unreadableSummary(
-	records: readonly UnreadableRecord[],
-): readonly string[] {
-	return Object.entries(UNREADABLE_NOUNS).flatMap(
-		([kind, [noun, nounPlural]]) => {
-			const count = records.filter((record) => record.kind === kind).length;
-
-			return count === 0 ? [] : [plural(count, noun, nounPlural)];
-		},
-	);
-}
-
-function UnreadableRecords({
-	records,
-}: {
-	readonly records: readonly UnreadableRecord[];
-}): React.JSX.Element {
-	return (
-		<Notice
-			message={`${unreadableSummary(records).join(", ")} could not be read, so the table leaves them out.`}
-			items={records.map(({ id, reason }) => `${id}: ${reason}`)}
-			collapsible
-		/>
-	);
-}
 
 /** What kind of record the row is, in the design's few words. */
 function kindLine(row: HistoryRow): string {
@@ -2011,9 +1973,9 @@ export function RunHistoryPage({
 					<InvalidatedNotice selection={selection} />
 				)}
 
-				{unreadable.length > 0 ? (
-					<UnreadableRecords records={unreadable} />
-				) : null}
+				{query.data === undefined ? null : (
+					<RecordIssues records={unreadable} />
+				)}
 
 				{nothingListed ? (
 					<NothingListed

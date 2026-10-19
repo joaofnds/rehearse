@@ -1,3 +1,4 @@
+import { archiveConfirmation } from "#benchmark/confirmation-archive";
 import { afterEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
@@ -675,6 +676,34 @@ describe("/api/calibration", () => {
 				{ stageName: "shape", judgeModel: "sonnet", stepsApart: 0 },
 			],
 		});
+	});
+
+	it("keeps a partial rep stage gradeable without a group summary after explicit archive", async () => {
+		const runsDirectory = await recordsDirectory();
+		const group = confirmationGroupPaths(runsDirectory, "partial-group");
+		await Bun.write(
+			group.rep("rep-1").stageFile("shape"),
+			JSON.stringify({ stage: "shape", ...scorecard("shape", ["C", "C"]) }),
+		);
+		await archiveConfirmation({
+			runsDirectory,
+			groupId: "partial-group",
+			archivedAt: "2026-10-18T12:00:00.000Z",
+		});
+
+		const response = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			ungraded: 1,
+			next: {
+				kind: "rep",
+				groupId: "partial-group",
+				repId: "rep-1",
+				stage: "shape",
+			},
+		});
+		expect(await Bun.file(group.groupFile).exists()).toBe(false);
 	});
 
 	it("places a rep stage among run stages by the start time its group recorded", async () => {

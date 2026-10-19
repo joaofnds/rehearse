@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 import type { RenderResult } from "@testing-library/react";
 import {
+	cleanup,
 	fireEvent,
 	render,
 	screen,
@@ -31,7 +32,11 @@ import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
-import { settingsReading } from "#client/test-support/render-app";
+import {
+	renderAppAt,
+	settingsReading,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import {
 	FakeServer,
 	stubFetch,
@@ -62,9 +67,49 @@ import { runDiscoverySearchSchema } from "./run-discovery";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
 
+const releaseHeldResponses: (() => void)[] = [];
+
+interface HeldResponses {
+	readonly release: () => void;
+	readonly reached: Promise<undefined>;
+}
+
+function holdResponses(when: (request: Request) => boolean): HeldResponses {
+	const release = Promise.withResolvers<undefined>();
+	const reached = Promise.withResolvers<undefined>();
+	const answer = globalThis.fetch;
+	const stub = Object.assign(
+		async (
+			input: string | URL | Request,
+			init?: RequestInit,
+		): Promise<Response> => {
+			const request = new Request(
+				input instanceof Request ? input : new URL(input, "http://localhost"),
+				init,
+			);
+			if (when(request)) {
+				reached.resolve(undefined);
+				await release.promise;
+			}
+			return answer(input, init);
+		},
+		{ preconnect: fetch.preconnect },
+	);
+	globalThis.fetch = stub;
+	const finish = (): void => {
+		release.resolve(undefined);
+	};
+	releaseHeldResponses.push(finish);
+
+	return { release: finish, reached: reached.promise };
+}
+
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
+	for (const release of releaseHeldResponses.splice(0)) {
+		release();
+	}
 	globalThis.fetch = originalFetch;
 });
 
@@ -1178,6 +1223,11 @@ describe(RunHistoryPage.name, () => {
 					request instanceof Request ? request.url : request,
 					"http://localhost",
 				);
+				if (pathname === "/api/confirmation-archives") {
+					return Promise.resolve(
+						Response.json({ archived: [], unreadable: [] }),
+					);
+				}
 				return Promise.resolve(
 					Response.json(
 						pathname === "/api/run-staleness"
@@ -1496,6 +1546,687 @@ describe(RunHistoryPage.name, () => {
 		expect(cellOf("2026-09-05T00-00-00.000Z", "Corpus")).not.toHaveTextContent(
 			"—",
 		);
+	});
+
+	describe("when obsolete browser dismissals remain", () => {
+		const key = "rehearse:record-issue-dismissals:v1";
+
+		beforeEach(() => {
+			globalThis.localStorage.setItem(
+				key,
+				JSON.stringify([
+					JSON.stringify(["run", "run:unreadable", "manifest.json is empty"]),
+				]),
+			);
+		});
+		afterEach(() => {
+			globalThis.localStorage.removeItem(key);
+		});
+
+		it("keeps genuine unreadable evidence visible regardless of browser preferences", async () => {
+			respondingWith({
+				rows: [],
+				launches: [],
+				unreadable: [
+					{
+						kind: "run",
+						id: "run:unreadable",
+						reason: "manifest.json is empty",
+					},
+				],
+			});
+			renderPage();
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"1 run could not be read",
+			);
+			expect(
+				screen.queryByRole("button", { name: "Dismiss warning" }),
+			).not.toBeInTheDocument();
+		});
+	});
+
+	describe("when a confirmation has no saved summary", () => {
+		const groupId = "unfinished-confirmation";
+		const archivedAt = "2026-10-18T12:00:00.000Z";
+		const issue = {
+			kind: "group",
+			id: `group:${groupId}`,
+			reason: "incomplete: no group.json recorded",
+			incompleteConfirmation: { groupId },
+		} as const;
+
+		it("archives and restores a run through shared record state and keeps keyboard focus", async () => {
+			let archived = false;
+			const archive = { groupId, archivedAt };
+			const server = new FakeServer(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/settings", { status: 200, body: settingsReading(5) }],
+					[
+						"GET /api/run-listing",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								rows: [],
+								launches: [],
+								unreadable: archived ? [] : [issue],
+							},
+						})),
+					],
+					["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+					[
+						"GET /api/confirmation-archives",
+						new LiveReply(() => ({
+							status: 200,
+							body: { archived: archived ? [archive] : [], unreadable: [] },
+						})),
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/archive`,
+						new LiveReply(() => {
+							archived = true;
+							return { status: 200, body: archive };
+						}),
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/restore`,
+						new LiveReply(() => {
+							archived = false;
+							return { status: 200, body: { restored: true } };
+						}),
+					],
+				]),
+			);
+			server.install();
+			renderPage();
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Review incomplete runs" }),
+			);
+			expect(
+				screen.getByRole("region", { name: "Incomplete confirmation runs" }),
+			).toHaveTextContent("Execution and cost are unknown");
+			fireEvent.click(
+				screen.getByRole("button", { name: `Archive ${groupId}` }),
+			);
+
+			expect(
+				await screen.findByText(
+					`Archived ${groupId}. Saved files are unchanged.`,
+				),
+			).toHaveFocus();
+			expect(
+				screen.queryByRole("region", { name: "Incomplete confirmation runs" }),
+			).not.toBeInTheDocument();
+			fireEvent.click(
+				screen.getByRole("button", { name: "Archived incomplete runs (1)" }),
+			);
+			expect(screen.getByText(groupId)).toBeInTheDocument();
+			fireEvent.click(
+				screen.getByRole("button", { name: `Restore ${groupId}` }),
+			);
+
+			expect(
+				await screen.findByText(
+					`Archive cleared for ${groupId}. Saved files are unchanged.`,
+				),
+			).toHaveFocus();
+			expect(
+				screen.getByRole("region", { name: "Incomplete confirmation runs" }),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Archived incomplete runs (1)" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("keeps an incomplete run visible when archiving is refused", async () => {
+			const server = new FakeServer(
+				new Map<string, Reply>([
+					["GET /api/settings", { status: 200, body: settingsReading(5) }],
+					[
+						"GET /api/run-listing",
+						{
+							status: 200,
+							body: { rows: [], launches: [], unreadable: [issue] },
+						},
+					],
+					["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+					[
+						"GET /api/confirmation-archives",
+						{ status: 200, body: { archived: [], unreadable: [] } },
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/archive`,
+						{
+							status: 409,
+							body: { error: "A summary was saved. Refresh to inspect it." },
+						},
+					],
+				]),
+			);
+			server.install();
+			renderPage();
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Review incomplete runs" }),
+			);
+			fireEvent.click(
+				screen.getByRole("button", { name: `Archive ${groupId}` }),
+			);
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"A summary was saved",
+			);
+			expect(screen.getByRole("alert")).toHaveFocus();
+			expect(
+				screen.getByRole("region", { name: "Incomplete confirmation runs" }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: `Archive ${groupId}` }),
+			).toBeEnabled();
+		});
+
+		it.each(["valid", "malformed"] as const)(
+			"removes an archived item when a %s summary arrives during polling",
+			async (summary) => {
+				let saved = false;
+				const group: ConfirmationGroupRow = {
+					kind: "group",
+					recordId: `group:${groupId}`,
+					...UNREAD_GROUP_FIGURES,
+					staleness: UNREAD_STALENESS,
+					corpusVersion: undefined,
+					checkpoint: undefined,
+					shortId: undefined,
+					groupId,
+					caseId: "audit-log",
+					mode: "session",
+					reps: 2,
+					repAttempts: [],
+					links: [],
+				};
+				const server = new FakeServer(
+					new Map<string, Reply | LiveReply>([
+						["GET /api/settings", { status: 200, body: settingsReading(5) }],
+						[
+							"GET /api/run-listing",
+							new LiveReply(() => ({
+								status: 200,
+								body: {
+									rows: [
+										runRow({}),
+										...(saved && summary === "valid" ? [group] : []),
+									],
+									launches: [],
+									unreadable:
+										saved && summary === "malformed"
+											? [
+													{
+														kind: "group",
+														id: issue.id,
+														reason: "Saved summary is invalid",
+													},
+												]
+											: [],
+								},
+							})),
+						],
+						["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+						[
+							"GET /api/confirmation-archives",
+							new LiveReply(() => ({
+								status: 200,
+								body: {
+									archived: saved ? [] : [{ groupId, archivedAt }],
+									unreadable: [],
+								},
+							})),
+						],
+					]),
+				);
+				server.install();
+				const page = renderPage();
+				await page.findByRole("button", {
+					name: "Archived incomplete runs (1)",
+				});
+
+				saved = true;
+
+				await waitFor(
+					() => {
+						expect(
+							page.queryByRole("button", {
+								name: "Archived incomplete runs (1)",
+							}) === null,
+						).toBe(true);
+					},
+					{ timeout: 3000 },
+				);
+				expect(
+					page.queryByRole("button", { name: `Restore ${groupId}` }),
+				).not.toBeInTheDocument();
+				expect(
+					summary === "valid"
+						? page.getByText(groupId)
+						: page.getByRole("alert"),
+				).toBeInTheDocument();
+			},
+		);
+
+		it("keeps Restore reachable while a legacy archive refresh is held and after reloading", async () => {
+			let archived = false;
+			const server = new FakeServer(
+				new Map<string, Reply | LiveReply>([
+					...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+						`GET ${path}`,
+						{ status: 200, body },
+					]),
+					["GET /api/settings", { status: 200, body: settingsReading(null) }],
+					[
+						"GET /api/run-listing",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								rows: [],
+								launches: [],
+								unreadable: archived ? [] : [issue],
+							},
+						})),
+					],
+					[
+						"GET /api/confirmation-archives",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								archived: archived ? [{ groupId, archivedAt }] : [],
+								unreadable: [],
+							},
+						})),
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/archive`,
+						new LiveReply(() => {
+							archived = true;
+							return { status: 200, body: { groupId, archivedAt } };
+						}),
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/restore`,
+						new LiveReply(() => {
+							archived = false;
+							return { status: 200, body: { restored: true } };
+						}),
+					],
+				]),
+			);
+			server.install();
+			const held = holdResponses(
+				(request) =>
+					archived &&
+					request.method === "GET" &&
+					new URL(request.url).pathname === "/api/confirmation-archives",
+			);
+			renderAppAt("/");
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Review incomplete runs" }),
+			);
+
+			fireEvent.click(
+				screen.getByRole("button", { name: `Archive ${groupId}` }),
+			);
+			await held.reached;
+			await waitFor(() => {
+				expect(
+					screen.queryByRole("button", { name: "Review incomplete runs" }) ===
+						null,
+				).toBe(true);
+			});
+			expect(
+				screen.queryByRole("heading", { name: "Nothing is measured yet" }) ===
+					null,
+			).toBe(true);
+			held.release();
+
+			expect(
+				await screen.findByRole("button", {
+					name: "Archived incomplete runs (1)",
+				}),
+			).toBeEnabled();
+			expect(
+				screen.queryByRole("heading", { name: "Nothing is measured yet" }),
+			).not.toBeInTheDocument();
+			cleanup();
+			renderAppAt("/");
+			fireEvent.click(
+				await screen.findByRole("button", {
+					name: "Archived incomplete runs (1)",
+				}),
+			);
+			fireEvent.click(
+				screen.getByRole("button", { name: `Restore ${groupId}` }),
+			);
+			expect(
+				await screen.findByRole("button", { name: "Review incomplete runs" }),
+			).toBeEnabled();
+			expect(
+				screen.queryByRole("heading", { name: "Nothing is measured yet" }),
+			).not.toBeInTheDocument();
+		});
+
+		it.each(["archive", "restore"] as const)(
+			"shows pending %s and prevents conflicting actions",
+			async (action) => {
+				const archivedId = "archived-neighbor";
+				let targetArchived = false;
+				let neighborArchived = true;
+				const target = action === "archive" ? groupId : archivedId;
+				const server = new FakeServer(
+					new Map<string, Reply | LiveReply>([
+						["GET /api/settings", { status: 200, body: settingsReading(5) }],
+						[
+							"GET /api/run-listing",
+							new LiveReply(() => ({
+								status: 200,
+								body: {
+									rows: [],
+									launches: [],
+									unreadable: [
+										...(targetArchived ? [] : [issue]),
+										...(neighborArchived
+											? []
+											: [
+													{
+														...issue,
+														id: `group:${archivedId}`,
+														incompleteConfirmation: { groupId: archivedId },
+													},
+												]),
+									],
+								},
+							})),
+						],
+						["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+						[
+							"GET /api/confirmation-archives",
+							new LiveReply(() => ({
+								status: 200,
+								body: {
+									archived: [
+										...(targetArchived ? [{ groupId, archivedAt }] : []),
+										...(neighborArchived
+											? [{ groupId: archivedId, archivedAt }]
+											: []),
+									],
+									unreadable: [],
+								},
+							})),
+						],
+						[
+							`POST /api/confirmation-archives/${target}/${action}`,
+							new LiveReply(() => {
+								targetArchived = action === "archive";
+								neighborArchived = action === "archive";
+								return { status: 200, body: {} };
+							}),
+						],
+					]),
+				);
+				server.install();
+				const held = holdResponses((request) => request.method === "POST");
+				renderPage();
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Review incomplete runs" }),
+				);
+				fireEvent.click(
+					await screen.findByRole("button", {
+						name: "Archived incomplete runs (1)",
+					}),
+				);
+				const archive = screen.getByRole("button", {
+					name: `Archive ${groupId}`,
+				});
+				const restore = screen.getByRole("button", {
+					name: `Restore ${archivedId}`,
+				});
+
+				fireEvent.click(action === "archive" ? archive : restore);
+				await held.reached;
+
+				await waitFor(() => {
+					expect((action === "archive" ? archive : restore).textContent).toBe(
+						action === "archive" ? "Archiving…" : "Restoring…",
+					);
+				});
+				expect(archive).toBeDisabled();
+				expect(restore).toBeDisabled();
+				held.release();
+				expect(
+					await screen.findByText(
+						action === "archive"
+							? `Archived ${target}. Saved files are unchanged.`
+							: `Archive cleared for ${target}. Saved files are unchanged.`,
+					),
+				).toHaveFocus();
+			},
+		);
+
+		it("follows another client's archive and restore while Runs stays mounted", async () => {
+			let sharedArchived = false;
+			const server = new FakeServer(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/settings", { status: 200, body: settingsReading(5) }],
+					[
+						"GET /api/run-listing",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								rows: [runRow({})],
+								launches: [],
+								unreadable: sharedArchived ? [] : [issue],
+							},
+						})),
+					],
+					["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+					[
+						"GET /api/confirmation-archives",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								archived: sharedArchived ? [{ groupId, archivedAt }] : [],
+								unreadable: [],
+							},
+						})),
+					],
+				]),
+			);
+			server.install();
+			const page = renderPage();
+			await page.findByRole("button", { name: "Review incomplete runs" });
+
+			sharedArchived = true;
+
+			await waitFor(
+				() => {
+					expect(
+						page.queryByRole("button", {
+							name: "Archived incomplete runs (1)",
+						}) !== null,
+					).toBe(true);
+					expect(
+						page.queryByRole("button", { name: "Review incomplete runs" }) ===
+							null,
+					).toBe(true);
+				},
+				{ timeout: 3000 },
+			);
+
+			sharedArchived = false;
+			await waitFor(
+				() => {
+					expect(
+						page.queryByRole("button", { name: "Review incomplete runs" }) !==
+							null,
+					).toBe(true);
+					expect(
+						page.queryByRole("button", {
+							name: "Archived incomplete runs (1)",
+						}) === null,
+					).toBe(true);
+				},
+				{ timeout: 3000 },
+			);
+		}, 10_000);
+
+		it("discovers existing archives on a fresh page", async () => {
+			stubFetchByPath(
+				new Map<string, unknown>([
+					["/api/settings", settingsReading(5)],
+					["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
+					["/api/run-staleness", { records: {} }],
+					[
+						"/api/confirmation-archives",
+						{ archived: [{ groupId, archivedAt }], unreadable: [] },
+					],
+				]),
+			);
+			renderPage();
+
+			fireEvent.click(
+				await screen.findByRole("button", {
+					name: "Archived incomplete runs (1)",
+				}),
+			);
+
+			expect(screen.getByText(groupId)).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: `Restore ${groupId}` }),
+			).toBeEnabled();
+			expect(
+				screen.queryByRole("button", { name: "Review incomplete runs" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("clears invalid archive metadata without hiding the incomplete run", async () => {
+			let cleared = false;
+			const server = new FakeServer(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/settings", { status: 200, body: settingsReading(5) }],
+					[
+						"GET /api/run-listing",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								rows: [],
+								launches: [],
+								unreadable: cleared
+									? [issue]
+									: [
+											{
+												kind: "group",
+												id: issue.id,
+												reason: "Invalid archive metadata",
+											},
+										],
+							},
+						})),
+					],
+					["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+					[
+						"GET /api/confirmation-archives",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								archived: [],
+								unreadable: cleared
+									? []
+									: [
+											{
+												id: groupId,
+												groupId,
+												reason: "Invalid archive metadata",
+											},
+										],
+							},
+						})),
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/restore`,
+						new LiveReply(() => {
+							cleared = true;
+							return { status: 200, body: { restored: true } };
+						}),
+					],
+				]),
+			);
+			server.install();
+			renderPage();
+
+			fireEvent.click(
+				await screen.findByRole("button", {
+					name: `Clear archive state ${groupId}`,
+				}),
+			);
+
+			expect(
+				await screen.findByText(
+					`Archive cleared for ${groupId}. Saved files are unchanged.`,
+				),
+			).toHaveFocus();
+			expect(
+				screen.getByRole("button", { name: "Review incomplete runs" }),
+			).toBeEnabled();
+			expect(
+				screen.queryByRole("button", {
+					name: `Clear archive state ${groupId}`,
+				}),
+			).not.toBeInTheDocument();
+		});
+
+		it("keeps an archive available when restoration fails", async () => {
+			const server = new FakeServer(
+				new Map<string, Reply>([
+					["GET /api/settings", { status: 200, body: settingsReading(5) }],
+					[
+						"GET /api/run-listing",
+						{ status: 200, body: { rows: [], launches: [], unreadable: [] } },
+					],
+					["GET /api/run-staleness", { status: 200, body: { records: {} } }],
+					[
+						"GET /api/confirmation-archives",
+						{
+							status: 200,
+							body: { archived: [{ groupId, archivedAt }], unreadable: [] },
+						},
+					],
+					[
+						`POST /api/confirmation-archives/${groupId}/restore`,
+						{
+							status: 500,
+							body: { error: "Archive state could not be changed." },
+						},
+					],
+				]),
+			);
+			server.install();
+			renderPage();
+
+			fireEvent.click(
+				await screen.findByRole("button", {
+					name: "Archived incomplete runs (1)",
+				}),
+			);
+			fireEvent.click(
+				screen.getByRole("button", { name: `Restore ${groupId}` }),
+			);
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"Archive state could not be changed.",
+			);
+			expect(screen.getByRole("alert")).toHaveFocus();
+			expect(
+				screen.getByRole("button", { name: `Restore ${groupId}` }),
+			).toBeEnabled();
+		});
 	});
 
 	describe("when the report can carry unreadable runs", () => {

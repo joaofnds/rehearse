@@ -2,17 +2,19 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+interface DisclosureProps {
+	readonly collapsedLabel: string;
+	readonly expandedLabel: string;
+	readonly children: ReactNode;
+	readonly align?: "start" | "end";
+}
+
 export function Disclosure({
 	collapsedLabel,
 	expandedLabel,
 	children,
 	align = "start",
-}: {
-	readonly collapsedLabel: string;
-	readonly expandedLabel: string;
-	readonly children: ReactNode;
-	readonly align?: "start" | "end";
-}): React.JSX.Element {
+}: DisclosureProps): React.JSX.Element {
 	const [expanded, setExpanded] = useState(false);
 
 	return (

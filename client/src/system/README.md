@@ -71,8 +71,19 @@ message stays above the disclosure, and expanded details fill the width below it
 with a divider and wrapping identifiers. Never place a message and its expandable
 diagnostics in a centered flex row; expansion must not turn them into side-by-side
 columns. The disclosure keeps its 44px target and explicit Show details / Hide
-details labels. Reserve large saturated surfaces for a state that needs that
-much attention. Collection identities lead in neutral heading text; inline evidence
+details labels.
+
+A persistent notice needs a useful next step. Runs presents missing confirmation
+summaries in a neutral review panel with an Archive action per run. The copy keeps
+execution and cost unknown; missing results do not establish that a process ended.
+Archiving saves an operator decision with the records and leaves experiment files
+in place. A compact archived list offers Restore across browsers. A later summary
+appears normally, including a malformed summary's diagnostic. Genuine unreadable
+records retain their full diagnostics; browser preferences cannot hide them.
+Show pending and failed actions explicitly, refresh the affected collections after
+a request, and move focus to the resulting status when the clicked row disappears.
+Reserve large saturated surfaces for a state that needs that much attention.
+Collection identities lead in neutral heading text; inline evidence
 and prose links keep their blue underline. Closed record provenance uses spacing
 rather than an additional full-width divider; expanded detail keeps its boundary.
 

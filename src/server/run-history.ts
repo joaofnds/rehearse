@@ -1,4 +1,8 @@
 import {
+	readConfirmationArchive,
+	hasConfirmationSummary,
+} from "#benchmark/confirmation-archive";
+import {
 	withRecordReadScope,
 	recordFileExists,
 } from "#benchmark/record-read-scope";
@@ -1051,6 +1055,13 @@ async function groupFiredBlockers(
 	);
 }
 
+class IncompleteConfirmationError extends Error {
+	public override name = "IncompleteConfirmationError";
+	public constructor(public readonly groupId: string) {
+		super("incomplete: no group.json recorded");
+	}
+}
+
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
@@ -1060,11 +1071,16 @@ async function groupRow(
 ): Promise<Unjudged<ConfirmationGroupRow> | undefined> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const { groupFile } = paths;
-	if (await stoppedBeforeGroupRecord(paths)) {
-		return undefined;
-	}
-	if (!(await Bun.file(groupFile).exists())) {
-		throw new Error("incomplete: no group.json recorded");
+	if (!(await hasConfirmationSummary({ runsDirectory, groupId }))) {
+		if (await stoppedBeforeGroupRecord(paths)) {
+			return undefined;
+		}
+		if (
+			(await readConfirmationArchive({ runsDirectory, groupId })) !== undefined
+		) {
+			return undefined;
+		}
+		throw new IncompleteConfirmationError(groupId);
 	}
 
 	const record = parseConfirmationGroupRecord(await Bun.file(groupFile).text());
@@ -1347,6 +1363,7 @@ function recordedTime(row: RunListingRow): string | undefined {
  * or a short id registry, whose failure leaves only its own case's rows unnamed.
  */
 export interface UnreadableRecord {
+	readonly incompleteConfirmation?: { readonly groupId: string };
 	readonly kind: RunHistoryRow["kind"] | "launch" | "short-ids";
 	readonly id: string;
 	readonly reason: string;
@@ -1697,14 +1714,21 @@ async function readRunListing(
 			try {
 				return { row: await read() };
 			} catch (error) {
+				const failed = {
+					kind,
+					id,
+					reason: redactAbsolutePaths(
+						error instanceof Error ? error.message : String(error),
+					),
+				};
 				return {
-					unreadable: {
-						kind,
-						id,
-						reason: redactAbsolutePaths(
-							error instanceof Error ? error.message : String(error),
-						),
-					},
+					unreadable:
+						error instanceof IncompleteConfirmationError
+							? {
+									...failed,
+									incompleteConfirmation: { groupId: error.groupId },
+								}
+							: failed,
 				};
 			}
 		});

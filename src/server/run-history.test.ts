@@ -2124,6 +2124,7 @@ describe(runHistoryReport.name, () => {
 				kind: "group",
 				id: "group:group-empty",
 				reason: "incomplete: no group.json recorded",
+				incompleteConfirmation: { groupId: "group-empty" },
 			});
 		});
 

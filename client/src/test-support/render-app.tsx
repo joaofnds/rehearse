@@ -69,6 +69,7 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	string,
 	unknown
 >([
+	["/api/confirmation-archives", { archived: [], unreadable: [] }],
 	["/api/runs", NO_RUNS],
 	["/api/run-listing", NO_RUNS],
 	["/api/run-staleness", { records: {} }],
