@@ -14,7 +14,6 @@ import {
 	savedComparison,
 	temporaryDirectories,
 } from "./compare-attempts-test-fixture";
-import { STAGE_RUBRIC } from "./compare-attempts-test-support";
 
 afterEach(async () => {
 	await Promise.all(
@@ -165,7 +164,7 @@ async function whenTheReplayedRunCanNoLongerGradeTheAddedGroupsAsItGradedArmA():
 
 async function whenTheStagesRubricChangedSinceArmAWasRecorded(): Promise<void> {
 	const { arms, comparison } = await savedComparison();
-	const rubric = await arms.editStageRubric(`${STAGE_RUBRIC}\n`);
+	const rubric = await arms.editStageRubric();
 
 	const refusal = await refusalOf(
 		extendComparison(

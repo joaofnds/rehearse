@@ -172,13 +172,13 @@ class RecordedArms {
 	}
 
 	/**
-	 * Edits the rubric the replayed run's pipeline names for its stage, as an
-	 * edit made after arm A was recorded would, and returns the path the
-	 * pipeline now names.
+	 * Edits the rubric the replayed run's pipeline names for its stage by one
+	 * trailing line ending, as an edit made after arm A was recorded would,
+	 * and returns the path the pipeline now names.
 	 */
-	public async editStageRubric(content: string): Promise<string> {
+	public async editStageRubric(): Promise<string> {
 		const rubricFile = join(this.scratchDirectory, "edited-rubric.json");
-		await Bun.write(rubricFile, content);
+		await Bun.write(rubricFile, `${STAGE_RUBRIC}\n`);
 
 		const rubric = relative(CONTROL_DIR, rubricFile);
 		await this.nameStageRubric(rubric);

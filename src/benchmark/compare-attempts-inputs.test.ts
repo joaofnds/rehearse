@@ -16,12 +16,7 @@ import {
 	refusalOf,
 	temporaryDirectories,
 } from "./compare-attempts-test-fixture";
-import {
-	CASE_ID,
-	RUN,
-	STAGE,
-	STAGE_RUBRIC,
-} from "./compare-attempts-test-support";
+import { CASE_ID, RUN, STAGE } from "./compare-attempts-test-support";
 
 interface StageRubricExample {
 	readonly name: string;
@@ -229,7 +224,7 @@ async function refusesUnreadableStageRubric({
 
 async function refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded(): Promise<void> {
 	const { arms, armA, armB } = await armsDifferingInOneSkill();
-	const rubric = await arms.editStageRubric(`${STAGE_RUBRIC}\n`);
+	const rubric = await arms.editStageRubric();
 
 	const refusal = await refusalOf(
 		compareAttempts(
