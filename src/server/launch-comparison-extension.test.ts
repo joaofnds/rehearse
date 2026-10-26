@@ -3,10 +3,13 @@ import { constants as HTTP_STATUS } from "node:http2";
 import { basename, dirname } from "node:path";
 
 import { compareAttempts } from "#benchmark/compare-attempts";
+import { freezeRubric } from "#benchmark/compare-attempts-evidence-test-fixtures";
 import {
 	RUN,
 	RecordedArms,
 	STAGE,
+	STAGE_RUBRIC,
+	groupIdFor,
 } from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
@@ -67,6 +70,10 @@ describe("POST /api/launches", () => {
 	it(
 		"refuses a comparison the extension would refuse, before starting anything",
 		verifyRefusesAComparisonTheExtensionWouldRefuseBeforeStarting,
+	);
+	it(
+		"refuses a stage rubric changed since arm A was recorded, before starting anything",
+		verifyRefusesAStageRubricChangedSinceArmAWasRecorded,
 	);
 	it(
 		"refuses a comparison nothing saved",
@@ -146,6 +153,29 @@ async function verifyRefusesAComparisonTheExtensionWouldRefuseBeforeStarting(): 
 	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_CONFLICT);
 	expect(refusalSchema.parse(await response.json()).error).toStartWith(
 		"the rubrics/missing.json rubric cannot be read",
+	);
+	expect(launcher.launches).toEqual([]);
+}
+
+async function verifyRefusesAStageRubricChangedSinceArmAWasRecorded(): Promise<void> {
+	const { launcher, post, runsDirectory } = await harness();
+	const { comparison } = await savedComparison(runsDirectory);
+	await freezeRubric({
+		content: `${STAGE_RUBRIC}\n`,
+		groupId: groupIdFor("baseline"),
+		runsDirectory,
+	});
+
+	const response = await post({
+		attempts: 2,
+		comparison,
+		kind: "extension",
+		statedUsd: 9,
+	});
+
+	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_CONFLICT);
+	expect(refusalSchema.parse(await response.json()).error).toBe(
+		"the cases/audit-log/rubrics/build.json rubric changed since arm A was recorded, so a baseline group run now could not be compared with it",
 	);
 	expect(launcher.launches).toEqual([]);
 }
