@@ -9,6 +9,9 @@ const FIRST_STAGE_INDEX = 0;
 
 const PREVIOUS_ELEMENT_OFFSET = 1;
 
+/** The name the server gives the checkpoint a run's first stage starts from. */
+const INITIAL_CHECKPOINT = "initial";
+
 const runRecordRoute = apiClient.api.runs[":run"];
 
 type RunRecordResponse = InferResponseType<
@@ -106,7 +109,8 @@ function stageReplayRefusal(
 		record.stages[INITIAL_RECORDED_STAGE_INDEX]?.stage === name &&
 		!stage.artifactsIn.entries.some(
 			(entry) =>
-				entry.from === "upstream checkpoint" && entry.upstream === "initial",
+				entry.from === "upstream checkpoint" &&
+				entry.upstream === INITIAL_CHECKPOINT,
 		)
 	) {
 		return "The initial checkpoint is not retained for this step";
@@ -138,6 +142,7 @@ function runRecordQuery(run: string): RunRecordQuery {
 }
 
 export {
+	INITIAL_CHECKPOINT,
 	consumedCheckpointMissing,
 	continuationReading,
 	endedStatus,

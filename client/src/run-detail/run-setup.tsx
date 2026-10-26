@@ -4,6 +4,7 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
+import { INITIAL_CHECKPOINT } from "#client/monitor/run-record-query";
 import { spendReading } from "#client/run-history/run-progress";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 
@@ -23,7 +24,7 @@ function startingCheckpoint(stage: MonitoredStage): string {
 	if (input.checkpointShortId.state === "available") {
 		return input.checkpointShortId.shortId;
 	}
-	if (input.upstream === "initial") {
+	if (input.upstream === INITIAL_CHECKPOINT) {
 		return "Initial checkpoint";
 	}
 	return `${input.upstream} checkpoint`;

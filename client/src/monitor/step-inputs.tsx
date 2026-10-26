@@ -8,13 +8,10 @@ import {
 import withinCase from "#client/within-case";
 
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
-import { hasEnded } from "./run-record-query";
+import { INITIAL_CHECKPOINT, hasEnded } from "./run-record-query";
 import { stepName } from "./step-record-readings";
 
 const PREFIX_START_INDEX = 0;
-
-/** The name the server gives the checkpoint a run's first stage starts from. */
-const INITIAL_CHECKPOINT = "initial";
 
 type ArtifactIn = MonitoredStage["artifactsIn"]["entries"][number];
 
