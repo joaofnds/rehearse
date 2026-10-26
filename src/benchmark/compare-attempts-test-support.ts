@@ -31,6 +31,15 @@ const STAGE_RUBRIC_PATH = "cases/audit-log/rubrics/build.json";
 /** The rubric the replayed run's pipeline names for its build stage. */
 const STAGE_RUBRIC = await Bun.file(STAGE_RUBRIC_PATH).text();
 
+/**
+ * That rubric with one hard blocker reworded, an edit to a field the Judge
+ * grades, so a group graded on the original is stale on its judge rubric.
+ */
+const STAGE_RUBRIC_WITH_A_GRADED_EDIT = STAGE_RUBRIC.replace(
+	"contradicts a recorded acceptance criterion",
+	"contradicts any recorded acceptance criterion",
+);
+
 function groupIdFor(role: ComparisonArm): string {
 	return `${CASE_ID}-${role}`;
 }
@@ -172,18 +181,12 @@ class RecordedArms {
 	}
 
 	/**
-	 * Edits the rubric the replayed run's pipeline names for its stage by one
-	 * trailing line ending, as an edit made after arm A was recorded would,
-	 * and returns the path the pipeline now names.
+	 * Rewords a field the Judge grades in the rubric the replayed run's
+	 * pipeline names for its stage, as an edit made after arm A was recorded
+	 * would, and returns the path the pipeline now names.
 	 */
 	public async editStageRubric(): Promise<string> {
-		const rubricFile = join(this.scratchDirectory, "edited-rubric.json");
-		await Bun.write(rubricFile, `${STAGE_RUBRIC}\n`);
-
-		const rubric = relative(CONTROL_DIR, rubricFile);
-		await this.nameStageRubric(rubric);
-
-		return rubric;
+		return await this.replaceStageRubric(STAGE_RUBRIC_WITH_A_GRADED_EDIT);
 	}
 
 	public readonly runBaselineGroup = async (
@@ -222,6 +225,20 @@ class RecordedArms {
 		return groupId;
 	};
 
+	/**
+	 * Points the replayed run's pipeline at a rubric holding `content` for its
+	 * stage and returns the path the pipeline now names.
+	 */
+	public async replaceStageRubric(content: string): Promise<string> {
+		const rubricFile = join(this.scratchDirectory, "edited-rubric.json");
+		await Bun.write(rubricFile, content);
+
+		const rubric = relative(CONTROL_DIR, rubricFile);
+		await this.nameStageRubric(rubric);
+
+		return rubric;
+	}
+
 	private async recordGroup(
 		role: ComparisonArm,
 		recording: Recording,
@@ -244,4 +261,5 @@ export {
 	RUN,
 	STAGE,
 	STAGE_RUBRIC,
+	STAGE_RUBRIC_WITH_A_GRADED_EDIT,
 };

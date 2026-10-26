@@ -16,7 +16,13 @@ import {
 	refusalOf,
 	temporaryDirectories,
 } from "./compare-attempts-test-fixture";
-import { CASE_ID, RUN, STAGE } from "./compare-attempts-test-support";
+import {
+	CASE_ID,
+	RUN,
+	STAGE,
+	STAGE_RUBRIC,
+	STAGE_RUBRIC_WITH_A_GRADED_EDIT,
+} from "./compare-attempts-test-support";
 
 interface StageRubricExample {
 	readonly name: string;
@@ -24,6 +30,22 @@ interface StageRubricExample {
 	readonly rubric: string | undefined;
 	readonly stage: string;
 }
+
+interface StageRubricEdit {
+	readonly name: string;
+	readonly content: string;
+}
+
+const STAGE_RUBRIC_EDITS: readonly StageRubricEdit[] = [
+	{
+		content: STAGE_RUBRIC_WITH_A_GRADED_EDIT,
+		name: "in a field the Judge grades",
+	},
+	{
+		content: `${STAGE_RUBRIC}\n`,
+		name: "only in formatting, which staleness ignores",
+	},
+];
 
 const UNREADABLE_STAGE_RUBRICS: readonly StageRubricExample[] = [
 	{
@@ -89,8 +111,8 @@ describe(compareAttempts.name, () => {
 			refusesUnreadableStageRubric,
 		);
 
-		it(
-			"refuses before running a baseline group when the stage's rubric changed since arm A was recorded",
+		it.each([...STAGE_RUBRIC_EDITS])(
+			"refuses before running a baseline group when, since arm A was recorded, the stage's rubric changed $name",
 			refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded,
 		);
 	});
@@ -222,9 +244,11 @@ async function refusesUnreadableStageRubric({
 	expect(arms.baselineRequests).toEqual([]);
 }
 
-async function refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded(): Promise<void> {
+async function refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded({
+	content,
+}: StageRubricEdit): Promise<void> {
 	const { arms, armA, armB } = await armsDifferingInOneSkill();
-	const rubric = await arms.editStageRubric();
+	const rubric = await arms.replaceStageRubric(content);
 
 	const refusal = await refusalOf(
 		compareAttempts(

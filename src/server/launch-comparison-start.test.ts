@@ -6,7 +6,7 @@ import {
 	RUN,
 	RecordedArms,
 	STAGE,
-	STAGE_RUBRIC,
+	STAGE_RUBRIC_WITH_A_GRADED_EDIT,
 } from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import {
@@ -140,7 +140,7 @@ async function verifyRefusesAStageRubricChangedSinceArmAWas(): Promise<void> {
 	await Array.fromAsync([armA, armB], async (arm) => {
 		await arms.readInStage(arm, "skills/build/SKILL.md");
 		await freezeRubric({
-			content: `${STAGE_RUBRIC}\n`,
+			content: STAGE_RUBRIC_WITH_A_GRADED_EDIT,
 			groupId: arm,
 			runsDirectory: arms.runsDirectory,
 		});

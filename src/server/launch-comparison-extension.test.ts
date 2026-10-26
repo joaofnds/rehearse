@@ -8,7 +8,7 @@ import {
 	RUN,
 	RecordedArms,
 	STAGE,
-	STAGE_RUBRIC,
+	STAGE_RUBRIC_WITH_A_GRADED_EDIT,
 	groupIdFor,
 } from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord } from "#benchmark/launch-record";
@@ -161,7 +161,7 @@ async function verifyRefusesAStageRubricChangedSinceArmAWasRecorded(): Promise<v
 	const { launcher, post, runsDirectory } = await harness();
 	const { comparison } = await savedComparison(runsDirectory);
 	await freezeRubric({
-		content: `${STAGE_RUBRIC}\n`,
+		content: STAGE_RUBRIC_WITH_A_GRADED_EDIT,
 		groupId: groupIdFor("baseline"),
 		runsDirectory,
 	});
