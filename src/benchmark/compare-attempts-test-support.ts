@@ -3,6 +3,7 @@ import { dirname, join, relative } from "node:path";
 import writeReplayableRunManifest from "#cli/replay-test-support";
 
 import type { ArmGroupRequest } from "./compare-attempts";
+import { useModel } from "./compare-attempts-evidence-test-fixtures";
 import type {
 	Checkpoint,
 	CorpusFiles,
@@ -191,6 +192,11 @@ class RecordedArms {
 		this.baselineRequests.push(request);
 		await this.recordGroup("control", {
 			source: { run: request.run, stage: request.stage },
+		});
+		await useModel({
+			groupId: groupIdFor("control"),
+			model: request.model,
+			runsDirectory: this.runsDirectory,
 		});
 
 		return groupIdFor("control");

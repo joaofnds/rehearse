@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 
-import type { ArmGroupRequest } from "./compare-attempts";
 import { compareAttempts } from "./compare-attempts";
 import { useModel } from "./compare-attempts-evidence-test-fixtures";
 import {
@@ -41,22 +40,9 @@ async function runsTheBaselineGroupUnderThatModelRatherThanRefusingTheArms(): Pr
 		});
 	});
 
-	const runBaselineGroupUnderTheRequestedModel = async (
-		request: ArmGroupRequest,
-	): Promise<string> => {
-		const groupId = await arms.runBaselineGroup(request);
-		await useModel({
-			groupId,
-			model: request.model,
-			runsDirectory: arms.runsDirectory,
-		});
-
-		return groupId;
-	};
-
 	const { reportFile } = await compareAttempts(
 		{ armA, armB, runsDirectory: arms.runsDirectory },
-		{ runBaselineGroup: runBaselineGroupUnderTheRequestedModel },
+		{ runBaselineGroup: arms.runBaselineGroup },
 	);
 
 	expect(arms.baselineRequests.map(({ model }) => model)).toEqual([
