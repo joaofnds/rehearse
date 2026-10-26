@@ -79,6 +79,22 @@ const MARKER_CASES: MarkerCase[] = [
 		marker: "· changed files not known: 1 file not compared",
 	},
 	{
+		case: "counts a file compared on one of its reads as compared",
+		manifest: reads(
+			corpusRead("skills/build/SKILL.md", "unchanged"),
+			uncomparedRead("skills/build/SKILL.md"),
+		),
+		marker: "",
+	},
+	{
+		case: "counts a changed file once though another of its reads was not compared",
+		manifest: reads(
+			corpusRead("skills/build/SKILL.md", "changed"),
+			uncomparedRead("skills/build/SKILL.md"),
+		),
+		marker: "· 1 file changed since ckpt",
+	},
+	{
 		case: "counts the changed files beside the ones not compared",
 		manifest: reads(
 			corpusRead("CLAUDE.md", "changed"),
@@ -102,6 +118,10 @@ describe(LaunchDialog.name, () => {
 		it(
 			"says changed files are not known when the source run cannot be read",
 			saysChangedFilesAreNotKnownWhenTheSourceRunCannotBeRead,
+		);
+		it(
+			"says changed files are not known when the run recorded no such step",
+			saysChangedFilesAreNotKnownWhenTheRunRecordedNoSuchStep,
 		);
 	});
 });
@@ -152,6 +172,16 @@ async function saysChangedFilesAreNotKnownWhenTheSourceRunCannotBeRead(): Promis
 
 	const marker = await screen.findByText(
 		"· changed files not known: the source run could not be read",
+	);
+
+	expect(marker).toBeInTheDocument();
+}
+
+async function saysChangedFilesAreNotKnownWhenTheRunRecordedNoSuchStep(): Promise<void> {
+	await replayDialogOn([gradedPlan()]);
+
+	const marker = await screen.findByText(
+		"· changed files not known: the step has no record in this run",
 	);
 
 	expect(marker).toBeInTheDocument();

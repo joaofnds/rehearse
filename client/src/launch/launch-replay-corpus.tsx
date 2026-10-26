@@ -24,16 +24,17 @@ function corpusReads(entries: readonly ReadEntry[]): CorpusReads {
 	const changed = new Set(
 		corpus.filter(({ state }) => state === "changed").map(({ path }) => path),
 	);
+	const compared = new Set(
+		corpus.filter(({ state }) => state !== undefined).map(({ path }) => path),
+	);
 	const uncompared = new Set(
-		corpus
-			.filter(({ state, path }) => state === undefined && !changed.has(path))
-			.map(({ path }) => path),
+		corpus.filter(({ path }) => !compared.has(path)).map(({ path }) => path),
 	);
 
 	return { changed: changed.size, uncompared: uncompared.size };
 }
 
-function notKnown(reasons: readonly string[]): string {
+function notKnownReading(reasons: readonly string[]): string {
 	return `· changed files not known: ${reasons.join("; ")}`;
 }
 
@@ -42,17 +43,17 @@ function notKnown(reasons: readonly string[]): string {
  * now. No marker claims that every one was compared and none differs, so a
  * step whose reads cannot all be compared says so instead.
  */
-function changedSinceCheckpoint(
+function changedFilesReading(
 	step: MonitoredStage | undefined,
 ): string | undefined {
 	if (step === undefined) {
-		return notKnown(["the step has no record in this run"]);
+		return notKnownReading(["the step has no record in this run"]);
 	}
 	if (step.readManifest.state === "unavailable") {
-		return notKnown(step.readManifest.reasons);
+		return notKnownReading(step.readManifest.reasons);
 	}
 	if (step.readManifestJudgment !== undefined) {
-		return notKnown(step.readManifestJudgment.reasons);
+		return notKnownReading(step.readManifestJudgment.reasons);
 	}
 
 	return comparedReading(corpusReads(step.readManifest.entries));
@@ -70,11 +71,11 @@ function comparedReading({
 	const uncomparedReading = `${plural(uncompared, "file")} not compared`;
 
 	return changed === NONE
-		? notKnown([uncomparedReading])
+		? notKnownReading([uncomparedReading])
 		: `${changedReading}, ${uncomparedReading}`;
 }
 
-interface ChangedSinceCheckpointProps {
+interface ReplayCorpusLineProps {
 	readonly run: string;
 	readonly stage: string;
 }
@@ -82,13 +83,13 @@ interface ChangedSinceCheckpointProps {
 function ChangedSinceCheckpoint({
 	run,
 	stage,
-}: ChangedSinceCheckpointProps): React.JSX.Element | null {
+}: ReplayCorpusLineProps): React.JSX.Element | null {
 	const source = useQuery(runRecordQuery(run));
 	let marker: string | undefined = "· checking changed files…";
 	if (source.isError) {
-		marker = notKnown(["the source run could not be read"]);
+		marker = notKnownReading(["the source run could not be read"]);
 	} else if (!source.isFetching) {
-		marker = changedSinceCheckpoint(
+		marker = changedFilesReading(
 			source.data?.stages.find((each) => each.stage === stage),
 		);
 	}
@@ -102,7 +103,7 @@ function ChangedSinceCheckpoint({
 function ReplayCorpusLine({
 	run,
 	stage,
-}: ChangedSinceCheckpointProps): React.JSX.Element {
+}: ReplayCorpusLineProps): React.JSX.Element {
 	return (
 		<>
 			<CorpusLine />
