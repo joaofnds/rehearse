@@ -3,7 +3,10 @@ import type { ConfirmationCostProjection } from "./confirmation";
 import type { CorpusRoot } from "./corpus-file";
 import type { ReplayRequest } from "./replay";
 
-interface ReplayConfirmationRequest extends ReplayRequest {
+interface ReplayConfirmationRequest extends Omit<
+	ReplayRequest,
+	"corpusSource"
+> {
 	readonly groupId: string;
 	readonly reps: number;
 	readonly corpusRoots: readonly CorpusRoot[];

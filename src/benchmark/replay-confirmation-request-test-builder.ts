@@ -2,7 +2,6 @@ import type { CorpusRoot } from "./corpus-file";
 import type { ReplayConfirmationRequest } from "./replay-confirmation";
 import type { BenchmarkRunPaths } from "./run-layout";
 
-const PRIMARY_FIXTURE_CORPUS_ROOT_INDEX = 0;
 const DEFAULT_PER_REP_MAXIMUM_USD = 20;
 const DEFAULT_CONFIRMATION_REPS = 3;
 interface ReplayConfirmationInputs {
@@ -28,7 +27,6 @@ class ReplayConfirmationRequestBuilder {
 			approvalMethod: "yes",
 			controlSha: "control-sha",
 			corpusRoots,
-			corpusSource: corpusRoots[PRIMARY_FIXTURE_CORPUS_ROOT_INDEX],
 			declaredTargetRoot: undefined,
 			groupId: "confirmation-stage-1",
 			instructions: "Frozen instructions\n",
