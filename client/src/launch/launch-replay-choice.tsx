@@ -1,6 +1,6 @@
 import NativeSelect from "#client/system/ui/native-select";
 
-import { CorpusLine } from "./launch-case-list";
+import ReplayCorpusLine from "./launch-replay-corpus";
 import type { ReplayChoice, ReplayableRun } from "./launch-target-contract";
 
 interface ReplayChoiceRowsProps {
@@ -36,7 +36,7 @@ function ReplayChoiceRows({
 			</dd>
 			<dt className="text-muted-foreground">Corpus</dt>
 			<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
-				<CorpusLine />
+				<ReplayCorpusLine run={chosen.run} stage={chosen.stage} />
 			</dd>
 		</>
 	);

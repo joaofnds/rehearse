@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { MonitoredStage } from "#client/monitor/run-record-query";
-import { runRecordQuery } from "#client/monitor/run-record-query";
+import type { RunRecordResponse } from "#client/monitor/run-record-query";
+import {
+	INITIAL_CHECKPOINT,
+	runRecordQuery,
+} from "#client/monitor/run-record-query";
 
 import type { CaseListing, SettledTarget } from "./launch-target-contract";
 
@@ -61,8 +64,7 @@ function ReplayConditions({
 }: ReplayConditionsProps): React.JSX.Element {
 	const source = useQuery(runRecordQuery(target.run));
 	const pending = source.isPending ? "Reading source record…" : undefined;
-	const step = source.data?.stages.find(({ stage }) => stage === target.stage);
-	const input = replayFrozenInput(target, step);
+	const checkpoint = replayCheckpoint(target, source.data);
 	return (
 		<section
 			aria-label="Launch conditions"
@@ -80,8 +82,8 @@ function ReplayConditions({
 						pending ??
 						"Source run's model; value unavailable"}
 				</dd>
-				<dt className="text-muted-foreground">Frozen input</dt>
-				<dd className="sm:col-span-3 min-w-0 wrap-anywhere">{input}</dd>
+				<dt className="text-muted-foreground">Checkpoint</dt>
+				<dd className="sm:col-span-3 min-w-0 wrap-anywhere">{checkpoint}</dd>
 			</dl>
 			<p className="mt-2 text-12 text-secondary-foreground">
 				Recorded source effort:{" "}
@@ -136,21 +138,37 @@ function LaunchConditions({
 	}
 }
 
-function replayFrozenInput(
+/**
+ * The checkpoint a replay restores, as the design's checkpoint field names it:
+ * its short id, then the step that recorded it with that step's grade, or task
+ * setup for the run's initial checkpoint.
+ */
+function replayCheckpoint(
 	target: ReplayConditionsProps["target"],
-	step: MonitoredStage | undefined,
+	record: RunRecordResponse | undefined,
 ): string {
+	const step = record?.stages.find(({ stage }) => stage === target.stage);
 	const checkpoint = step?.artifactsIn.entries.find(
 		(entry) => entry.from === "upstream checkpoint",
 	);
-	let input = `The saved checkpoint ${target.stage} starts from; earlier stages are not run again.`;
-	if (checkpoint?.from === "upstream checkpoint") {
-		input = `${checkpoint.upstream} checkpoint`;
-		if (checkpoint.checkpointShortId.state === "available") {
-			input += ` · ${checkpoint.checkpointShortId.shortId}`;
-		}
+	if (record === undefined || checkpoint?.from !== "upstream checkpoint") {
+		return `The saved checkpoint ${target.stage} starts from; earlier stages are not run again.`;
 	}
-	return input;
+
+	const origin =
+		checkpoint.upstream === INITIAL_CHECKPOINT
+			? "task setup"
+			: `after ${checkpoint.upstream}${recordedGrade(record, checkpoint.upstream)}`;
+
+	return checkpoint.checkpointShortId.state === "available"
+		? `${checkpoint.checkpointShortId.shortId} · ${origin}`
+		: origin;
+}
+
+function recordedGrade(record: RunRecordResponse, stage: string): string {
+	const grade = record.stages.find((each) => each.stage === stage)?.grade;
+
+	return grade?.state === "available" ? ` (${grade.letter})` : "";
 }
 
 export { LaunchConditions as default };

@@ -6,6 +6,7 @@ import FilterPill from "#client/system/components/filter-pill";
 
 import { launchBudgetReading } from "./launch-budget";
 import { CasePicker, CorpusLine } from "./launch-case-list";
+import ReplayCorpusLine from "./launch-replay-corpus";
 import type { CaseListing, SettledTarget } from "./launch-target-contract";
 import type { LaunchFormModel } from "./use-launch-form";
 
@@ -94,7 +95,7 @@ function ReplayTargetRows({
 			</dd>
 			<dt className="text-muted-foreground">Corpus</dt>
 			<dd className="sm:col-span-3 min-w-0 wrap-anywhere">
-				<CorpusLine />
+				<ReplayCorpusLine run={target.run} stage={target.stage} />
 			</dd>
 		</>
 	);
