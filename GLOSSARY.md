@@ -828,9 +828,22 @@ See [current state](docs/status.md) for implementation coverage and
   raw bytes. Staleness compares that digest alone, while lineage folds in the
   recorded path beside it. See [the reference](docs/reference.md) for what a
   record stores and when an edit stales a run.
-- **Stale checkpoint** — a checkpoint whose recorded inputs (corpus files,
-  stage settings, model, effort, its judge rubric, or an upstream checkpoint) no longer match
-  the current state; still replayable for exploration, refused in comparisons.
+- **Stale checkpoint**: a checkpoint whose recorded inputs (corpus files,
+  stage settings, model, effort, its judge rubric, or an upstream checkpoint)
+  no longer match the current state. It stays replayable: a replay from it
+  proceeds, and a single replay records why it is stale. A saved comparison
+  sets its arms against each other rather than against the current state, so
+  of the staleness causes only the judge rubric refuses an arm:
+  `compare attempts`, `compare extend` and their browser launch refuse when the
+  replayed stage's rubric changed since arm A was recorded, since a group run
+  now would be graded on a rubric arm A was not graded on. An upstream
+  stage, the model, the effort, the stage settings file, a corpus file that
+  changed, was added or was removed, and a corpus refusal refuse nothing. Arm
+  A is stale against the edited corpus by construction, and arms replayed from
+  a checkpoint that was already stale are compared like any other. Arms that
+  differ from each other in a controlled input, such as the checkpoint they
+  replayed, the model or the effort, are refused for that difference, which is
+  not staleness.
 - **Stale provenance** — the state of a comparison rep whose saved evidence
   the comparison cannot vouch for: its confirmation run, rep or attempt
   file is missing, unreadable, differs from the digest the comparison recorded,

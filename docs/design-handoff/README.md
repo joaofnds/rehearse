@@ -18,6 +18,16 @@ SPEC.md says root cause, primary culprit, contributing and not implicated for
 the roles SPEC.md calls root cause, contributing factor and not a factor, and
 contribution phrase for what SPEC.md calls the output summary.
 
+SPEC.md's product rule 2, the run-history footer copy that carries it, and the
+staleness definition among its derived values say that stale records are
+excluded from comparisons, and prototype.html's run-history footer repeats it.
+The product marks stale records and keeps them comparable: a comparison sets an
+attempt from before an instruction edit beside one from after it, and the
+earlier attempt is stale against the edited corpus by construction. The Stale
+checkpoint entry in the [glossary](../../GLOSSARY.md) states the one staleness
+refusal a comparison makes. The run-history screen does not show that footer
+copy.
+
 Open the prototype from a local checkout to inspect the intended appearance.
 [support.js](support.js) expands the design environment's custom markup. It is
 reference infrastructure, not application code, and must not be imported into
