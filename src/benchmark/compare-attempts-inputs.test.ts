@@ -16,7 +16,12 @@ import {
 	refusalOf,
 	temporaryDirectories,
 } from "./compare-attempts-test-fixture";
-import { CASE_ID, RUN, STAGE } from "./compare-attempts-test-support";
+import {
+	CASE_ID,
+	RUN,
+	STAGE,
+	STAGE_RUBRIC,
+} from "./compare-attempts-test-support";
 
 interface StageRubricExample {
 	readonly name: string;
@@ -87,6 +92,11 @@ describe(compareAttempts.name, () => {
 		it.each([...UNREADABLE_STAGE_RUBRICS])(
 			"refuses before running a baseline group when $name",
 			refusesUnreadableStageRubric,
+		);
+
+		it(
+			"refuses before running a baseline group when the stage's rubric changed since arm A was recorded",
+			refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded,
 		);
 	});
 });
@@ -214,5 +224,22 @@ async function refusesUnreadableStageRubric({
 
 	expect(refusal.message).toStartWith(message);
 
+	expect(arms.baselineRequests).toEqual([]);
+}
+
+async function refusesBeforeRunningABaselineGroupWhenTheStagesRubricChangedSinceArmAWasRecorded(): Promise<void> {
+	const { arms, armA, armB } = await armsDifferingInOneSkill();
+	const rubric = await arms.editStageRubric(`${STAGE_RUBRIC}\n`);
+
+	const refusal = await refusalOf(
+		compareAttempts(
+			{ armA, armB, runsDirectory: arms.runsDirectory },
+			{ runBaselineGroup: arms.runBaselineGroup },
+		),
+	);
+
+	expect(refusal.message).toBe(
+		`the ${rubric} rubric changed since arm A was recorded, so a baseline group run now could not be compared with it`,
+	);
 	expect(arms.baselineRequests).toEqual([]);
 }

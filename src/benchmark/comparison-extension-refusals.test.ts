@@ -14,6 +14,7 @@ import {
 	savedComparison,
 	temporaryDirectories,
 } from "./compare-attempts-test-fixture";
+import { STAGE_RUBRIC } from "./compare-attempts-test-support";
 
 afterEach(async () => {
 	await Promise.all(
@@ -49,6 +50,11 @@ describe(extendComparison.name, () => {
 		it(
 			"when the replayed run can no longer grade the added groups as it graded arm A",
 			whenTheReplayedRunCanNoLongerGradeTheAddedGroupsAsItGradedArmA,
+		);
+
+		it(
+			"when the stage's rubric changed since arm A was recorded",
+			whenTheStagesRubricChangedSinceArmAWasRecorded,
 		);
 	});
 });
@@ -153,6 +159,23 @@ async function whenTheReplayedRunCanNoLongerGradeTheAddedGroupsAsItGradedArmA():
 
 	expect(refusal.message).toStartWith(
 		"the rubrics/missing.json rubric cannot be read",
+	);
+	expect(arms.moreRequests).toEqual([]);
+}
+
+async function whenTheStagesRubricChangedSinceArmAWasRecorded(): Promise<void> {
+	const { arms, comparison } = await savedComparison();
+	const rubric = await arms.editStageRubric(`${STAGE_RUBRIC}\n`);
+
+	const refusal = await refusalOf(
+		extendComparison(
+			{ attemptsPerArm: 2, comparison, runsDirectory: arms.runsDirectory },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		),
+	);
+
+	expect(refusal.message).toBe(
+		`the ${rubric} rubric changed since arm A was recorded, so a baseline group run now could not be compared with it`,
 	);
 	expect(arms.moreRequests).toEqual([]);
 }

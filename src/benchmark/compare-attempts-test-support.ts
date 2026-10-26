@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 import writeReplayableRunManifest from "#cli/replay-test-support";
 
@@ -11,6 +11,7 @@ import type {
 import RecordedComparisonGroupWriter from "./compare-attempts-group-recording-fixture";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
+import { CONTROL_DIR } from "./config";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 
@@ -54,7 +55,7 @@ class RecordedArms {
 
 	private constructor(
 		public readonly runsDirectory: string,
-		scratchDirectory: string,
+		private readonly scratchDirectory: string,
 		private readonly fixture: ComparisonEvidenceFixture,
 	) {
 		this.groupWriter = new RecordedComparisonGroupWriter({
@@ -167,6 +168,21 @@ class RecordedArms {
 			manifestFile,
 			manifest.replaceAll(`"${STAGE_RUBRIC_PATH}"`, `"${rubric}"`),
 		);
+	}
+
+	/**
+	 * Edits the rubric the replayed run's pipeline names for its stage, as an
+	 * edit made after arm A was recorded would, and returns the path the
+	 * pipeline now names.
+	 */
+	public async editStageRubric(content: string): Promise<string> {
+		const rubricFile = join(this.scratchDirectory, "edited-rubric.json");
+		await Bun.write(rubricFile, content);
+
+		const rubric = relative(CONTROL_DIR, rubricFile);
+		await this.nameStageRubric(rubric);
+
+		return rubric;
 	}
 
 	public readonly runBaselineGroup = async (
