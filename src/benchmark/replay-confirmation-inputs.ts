@@ -18,10 +18,6 @@ interface FrozenReplayInputs {
 	readonly corpusDirectory: string;
 	readonly rubric: Awaited<ReturnType<ReplayDependencies["loadStageRubric"]>>;
 	readonly instructions: string;
-	readonly staleness: readonly {
-		readonly stage: string;
-		readonly causes: readonly string[];
-	}[];
 	readonly corpusVersion: CorpusMeasurement;
 	readonly files: readonly FrozenFile[];
 }
@@ -41,7 +37,7 @@ async function freezeReplayInputs(
 		directories.inputsDirectory,
 	);
 	const corpusRoot = join(directories.inputsDirectory, "corpus");
-	const staleness = await captureFrozenReplayCorpus({
+	await captureFrozenReplayCorpus({
 		corpusRoot,
 		lineage,
 		request,
@@ -65,7 +61,6 @@ async function freezeReplayInputs(
 		plan: lineage.plan,
 		rubric,
 		sourceRoot: lineage.sourceRoot,
-		staleness: staleness.map(({ stage, causes }) => ({ causes, stage })),
 	};
 }
 type ReplayLineage = Pick<
