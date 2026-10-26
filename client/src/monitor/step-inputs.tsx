@@ -7,7 +7,11 @@ import {
 } from "#client/run-detail/step-report";
 import withinCase from "#client/within-case";
 
-import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
+import type {
+	ConsumedCheckpoint,
+	MonitoredStage,
+	RunRecordResponse,
+} from "./run-record-query";
 import { INITIAL_CHECKPOINT, hasEnded } from "./run-record-query";
 import { stepName } from "./step-record-readings";
 
@@ -83,17 +87,12 @@ function InstructionsLoaded({
 	);
 }
 
-type UpstreamCheckpoint = Extract<
-	ArtifactIn,
-	{ readonly from: "upstream checkpoint" }
->;
-
 /**
  * The checkpoint by its short id within the run's case, or by whose it is
  * when it has none.
  */
 function checkpointName(
-	{ checkpointShortId, upstream }: UpstreamCheckpoint,
+	{ checkpointShortId, upstream }: ConsumedCheckpoint,
 	caseId: string,
 ): string {
 	if (checkpointShortId.state === "available") {
