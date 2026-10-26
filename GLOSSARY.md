@@ -840,11 +840,10 @@ See [current state](docs/status.md) for implementation coverage and
   graded on. Their check compares the rubric file's bytes with the copy arm A
   froze, so it also refuses an edit staleness ignores, such as one to
   formatting. A manifest comparison runs no group and refuses on no cause. The
-  other causes refuse nothing, whether they stale an arm or the checkpoint it
-  replayed: an upstream stage, the model, the effort, the stage settings file,
-  a corpus file that changed, was added or was removed, a corpus refusal, and
-  the judge rubric of that checkpoint, which belongs to the stage before the
-  replayed one. A new group is still a replay, and it fails to start while the
+  other causes refuse nothing: an upstream stage, the model, the effort, the
+  stage settings file, a corpus file that changed, was added or was removed, a
+  corpus refusal, and the judge rubric of the checkpoint the arms replayed,
+  which belongs to the stage before the replayed one. A new group is still a replay, and it fails to start while the
   case's stage settings file is missing or invalid. Arm A is stale against the
   edited corpus by construction. Arms that differ from each other in a
   controlled input, such as the checkpoint they replayed, the model or the
