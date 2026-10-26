@@ -2,6 +2,8 @@ import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { RUN_RECORDS_KEY } from "#client/monitor/run-record-query";
+
 import type { CorpusDraft } from "./corpus-draft";
 import { useCorpusDraft } from "./corpus-draft";
 import type { CorpusEditorProps } from "./corpus-edit";
@@ -52,7 +54,11 @@ function useCorpusEditMutations(
 		mutationFn: applyCorpusEdit,
 		onError: reopen,
 		onSuccess: async (applied) => {
-			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey }),
+				// Each run record judges its reads against the corpus the edit changed.
+				queryClient.invalidateQueries({ queryKey: RUN_RECORDS_KEY }),
+			]);
 			discardDraft();
 			onApplied(applied);
 		},

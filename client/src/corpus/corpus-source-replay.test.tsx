@@ -12,7 +12,12 @@ import {
 } from "./corpus-edit-test-fixtures";
 import { applySourceEdit } from "./corpus-editor-test-driver";
 import CorpusPage from "./corpus-page";
-import { servingSource, sourceRun } from "./corpus-source-test-fixtures";
+import {
+	countingSourceReads,
+	holdingSourceReads,
+	servingSource,
+	sourceRun,
+} from "./corpus-source-test-fixtures";
 import { corpusResponseBody, originalFetch } from "./corpus-test-fixtures";
 
 afterEach(() => {
@@ -35,6 +40,11 @@ describe(CorpusPage.name, () => {
 			it(
 				"offers three attempts from the selected step even when apply suggests another run",
 				offersThreeAttemptsFromTheSelectedStepEvenWhenApplySuggestsAnotherRun,
+			);
+
+			it(
+				"reads the source run again once an edit applies",
+				readsTheSourceRunAgainOnceAnEditApplies,
 			);
 
 			it(
@@ -159,24 +169,27 @@ function sourceRunReading(state: "changed" | "unchanged"): RunRecord {
 	};
 }
 
-/** Holds the source run's next read open until the test answers it. */
-function holdingSourceReads(): PromiseWithResolvers<Response> {
-	const answer = globalThis.fetch;
-	const pending = Promise.withResolvers<Response>();
-	const stub = async (request: string | URL | Request): Promise<Response> => {
-		const { pathname } = new URL(
-			request instanceof Request ? request.url : request,
-			"http://localhost",
-		);
+/** The one read of the source run an applied edit makes. */
+const REREAD = 1;
 
-		return await (pathname === `/api/runs/${RUN}`
-			? pending.promise
-			: answer(request));
-	};
-	stub.preconnect = fetch.preconnect;
-	globalThis.fetch = stub;
+async function readsTheSourceRunAgainOnceAnEditApplies(): Promise<void> {
+	servingSource(
+		new Map([
+			[
+				`GET /api/runs/${RUN}`,
+				{ body: sourceRunReading("unchanged"), status: 200 },
+			],
+			["GET /api/cases", { body: { cases: [], unreadable: [] }, status: 200 }],
+		]),
+	);
+	await screen.findByRole("region", { name: "Instruction test source" });
+	const reads = countingSourceReads();
 
-	return pending;
+	await applySourceEdit();
+
+	await waitFor(() => {
+		expect(reads.count).toBe(REREAD);
+	});
 }
 
 async function marksTheEditedFileChangedInTheReplayItOffers(): Promise<void> {

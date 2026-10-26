@@ -71,7 +71,60 @@ const FIRST_RECORDED_STAGE_INDEX = 0;
 
 const SECOND_RECORDED_STAGE_INDEX = 1;
 
+/** Holds the source run's next read open until the test answers it. */
+function holdingSourceReads(): PromiseWithResolvers<Response> {
+	const answer = globalThis.fetch;
+	const pending = Promise.withResolvers<Response>();
+	const stub = async (
+		request: string | URL | Request,
+		init?: RequestInit,
+	): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+
+		return await (pathname === `/api/runs/${RUN}`
+			? pending.promise
+			: answer(request, init));
+	};
+	stub.preconnect = fetch.preconnect;
+	globalThis.fetch = stub;
+
+	return pending;
+}
+
+interface SourceReads {
+	count: number;
+}
+
+/** Counts the source run's reads from here on, answering each as before. */
+function countingSourceReads(): SourceReads {
+	const answer = globalThis.fetch;
+	const reads: SourceReads = { count: 0 };
+	const stub = async (
+		request: string | URL | Request,
+		init?: RequestInit,
+	): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+		if (pathname === `/api/runs/${RUN}`) {
+			reads.count += 1;
+		}
+
+		return await answer(request, init);
+	};
+	stub.preconnect = fetch.preconnect;
+	globalThis.fetch = stub;
+
+	return reads;
+}
+
 export {
+	countingSourceReads,
+	holdingSourceReads,
 	FIRST_RECORDED_STAGE_INDEX,
 	SECOND_RECORDED_STAGE_INDEX,
 	servingSource,

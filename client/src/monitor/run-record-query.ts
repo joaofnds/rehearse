@@ -12,6 +12,9 @@ const PREVIOUS_ELEMENT_OFFSET = 1;
 /** The name the server gives the checkpoint a run's first stage starts from. */
 const INITIAL_CHECKPOINT = "initial";
 
+/** The prefix every run record's query key starts with. */
+const RUN_RECORDS_KEY = ["run-record"] as const;
+
 const runRecordRoute = apiClient.api.runs[":run"];
 
 type RunRecordResponse = InferResponseType<
@@ -152,12 +155,13 @@ interface RunRecordQuery {
 function runRecordQuery(run: string): RunRecordQuery {
 	return {
 		queryFn: async () => await fetchRunRecord(run),
-		queryKey: ["run-record", run],
+		queryKey: [...RUN_RECORDS_KEY, run],
 	};
 }
 
 export {
 	INITIAL_CHECKPOINT,
+	RUN_RECORDS_KEY,
 	consumedCheckpoint,
 	consumedCheckpointMissing,
 	continuationReading,
