@@ -24,10 +24,9 @@ definition among its derived values, and prototype.html's run-history footer say
 the same of stale records. The product marks both and still lets a comparison
 use them as arms: a comparison sets an attempt from before an instruction edit
 beside one from after it, and the earlier attempt is stale against the edited
-corpus by construction. The Stale
-checkpoint entry in the [glossary](../../GLOSSARY.md) states the one staleness
-refusal a comparison makes. The run-history screen does not show that footer
-copy.
+corpus by construction. The Stale checkpoint entry in the
+[glossary](../../GLOSSARY.md) states the one staleness refusal a comparison
+makes. The run-history screen does not show that footer copy.
 
 Open the prototype from a local checkout to inspect the intended appearance.
 [support.js](support.js) expands the design environment's custom markup. It is

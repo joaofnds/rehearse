@@ -832,20 +832,24 @@ See [current state](docs/status.md) for implementation coverage and
   stage settings, model, effort, its judge rubric, or an upstream checkpoint)
   no longer match the current state. It stays replayable: a replay from it
   proceeds, and a single replay records why it is stale. A comparison sets its
-  arms against each other rather than against the current state, so staleness
-  refuses an arm on one cause only, the judge rubric of the stage the arms
-  replayed. `compare attempts`, `compare extend` and their browser launches run
-  a new group now, and they refuse when that rubric changed since arm A was
-  recorded, since the new group would be graded on a rubric arm A was not
-  graded on. A manifest comparison runs no group and refuses on no cause. The
+  arms against each other rather than against the current state, so of the
+  staleness causes only one refuses an arm: the judge rubric of the stage the
+  arms replayed, when arm A is stale on it. `compare attempts`,
+  `compare extend` and their browser launches run a new group now and refuse
+  such an arm A, since the new group would be graded on a rubric arm A was not
+  graded on. Their check compares the rubric file's bytes with the copy arm A
+  froze, so it also refuses an edit staleness ignores, such as one to
+  formatting. A manifest comparison runs no group and refuses on no cause. The
   other causes refuse nothing, whether they stale an arm or the checkpoint it
   replayed: an upstream stage, the model, the effort, the stage settings file,
   a corpus file that changed, was added or was removed, a corpus refusal, and
   the judge rubric of that checkpoint, which belongs to the stage before the
-  replayed one. Arm A is stale against the edited corpus by construction. Arms
-  that differ from each other in a controlled input, such as the checkpoint
-  they replayed, the model or the effort, are refused for that difference, and
-  `compare attempts` refuses to run a group whose model, effort or other
+  replayed one. A new group is still a replay, and it fails to start while the
+  case's stage settings file is missing or invalid. Arm A is stale against the
+  edited corpus by construction. Arms that differ from each other in a
+  controlled input, such as the checkpoint they replayed, the model or the
+  effort, are refused for that difference, and `compare attempts` and
+  `compare extend` refuse to run a group whose model, effort or other
   controlled input would differ from what arm A recorded. Neither refusal is
   staleness.
 - **Stale provenance** — the state of a comparison rep whose saved evidence
