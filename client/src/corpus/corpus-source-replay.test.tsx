@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { SHA256_HEX_CHARACTERS } from "#client/test-support/digest-widths";
+import type { RunRecord } from "#server/run-record";
 
 import {
 	FIRST_POSTED_REQUEST_INDEX,
@@ -11,7 +12,7 @@ import {
 } from "./corpus-edit-test-fixtures";
 import { applySourceEdit } from "./corpus-editor-test-driver";
 import CorpusPage from "./corpus-page";
-import { servingSource } from "./corpus-source-test-fixtures";
+import { servingSource, sourceRun } from "./corpus-source-test-fixtures";
 import { corpusResponseBody, originalFetch } from "./corpus-test-fixtures";
 
 afterEach(() => {
@@ -34,6 +35,11 @@ describe(CorpusPage.name, () => {
 			it(
 				"offers three attempts from the selected step even when apply suggests another run",
 				offersThreeAttemptsFromTheSelectedStepEvenWhenApplySuggestsAnotherRun,
+			);
+
+			it(
+				"marks the edited file changed in the replay it offers",
+				marksTheEditedFileChangedInTheReplayItOffers,
 			);
 
 			it(
@@ -127,6 +133,77 @@ async function offersThreeAttemptsFromTheSelectedStepEvenWhenApplySuggestsAnothe
 		run: RUN,
 		stage: "discuss",
 	});
+}
+
+/** The source run with its replayed step's one read judged as it now stands. */
+function sourceRunReading(state: "changed" | "unchanged"): RunRecord {
+	const run = sourceRun();
+	const [plan, discuss] = run.stages;
+	if (plan === undefined || discuss?.readManifest.state !== "available") {
+		throw new Error("the source run fixture lost its replayed step's reads");
+	}
+	const [read] = discuss.readManifest.entries;
+	if (read === undefined) {
+		throw new Error("the replayed step's fixture recorded no read");
+	}
+
+	return {
+		...run,
+		stages: [
+			plan,
+			{
+				...discuss,
+				readManifest: { entries: [{ ...read, state }], state: "available" },
+			},
+		],
+	};
+}
+
+/** Holds the source run's next read open until the test answers it. */
+function holdingSourceReads(): PromiseWithResolvers<Response> {
+	const answer = globalThis.fetch;
+	const pending = Promise.withResolvers<Response>();
+	const stub = async (request: string | URL | Request): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+
+		return await (pathname === `/api/runs/${RUN}`
+			? pending.promise
+			: answer(request));
+	};
+	stub.preconnect = fetch.preconnect;
+	globalThis.fetch = stub;
+
+	return pending;
+}
+
+async function marksTheEditedFileChangedInTheReplayItOffers(): Promise<void> {
+	servingSource(
+		new Map([
+			[
+				`GET /api/runs/${RUN}`,
+				{ body: sourceRunReading("unchanged"), status: 200 },
+			],
+			["GET /api/cases", { body: { cases: [], unreadable: [] }, status: 200 }],
+		]),
+	);
+	await screen.findByRole("region", { name: "Instruction test source" });
+	await applySourceEdit();
+	const rereading = holdingSourceReads();
+
+	fireEvent.click(
+		screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
+	);
+
+	expect(
+		await screen.findByText("· checking changed files…"),
+	).toBeInTheDocument();
+	rereading.resolve(Response.json(sourceRunReading("changed")));
+	expect(
+		await screen.findByText("· 1 file changed since ckpt"),
+	).toBeInTheDocument();
 }
 
 async function clearsTheSourceWhenEditingADifferentCorpusFile(): Promise<void> {
