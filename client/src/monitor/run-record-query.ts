@@ -74,6 +74,21 @@ function missedMinimum(
 		: undefined;
 }
 
+type ConsumedCheckpoint = Extract<
+	MonitoredStage["artifactsIn"]["entries"][number],
+	{ readonly from: "upstream checkpoint" }
+>;
+
+/** The checkpoint a stage's session started from, where its record names one. */
+function consumedCheckpoint(
+	stage: MonitoredStage,
+): ConsumedCheckpoint | undefined {
+	return stage.artifactsIn.entries.find(
+		(entry): entry is ConsumedCheckpoint =>
+			entry.from === "upstream checkpoint",
+	);
+}
+
 /**
  * A replay starts from the checkpoint the stage before it saved, so a stage
  * whose predecessor saved none has nothing to replay from. The first stage
@@ -143,6 +158,7 @@ function runRecordQuery(run: string): RunRecordQuery {
 
 export {
 	INITIAL_CHECKPOINT,
+	consumedCheckpoint,
 	consumedCheckpointMissing,
 	continuationReading,
 	endedStatus,
@@ -152,4 +168,10 @@ export {
 	runRecordQuery,
 	stageReplayRefusal,
 };
-export type { EndedStage, MonitoredStage, RunRecordQuery, RunRecordResponse };
+export type {
+	ConsumedCheckpoint,
+	EndedStage,
+	MonitoredStage,
+	RunRecordQuery,
+	RunRecordResponse,
+};

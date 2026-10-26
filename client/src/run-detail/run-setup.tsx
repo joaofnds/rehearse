@@ -4,7 +4,10 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import { INITIAL_CHECKPOINT } from "#client/monitor/run-record-query";
+import {
+	INITIAL_CHECKPOINT,
+	consumedCheckpoint,
+} from "#client/monitor/run-record-query";
 import { spendReading } from "#client/run-history/run-progress";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 
@@ -15,10 +18,8 @@ import { wallTimeReading } from "./step-report";
 const EMPTY_COLLECTION_LENGTH = 0;
 
 function startingCheckpoint(stage: MonitoredStage): string {
-	const input = stage.artifactsIn.entries.find(
-		(entry) => entry.from === "upstream checkpoint",
-	);
-	if (input?.from !== "upstream checkpoint") {
+	const input = consumedCheckpoint(stage);
+	if (input === undefined) {
 		return "No starting checkpoint recorded";
 	}
 	if (input.checkpointShortId.state === "available") {

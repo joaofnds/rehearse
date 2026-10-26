@@ -1,6 +1,9 @@
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
-import { stageReplayRefusal } from "#client/monitor/run-record-query";
+import {
+	consumedCheckpoint,
+	stageReplayRefusal,
+} from "#client/monitor/run-record-query";
 
 const PREVIOUS_ELEMENT_OFFSET = 1;
 
@@ -62,12 +65,9 @@ function sourceEvidence(
 function sourceCheckpoint(record: RunRecordResponse, index: number): string {
 	const stage = record.stages[index];
 	const predecessor = record.stages[index - PREVIOUS_ELEMENT_OFFSET];
-	const upstream = stage?.artifactsIn.entries.find(
-		(entry) => entry.from === "upstream checkpoint",
-	);
+	const upstream = stage === undefined ? undefined : consumedCheckpoint(stage);
 	const checkpointId =
-		upstream?.from === "upstream checkpoint" &&
-		upstream.checkpointShortId.state === "available"
+		upstream?.checkpointShortId.state === "available"
 			? upstream.checkpointShortId.shortId
 			: undefined;
 	const checkpoint =

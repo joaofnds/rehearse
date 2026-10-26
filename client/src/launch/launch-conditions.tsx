@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
 import {
 	INITIAL_CHECKPOINT,
+	consumedCheckpoint,
 	runRecordQuery,
 } from "#client/monitor/run-record-query";
 
@@ -148,10 +149,8 @@ function replayCheckpoint(
 	record: RunRecordResponse | undefined,
 ): string {
 	const step = record?.stages.find(({ stage }) => stage === target.stage);
-	const checkpoint = step?.artifactsIn.entries.find(
-		(entry) => entry.from === "upstream checkpoint",
-	);
-	if (record === undefined || checkpoint?.from !== "upstream checkpoint") {
+	const checkpoint = step === undefined ? undefined : consumedCheckpoint(step);
+	if (record === undefined || checkpoint === undefined) {
 		return `The saved checkpoint ${target.stage} starts from; earlier stages are not run again.`;
 	}
 
