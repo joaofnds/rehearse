@@ -831,19 +831,23 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stale checkpoint**: a checkpoint whose recorded inputs (corpus files,
   stage settings, model, effort, its judge rubric, or an upstream checkpoint)
   no longer match the current state. It stays replayable: a replay from it
-  proceeds, and a single replay records why it is stale. A saved comparison
-  sets its arms against each other rather than against the current state, so
-  of the staleness causes only the judge rubric refuses an arm:
-  `compare attempts`, `compare extend` and their browser launch refuse when the
-  replayed stage's rubric changed since arm A was recorded, since a group run
-  now would be graded on a rubric arm A was not graded on. An upstream
-  stage, the model, the effort, the stage settings file, a corpus file that
-  changed, was added or was removed, and a corpus refusal refuse nothing. Arm
-  A is stale against the edited corpus by construction, and arms replayed from
-  a checkpoint that was already stale are compared like any other. Arms that
-  differ from each other in a controlled input, such as the checkpoint they
-  replayed, the model or the effort, are refused for that difference, which is
-  not staleness.
+  proceeds, and a single replay records why it is stale. A comparison sets its
+  arms against each other rather than against the current state, so staleness
+  refuses an arm on one cause only, the judge rubric of the stage the arms
+  replayed. `compare attempts`, `compare extend` and their browser launches run
+  a new group now, and they refuse when that rubric changed since arm A was
+  recorded, since the new group would be graded on a rubric arm A was not
+  graded on. A manifest comparison runs no group and refuses on no cause. The
+  other causes refuse nothing, whether they stale an arm or the checkpoint it
+  replayed: an upstream stage, the model, the effort, the stage settings file,
+  a corpus file that changed, was added or was removed, a corpus refusal, and
+  the judge rubric of that checkpoint, which belongs to the stage before the
+  replayed one. Arm A is stale against the edited corpus by construction. Arms
+  that differ from each other in a controlled input, such as the checkpoint
+  they replayed, the model or the effort, are refused for that difference, and
+  `compare attempts` refuses to run a group whose model, effort or other
+  controlled input would differ from what arm A recorded. Neither refusal is
+  staleness.
 - **Stale provenance** — the state of a comparison rep whose saved evidence
   the comparison cannot vouch for: its confirmation run, rep or attempt
   file is missing, unreadable, differs from the digest the comparison recorded,

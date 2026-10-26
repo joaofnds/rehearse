@@ -1400,8 +1400,8 @@ the attempt, including an instruction file the attempt loaded undeclared. A
 project file absent there has no hash. Records written before
 this carry no `readManifest` and remain readable. Replay materializes the upstream state for the
 named stage, from a stale checkpoint too. Confirmation groups and comparisons
-require frozen evidence compatible across their reps and arms, not fresh against
-the current corpus. Replay permits an
+require frozen evidence compatible across their reps and arms, and do not require
+it to be fresh against the current corpus. Replay permits an
 uncommitted control repository and records its SHA with a dirty marker.
 
 `stale` compares recorded corpus inputs with live or supplied corpus files and
