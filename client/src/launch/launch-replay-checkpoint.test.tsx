@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import { fireEvent, screen } from "@testing-library/react";
 
-import { RunRecordBuilder } from "#client/test-support/run-detail";
+import {
+	RunRecordBuilder,
+	RunRecordStageBuilder,
+} from "#client/test-support/run-detail";
+import type { RunRecordStage } from "#server/run-record";
 
 import { LaunchDialog } from "./launch-dialog";
 import {
@@ -32,11 +36,19 @@ describe(LaunchDialog.name, () => {
 		"names the checkpoint by its step alone when no short id was claimed",
 		namesTheCheckpointByItsStepAloneWhenNoShortIdWasClaimed,
 	);
+	it(
+		"names no grade when the recording step has none",
+		namesNoGradeWhenTheRecordingStepHasNone,
+	);
 
 	describe("when the run and step are chosen in the dialog", () => {
 		it(
 			"names the chosen step's checkpoint and changed files",
 			namesTheChosenStepSCheckpointAndChangedFiles,
+		);
+		it(
+			"names the chosen run's checkpoint and changed files",
+			namesTheChosenRunSCheckpointAndChangedFiles,
 		);
 	});
 });
@@ -70,6 +82,18 @@ async function namesTheCheckpointByItsStepAloneWhenNoShortIdWasClaimed(): Promis
 	]);
 
 	const checkpoint = await screen.findByText("after plan (B+)");
+
+	expect(checkpoint).toBeInTheDocument();
+}
+
+async function namesNoGradeWhenTheRecordingStepHasNone(): Promise<void> {
+	const ungradedPlan = new RunRecordStageBuilder({
+		stage: "plan",
+		status: "graded",
+	}).build();
+	await replayDialogOn([ungradedPlan, replayedBuild()]);
+
+	const checkpoint = await screen.findByText("audit-log/r1/s1 · after plan");
 
 	expect(checkpoint).toBeInTheDocument();
 }
@@ -109,6 +133,59 @@ async function namesTheChosenStepSCheckpointAndChangedFiles(): Promise<void> {
 
 	expect(
 		await screen.findByText("audit-log/r1/s1 · after plan (B+)"),
+	).toBeInTheDocument();
+	expect(
+		await screen.findByText("· 1 file changed since ckpt"),
+	).toBeInTheDocument();
+}
+
+function servingRuns(
+	runs: readonly (readonly [string, readonly RunRecordStage[]])[],
+): void {
+	serving(
+		new Map(
+			runs.map(([run, stages]) => [
+				`GET /api/runs/${run}`,
+				{ body: new RunRecordBuilder({ run, stages }).build(), status: 200 },
+			]),
+		),
+	);
+}
+
+async function namesTheChosenRunSCheckpointAndChangedFiles(): Promise<void> {
+	const unchanged = reads(corpusRead("CLAUDE.md", "unchanged"));
+	const changed = reads(corpusRead("skills/build/SKILL.md", "changed"));
+	servingRuns([
+		["first-run", [gradedPlan(), replayedBuild({ readManifest: unchanged })]],
+		[
+			"second-run",
+			[
+				gradedPlan(),
+				replayedBuild({
+					artifactsIn: upstreamCheckpoint("plan", "audit-log/r2/s1"),
+					readManifest: changed,
+				}),
+			],
+		],
+	]);
+	await openDialog({
+		kind: "chosen-replay",
+		opensOn: { run: "first-run", stage: "build" },
+		runs: ["first-run", "second-run"].map((run) => ({
+			caseId: "audit-log",
+			openingStage: "build",
+			run,
+			stages: ["plan", "build"],
+		})),
+	});
+	await screen.findByText("audit-log/r1/s1 · after plan (B+)");
+
+	fireEvent.change(screen.getByLabelText("Run"), {
+		target: { value: "second-run" },
+	});
+
+	expect(
+		await screen.findByText("audit-log/r2/s1 · after plan (B+)"),
 	).toBeInTheDocument();
 	expect(
 		await screen.findByText("· 1 file changed since ckpt"),
