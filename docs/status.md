@@ -418,7 +418,12 @@ run history opens the same dialog on a pipeline run and step to choose: it
 offers each step whose starting checkpoint is recorded, opens on the newest
 stopped run's stopped step when that step is offered, else on the last offered
 step of the newest run that offers one, and is disabled with the reason beside
-it when no run offers one. A run whose manifest is missing offers no step. The
+it when no run offers one. A run whose manifest is missing offers no step. A
+replay names the checkpoint it restores by its short id, the step that recorded
+it with that step's grade, or task setup, and marks the corpus line with how
+many corpus files the step read in its recorded run differ now. It says the
+count is not known when those reads were not all compared, and counts only
+files that run read, not every file its checkpoint captured. The
 launch shows
 in run history as running until its process exits or its pipeline run shows
 as running. The dialog's spend
