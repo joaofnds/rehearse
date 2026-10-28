@@ -153,7 +153,7 @@ async function testCarriesTheWallTimeForwardFromTheRunSLastMeasurement(): Promis
 	);
 }
 
-async function testReReadsTheListNoFasterThanTheIdlePaceOnceNoRunIsInFlight(): Promise<void> {
+async function testReReadsTheListNoFasterThanTheIdlePace(): Promise<void> {
 	const server = serveRunHistory(
 		{
 			launches: [],
@@ -205,9 +205,17 @@ describe(RunHistoryPage.name, () => {
 			"carries the wall time forward from the run's last measurement",
 			testCarriesTheWallTimeForwardFromTheRunSLastMeasurement,
 		);
+	});
+	describe("when no run is in flight", () => {
+		beforeEach(() => {
+			setSystemTime(NOW);
+		});
+		afterEach(() => {
+			setSystemTime();
+		});
 		it(
-			"re-reads the list no faster than the idle pace once no run is in flight",
-			testReReadsTheListNoFasterThanTheIdlePaceOnceNoRunIsInFlight,
+			"re-reads the list no faster than the idle pace",
+			testReReadsTheListNoFasterThanTheIdlePace,
 		);
 	});
 });
