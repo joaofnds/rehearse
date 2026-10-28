@@ -12,8 +12,10 @@ SYMPTOMS = {"TASK-5": r"35\.0(?!\d)|640\.0(?!\d)", "TASK-6": r"twice|double|tota
 RECORDED = "TASK-8"
 # A check failure no later run reproduced, which an inbox pass archives or defers.
 UNREPRODUCED = "TASK-16"
+# True review findings whose fix only tidies the tests, which reach no household.
+TIDYING = ["TASK-17", "TASK-18"]
 NEEDED = "TASK-3"
-CAPTURES = [NEEDED, RECORDED, UNREPRODUCED, *USER_VISIBLE, *SPECULATIVE]
+CAPTURES = [NEEDED, RECORDED, UNREPRODUCED, *USER_VISIBLE, *SPECULATIVE, *TIDYING]
 ACCEPTED = {"TASK-1": "To Do", "TASK-4": "To Do", "TASK-2": "Done"}
 PLAN_SECTIONS = ["North Star", "Current focus", "Milestone sequence"]
 CARD_ORDER = ["TASK-2", "TASK-1", "TASK-4"]
@@ -123,7 +125,7 @@ def is_open_capture(card_id):
     return bool(card) and not card["archived"] and card["status"] not in ("Done", "duplicated ID")
 
 
-for card_id in SPECULATIVE:
+for card_id in [*SPECULATIVE, *TIDYING]:
     card = cards.get(card_id)
     state = "missing" if not card else ("archived" if card["archived"] else card["status"])
     record(f"archived-{card_id.lower()}", is_archived(card_id), f"{card_id} is {state}")

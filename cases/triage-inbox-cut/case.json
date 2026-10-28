@@ -1,7 +1,7 @@
 {
 	"id": "triage-inbox-cut",
 	"kind": "session",
-	"title": "Inbox triage with no typed direction, over speculative captures, user-visible defects, a capture an accepted card needs, a capture a support message confirms, a check failure no later run reproduced, and a priority doc carrying history",
+	"title": "Inbox triage with no typed direction, over speculative captures, user-visible defects, a capture an accepted card needs, a capture a support message confirms, a check failure no later run reproduced, two true review findings that only tidy the tests, and a priority doc carrying history",
 	"fixture": "fixture",
 	"prompt": "/triage inbox",
 	"tools": ["Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"],
@@ -164,6 +164,8 @@
 			"archived-task-13",
 			"archived-task-14",
 			"archived-task-15",
+			"archived-task-17",
+			"archived-task-18",
 			"user-visible-kept",
 			"recorded-problem-kept",
 			"needed-capture-kept",
