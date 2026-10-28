@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCommand } from "#benchmark/command";
+import STORED_GIT_DIRECTORY from "#benchmark/git-directory-name";
 import {
 	preserveStateEvidence,
 	restoreStateEvidence,
@@ -64,6 +65,20 @@ async function leavesTheCorpusOverlayOutWhichTheRecordAlreadyDigestsPerFile(): P
 			join(evidence, ".claude", "skills", "a", "SKILL.md"),
 		).exists(),
 	).toBe(false);
+}
+
+async function storesTheSessionsGitDirectoryUnderItsStoredName(): Promise<void> {
+	const attempt = await attemptWithHistory();
+
+	const evidence = await preserveStateEvidence(
+		attempt,
+		await directory("rehearse-state-record-"),
+	);
+
+	expect(
+		await Bun.file(join(evidence, STORED_GIT_DIRECTORY, "HEAD")).exists(),
+	).toBe(true);
+	expect(await Bun.file(join(evidence, ".git", "HEAD")).exists()).toBe(false);
 }
 
 async function leavesPreservedEvidenceUntouchedByTheGrader(): Promise<void> {
@@ -143,6 +158,10 @@ describe(restoreStateEvidence.name, () => {
 	it(
 		"leaves the corpus overlay out, which the record already digests per file",
 		leavesTheCorpusOverlayOutWhichTheRecordAlreadyDigestsPerFile,
+	);
+	it(
+		"stores the session's git directory under its stored name",
+		storesTheSessionsGitDirectoryUnderItsStoredName,
 	);
 	it(
 		"leaves preserved evidence untouched by what a grader wrote",
