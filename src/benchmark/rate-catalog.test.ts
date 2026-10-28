@@ -62,7 +62,11 @@ const committedRateCatalogRederivesEveryRecordedAttemptCostFromTheCataloguedRate
 			);
 		});
 
-		expect(drifted.map((attempt) => attempt.attemptPath)).toEqual([]);
+		expect(
+			drifted.map(
+				(attempt) => `${attempt.transcriptModel} ${attempt.attemptPath}`,
+			),
+		).toEqual([]);
 	};
 
 const committedRateCatalogKeysItsRatesOnTheTranscriptModelStringRatherThanTheRecordsLabel =
