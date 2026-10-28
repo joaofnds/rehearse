@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { chmod, mkdir, readdir, rm, stat, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
+import { runCommand } from "#benchmark/command";
 import copyPresentTree from "#benchmark/present-tree-copy";
 import { TestResources } from "#benchmark/test-support";
 
@@ -118,6 +119,19 @@ async function leavesOutASymlink(): Promise<void> {
 	expect(await readdir(destination)).toEqual(["kept.txt"]);
 }
 
+async function leavesOutAFifo(): Promise<void> {
+	const source = await resources.createTemporaryDirectory(
+		"rehearse-tree-source-",
+	);
+	await Bun.write(join(source, "kept.txt"), "kept\n");
+	await runCommand(["mkfifo", "pipe"], source);
+	const destination = await copyDestination();
+
+	await copyPresentTree(source, destination, keepEverything);
+
+	expect(await readdir(destination)).toEqual(["kept.txt"]);
+}
+
 async function copiesTheRestWhenAnEntryVanishesMidCopy(): Promise<void> {
 	const source = await resources.createTemporaryDirectory(
 		"rehearse-tree-source-",
@@ -175,6 +189,7 @@ describe(copyPresentTree.name, () => {
 	it("keeps an empty directory", keepsAnEmptyDirectory);
 	it("leaves out what the filter refuses", leavesOutWhatTheFilterRefuses);
 	it("leaves out a symlink", leavesOutASymlink);
+	it("leaves out a FIFO", leavesOutAFifo);
 
 	describe("when an entry vanishes mid-copy", () => {
 		it("copies the rest", copiesTheRestWhenAnEntryVanishesMidCopy);
