@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { z } from "zod";
 
+import type { ContextRateCatalog } from "#benchmark/context-evidence-contract";
 import { costFromRate } from "#benchmark/context-evidence-contract";
 import { committedRateCatalog, rateFor } from "#benchmark/rate-catalog";
 
@@ -102,6 +103,15 @@ const committedRateCatalogMarksThe5mCachewriteRateAsInferredAndTheRestAsCorpusme
 		});
 	};
 
+const TIER_5M_CACHE_WRITE_MULTIPLIER = 1.25;
+
+const committedRateCatalogPricesThe5mCachewriteAtTheTierMultiplierOfTheInputRate =
+	(rate: ContextRateCatalog["models"][number]): void => {
+		expect(rate.cacheWrite5mUsdPerMillion).toBe(
+			rate.inputUsdPerMillion * TIER_5M_CACHE_WRITE_MULTIPLIER,
+		);
+	};
+
 describe("committedRateCatalog", () => {
 	it(
 		"re-derives every recorded attempt cost from the catalogued rates",
@@ -121,5 +131,14 @@ describe("committedRateCatalog", () => {
 	it(
 		"marks the 5m cache-write rate as inferred and the rest as corpus-measured",
 		committedRateCatalogMarksThe5mCachewriteRateAsInferredAndTheRestAsCorpusmeasured,
+	);
+
+	it.each(committedRateCatalog.models.map((rate) => [rate.model, rate]))(
+		"prices %s's 5m cache write at the tier multiplier of its input rate",
+		(_model, rate) => {
+			committedRateCatalogPricesThe5mCachewriteAtTheTierMultiplierOfTheInputRate(
+				rate,
+			);
+		},
 	);
 });
