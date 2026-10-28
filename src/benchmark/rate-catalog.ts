@@ -3,12 +3,11 @@ import { contextRateCatalogSchema } from "./context-evidence-contract";
 
 /**
  * Removing a rate here silently unprices every request that used it, and the
- * suite defends the four corpus-measured categories against drift. The 5m
- * cache-write figure is the exception: no saved attempt writes a 5m cache
- * entry, so it is computed as 1.25x the input rate, the published tier
- * multiplier, and no charge in the corpus confirms it. The 1h multiplier the
- * corpus does exercise holds at 2x for both models, so the ratio is plausible
- * rather than verified.
+ * suite defends the corpus-measured categories against drift. Provenance is
+ * catalog-wide, so the 5m cache-write figure stays tier-inferred: it is 1.25x
+ * the input rate, the published tier multiplier, and only claude-opus-5-5's
+ * saved charges confirm it. No saved attempt on the other models writes a 5m
+ * cache entry.
  */
 const committedRateCatalog: ContextRateCatalog = contextRateCatalogSchema.parse(
 	{
@@ -30,6 +29,22 @@ const committedRateCatalog: ContextRateCatalog = contextRateCatalogSchema.parse(
 				model: "claude-opus-5",
 				outputUsdPerMillion: 25,
 			},
+			{
+				cacheReadUsdPerMillion: 0.1,
+				cacheWrite1hUsdPerMillion: 4,
+				cacheWrite5mUsdPerMillion: 2.5,
+				inputUsdPerMillion: 2,
+				model: "claude-sonnet-5-5",
+				outputUsdPerMillion: 10,
+			},
+			{
+				cacheReadUsdPerMillion: 0.2,
+				cacheWrite1hUsdPerMillion: 8,
+				cacheWrite5mUsdPerMillion: 5,
+				inputUsdPerMillion: 4,
+				model: "claude-opus-5-5",
+				outputUsdPerMillion: 20,
+			},
 		],
 		provenance: {
 			cacheReadUsdPerMillion: "corpus-measured",
@@ -40,7 +55,7 @@ const committedRateCatalog: ContextRateCatalog = contextRateCatalogSchema.parse(
 		},
 		schemaVersion: 1,
 		source: "corpus-fit-with-tier-inferred-5m",
-		version: "2026-09-15",
+		version: "2026-10-28",
 	},
 );
 

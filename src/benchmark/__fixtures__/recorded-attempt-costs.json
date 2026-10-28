@@ -1,5 +1,5 @@
 {
-	"measuredOn": "2026-09-15",
+	"measuredOn": "2026-09-15, and 2026-10-28 for the 5.5 models",
 	"note": "Recorded provider charges copied from .benchmark-runs, which is git-ignored. Each row splits cache writes into 5m and 1h tokens from the transcript usage rows.",
 	"attempts": [
 		{
@@ -67,6 +67,50 @@
 			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 72920,
 			"recordedCostUsd": 1.8374219999999997
+		},
+		{
+			"attemptPath": ".benchmark-runs/confirmations/a9a390cb-855e-4f26-9ddd-41ec805d93c5/reps/a9a390cb-855e-4f26-9ddd-41ec805d93c5-rep-1/attempt.json",
+			"transcriptModel": "claude-sonnet-5-5",
+			"recordModelLabel": "sonnet",
+			"inputTokens": 36,
+			"outputTokens": 13701,
+			"cacheReadTokens": 797466,
+			"cacheWrite5mTokens": 0,
+			"cacheWrite1hTokens": 67539,
+			"recordedCostUsd": 0.48698459999999993
+		},
+		{
+			"attemptPath": ".benchmark-runs/confirmations/a9a390cb-855e-4f26-9ddd-41ec805d93c5/reps/a9a390cb-855e-4f26-9ddd-41ec805d93c5-rep-1/attempt.json",
+			"transcriptModel": "claude-opus-5-5",
+			"recordModelLabel": "sonnet",
+			"inputTokens": 22,
+			"outputTokens": 19742,
+			"cacheReadTokens": 384784,
+			"cacheWrite5mTokens": 59441,
+			"cacheWrite1hTokens": 0,
+			"recordedCostUsd": 0.7690897999999999
+		},
+		{
+			"attemptPath": ".benchmark-runs/confirmations/0fbf65cd-065c-4402-9e75-a6b82ef8e6e5/reps/0fbf65cd-065c-4402-9e75-a6b82ef8e6e5-rep-1/attempt.json",
+			"transcriptModel": "claude-opus-5-5",
+			"recordModelLabel": "opus",
+			"inputTokens": 8,
+			"outputTokens": 711,
+			"cacheReadTokens": 33126,
+			"cacheWrite5mTokens": 0,
+			"cacheWrite1hTokens": 9094,
+			"recordedCostUsd": 0.09362920000000001
+		},
+		{
+			"attemptPath": ".benchmark-runs/confirmations/6d77995b-acb2-4487-a77b-0a095281de85/reps/6d77995b-acb2-4487-a77b-0a095281de85-rep-6/attempt.json",
+			"transcriptModel": "claude-opus-5-5",
+			"recordModelLabel": "opus",
+			"inputTokens": 102,
+			"outputTokens": 61439,
+			"cacheReadTokens": 2890306,
+			"cacheWrite5mTokens": 68083,
+			"cacheWrite1hTokens": 98496,
+			"recordedCostUsd": 2.9356322
 		}
 	]
 }
