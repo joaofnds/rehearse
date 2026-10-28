@@ -146,16 +146,24 @@ async function leavesThePrimaryCheckoutAndItsWorktreeRegistrationUnchanged(): Pr
 	const primaryBefore = await repositoryState(harness.sourceRoot);
 	parallel.releaseWorkers();
 
-	await harness.run({}, parallel.override);
+	const records = await readReps(await harness.run({}, parallel.override));
 
 	expect(await repositoryState(harness.sourceRoot)).toEqual(primaryBefore);
 	const worktrees = await runCommand(
 		["git", "worktree", "list", "--porcelain"],
 		harness.sourceRoot,
 	);
+	expect(records.map(({ finalOutcome }) => finalOutcome)).toMatchObject([
+		{ status: "JUDGED" },
+		{ status: "JUDGED" },
+		{ error: "Final Judge rejected both attempts", status: "EXECUTION_FAILED" },
+	]);
 	expect(
-		worktrees.split("\n").filter((line) => line.startsWith("worktree ")),
-	).toHaveLength(PRIMARY_WORKTREE_COUNT);
+		worktrees
+			.split("\n")
+			.filter((line) => line.startsWith("worktree "))
+			.slice(PRIMARY_WORKTREE_COUNT),
+	).toEqual([]);
 }
 
 async function removesTheRepetitionsTemporaryRootAfterCompletion(): Promise<void> {
