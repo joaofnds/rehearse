@@ -1,6 +1,6 @@
 {
 	"measuredOn": "2026-09-15",
-	"note": "Recorded provider charges copied from .benchmark-runs, which is git-ignored. Every cache write in the corpus is 1h.",
+	"note": "Recorded provider charges copied from .benchmark-runs, which is git-ignored. Each row splits cache writes into 5m and 1h tokens from the transcript usage rows.",
 	"attempts": [
 		{
 			"attemptPath": ".benchmark-runs/sessions/brief-reply-02f0f204/d3431614-69d0-4705-8321-5a73640822d0/attempt.json",
@@ -9,6 +9,7 @@
 			"inputTokens": 2,
 			"outputTokens": 529,
 			"cacheReadTokens": 3304,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 276750,
 			"recordedCostUsd": 1.1129548
 		},
@@ -19,6 +20,7 @@
 			"inputTokens": 2,
 			"outputTokens": 199,
 			"cacheReadTokens": 0,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 254023,
 			"recordedCostUsd": 1.018086
 		},
@@ -29,6 +31,7 @@
 			"inputTokens": 2,
 			"outputTokens": 151,
 			"cacheReadTokens": 0,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 251695,
 			"recordedCostUsd": 1.008294
 		},
@@ -39,6 +42,7 @@
 			"inputTokens": 78,
 			"outputTokens": 22099,
 			"cacheReadTokens": 2583272,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 84087,
 			"recordedCostUsd": 2.685371
 		},
@@ -49,6 +53,7 @@
 			"inputTokens": 72,
 			"outputTokens": 15541,
 			"cacheReadTokens": 2191073,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 75194,
 			"recordedCostUsd": 2.2363615
 		},
@@ -59,6 +64,7 @@
 			"inputTokens": 50,
 			"outputTokens": 15928,
 			"cacheReadTokens": 1419544,
+			"cacheWrite5mTokens": 0,
 			"cacheWrite1hTokens": 72920,
 			"recordedCostUsd": 1.8374219999999997
 		}

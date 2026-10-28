@@ -11,6 +11,7 @@ const recordedAttemptSchema = z.object({
 	attemptPath: z.string().nonempty(),
 	cacheReadTokens: z.number().int().nonnegative(),
 	cacheWrite1hTokens: z.number().int().nonnegative(),
+	cacheWrite5mTokens: z.number().int().nonnegative(),
 	inputTokens: z.number().int().nonnegative(),
 	outputTokens: z.number().int().nonnegative(),
 	recordModelLabel: z.string().nonempty(),
@@ -49,7 +50,7 @@ const committedRateCatalogRederivesEveryRecordedAttemptCostFromTheCataloguedRate
 				{
 					cacheReadTokens: attempt.cacheReadTokens,
 					cacheWrite1hTokens: attempt.cacheWrite1hTokens,
-					cacheWrite5mTokens: 0,
+					cacheWrite5mTokens: attempt.cacheWrite5mTokens,
 					inputTokens: attempt.inputTokens,
 					outputTokens: attempt.outputTokens,
 				},
