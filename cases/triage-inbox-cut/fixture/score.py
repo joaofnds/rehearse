@@ -10,8 +10,10 @@ USER_VISIBLE = ["TASK-5", "TASK-6", "TASK-7"]
 # What only each user-visible defect shows, which a survivor absorbing it must carry.
 SYMPTOMS = {"TASK-5": r"35\.0(?!\d)|640\.0(?!\d)", "TASK-6": r"twice|double|total_by_category", "TASK-7": r"-19\.60"}
 RECORDED = "TASK-8"
+# A check failure no later run reproduced, which an inbox pass archives or defers.
+UNREPRODUCED = "TASK-16"
 NEEDED = "TASK-3"
-CAPTURES = [NEEDED, RECORDED, *USER_VISIBLE, *SPECULATIVE]
+CAPTURES = [NEEDED, RECORDED, UNREPRODUCED, *USER_VISIBLE, *SPECULATIVE]
 ACCEPTED = {"TASK-1": "To Do", "TASK-4": "To Do", "TASK-2": "Done"}
 PLAN_SECTIONS = ["North Star", "Current focus", "Milestone sequence"]
 CARD_ORDER = ["TASK-2", "TASK-1", "TASK-4"]
@@ -140,6 +142,20 @@ record("user-visible-kept", not missing,
        f"kept: {[f'{c} in {home}' if home != c else c for c, home in kept.items() if home] or 'none'}; lost: {missing or 'none'}")
 record("recorded-problem-kept", is_open_capture(RECORDED), f"{RECORDED} archived={is_archived(RECORDED)}")
 record("needed-capture-kept", is_open_capture(NEEDED), f"{NEEDED} archived={is_archived(NEEDED)}")
+
+def labels(text):
+    found = re.search(r"^labels:(.*(?:\n[ \t]+-.*)*)", text, re.M)
+    return re.findall(r"[\w-]+", found.group(1)) if found else []
+
+
+unreproduced = cards.get(UNREPRODUCED, {})
+unreproduced_text = unreproduced.get("text", "")
+deferred = (not unreproduced.get("archived", True) and "deferred" in labels(unreproduced_text)
+            and "Reconsideration" in unreproduced_text
+            and re.search(r"Next check: *\d{4}-\d{2}-\d{2}", unreproduced_text))
+record("unreproduced-check-cut", is_archived(UNREPRODUCED) or bool(deferred),
+       f"{UNREPRODUCED} is " + ("archived" if is_archived(UNREPRODUCED) else "deferred" if deferred
+                                else unreproduced.get("status") or "missing"))
 
 admitted = [c for c in CAPTURES if c in cards and not cards[c]["archived"] and cards[c]["status"] not in ("Inbox", "duplicated ID")]
 moved = [c for c, s in ACCEPTED.items() if cards.get(c, {}).get("status") != s or is_archived(c)]
