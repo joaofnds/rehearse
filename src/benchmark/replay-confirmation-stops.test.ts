@@ -7,10 +7,7 @@ import { operatorStopped } from "./operator-stop";
 import runReplayConfirmation from "./replay-confirmation";
 import ReplayCorpusBuilder from "./replay-confirmation-corpus-test-builder";
 import ReplayConfirmationFixtureBuilder from "./replay-confirmation-fixture-builder";
-import {
-	temporaryDirectoriesWithPrefix,
-	uniqueGroupId,
-} from "./repository-test-fixtures";
+import { groupTemporaryRoots, uniqueGroupId } from "./repository-test-fixtures";
 import { confirmationGroupPaths } from "./run-layout";
 import { TestResources } from "./test-support";
 
@@ -40,9 +37,7 @@ const deletesEveryRepWorktreeAndPrunesThemFromTheTarget =
 					...defaults,
 					runStageJudge: async () => {
 						await harness.stops[FIRST_STOP_REQUEST_INDEX]?.();
-						leftover = await temporaryDirectoriesWithPrefix(
-							`rehearse-${groupId}-`,
-						);
+						leftover = await groupTemporaryRoots(groupId);
 
 						throw new Error("stopped");
 					},
@@ -120,9 +115,7 @@ const removesItsWorktreesDirectoryWhenTheConfirmationBodyThrows =
 		const execution = runReplayConfirmation(replayDependencies, replayRequest);
 
 		expect(execution).rejects.toThrow("clock unavailable");
-		const leftover = await temporaryDirectoriesWithPrefix(
-			`rehearse-${groupId}-`,
-		);
+		const leftover = await groupTemporaryRoots(groupId);
 		expect(leftover).toEqual([]);
 	};
 describe(runReplayConfirmation.name, () => {

@@ -9,10 +9,7 @@ import {
 	PipelineConfirmationHarness,
 	SERVED_CONFIRMATION_PIPELINE,
 } from "./pipeline-confirmation-test-support";
-import {
-	temporaryDirectoriesWithPrefix,
-	uniqueGroupId,
-} from "./repository-test-fixtures";
+import { groupTemporaryRoots, uniqueGroupId } from "./repository-test-fixtures";
 import { confirmationGroupPaths } from "./run-layout";
 import { TestResources } from "./test-support";
 
@@ -30,7 +27,7 @@ async function removesTheTemporaryRootWhenStoppedDuringGroupSetup(): Promise<voi
 			...dependencies,
 			runSetup: async () => {
 				await harness.stops[FIRST_STOP_REQUEST_INDEX]?.();
-				leftover = await temporaryDirectoriesWithPrefix(`rehearse-${groupId}-`);
+				leftover = await groupTemporaryRoots(groupId);
 
 				throw new Error("stopped");
 			},

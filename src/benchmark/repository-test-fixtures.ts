@@ -115,14 +115,14 @@ async function initializeHistoryRepository(path: string): Promise<void> {
 function uniqueGroupId(name: string): string {
 	return `${name}-${randomUUID()}`;
 }
-async function temporaryDirectoriesWithPrefix(
-	prefix: string,
+async function groupTemporaryRoots(
+	groupId: string,
 ): Promise<readonly string[]> {
 	const entries = await readdir(tmpdir());
-	return entries.filter((entry) => entry.startsWith(prefix));
+	return entries.filter((entry) => entry.startsWith(`rehearse-${groupId}-`));
 }
 export {
-	temporaryDirectoriesWithPrefix,
+	groupTemporaryRoots,
 	TEST_TARGET,
 	uniqueGroupId,
 	WORKFLOW_STATE_IGNORES,
