@@ -7,7 +7,10 @@ import { operatorStopped } from "./operator-stop";
 import runReplayConfirmation from "./replay-confirmation";
 import ReplayCorpusBuilder from "./replay-confirmation-corpus-test-builder";
 import ReplayConfirmationFixtureBuilder from "./replay-confirmation-fixture-builder";
-import { temporaryDirectoriesWithPrefix } from "./repository-test-fixtures";
+import {
+	temporaryDirectoriesWithPrefix,
+	uniqueGroupId,
+} from "./repository-test-fixtures";
 import { confirmationGroupPaths } from "./run-layout";
 import { TestResources } from "./test-support";
 
@@ -23,7 +26,7 @@ const deletesEveryRepWorktreeAndPrunesThemFromTheTarget =
 		const corpusRoot = await new ReplayCorpusBuilder({
 			files: [{ content: "discuss corpus\n", path: "skills/discuss/SKILL.md" }],
 		}).build(testResources);
-		const groupId = "confirmation-stopped";
+		const groupId = uniqueGroupId("confirmation-stopped");
 		let leftover: readonly string[] = ["the stop never ran"];
 
 		const { dependencies: replayDependencies, request: replayRequest } =
@@ -99,7 +102,7 @@ const removesItsWorktreesDirectoryWhenTheConfirmationBodyThrows =
 		const corpusRoot = await new ReplayCorpusBuilder({
 			files: [{ content: "discuss corpus\n", path: "skills/discuss/SKILL.md" }],
 		}).build(testResources);
-		const groupId = "confirmation-clock-failure";
+		const groupId = uniqueGroupId("confirmation-clock-failure");
 		const { dependencies: replayDependencies, request: replayRequest } =
 			harness.prepareConfirmation(
 				{

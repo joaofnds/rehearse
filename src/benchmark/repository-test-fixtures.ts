@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readdir, rename, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -111,6 +112,9 @@ async function initializeHistoryRepository(path: string): Promise<void> {
 	);
 }
 
+function uniqueGroupId(name: string): string {
+	return `${name}-${randomUUID()}`;
+}
 async function temporaryDirectoriesWithPrefix(
 	prefix: string,
 ): Promise<readonly string[]> {
@@ -120,6 +124,7 @@ async function temporaryDirectoriesWithPrefix(
 export {
 	temporaryDirectoriesWithPrefix,
 	TEST_TARGET,
+	uniqueGroupId,
 	WORKFLOW_STATE_IGNORES,
 	commitAll,
 	historyFixture,

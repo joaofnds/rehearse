@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -120,17 +120,5 @@ function repOrdinal(targetDirectory: string): number {
 	return Number(match?.groups?.["ordinal"]);
 }
 
-async function remainingConfirmationRoots(
-	groupId: string,
-): Promise<readonly string[]> {
-	const entries = await readdir(tmpdir());
-	return entries.filter((entry) => entry.startsWith(`rehearse-${groupId}-`));
-}
-
-export {
-	createPipelineHarnessResources,
-	remainingConfirmationRoots,
-	repOrdinal,
-	workspaceDependencies,
-};
+export { createPipelineHarnessResources, repOrdinal, workspaceDependencies };
 export type { ConfirmationResources, PipelineHarnessProps };

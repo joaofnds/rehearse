@@ -9,7 +9,10 @@ import {
 	PipelineConfirmationHarness,
 	SERVED_CONFIRMATION_PIPELINE,
 } from "./pipeline-confirmation-test-support";
-import { remainingConfirmationRoots } from "./pipeline-confirmation-workspace-test-fixture";
+import {
+	temporaryDirectoriesWithPrefix,
+	uniqueGroupId,
+} from "./repository-test-fixtures";
 import { confirmationGroupPaths } from "./run-layout";
 import { TestResources } from "./test-support";
 
@@ -19,7 +22,7 @@ const testResources = TestResources.forEachTest();
 
 async function removesTheTemporaryRootWhenStoppedDuringGroupSetup(): Promise<void> {
 	const harness = await PipelineConfirmationHarness.setup(testResources);
-	const groupId = "pipeline-stopped";
+	const groupId = uniqueGroupId("pipeline-stopped");
 	let leftover: readonly string[] = ["the stop never ran"];
 
 	await Promise.allSettled([
@@ -27,7 +30,7 @@ async function removesTheTemporaryRootWhenStoppedDuringGroupSetup(): Promise<voi
 			...dependencies,
 			runSetup: async () => {
 				await harness.stops[FIRST_STOP_REQUEST_INDEX]?.();
-				leftover = await remainingConfirmationRoots(groupId);
+				leftover = await temporaryDirectoriesWithPrefix(`rehearse-${groupId}-`);
 
 				throw new Error("stopped");
 			},
