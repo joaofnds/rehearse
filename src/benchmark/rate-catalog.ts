@@ -2,12 +2,7 @@ import type { ContextRateCatalog } from "./context-evidence-contract";
 import { contextRateCatalogSchema } from "./context-evidence-contract";
 
 /**
- * Removing a rate here silently unprices every request that used it, and the
- * suite defends the corpus-measured categories against drift. Provenance is
- * catalog-wide, so the 5m cache-write figure stays tier-inferred: it is 1.25x
- * the input rate, the published tier multiplier, and only claude-opus-5-5's
- * saved charges confirm it. No saved attempt on the other models writes a 5m
- * cache entry.
+ * Removing a rate here silently unprices every request that used it.
  */
 const committedRateCatalog: ContextRateCatalog = contextRateCatalogSchema.parse(
 	{
