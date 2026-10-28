@@ -9,7 +9,12 @@ interface MaintainedScope {
 	readonly repositories: readonly string[];
 }
 
-const inputs = [...inputPatterns, "**/node_modules/**", "client/dist/**"].map(
+const inputs = [
+	...inputPatterns,
+	"**/node_modules/**",
+	"client/dist/**",
+	".delta/**",
+].map(
 	(pattern) =>
 		new Bun.Glob(pattern.endsWith("/**") ? pattern : `${pattern}/**`),
 );

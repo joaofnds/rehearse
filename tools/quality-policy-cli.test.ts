@@ -26,27 +26,36 @@ it("refuses disabling formatter import organization", async () => {
 	});
 });
 
-it("accepts protected fixture inputs containing bypasses and private configurations", async () => {
-	const directory = await policyRepository(resources);
-	const marker = ["oxlint", "disable-next-line"].join("-");
-	await Bun.write(
-		join(directory, "cases/example/fixture/source.ts"),
-		`// ${marker} no-unused-vars
+it.each([
+	{ exclusion: "", inputs: "cases/example/fixture" },
+	{ exclusion: "/.delta/worktrees/\n", inputs: ".delta/worktrees/checkout" },
+	{ exclusion: "/.delta/clones/\n", inputs: ".delta/clones/checkout" },
+])(
+	"accepts protected inputs in $inputs containing bypasses and private configurations",
+	async ({ exclusion, inputs }) => {
+		const directory = await policyRepository(resources);
+		const marker = ["oxlint", "disable-next-line"].join("-");
+		await Bun.write(
+			join(directory, inputs, "source.ts"),
+			`// ${marker} no-unused-vars
 const value = 1;
 `,
-	);
-	await Bun.write(
-		join(directory, "cases/example/fixture/.oxlintrc.json"),
-		'{"rules":{"eslint/curly":"off"}}',
-	);
+		);
+		await Bun.write(
+			join(directory, inputs, ".oxlintrc.json"),
+			'{"rules":{"eslint/curly":"off"}}',
+		);
+		await Bun.write(join(directory, ".git/info/exclude"), exclusion);
 
-	const result = await runPolicy(directory);
+		const result = await runPolicy(directory);
 
-	expect(result).toEqual({ exitCode: 0, stderr: "", stdout: "" });
-});
+		expect(result).toEqual({ exitCode: 0, stderr: "", stdout: "" });
+	},
+);
 
 it.each([
 	["src/untracked.ts", "//", ""],
+	["src/.delta/untracked.ts", "//", ""],
 	["client/style.css", "/*", " */"],
 	["docs/guide.md", "<!--", " -->"],
 	["settings.toml", "#", ""],

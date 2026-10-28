@@ -115,8 +115,9 @@ board, and archived references remain outside source checks because their bytes
 are inputs or evidence. The linter's own implementation receives the same checks
 as the application. Git exclusions that match maintained source or quality
 configuration fail the policy check, including files that have not been staged,
-so formatter scans cannot silently skip them. Installed dependencies and the
-generated client build stay outside maintained source.
+so formatter scans cannot silently skip them. Installed dependencies, the
+generated client build, and everything under `.delta/`, where another tool keeps
+its own checkouts of this repository, stay outside maintained source.
 
 The oxlint configuration lists its enforced rules explicitly. Blanket category
 presets include contradictory policies, such as requiring and forbidding default
