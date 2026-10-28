@@ -20,6 +20,7 @@ import {
 	renderPage,
 	respondingWith,
 	serveHistorySequence,
+	serveRunHistory,
 } from "./run-history-page-test-harness";
 import type { RunHistoryResponse as RunHistoryResponseBody } from "./run-history-query";
 
@@ -30,8 +31,6 @@ const FUTURE_EVENT_OFFSET_MS = 1000;
 const STOPPED_EVENT_AGE_MS = 52_000;
 
 const HISTORY_REFETCH_WAIT_MS = 2500;
-
-const REQUEST_COUNT_INCREMENT = 1;
 
 const NOW = new Date("2026-09-07T00:10:00.000Z");
 
@@ -155,37 +154,33 @@ async function testCarriesTheWallTimeForwardFromTheRunSLastMeasurement(): Promis
 }
 
 async function testReReadsTheListNoFasterThanTheIdlePaceOnceNoRunIsInFlight(): Promise<void> {
-	let requests = 0;
-	const stub = async (request: string | URL | Request): Promise<Response> => {
-		const { pathname } = new URL(
-			request instanceof Request ? request.url : request,
-			"http://localhost",
-		);
-		if (pathname === "/api/run-staleness") {
-			return await Promise.resolve(Response.json({ records: {} }));
-		}
-		requests += REQUEST_COUNT_INCREMENT;
-
-		return await Promise.resolve(
-			Response.json({
-				launches: [],
-				rows: [{ ...runningRow(), progress: { state: "recorded" } }],
-				unreadable: [],
-			}),
-		);
-	};
-	stub.preconnect = fetch.preconnect;
-	globalThis.fetch = stub;
+	const server = serveRunHistory(
+		{
+			launches: [],
+			rows: [{ ...runningRow(), progress: { state: "recorded" } }],
+			unreadable: [],
+		},
+		new Map([
+			["GET /api/run-staleness", { body: { records: {} }, status: 200 }],
+			[
+				"GET /api/confirmation-archives",
+				{ body: { archived: [], unreadable: [] }, status: 200 },
+			],
+		]),
+	);
+	const listReads = (): number =>
+		server.sent.filter(({ pathname }) => pathname === "/api/run-listing")
+			.length;
 
 	renderPage();
 
 	await waitFor(() => {
 		expect(screen.getByText("2026-09-07T00-00-00.000Z")).toBeInTheDocument();
 	});
-	const afterFirstRender = requests;
+	const afterFirstRender = listReads();
 	await Bun.sleep(HISTORY_REFETCH_WAIT_MS);
 
-	expect(requests).toBe(afterFirstRender);
+	expect(listReads()).toBe(afterFirstRender);
 }
 
 registerRunHistoryTestCleanup();
