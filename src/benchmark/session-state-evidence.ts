@@ -1,8 +1,9 @@
-import { cp, lstat, mkdir, rename } from "node:fs/promises";
+import { cp, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCommand } from "./command";
 import STORED_GIT_DIRECTORY from "./git-directory-name";
+import copyPresentTree from "./present-tree-copy";
 
 const STATE_EVIDENCE_DIRECTORY = "state";
 
@@ -40,6 +41,10 @@ const NO_HOOKS_DIRECTORY = ".rehearse-no-hooks";
  * the same reason. Retention drops rather than refuses, because a session under
  * test is not a case author who can be asked to fix its tree, and one link must
  * not discard the evidence for everything else the session did.
+ *
+ * An entry that vanishes during the copy is left out rather than failing the
+ * save, because the session's last `git commit` leaves detached maintenance
+ * running in the tree, and a thrown copy loses the whole attempt's record.
  */
 async function preserveStateEvidence(
 	attemptDirectory: string,
@@ -47,18 +52,14 @@ async function preserveStateEvidence(
 ): Promise<string> {
 	const destination = join(recordDirectory, STATE_EVIDENCE_DIRECTORY);
 
-	await cp(attemptDirectory, destination, {
-		filter: async (source) => {
-			if (source === join(attemptDirectory, CORPUS_OVERLAY_DIRECTORY)) {
-				return false;
-			}
-
-			const entry = await lstat(source);
-
-			return !entry.isSymbolicLink();
-		},
-		recursive: true,
-	});
+	await copyPresentTree(
+		attemptDirectory,
+		destination,
+		async (source) =>
+			await Promise.resolve(
+				source !== join(attemptDirectory, CORPUS_OVERLAY_DIRECTORY),
+			),
+	);
 
 	const gitDirectory = join(destination, ".git");
 	if (await Bun.file(join(gitDirectory, "HEAD")).exists()) {
