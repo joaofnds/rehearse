@@ -1,37 +1,28 @@
-import { copyFile, lstat, mkdir, readdir } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+
+import { lstatIfPresent } from "./file-presence";
 
 type EntryFilter = (source: string) => Promise<boolean>;
 
-async function unlessVanished<T>(
-	operation: Promise<T>,
-): Promise<T | undefined> {
-	try {
-		return await operation;
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return undefined;
-		}
-
-		throw error;
-	}
-}
-
 /**
  * Copies the regular files and directories under `source` that `keep` accepts,
- * and treats an entry that disappears between being listed and being copied as
- * one the tree no longer holds. A process that outlives the one that wrote the
- * tree can still be changing it: a `git commit` starts `git maintenance run
- * --auto --detach` (git 2.56, GIT_TRACE2), whose `objects/maintenance.lock`
- * came and went inside a copy. `cp` has no option for this and stats
- * each entry again after its filter accepts it, so a filter that skips a
- * vanished entry narrows that window without closing it.
- *
- * Only regular files and directories are copied. A symlink, socket, or FIFO is
- * dropped, which is what `preserveStateEvidence` asks of a symlink and the
- * reason it gives.
+ * with their modes, and leaves out anything else, a symlink included. An entry
+ * whose source is gone by the time it is copied is left out too, since a
+ * process still running in the tree can remove a file after its directory was
+ * listed. `cp` cannot do that: it stats each entry again after its filter
+ * accepts it and throws on the ENOENT. Every other failure throws, and so does
+ * a missing `source`.
  */
 async function copyPresentTree(
+	source: string,
+	destination: string,
+	keep: EntryFilter,
+): Promise<void> {
+	await copyEntry(source, destination, keep);
+}
+
+async function copyPresentEntry(
 	source: string,
 	destination: string,
 	keep: EntryFilter,
@@ -40,19 +31,32 @@ async function copyPresentTree(
 		return;
 	}
 
-	const entry = await unlessVanished(lstat(source));
-	if (entry?.isDirectory() === true) {
-		const names = await unlessVanished(readdir(source));
-		if (names === undefined) {
+	try {
+		await copyEntry(source, destination, keep);
+	} catch (error) {
+		if ((await lstatIfPresent(source)) === undefined) {
 			return;
 		}
 
+		throw error;
+	}
+}
+
+async function copyEntry(
+	source: string,
+	destination: string,
+	keep: EntryFilter,
+): Promise<void> {
+	const entry = await lstat(source);
+	if (entry.isFile()) {
+		await copyFile(source, destination);
+	} else if (entry.isDirectory()) {
+		const names = await readdir(source);
 		await mkdir(destination);
 		await Array.fromAsync(names, async (name) => {
-			await copyPresentTree(join(source, name), join(destination, name), keep);
+			await copyPresentEntry(join(source, name), join(destination, name), keep);
 		});
-	} else if (entry?.isFile() === true) {
-		await unlessVanished(copyFile(source, destination));
+		await chmod(destination, entry.mode);
 	}
 }
 

@@ -40,7 +40,10 @@ const NO_HOOKS_DIRECTORY = ".rehearse-no-hooks";
  * their contents as a grade. `seedFixture` refuses a symlink on the way in for
  * the same reason. Retention drops rather than refuses, because a session under
  * test is not a case author who can be asked to fix its tree, and one link must
- * not discard the evidence for everything else the session did.
+ * not discard the evidence for everything else the session did. That holds for
+ * a link present when the copy examines its entry. A process the session left
+ * running can swap one in after that, and the copy then reads through it, as
+ * `cp` did.
  *
  * An entry that vanishes during the copy is left out rather than failing the
  * save, because the session's last `git commit` leaves detached maintenance
