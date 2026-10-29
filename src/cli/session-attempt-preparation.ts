@@ -32,6 +32,7 @@ async function prepareSessionDebugAttempt(
 
 	const corpus = await requireCorpus(
 		{
+			attemptDirectory: attemptPaths.directory,
 			corpus: config.corpus,
 			sessionCase,
 			snapshotDirectory: attemptPaths.corpusDirectory,
