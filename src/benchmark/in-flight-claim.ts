@@ -30,6 +30,23 @@ async function claimInFlight(directory: string): Promise<void> {
 	);
 }
 
+interface GroupDirectory {
+	readonly directory: string;
+	readonly inputsDirectory: string;
+}
+
+/**
+ * Every confirmation group writer opens its directory here, so the claim
+ * always comes before the inputs a reader would otherwise find unclaimed.
+ */
+async function openGroupDirectory({
+	directory,
+	inputsDirectory,
+}: GroupDirectory): Promise<void> {
+	await claimInFlight(directory);
+	await mkdir(inputsDirectory, { recursive: true });
+}
+
 /**
  * Undefined for a record written before claims existed, and for a claim
  * that does not parse, which a reader treats alike: as a record nothing
@@ -56,6 +73,6 @@ async function readInFlightClaim(
 	}
 }
 
-export { claimInFlight, readInFlightClaim };
+export { claimInFlight, openGroupDirectory, readInFlightClaim };
 
 export type { InFlightClaim };

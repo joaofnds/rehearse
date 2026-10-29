@@ -1,11 +1,10 @@
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { hashCorpusFiles } from "./corpus-file";
 import { resolveCorpusSource } from "./corpus-source";
 import type { CorpusSourceResolver } from "./corpus-source";
 import { measureCorpusVersion, measuredCorpusFiles } from "./corpus-version";
-import { claimInFlight } from "./in-flight-claim";
+import { openGroupDirectory } from "./in-flight-claim";
 import type { SessionConfirmationRequest } from "./session-confirmation-contract";
 import SessionInputFiles from "./session-confirmation-frozen-inputs";
 import type {
@@ -15,9 +14,11 @@ import type {
 import { freezeSessionCorpus } from "./session-corpus";
 import { sessionLineage } from "./session-lineage";
 
-async function openGroup(directories: SessionInputDirectories): Promise<void> {
-	await claimInFlight(directories.groupDirectory);
-	await mkdir(directories.inputsDirectory, { recursive: true });
+async function openGroup({
+	groupDirectory,
+	inputsDirectory,
+}: SessionInputDirectories): Promise<void> {
+	await openGroupDirectory({ directory: groupDirectory, inputsDirectory });
 }
 
 async function freezeInputs(

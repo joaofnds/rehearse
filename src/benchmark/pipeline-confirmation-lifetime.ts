@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { removeUntilAbsent } from "./file-presence";
-import { claimInFlight } from "./in-flight-claim";
+import { openGroupDirectory } from "./in-flight-claim";
 import { operatorStopRecord } from "./operator-stop";
 import type { PipelineConfirmationDependencies } from "./pipeline-confirmation-dependencies";
 import type { PipelineConfirmationRequest } from "./pipeline-confirmation-request";
@@ -69,8 +69,7 @@ async function openPipelineConfirmationLifetime(
 ): Promise<PipelineConfirmationLifetime> {
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
 
-	await claimInFlight(paths.directory);
-	await mkdir(paths.inputsDirectory, { recursive: true });
+	await openGroupDirectory(paths);
 
 	// The provider names a session's transcript after its real working path.
 	const temporaryDirectory = await mkdtemp(
