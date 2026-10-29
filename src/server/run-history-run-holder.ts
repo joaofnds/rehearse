@@ -1,6 +1,7 @@
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLocation } from "#benchmark/run-layout";
 import { claimingRun, targetMarker } from "#benchmark/run-liveness";
+import claimHolder from "#server/run-history-claim-holder";
 import type { RunRowLiveness } from "#server/run-history-contract";
 
 /**
@@ -26,16 +27,9 @@ async function heldBy(
 		return undefined;
 	}
 
-	const launch = launchByPid.get(marker.pid);
-	if (launch?.kind !== "case") {
-		return undefined;
-	}
+	const launch = claimHolder(marker, launchByPid);
 
-	if (Date.parse(launch.launchedAt) > Date.parse(marker.startedAt)) {
-		return undefined;
-	}
-
-	return launch.id;
+	return launch?.kind === "case" ? launch.id : undefined;
 }
 
 export { heldBy as default };
