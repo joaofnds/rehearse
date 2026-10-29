@@ -1,25 +1,47 @@
 import { randomUUID } from "node:crypto";
 
-import type { HashedFile } from "#benchmark/checkpoint";
 import type { SessionSettings } from "#benchmark/claude";
-import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
+import { claimInFlight } from "#benchmark/in-flight-claim";
 import type { SessionAttemptPaths } from "#benchmark/session-attempt-layout";
 import { sessionAttemptPaths } from "#benchmark/session-attempt-layout";
 import { claimShortId } from "#benchmark/short-id";
 
 import type { AttemptCorpus } from "./session-attempt-corpus";
-import requireCorpus from "./session-attempt-corpus";
+import requireCorpus, { resolveSessionCorpus } from "./session-attempt-corpus";
 import { lineageOf, settingsOf } from "./session-attempt-lineage";
 import measureAttemptCorpus from "./session-attempt-version-files";
+import type { AttemptCorpusMeasurement } from "./session-attempt-version-files";
 import type { SessionRunRequest } from "./session-run-contract";
 
-interface PreparedSessionDebugAttempt {
+interface PreparedSessionDebugAttempt extends AttemptCorpusMeasurement {
 	readonly attemptPaths: SessionAttemptPaths;
 	readonly corpus: AttemptCorpus;
-	readonly corpusVersion: CorpusMeasurement;
 	readonly lineage: string;
 	readonly settings: SessionSettings;
-	readonly versionFiles: readonly HashedFile[];
+}
+
+/**
+ * The attempt is claimed once its corpus resolves, so a corpus that does not
+ * resolve leaves no attempt directory, and before its snapshot is written.
+ */
+async function claimedCorpus(
+	request: SessionRunRequest,
+	attemptPaths: SessionAttemptPaths,
+): Promise<AttemptCorpus> {
+	const source = await resolveSessionCorpus(
+		request.config.corpus,
+		request.resolveCorpus,
+	);
+
+	await claimInFlight(attemptPaths.directory);
+
+	return await requireCorpus(
+		{
+			sessionCase: request.sessionCase,
+			snapshotDirectory: attemptPaths.corpusDirectory,
+		},
+		source,
+	);
 }
 
 async function prepareSessionDebugAttempt(
@@ -30,15 +52,7 @@ async function prepareSessionDebugAttempt(
 	const attemptId = { caseId: sessionCase.declaration.id, uuid: randomUUID() };
 	const attemptPaths = sessionAttemptPaths(request.runsDirectory, attemptId);
 
-	const corpus = await requireCorpus(
-		{
-			attemptDirectory: attemptPaths.directory,
-			corpus: config.corpus,
-			sessionCase,
-			snapshotDirectory: attemptPaths.corpusDirectory,
-		},
-		request.resolveCorpus,
-	);
+	const corpus = await claimedCorpus(request, attemptPaths);
 
 	const { corpusVersion, versionFiles } = await measureAttemptCorpus(
 		request,

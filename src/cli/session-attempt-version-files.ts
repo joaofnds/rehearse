@@ -66,3 +66,5 @@ async function measureAttemptCorpus(
 }
 
 export { measureAttemptCorpus as default };
+
+export type { AttemptCorpusMeasurement };
