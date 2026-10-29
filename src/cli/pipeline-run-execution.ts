@@ -57,7 +57,10 @@ async function executeRun({
 	try {
 		const outcome = await executeBenchmark(
 			config,
-			benchmarkCase.pipeline.stages.length,
+			{
+				spendCeilingUsd,
+				stageCount: benchmarkCase.pipeline.stages.length,
+			},
 			{
 				approval: {
 					output: diagnosticWriter(output),

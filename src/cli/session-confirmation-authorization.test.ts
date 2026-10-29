@@ -31,6 +31,8 @@ class SessionCommandEvents {
 	}
 }
 
+const STORED_SPEND_CEILING_BELOW_THE_SESSION_BUDGET_USD = 0.15;
+
 const testResources = TestResources.forEachTest();
 
 async function readConfirmationGroup(
@@ -78,7 +80,7 @@ async function approvesTheWholeConfirmedCommandBeforeTheModelProbe(): Promise<vo
 	expect(
 		events.values().slice(PREFIX_START_INDEX, DEBUG_EXECUTION_EVENT_COUNT),
 	).toEqual([
-		"output:Projected budget: $0.50 ($0.10 preflight + 2 reps x $0.20). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		"output:Projected budget: $0.50 ($0.10 preflight + 2 reps x $0.20). Ceiling $100.00 per attempt, $200.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		"probe",
 		"rep:1",
 		"rep:2",
@@ -90,6 +92,50 @@ async function approvesTheWholeConfirmedCommandBeforeTheModelProbe(): Promise<vo
 		preflightMaximumUsd: 0.1,
 		reps: 2,
 		totalMaximumUsd: 0.5,
+	});
+}
+
+async function holdsEachAttemptToAStoredSpendCeilingBelowItsSessionBudget(): Promise<void> {
+	const { output } = recordOutput();
+	const runsDirectory = await testResources.createControlDirectory();
+	const events = new SessionCommandEvents();
+	const dependencies = {
+		...observedConfirmationDependencies({
+			events,
+			executeSession: async (execution, boundary) =>
+				await executeSessionRun(execution, {
+					...boundary,
+					executeAttempt: recordSuccessfulSessionAttempt,
+					runDebug: async () =>
+						await Promise.reject(new Error("debug attempt must not start")),
+					runsDirectory,
+				}),
+			output,
+		}),
+		requireSpendCeiling: async () =>
+			await Promise.resolve(STORED_SPEND_CEILING_BELOW_THE_SESSION_BUDGET_USD),
+	};
+
+	await runRunCommand(
+		new SessionRequestBuilder({}, [
+			"--confirm",
+			"--reps",
+			"2",
+			"--yes",
+		]).build(),
+		dependencies,
+	);
+
+	expect(events.values()[PREFIX_START_INDEX]).toBe(
+		"output:Projected budget: $0.40 ($0.10 preflight + 2 reps x $0.15). Ceiling $0.15 per attempt, $0.30 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
+	);
+	const group = await readConfirmationGroup(runsDirectory);
+
+	expect(group.projectedCost).toEqual({
+		perRepMaximumUsd: 0.15,
+		preflightMaximumUsd: 0.1,
+		reps: 2,
+		totalMaximumUsd: 0.4,
 	});
 }
 
@@ -144,6 +190,10 @@ describe("runRunCommand for a session case", () => {
 	it(
 		"approves the whole confirmed command before the model probe and reps",
 		approvesTheWholeConfirmedCommandBeforeTheModelProbe,
+	);
+	it(
+		"holds each attempt to a stored spend ceiling below its session budget",
+		holdsEachAttemptToAStoredSpendCeilingBelowItsSessionBudget,
 	);
 	it(
 		"halts before the session attempt when the declared model is not available",

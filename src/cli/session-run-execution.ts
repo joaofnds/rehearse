@@ -54,6 +54,7 @@ async function executeSessionRun(
 		projectCost: attempts.projectCost,
 		runConfirmed: attempts.runConfirmed,
 		runDebug: attempts.runDebug,
+		spendCeilingUsd: dependencies.spendCeilingUsd,
 	}).finally(() => {
 		lifetime.close();
 	});

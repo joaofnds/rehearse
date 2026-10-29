@@ -42,6 +42,7 @@ class SessionCommandAttempts {
 				this.context.execution.config.confirmation?.reps ??
 				SINGLE_EXECUTION_REP_COUNT,
 			sessionBudgetUsd: this.context.execution.config.sessionBudgetUsd,
+			spendCeilingUsd: this.context.dependencies.spendCeilingUsd,
 		});
 	public readonly runConfirmed = async (
 		projectedCost: ConfirmationCostProjection,

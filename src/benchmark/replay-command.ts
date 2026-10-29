@@ -49,6 +49,7 @@ async function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 				mode: "stage",
 				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: request.sessionBudgetUsd,
+				spendCeilingUsd: request.spendCeilingUsd,
 			}),
 		runConfirmed: async (projectedCost) => {
 			if (confirmation === undefined) {
@@ -72,6 +73,7 @@ async function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 			evidence: await dependencies.runDebug(request),
 			kind: "debug" as const,
 		}),
+		spendCeilingUsd: request.spendCeilingUsd,
 	});
 }
 

@@ -14,6 +14,11 @@ type BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence> =
 	| { readonly kind: "debug"; readonly evidence: DebugEvidence }
 	| { readonly kind: "confirmation"; readonly evidence: ConfirmationEvidence };
 
+interface BenchmarkExecutionRequest {
+	readonly stageCount: number;
+	readonly spendCeilingUsd: number;
+}
+
 interface BenchmarkExecutionDependencies<DebugEvidence, ConfirmationEvidence> {
 	readonly approval: {
 		readonly output: (message: string) => void;
@@ -27,7 +32,7 @@ interface BenchmarkExecutionDependencies<DebugEvidence, ConfirmationEvidence> {
 
 async function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 	config: BenchmarkConfig,
-	stageCount: number,
+	request: BenchmarkExecutionRequest,
 	dependencies: BenchmarkExecutionDependencies<
 		DebugEvidence,
 		ConfirmationEvidence
@@ -45,7 +50,8 @@ async function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 				mode: "pipeline",
 				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: config.sessionBudgetUsd,
-				stages: stageCount,
+				spendCeilingUsd: request.spendCeilingUsd,
+				stages: request.stageCount,
 			}),
 		runConfirmed: async (projectedCost) => {
 			if (confirmation === undefined) {
@@ -65,6 +71,7 @@ async function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 			evidence: await dependencies.runDebug(),
 			kind: "debug" as const,
 		}),
+		spendCeilingUsd: request.spendCeilingUsd,
 	});
 }
 
@@ -72,5 +79,6 @@ export { executeBenchmark as default };
 export type {
 	BenchmarkConfirmationExecution,
 	BenchmarkExecutionOutcome,
+	BenchmarkExecutionRequest,
 	BenchmarkExecutionDependencies,
 };

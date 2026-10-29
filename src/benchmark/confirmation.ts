@@ -2,6 +2,7 @@ import type { ConfirmationConfig } from "./config";
 import { unhandled } from "./contracts";
 import { MAX_JUDGE_ATTEMPTS } from "./judge-attempt";
 import { MODEL_PREFLIGHT_MAXIMUM_USD } from "./model-preflight";
+import { groupSpendCeilingUsd } from "./spend-ceiling";
 
 const SESSION_CASE_PROVIDER_CALL_COUNT = 1;
 const STAGE_PRE_JUDGE_SESSION_COUNT = 2;
@@ -19,17 +20,20 @@ type ConfirmationCostRequest =
 			readonly mode: "stage";
 			readonly reps: number;
 			readonly sessionBudgetUsd: number;
+			readonly spendCeilingUsd: number;
 	  }
 	| {
 			readonly mode: "session";
 			readonly reps: number;
 			readonly sessionBudgetUsd: number;
+			readonly spendCeilingUsd: number;
 	  }
 	| {
 			readonly mode: "pipeline";
 			readonly reps: number;
 			readonly stages: number;
 			readonly sessionBudgetUsd: number;
+			readonly spendCeilingUsd: number;
 	  };
 
 interface ConfirmationCostProjection {
@@ -69,7 +73,10 @@ function projectConfirmationCost(
 	request: ConfirmationCostRequest,
 ): ConfirmationCostProjection {
 	const sessionsPerRep = sessionsPerRepFor(request);
-	const perRepMaximumUsd = sessionsPerRep * request.sessionBudgetUsd;
+	const perRepMaximumUsd = Math.min(
+		sessionsPerRep * request.sessionBudgetUsd,
+		request.spendCeilingUsd,
+	);
 	if (request.mode === "session") {
 		return {
 			perRepMaximumUsd,
@@ -91,14 +98,28 @@ function projectConfirmationCost(
 	};
 }
 
-function formatProjectedCost(projection: ConfirmationCostProjection): string {
+function formatProjectedCost(
+	projection: ConfirmationCostProjection,
+	spendCeilingUsd: number,
+): string {
+	const groupCeilingUsd = groupSpendCeilingUsd({
+		reps: projection.reps,
+		spendCeilingUsd,
+	});
+	const ceilingHolds = `Ceiling $${spendCeilingUsd.toFixed(USD_FRACTION_DIGITS)} per attempt, $${groupCeilingUsd.toFixed(USD_FRACTION_DIGITS)} for the group of ${String(projection.reps)}`;
 	const repBudgets = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(USD_FRACTION_DIGITS)}`;
 	const breakdown =
 		projection.preflightMaximumUsd === undefined
 			? repBudgets
 			: `$${projection.preflightMaximumUsd.toFixed(USD_FRACTION_DIGITS)} preflight + ${repBudgets}`;
 
-	return `Projected budget: $${projection.totalMaximumUsd.toFixed(USD_FRACTION_DIGITS)} (${breakdown}). A session stops only after the call that crosses its budget, so the charge can exceed this.`;
+	return `Projected budget: $${projection.totalMaximumUsd.toFixed(USD_FRACTION_DIGITS)} (${breakdown}). ${ceilingHolds}. A session stops only after the call that crosses its budget, so the charge can exceed this.`;
+}
+
+interface ConfirmationApprovalRequest {
+	readonly projection: ConfirmationCostProjection;
+	readonly spendCeilingUsd: number;
+	readonly approved: boolean;
 }
 
 interface ConfirmationApprovalIO {
@@ -107,11 +128,10 @@ interface ConfirmationApprovalIO {
 }
 
 async function requireConfirmationApproval(
-	projection: ConfirmationCostProjection,
-	approved: boolean,
+	{ projection, spendCeilingUsd, approved }: ConfirmationApprovalRequest,
 	io: ConfirmationApprovalIO,
 ): Promise<void> {
-	io.output(formatProjectedCost(projection));
+	io.output(formatProjectedCost(projection, spendCeilingUsd));
 	if (approved) {
 		return;
 	}
@@ -126,6 +146,7 @@ async function requireConfirmationApproval(
 interface RequestedExecution<Result> {
 	readonly confirmation: ConfirmationConfig | undefined;
 	readonly projectCost: () => ConfirmationCostProjection;
+	readonly spendCeilingUsd: number;
 	readonly approval: ConfirmationApprovalIO;
 	readonly runDebug: () => Promise<Result>;
 	readonly runConfirmed: (
@@ -144,8 +165,11 @@ async function runRequestedExecution<Result>(
 
 	const projection = execution.projectCost();
 	await requireConfirmationApproval(
-		projection,
-		execution.confirmation.approval !== "interactive",
+		{
+			approved: execution.confirmation.approval !== "interactive",
+			projection,
+			spendCeilingUsd: execution.spendCeilingUsd,
+		},
 		execution.approval,
 	);
 
@@ -218,6 +242,7 @@ export {
 export type {
 	ConfirmationCostRequest,
 	ConfirmationCostProjection,
+	ConfirmationApprovalRequest,
 	ConfirmationApprovalIO,
 	RequestedExecution,
 	ConfirmationPlan,

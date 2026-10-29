@@ -30,6 +30,7 @@ const runRequestedExecutionLabelsAndRunsOneDebugRepWhenConfirmationIsAbsent =
 				return await Promise.resolve("confirmation result");
 			},
 			runDebug: async () => await Promise.resolve("debug result"),
+			spendCeilingUsd: 100,
 		});
 
 		expect(result).toBe("debug result");
@@ -62,11 +63,12 @@ const runRequestedExecutionStartsConfirmationOnlyAfterProjectedCostApproval =
 				return await Promise.resolve("confirmation result");
 			},
 			runDebug: async () => await Promise.resolve("debug result"),
+			spendCeilingUsd: 100,
 		});
 
 		expect(result).toBe("confirmation result");
 		expect(events).toEqual([
-			"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+			"output:Projected budget: $60.00 (3 reps x $20.00). Ceiling $100.00 per attempt, $300.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt",
 			"start",
 		]);

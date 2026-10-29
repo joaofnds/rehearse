@@ -10,21 +10,27 @@ import { PROJECT_ROOT } from "./test-support";
 
 const BENCHMARK_STAGE_COUNT = 2;
 
+const SPEND_CEILING_USD = 100;
+
 const runsOneDebugBenchmark = async (): Promise<void> => {
 	const config = new BenchmarkRequestBuilder().build();
 	const debugOutput: string[] = [];
 
-	const debug = await executeBenchmark(config, BENCHMARK_STAGE_COUNT, {
-		approval: {
-			output: (message) => {
-				debugOutput.push(message);
+	const debug = await executeBenchmark(
+		config,
+		{ spendCeilingUsd: SPEND_CEILING_USD, stageCount: BENCHMARK_STAGE_COUNT },
+		{
+			approval: {
+				output: (message) => {
+					debugOutput.push(message);
+				},
+				prompt: async () => await Promise.resolve("no"),
 			},
-			prompt: async () => await Promise.resolve("no"),
+			runConfirmed: async () =>
+				await Promise.reject(new Error("confirmation must not run")),
+			runDebug: async () => await Promise.resolve({ judge: "PASS" }),
 		},
-		runConfirmed: async () =>
-			await Promise.reject(new Error("confirmation must not run")),
-		runDebug: async () => await Promise.resolve({ judge: "PASS" }),
-	});
+	);
 
 	expect(debugOutput).toEqual(["single-rep evidence, not a score"]);
 	expect(debug).toEqual({ evidence: { judge: "PASS" }, kind: "debug" });
@@ -36,13 +42,13 @@ const gatesConfirmedBenchmarkOnApproval = async (): Promise<void> => {
 		new BenchmarkRequestBuilder({
 			confirmation: { approval: "interactive", reps: 3 },
 		}).build(),
-		BENCHMARK_STAGE_COUNT,
+		{ spendCeilingUsd: SPEND_CEILING_USD, stageCount: BENCHMARK_STAGE_COUNT },
 		probe.dependencies(),
 	);
 
 	expect(probe.confirmations).toEqual([]);
 	expect(probe.events).toEqual([
-		"output:Projected budget: $135.00 (3 reps x $45.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		"output:Projected budget: $135.00 (3 reps x $45.00). Ceiling $100.00 per attempt, $300.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		"prompt:Start confirmation? [y/N] ",
 	]);
 	probe.approval.resolve("yes");
@@ -62,6 +68,33 @@ const gatesConfirmedBenchmarkOnApproval = async (): Promise<void> => {
 		},
 	]);
 };
+
+const holdsEachPipelineRepToAStoredSpendCeilingBelowItsSessionBudgets =
+	async (): Promise<void> => {
+		const probe = new BenchmarkConfirmationProbe();
+
+		const execution = executeBenchmark(
+			new BenchmarkRequestBuilder({
+				confirmation: { approval: "interactive", reps: 3 },
+			}).build(),
+			{ spendCeilingUsd: 20, stageCount: BENCHMARK_STAGE_COUNT },
+			probe.dependencies(),
+		);
+		probe.approval.resolve("yes");
+		await execution;
+
+		const [approvalLine] = probe.events;
+		expect(approvalLine).toBe(
+			"output:Projected budget: $60.00 (3 reps x $20.00). Ceiling $20.00 per attempt, $60.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		);
+		expect(probe.confirmations).toEqual([
+			{
+				approvalMethod: "interactive",
+				projectedCost: { perRepMaximumUsd: 20, reps: 3, totalMaximumUsd: 60 },
+				reps: 3,
+			},
+		]);
+	};
 
 const executeBenchmarkRefusesTheProductionCLIBeforeTargetAccessWhenStdinIsNotATerminal =
 	async (): Promise<void> => {
@@ -108,6 +141,11 @@ describe(executeBenchmark.name, () => {
 	it(
 		"gates three pipeline reps on approval",
 		gatesConfirmedBenchmarkOnApproval,
+	);
+
+	it(
+		"holds each pipeline rep to a stored spend ceiling below its session budgets",
+		holdsEachPipelineRepToAStoredSpendCeilingBelowItsSessionBudgets,
 	);
 
 	it(

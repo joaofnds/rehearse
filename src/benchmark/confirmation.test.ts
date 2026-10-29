@@ -8,12 +8,15 @@ import {
 
 const PROMPT_COUNT_INCREMENT = 1;
 
+const SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD = 100;
+
 const projectConfirmationCostProjectsASessionGroupAsOnePreflightPlusEveryRequestedRep =
 	(): void => {
 		const projection = projectConfirmationCost({
 			mode: "session",
 			reps: 3,
 			sessionBudgetUsd: 0.2,
+			spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 		});
 
 		expect(projection).toEqual({
@@ -32,10 +35,12 @@ const projectConfirmationCostPrintsASessionGroupsProjectionAsABudgetTheChargeCan
 					mode: "session",
 					reps: 3,
 					sessionBudgetUsd: 0.2,
+					spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 				}),
+				SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 			),
 		).toBe(
-			"Projected budget: $0.70 ($0.10 preflight + 3 reps x $0.20). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+			"Projected budget: $0.70 ($0.10 preflight + 3 reps x $0.20). Ceiling $100.00 per attempt, $300.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		);
 	};
 
@@ -45,11 +50,13 @@ const projectConfirmationCostProjectsEverySessionAtItsBudgetBeforeAConfirmation 
 			mode: "stage",
 			reps: 5,
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 		});
 		const pipeline = projectConfirmationCost({
 			mode: "pipeline",
 			reps: 5,
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 			stages: 4,
 		});
 
@@ -63,8 +70,50 @@ const projectConfirmationCostProjectsEverySessionAtItsBudgetBeforeAConfirmation 
 			reps: 5,
 			totalMaximumUsd: 375,
 		});
-		expect(formatProjectedCost(replay)).toBe(
-			"Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		expect(
+			formatProjectedCost(replay, SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD),
+		).toBe(
+			"Projected budget: $100.00 (5 reps x $20.00). Ceiling $100.00 per attempt, $500.00 for the group of 5. A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		);
+	};
+
+const projectConfirmationCostHoldsEachRepToTheStoredSpendCeilingBelowItsSessionBudgets =
+	(): void => {
+		const request = {
+			mode: "stage",
+			reps: 2,
+			sessionBudgetUsd: 10,
+			spendCeilingUsd: 6,
+		} as const;
+
+		const projection = projectConfirmationCost(request);
+
+		expect(projection).toEqual({
+			perRepMaximumUsd: 6,
+			reps: 2,
+			totalMaximumUsd: 12,
+		});
+		expect(formatProjectedCost(projection, request.spendCeilingUsd)).toBe(
+			"Projected budget: $12.00 (2 reps x $6.00). Ceiling $6.00 per attempt, $12.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		);
+	};
+
+const projectConfirmationCostNamesTheStoredSpendCeilingAboveTheSessionBudgetsTheProjectionHolds =
+	(): void => {
+		const request = {
+			mode: "stage",
+			reps: 2,
+			sessionBudgetUsd: 10,
+			spendCeilingUsd: 50,
+		} as const;
+
+		const line = formatProjectedCost(
+			projectConfirmationCost(request),
+			request.spendCeilingUsd,
+		);
+
+		expect(line).toBe(
+			"Projected budget: $80.00 (2 reps x $40.00). Ceiling $50.00 per attempt, $100.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		);
 	};
 
@@ -74,11 +123,14 @@ const requireConfirmationApprovalShowsTheProjectedBudgetBeforePromptingForApprov
 
 		await requireConfirmationApproval(
 			{
-				perRepMaximumUsd: 20,
-				reps: 5,
-				totalMaximumUsd: 100,
+				approved: false,
+				projection: {
+					perRepMaximumUsd: 20,
+					reps: 5,
+					totalMaximumUsd: 100,
+				},
+				spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 			},
-			false,
 			{
 				output: (message) => {
 					events.push(`output: ${message}`);
@@ -91,7 +143,7 @@ const requireConfirmationApprovalShowsTheProjectedBudgetBeforePromptingForApprov
 		);
 
 		expect(events).toEqual([
-			"output: Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+			"output: Projected budget: $100.00 (5 reps x $20.00). Ceiling $100.00 per attempt, $500.00 for the group of 5. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt: Start confirmation? [y/N] ",
 		]);
 	};
@@ -101,15 +153,18 @@ const requireConfirmationApprovalStopsWhenInteractiveApprovalIsDeclined =
 		expect(
 			requireConfirmationApproval(
 				{
-					perRepMaximumUsd: 4,
-					reps: 2,
-					totalMaximumUsd: 8,
+					approved: false,
+					projection: {
+						perRepMaximumUsd: 4,
+						reps: 2,
+						totalMaximumUsd: 8,
+					},
+					spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 				},
-				false,
 				{
 					output: (message) => {
 						expect(message).toBe(
-							"Projected budget: $8.00 (2 reps x $4.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+							"Projected budget: $8.00 (2 reps x $4.00). Ceiling $100.00 per attempt, $200.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 						);
 					},
 					prompt: async () => await Promise.resolve("no"),
@@ -126,15 +181,18 @@ const requireConfirmationApprovalUsesNoninteractiveApprovalWithoutPrompting =
 
 		await requireConfirmationApproval(
 			{
-				perRepMaximumUsd: 4,
-				reps: 2,
-				totalMaximumUsd: 8,
+				approved: true,
+				projection: {
+					perRepMaximumUsd: 4,
+					reps: 2,
+					totalMaximumUsd: 8,
+				},
+				spendCeilingUsd: SPEND_CEILING_ABOVE_EVERY_SESSION_BUDGET_USD,
 			},
-			true,
 			{
 				output: (message) => {
 					expect(message).toBe(
-						"Projected budget: $8.00 (2 reps x $4.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+						"Projected budget: $8.00 (2 reps x $4.00). Ceiling $100.00 per attempt, $200.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 					);
 				},
 				prompt: async () => {
@@ -161,6 +219,16 @@ describe(projectConfirmationCost.name, () => {
 	it(
 		"projects every session at its budget before a confirmation",
 		projectConfirmationCostProjectsEverySessionAtItsBudgetBeforeAConfirmation,
+	);
+
+	it(
+		"holds each rep to the stored spend ceiling below its session budgets",
+		projectConfirmationCostHoldsEachRepToTheStoredSpendCeilingBelowItsSessionBudgets,
+	);
+
+	it(
+		"names the stored spend ceiling above the session budgets the projection holds",
+		projectConfirmationCostNamesTheStoredSpendCeilingAboveTheSessionBudgetsTheProjectionHolds,
 	);
 });
 

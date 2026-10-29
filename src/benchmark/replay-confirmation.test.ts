@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import { projectConfirmationCost } from "./confirmation";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import runReplayConfirmation from "./replay-confirmation";
 import ReplayCorpusBuilder from "./replay-confirmation-corpus-test-builder";
@@ -48,6 +49,40 @@ const recordsOnTheGroupTheSpendCeilingEachRepRan = async (): Promise<void> => {
 		"b25ff2734c2cb07c17a2f4d3d2b3e9813e06f35402137c034945669b18298711",
 	);
 };
+
+const recordsTheCeilingHeldProjectionWithNoKeyBeyondTheProjection =
+	async (): Promise<void> => {
+		const { harness, run } = await new ReplayConfirmationFixtureBuilder().build(
+			testResources,
+		);
+		const corpusRoot = await new ReplayCorpusBuilder().build(testResources);
+		const ceiling = { reps: 2, sessionBudgetUsd: 5, spendCeilingUsd: 6 };
+		const { dependencies: replayDependencies, request: replayRequest } =
+			harness.prepareConfirmation(
+				{
+					corpusRoots: [{ kind: "directory", root: corpusRoot }],
+					paths: run.paths,
+				},
+				{
+					...ceiling,
+					projectedCost: projectConfirmationCost({ ...ceiling, mode: "stage" }),
+				},
+			);
+
+		const outcome = await runReplayConfirmation(
+			replayDependencies,
+			replayRequest,
+		);
+
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		expect(group.projectedCost).toEqual({
+			perRepMaximumUsd: 6,
+			reps: 2,
+			totalMaximumUsd: 12,
+		});
+	};
 
 const recordsOnTheGroupTheInstantItsRepsStarted = async (): Promise<void> => {
 	const { harness, run } = await new ReplayConfirmationFixtureBuilder().build(
@@ -130,6 +165,11 @@ const claimsTheGroupAShortIdInItsSourceRuns = async (): Promise<void> => {
 
 describe(runReplayConfirmation.name, () => {
 	describe("group records", () => {
+		it(
+			"records the ceiling-held projection with no key beyond the projection",
+			recordsTheCeilingHeldProjectionWithNoKeyBeyondTheProjection,
+		);
+
 		it(
 			"records on the group the spend ceiling each rep ran under",
 			recordsOnTheGroupTheSpendCeilingEachRepRan,

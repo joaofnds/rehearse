@@ -71,7 +71,7 @@ const waitsForProjectedCostApproval = async (): Promise<void> => {
 
 	expect(fake.confirmations).toEqual([]);
 	expect(fake.events).toEqual([
-		"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		"output:Projected budget: $60.00 (3 reps x $20.00). Ceiling $100.00 per attempt, $300.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		"prompt:Start confirmation? [y/N] ",
 	]);
 	fake.approval.resolve("yes");
@@ -81,7 +81,7 @@ const waitsForProjectedCostApproval = async (): Promise<void> => {
 		kind: "confirmation",
 	});
 	expect(fake.events).toEqual([
-		"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		"output:Projected budget: $60.00 (3 reps x $20.00). Ceiling $100.00 per attempt, $300.00 for the group of 3. A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		"prompt:Start confirmation? [y/N] ",
 		"start:3",
 	]);
@@ -101,6 +101,35 @@ const waitsForProjectedCostApproval = async (): Promise<void> => {
 		},
 	]);
 };
+const holdsEachReplayRepToAStoredSpendCeilingBelowItsSessionBudgets =
+	async (): Promise<void> => {
+		const fake = new ReplayConfirmationApproval();
+		const replayRequest = new ReplayRequestBuilder({
+			spendCeilingUsd: 6,
+		}).build(benchmarkRunPaths("/runs", "run"));
+
+		const execution = executeReplayStage(
+			{
+				confirmation: { approval: "interactive", reps: 2 },
+				stageSkill: "installed",
+			},
+			replayRequest,
+			fake.dependencies,
+		);
+		fake.approval.resolve("yes");
+		await execution;
+
+		const [approvalLine] = fake.events;
+		const [confirmation] = fake.confirmations;
+		expect(approvalLine).toBe(
+			"output:Projected budget: $12.00 (2 reps x $6.00). Ceiling $6.00 per attempt, $12.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		);
+		expect(confirmation?.projectedCost).toEqual({
+			perRepMaximumUsd: 6,
+			reps: 2,
+			totalMaximumUsd: 12,
+		});
+	};
 const refusesAnUnrecordedRun = async (): Promise<void> => {
 	const expectedExitCode = 0;
 
@@ -146,6 +175,11 @@ describe(executeReplayStage.name, () => {
 	it(
 		"gets projected-cost approval before starting three confirmation reps",
 		waitsForProjectedCostApproval,
+	);
+
+	it(
+		"holds each replay rep to a stored spend ceiling below its session budgets",
+		holdsEachReplayRepToAStoredSpendCeilingBelowItsSessionBudgets,
 	);
 
 	/**

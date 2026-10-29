@@ -84,8 +84,11 @@ fresh session cases do not need the check.
 
 The session budget applies to each workflow session, the shared PO session, and
 each Judge invocation on its own, not to the whole run. Confirmation projects
-rep costs from those budgets; session confirmation includes the probe
-allowance in its projection. A projection is a sum of budgets, not a cap:
+rep costs from those budgets and holds each rep to the stored spend ceiling
+where the ceiling is lower; session confirmation includes the probe allowance
+in its projection. The approval line also names the ceiling per attempt and
+the group's ceiling, the figures the browser's launch dialog states for the
+same group. A projection is a sum of budgets, not a cap:
 Claude Code stops a session only after the call that crosses its budget, and
 that call is charged in full. Stage/pipeline projections do not include that
 probe allowance. Calibration rejudges are additional calls.

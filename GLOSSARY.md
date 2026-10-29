@@ -731,7 +731,8 @@ See [current state](docs/status.md) for implementation coverage and
   reaches it.
 - **Projected budget**: the spend the CLI states for the operator to approve
   before a confirmation group's attempts start, from the budgets its sessions
-  start with. A session case's figure adds its model probe allowance. Not a
+  start with, each attempt held to the stored spend ceiling where that is
+  lower. A session case's figure adds its model probe allowance. Not a
   cap: each session can overrun its budget by the call that crosses it, so the
   charge can exceed it. Distinct from the group ceiling, which bounds what the
   attempts may spend.
