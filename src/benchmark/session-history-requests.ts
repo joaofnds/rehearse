@@ -97,9 +97,17 @@ function seriesFromRows(
 ): SessionHistoryRequestSeries {
 	const boundary = prefixLinesExcluded === undefined ? "unknown" : "known";
 	const entries = collapsedEntries(rows, prefixLinesExcluded);
+	const unreadable = unreadableLines.map((line) => ({
+		line,
+		region: regionFor(line, prefixLinesExcluded),
+	}));
 
 	return {
-		attemptTotals: attemptTotals(entries, boundary, transcriptState),
+		attemptTotals: attemptTotals(
+			{ entries, unreadableLines: unreadable },
+			boundary,
+			transcriptState,
+		),
 		boundary,
 		compactions: compactionRows.map((compaction) => ({
 			line: compaction.line,
@@ -111,10 +119,7 @@ function seriesFromRows(
 		name: "total input tokens",
 		omits: TOTAL_INPUT_TOKENS_OMITS,
 		transcriptState,
-		unreadableLines: unreadableLines.map((line) => ({
-			line,
-			region: regionFor(line, prefixLinesExcluded),
-		})),
+		unreadableLines: unreadable,
 	};
 }
 

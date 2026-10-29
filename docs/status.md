@@ -225,7 +225,8 @@ links no attempt history, since its attempts record no session.
   cost and the difference as incomplete, with that sub-agent named. An attempt
   line of a kept transcript that cannot be read as a record or a well-formed
   model response does the same, naming the agent and line, and a root line
-  also leaves the root's own reading incomplete. Load reason,
+  also leaves the root's own reading and the attempt's token totals
+  incomplete. Load reason,
   trigger, and include parent stay unavailable, because a transcript does not
   record them. The
   harness can also normalize a supplied provider capture into request usage,

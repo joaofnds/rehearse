@@ -4,7 +4,10 @@ import {
 	sessionHistoryAttemptCost,
 	sessionHistoryRequestSeries,
 } from "#benchmark/session-history";
-import type { SessionHistoryCostReading } from "#benchmark/session-history";
+import type {
+	SessionHistoryCostReading,
+	SessionHistoryRequestSeries,
+} from "#benchmark/session-history";
 
 import {
 	INHERITED_REQUEST_PREFIX_LINES,
@@ -56,6 +59,49 @@ function ignoresUnreadablePrefixLine(): void {
 		state: "complete",
 	});
 }
+
+function attemptTotalsOf(
+	transcript: readonly string[],
+): SessionHistoryRequestSeries["attemptTotals"] {
+	return sessionHistoryRequestSeries({
+		prefixLinesExcluded: INHERITED_REQUEST_PREFIX_LINES,
+		transcript: transcript.join("\n"),
+	}).attemptTotals;
+}
+
+function readsAttemptTotalsIncomplete(): void {
+	const totals = attemptTotalsOf([
+		pricedTranscript,
+		'{"type":"assistant","requestId":"req-cut',
+	]);
+
+	expect(totals).toMatchObject({
+		countedRequestCount: 1,
+		reasons: ["the attempt transcript's line 3 cannot be read"],
+		requestCount: 1,
+		state: "incomplete",
+	});
+}
+
+function leavesAttemptTotalsComplete(): void {
+	const totals = attemptTotalsOf(
+		pricedTranscript.split("\n").with(PREFIX_LINE_INDEX, "not json"),
+	);
+
+	expect(totals).toMatchObject({ requestCount: 1, state: "complete" });
+}
+
+describe(sessionHistoryRequestSeries.name, () => {
+	describe("when an attempt line of the transcript cannot be read", () => {
+		it(
+			"reads the attempt token totals incomplete, naming the line",
+			readsAttemptTotalsIncomplete,
+		);
+	});
+	describe("when the inherited prefix holds an unreadable line", () => {
+		it("leaves the attempt token totals complete", leavesAttemptTotalsComplete);
+	});
+});
 
 describe(sessionHistoryAttemptCost.name, () => {
 	describe("when an attempt line of the root transcript cannot be read", () => {
