@@ -66,6 +66,13 @@ function subagentEvidence(): void {
 		);
 	});
 
+	describe("when the attempt launched no sub-agent", () => {
+		it(
+			"draws the remaining difference from the root's requests",
+			verifyDrawsTheDifferenceFromTheRootsRequestsWithoutSubagents,
+		);
+	});
+
 	describe("when the attempt did not keep its sub-agent's transcript", () => {
 		it(
 			"leaves the sub-agent's spend in an incomplete difference naming it",
@@ -79,6 +86,18 @@ function subagentEvidence(): void {
 			verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused,
 		);
 	});
+}
+
+async function verifyDrawsTheDifferenceFromTheRootsRequestsWithoutSubagents(): Promise<void> {
+	const fixture = await writtenResumedAttempt();
+
+	const { cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
+
+	expect(cost.rootRequests.state).toBe("complete");
+	expect(cost.calculated).toEqual(cost.rootRequests);
 }
 
 async function verifyLeavesTheUnkeptSubagentsSpendInAnIncompleteDifference(): Promise<void> {
