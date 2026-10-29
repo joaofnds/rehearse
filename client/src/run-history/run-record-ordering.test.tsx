@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 
 import { runHistoryReplies } from "#client/test-support/fetch-stub";
 import { renderAppWithStub } from "#client/test-support/render-app";
@@ -197,11 +203,9 @@ async function filtersToEndedLaunches(): Promise<void> {
 		screen.getByRole("table", { name: "Ended launches" }),
 	).toHaveTextContent("launch ended-la");
 	fireEvent.click(screen.getByRole("button", { name: "Ended" }));
-	await waitFor(() => {
-		expect(
-			screen.queryByRole("table", { name: "Active launch queue" }),
-		).not.toBeInTheDocument();
-	});
+	await waitForElementToBeRemoved(() =>
+		screen.queryByRole("table", { name: "Active launch queue" }),
+	);
 	expect(
 		screen.getByText(
 			"2 of 3 readable entries match · 1 record · 0 active launches · 1 ended launch",
