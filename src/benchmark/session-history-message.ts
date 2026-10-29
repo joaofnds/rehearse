@@ -37,19 +37,22 @@ const readToolResultFileSchema = z
 	})
 	.optional();
 
+const readToolResultSchema = z.looseObject({ file: readToolResultFileSchema });
+
 const historyRecordSchema = z.looseObject({
 	cwd: z.string().nonempty().optional(),
 	isMeta: z.boolean().optional(),
 	message: z.looseObject({ content: historyContentSchema }).optional(),
 	sourceToolUseID: z.string().nonempty().optional(),
 	timestamp: z.string().nonempty().optional(),
-	toolUseResult: z.unknown().optional(),
+	toolUseResult: z
+		.unknown()
+		.transform((value) => readToolResultSchema.safeParse(value).data)
+		.optional(),
 	type: z.string().optional(),
 });
 
 type HistoryRecord = z.infer<typeof historyRecordSchema>;
-
-const readToolResultSchema = z.looseObject({ file: readToolResultFileSchema });
 
 const attachmentKindSchema = z.looseObject({
 	attachment: z.looseObject({ type: z.string().nonempty() }),
@@ -173,7 +176,6 @@ export {
 	historyToolCallSchema,
 	historyToolResultSchema,
 	parsedRows,
-	readToolResultSchema,
 };
 
 export type { HistoryBlockInput, HistoryRecord, ParsedRow };

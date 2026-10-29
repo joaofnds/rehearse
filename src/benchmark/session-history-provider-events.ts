@@ -56,29 +56,38 @@ function attachmentEvent(
 	});
 }
 
+function unrecordedThinking(
+	common: Immutable<CommonEvent>,
+	label: string,
+): MutableEvent {
+	return recordedEvent({
+		common,
+		label,
+		measurement: {
+			reasons: ["the provider did not record the thinking text"],
+			state: "unavailable",
+		},
+	});
+}
+
 function thinkingEvent(
 	common: Immutable<CommonEvent>,
 	block: Immutable<ThinkingBlock>,
 	retainBodies: boolean,
 ): MutableEvent {
-	const label = block.type === "thinking" ? "Thinking" : "Redacted thinking";
-	const text = block.type === "thinking" ? block.thinking : undefined;
-	if (text === undefined || text === "") {
-		return recordedEvent({
-			common,
-			label,
-			measurement: {
-				reasons: ["the provider did not record the thinking text"],
-				state: "unavailable",
-			},
-		});
+	if (block.type === "redacted_thinking") {
+		return unrecordedThinking(common, "Redacted thinking");
 	}
-	const measured = measureContent(text);
+	if (block.thinking === undefined || block.thinking === "") {
+		return unrecordedThinking(common, "Thinking");
+	}
+
+	const measured = measureContent(block.thinking);
 
 	return recordedEvent({
 		common,
 		content: retainBodies ? measured.text : undefined,
-		label,
+		label: "Thinking",
 		measurement: measured.measurement,
 	});
 }

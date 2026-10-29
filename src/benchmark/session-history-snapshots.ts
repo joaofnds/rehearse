@@ -1,7 +1,6 @@
 import type { Immutable } from "./contracts";
 import type { TextMeasurement } from "./session-history-contract";
 import { measureContent } from "./session-history-measurement";
-import { readToolResultSchema } from "./session-history-message";
 import type { ParsedRow } from "./session-history-message";
 
 const FIRST_SOURCE_LINE_NUMBER = 1;
@@ -13,8 +12,7 @@ interface SnapshotEvidence {
 }
 
 function snapshotFor(row: Immutable<ParsedRow>): SnapshotEvidence {
-	const file = readToolResultSchema.safeParse(row.value?.toolUseResult).data
-		?.file;
+	const file = row.value?.toolUseResult?.file;
 	if (file === undefined) {
 		return {
 			measurement: {
