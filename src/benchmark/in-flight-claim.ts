@@ -18,9 +18,10 @@ const inFlightClaimSchema = z.object({
 type InFlightClaim = z.infer<typeof inFlightClaimSchema>;
 
 /**
- * Written before the record's first file, so no directory a reader lists
- * lacks it while its process is alive. It stays once the record is written,
- * since a written record settles the reading on its own.
+ * Written before the record's first file. The directory exists for an
+ * instant before the claim does, so a reader racing that write misreads the
+ * record for one poll. It stays once the record is written, since a written
+ * record settles the reading on its own.
  */
 async function claimInFlight(directory: string): Promise<void> {
 	await mkdir(directory, { recursive: true });
