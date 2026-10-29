@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { committedRateCatalog } from "#benchmark/rate-catalog";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
-import { writtenSubagentAttempt } from "#server/session-history-agents-test-fixture";
+import {
+	subagentAttemptRates,
+	writtenSubagentAttempt,
+} from "#server/session-history-agents-test-fixture";
 import {
 	writtenIncompleteAttempt,
 	writtenResumedAttempt,
@@ -15,7 +18,7 @@ import { clearSessionHistoryRoots } from "#server/session-history-workspace-test
 
 afterEach(clearSessionHistoryRoots);
 
-/** The fixture's one sub-agent request, at claude-sonnet-5's rates. */
+/** The fixture's one sub-agent request, at subagentAttemptRates. */
 const UNKEPT_SUBAGENT_COST_USD = 0.375;
 
 describe(readSessionAttemptRequestSeries.name, () => {
@@ -107,7 +110,7 @@ async function verifyLeavesTheUnkeptSubagentsSpendInAnIncompleteDifference(): Pr
 
 	const { cost } = await readSessionAttemptRequestSeries(
 		fixture,
-		committedRateCatalog,
+		subagentAttemptRates,
 	);
 
 	expect(cost.difference).toEqual({
@@ -195,7 +198,7 @@ async function verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent(
 
 	const { cost } = await readSessionAttemptRequestSeries(
 		fixture,
-		committedRateCatalog,
+		subagentAttemptRates,
 	);
 
 	expect(cost.difference).toEqual({ costUsd: 0, state: "complete" });
@@ -210,7 +213,7 @@ async function verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused(): Pro
 
 	const { cost, series } = await readSessionAttemptRequestSeries(
 		fixture,
-		committedRateCatalog,
+		subagentAttemptRates,
 	);
 
 	expect(series.boundary).toBe("known");
@@ -223,7 +226,10 @@ async function verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused(): Pro
 async function verifyReportsTotalsUnavailableRatherThanZeroWhenTheAttempt(): Promise<void> {
 	const fixture = await writtenIncompleteAttempt("transcript");
 
-	const { series, cost } = await readSessionAttemptRequestSeries(fixture);
+	const { series, cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(series.transcriptState).toBe("absent");
 	expect(series.attemptTotals).toEqual({
@@ -232,6 +238,10 @@ async function verifyReportsTotalsUnavailableRatherThanZeroWhenTheAttempt(): Pro
 	});
 	expect(cost.calculated).toEqual({
 		reasons: ["the attempt has no saved transcript"],
+		state: "unavailable",
+	});
+	expect(cost.difference).toEqual({
+		reasons: ["the calculated reading is unavailable"],
 		state: "unavailable",
 	});
 }

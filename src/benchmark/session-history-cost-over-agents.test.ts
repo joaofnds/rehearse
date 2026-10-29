@@ -20,6 +20,8 @@ const EXPECTED_DIFFERENCE_USD = 0.5;
 
 const NO_DIFFERENCE_USD = 0;
 
+const ONE_BILLIONTH_USD = 1e-9;
+
 const NOISE_CASES = [
 	{
 		calculatedCostUsd: 3.2174297999999997,
@@ -61,7 +63,7 @@ function keepsTheRootRequestsReadingBesideIt(): void {
 		state: "complete",
 	});
 
-	expect(cost.rootRequests).toEqual(root.calculated);
+	expect(cost.rootRequests).toEqual(root.rootRequests);
 }
 
 function readsAnExactZero({
@@ -73,9 +75,22 @@ function readsAnExactZero({
 		state: "complete",
 	});
 
-	expect(cost.difference.state === "complete" && cost.difference.costUsd).toBe(
-		NO_DIFFERENCE_USD,
+	expect(cost.difference).toEqual({
+		costUsd: NO_DIFFERENCE_USD,
+		state: "complete",
+	});
+}
+
+function keepsADifferenceOfABillionth(): void {
+	const cost = attemptCostOverAgents(
+		rootCostReporting(EVERY_AGENT_COST_USD + ONE_BILLIONTH_USD),
+		{ costUsd: EVERY_AGENT_COST_USD, state: "complete" },
 	);
+
+	expect(cost.difference).toEqual({
+		costUsd: ONE_BILLIONTH_USD,
+		state: "complete",
+	});
 }
 
 describe(attemptCostOverAgents.name, () => {
@@ -87,6 +102,11 @@ describe(attemptCostOverAgents.name, () => {
 	it(
 		"keeps the root requests' reading beside it",
 		keepsTheRootRequestsReadingBesideIt,
+	);
+
+	it(
+		"keeps a difference of a billionth of a dollar",
+		keepsADifferenceOfABillionth,
 	);
 
 	describe("when the two readings differ only by float noise", () => {

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import syntheticRateProvenance from "#benchmark/rate-catalog-test-support";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
 import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
@@ -77,9 +78,28 @@ const ONE_SUBAGENT_FILES = [
 	"subagents/agent-k1.meta.json",
 ];
 
+/** The rates the one-sub-agent attempt's costs are stated at. */
+const subagentAttemptRates = {
+	currency: "USD",
+	models: [
+		{
+			cacheReadUsdPerMillion: 0.2,
+			cacheWrite1hUsdPerMillion: 4,
+			cacheWrite5mUsdPerMillion: 2.5,
+			inputUsdPerMillion: 2,
+			model: "claude-sonnet-5",
+			outputUsdPerMillion: 10,
+		},
+	],
+	provenance: syntheticRateProvenance,
+	schemaVersion: 1,
+	source: "test catalog",
+	version: "2026-10-29",
+} as const;
+
 /**
- * The root's two requests cost $0.75 and $0.50 at claude-sonnet-5's rates,
- * and its sub-agent's one request $0.375.
+ * The root's two requests cost $0.75 and $0.50 at subagentAttemptRates, and
+ * its sub-agent's one request $0.375.
  */
 const ROOT_AND_SUBAGENT_COST_USD = 1.625;
 
@@ -123,4 +143,9 @@ async function writtenSubagentAttempt(): Promise<{
 	return { ...identity, runsDirectory };
 }
 
-export { AGENT_TREE_FIXTURE, writtenAgentTreeAttempt, writtenSubagentAttempt };
+export {
+	AGENT_TREE_FIXTURE,
+	subagentAttemptRates,
+	writtenAgentTreeAttempt,
+	writtenSubagentAttempt,
+};
