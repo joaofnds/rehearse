@@ -35,14 +35,16 @@ interface SessionCommandAttemptsRequest {
 
 class SessionCommandAttempts {
 	public constructor(private readonly context: SessionCommandAttemptsRequest) {}
-	public readonly projectCost = (): ConfirmationCostProjection =>
+	public readonly projectCost = (
+		spendCeilingUsd: number,
+	): ConfirmationCostProjection =>
 		projectConfirmationCost({
 			mode: "session",
 			reps:
 				this.context.execution.config.confirmation?.reps ??
 				SINGLE_EXECUTION_REP_COUNT,
 			sessionBudgetUsd: this.context.execution.config.sessionBudgetUsd,
-			spendCeilingUsd: this.context.dependencies.spendCeilingUsd,
+			spendCeilingUsd,
 		});
 	public readonly runConfirmed = async (
 		projectedCost: ConfirmationCostProjection,

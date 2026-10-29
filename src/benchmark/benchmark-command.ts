@@ -45,12 +45,12 @@ async function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 	>({
 		approval: dependencies.approval,
 		confirmation,
-		projectCost: () =>
+		projectCost: (spendCeilingUsd) =>
 			projectConfirmationCost({
 				mode: "pipeline",
 				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: config.sessionBudgetUsd,
-				spendCeilingUsd: request.spendCeilingUsd,
+				spendCeilingUsd,
 				stages: request.stageCount,
 			}),
 		runConfirmed: async (projectedCost) => {

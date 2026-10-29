@@ -144,7 +144,7 @@ async function requireConfirmationApproval(
 
 interface RequestedExecution<Result> {
 	readonly confirmation: ConfirmationConfig | undefined;
-	readonly projectCost: () => ConfirmationCostProjection;
+	readonly projectCost: (spendCeilingUsd: number) => ConfirmationCostProjection;
 	readonly spendCeilingUsd: number;
 	readonly approval: ConfirmationApprovalIO;
 	readonly runDebug: () => Promise<Result>;
@@ -162,7 +162,7 @@ async function runRequestedExecution<Result>(
 		return await execution.runDebug();
 	}
 
-	const projection = execution.projectCost();
+	const projection = execution.projectCost(execution.spendCeilingUsd);
 	await requireConfirmationApproval(
 		{
 			approved: execution.confirmation.approval !== "interactive",

@@ -108,11 +108,18 @@ function groupSpendCeilingUsd(props: {
 }
 
 /** The hold a group's ceiling states, worded alike wherever spend is approved. */
+function ceilingHoldReading(props: {
+	readonly spendCeilingUsd: number;
+	readonly reps: number;
+}): string {
+	return `Ceiling $${props.spendCeilingUsd.toFixed(USD_FRACTION_DIGITS)} per attempt, $${groupSpendCeilingUsd(props).toFixed(USD_FRACTION_DIGITS)}`;
+}
+
 function groupCeilingReading(props: {
 	readonly spendCeilingUsd: number;
 	readonly reps: number;
 }): string {
-	return `Ceiling $${props.spendCeilingUsd.toFixed(USD_FRACTION_DIGITS)} per attempt, $${groupSpendCeilingUsd(props).toFixed(USD_FRACTION_DIGITS)} for the group of ${String(props.reps)}`;
+	return `${ceilingHoldReading(props)} for the group of ${String(props.reps)}`;
 }
 
 /**
@@ -143,6 +150,7 @@ export {
 	SpendCeilingReachedError,
 	createSpendCeiling,
 	groupSpendCeilingUsd,
+	ceilingHoldReading,
 	groupCeilingReading,
 	repSpendCeilings,
 	CEILING_OVERRUN_STATEMENT,

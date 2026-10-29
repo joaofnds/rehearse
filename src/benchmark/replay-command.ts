@@ -44,12 +44,12 @@ async function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 	>({
 		approval: dependencies.approval,
 		confirmation,
-		projectCost: () =>
+		projectCost: (spendCeilingUsd) =>
 			projectConfirmationCost({
 				mode: "stage",
 				reps: confirmation?.reps ?? SINGLE_EXECUTION_REP_COUNT,
 				sessionBudgetUsd: request.sessionBudgetUsd,
-				spendCeilingUsd: request.spendCeilingUsd,
+				spendCeilingUsd,
 			}),
 		runConfirmed: async (projectedCost) => {
 			if (confirmation === undefined) {

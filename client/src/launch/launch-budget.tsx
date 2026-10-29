@@ -1,7 +1,7 @@
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import {
+	ceilingHoldReading,
 	groupCeilingReading,
-	groupSpendCeilingUsd,
 } from "#benchmark/spend-ceiling";
 import { spendReading } from "#client/run-history/run-progress";
 
@@ -76,11 +76,12 @@ function ceilingHolds(
 	) {
 		return `Ceiling ${spendReading(ceilingUsd)} per attempt`;
 	}
+
 	if (groups === SINGLE_CONFIRMATION_GROUP_COUNT) {
 		return groupCeilingReading({ reps: attempts, spendCeilingUsd: ceilingUsd });
 	}
 
-	return `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ reps: attempts, spendCeilingUsd: ceilingUsd }))} for each of the ${String(groups)} groups of ${String(attempts)}`;
+	return `${ceilingHoldReading({ reps: attempts, spendCeilingUsd: ceilingUsd })} for each of the ${String(groups)} groups of ${String(attempts)}`;
 }
 
 /**
