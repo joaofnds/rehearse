@@ -56,25 +56,41 @@ interface ParsedRequestRow {
 
 const transcriptLineSchema = z.union([requestRowSchema, compactionRowSchema]);
 
+const assistantRowSchema = z.looseObject({ type: z.literal("assistant") });
+
 type TranscriptLine = Immutable<z.infer<typeof transcriptLineSchema>>;
+
+/**
+ * An unreadable line may hold a request the series cannot read: it is not
+ * JSON, or it is an assistant row that fails the request schema.
+ */
+type TranscriptRowReading =
+	| { readonly kind: "row"; readonly row: TranscriptLine }
+	| { readonly kind: "unreadable" }
+	| { readonly kind: "other" };
 
 /**
  * Decodes only the two row kinds the series reads. Walking the whole line as
  * generic JSON doubled the time to build a series from the largest saved
  * transcript, and validated nothing either reader needs.
  */
-function transcriptRow(text: string): TranscriptLine | undefined {
+function transcriptRow(text: string): TranscriptRowReading {
 	if (text.trim() === "") {
-		return undefined;
+		return { kind: "other" };
 	}
 
 	const documentReading = parseJsonDocument(text, transcriptLineSchema);
 	if (documentReading.kind === "invalid-json") {
-		return undefined;
+		return { kind: "unreadable" };
 	}
-	const { parsed: row } = documentReading;
+	const { parsed: row, value } = documentReading;
+	if (row.success) {
+		return { kind: "row", row: row.data };
+	}
 
-	return row.success ? row.data : undefined;
+	return assistantRowSchema.safeParse(value).success
+		? { kind: "unreadable" }
+		: { kind: "other" };
 }
 
 function parsedCompactionRow(
@@ -188,4 +204,8 @@ export {
 	parsedRequestRow,
 };
 
-export type { ParsedRequestRow, ParsedCompactionRow };
+export type {
+	ParsedRequestRow,
+	ParsedCompactionRow,
+	TranscriptLine as DecodedTranscriptRow,
+};

@@ -53,6 +53,7 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 			name: "total input tokens",
 			omits: [],
 			transcriptState: "saved",
+			unreadableLines: [],
 		},
 	};
 }

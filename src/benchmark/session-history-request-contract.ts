@@ -62,6 +62,8 @@ interface SessionHistoryRequestSeries {
 	readonly transcriptState: "saved" | "absent";
 	readonly entries: readonly SessionHistoryRequestEntry[];
 	readonly compactions: readonly SessionHistoryCompaction[];
+	/** Lines that may hold a request the series could not read. */
+	readonly unreadableLines: readonly SessionHistoryUnreadableLine[];
 	readonly attemptTotals: SessionHistoryAttemptTotals;
 }
 
@@ -82,6 +84,11 @@ const TOTAL_INPUT_TOKENS_OMITS = [
 interface SessionHistoryCompaction {
 	readonly line: number;
 	readonly trigger: string;
+	readonly region: HistoryRegion;
+}
+
+interface SessionHistoryUnreadableLine {
+	readonly line: number;
 	readonly region: HistoryRegion;
 }
 
@@ -116,6 +123,7 @@ export type {
 	SessionHistoryAttemptTotals,
 	SessionHistoryRequestSeries,
 	SessionHistoryCompaction,
+	SessionHistoryUnreadableLine,
 	SessionHistoryRequestSeriesInput,
 	SessionHistoryRequestSeriesMetadata,
 	RequestSeriesBoundary,

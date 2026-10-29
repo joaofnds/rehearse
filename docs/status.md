@@ -221,8 +221,9 @@ links no attempt history, since its attempts record no session.
   requests alone, and the remaining difference between the provider's cost and
   every agent's, as distinct readings, the request in flight when a compaction
   happened, and the automatic instruction loads with their file names. An
-  attempt that did not keep a sub-agent's transcript reads the every-agent cost
-  and the difference as incomplete, with that sub-agent named. Load reason,
+  attempt that did not keep a sub-agent's transcript, or kept an attempt line
+  the request reader cannot read, reads the every-agent cost and the
+  difference as incomplete, with that sub-agent or line named. Load reason,
   trigger, and include parent stay unavailable, because a transcript does not
   record them. The
   harness can also normalize a supplied provider capture into request usage,

@@ -1,5 +1,5 @@
 import type { Participant } from "./agent-cost-participants";
-import { tally } from "./agent-cost-tally";
+import { tally, unreadableLineReason } from "./agent-cost-tally";
 import type { Tally } from "./agent-cost-tally";
 import type { ContextRateCatalog } from "./context-evidence-contract";
 import type { Immutable } from "./contracts";
@@ -14,6 +14,8 @@ import { skillWindows, windowAt } from "./skill-cost-windows";
 import type { TranscriptLine } from "./transcript";
 
 const NO_TOKENS = 0;
+
+const NO_UNREADABLE_LINES = 0;
 
 /** Where each attempt request of one agent went, keyed by its first line. */
 interface Allocation {
@@ -49,19 +51,46 @@ function requestLocator(
 	};
 }
 
+/**
+ * An attempt line the series could not read may be a request on any model,
+ * so it reads as one that no rate prices.
+ */
+function unreadableCosts(
+	participant: Immutable<Participant>,
+): readonly (readonly [number, SessionHistoryRequestCost])[] {
+	const agentId = participant.agent?.agentId;
+
+	return participant.series.unreadableLines
+		.filter(({ region }) => region === "attempt")
+		.map(({ line }) => [
+			line,
+			{ reason: unreadableLineReason(agentId, line), state: "unpriced" },
+		]);
+}
+
 function allocate(
 	participant: Immutable<Participant>,
 	rates: ContextRateCatalog,
 ): Allocation {
 	const requestOf = requestLocator(participant.series, participant.lines);
 	const windows = skillWindows(participant, requestOf);
-	const costs = sessionHistoryRequestCosts(participant.series, rates);
+	const unreadable = unreadableCosts(participant);
+	const costs = new Map(
+		[
+			...sessionHistoryRequestCosts(participant.series, rates),
+			...unreadable,
+		].toSorted(([line], [other]) => line - other),
+	);
 	const entries = attemptEntries(participant.series);
+	const models = spentModels(entries);
 
 	return {
 		attemptEntries: entries,
 		costs,
-		models: spentModels(entries),
+		models:
+			unreadable.length === NO_UNREADABLE_LINES
+				? models
+				: new Set([...models, undefined]),
 		requestOf,
 		windowByRequest: new Map(
 			[...costs.keys()].map((line) => [line, windowAt(windows, line)]),

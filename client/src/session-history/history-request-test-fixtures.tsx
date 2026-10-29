@@ -158,6 +158,7 @@ const REQUEST_READING: RequestSeriesResponse = {
 			"the model's context window limit, which the transcript does not carry",
 		],
 		transcriptState: "saved",
+		unreadableLines: [],
 	},
 };
 
