@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 
 import { LaunchDialog } from "./launch-dialog";
 import {
@@ -201,9 +207,7 @@ async function closesOnceTheLaunchIsAccepted(): Promise<void> {
 
 	fireEvent.click(await startButton());
 
-	await waitFor(() => {
-		expect(screen.queryByRole("dialog")).toBeNull();
-	});
+	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
 }
 
 async function marksACaseWithNoDeclaredModelAsOneItCannotStart(): Promise<void> {

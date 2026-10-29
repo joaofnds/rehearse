@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 
 import PipelineRunRowBuilder from "#client/run-history/run-history-page-pipeline-row-builder";
 
@@ -170,7 +176,7 @@ async function leavesOnceItsStopIsAcceptedWithoutWaitingForAPoll(): Promise<void
 
 	fireEvent.click(within(shown).getByRole("button", { name: "Stop" }));
 
-	await waitFor(() => {
-		expect(screen.queryByRole("region", { name: IN_FLIGHT })).toBeNull();
-	});
+	await waitForElementToBeRemoved(() =>
+		screen.queryByRole("region", { name: IN_FLIGHT }),
+	);
 }

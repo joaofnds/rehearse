@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
 import { focusManager } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+} from "@testing-library/react";
 
 import {
 	BY_CASE,
@@ -119,9 +124,7 @@ async function listsOnlyTheInvalidatedResultsTheSearchMatches(): Promise<void> {
 
 	searchRuns("brief");
 
-	await waitFor(() => {
-		expect(screen.queryByText(NAME_A)).toBeNull();
-	});
+	await waitForElementToBeRemoved(() => screen.queryByText(NAME_A));
 	expect(screen.getByText(NAME_C)).toBeInTheDocument();
 	expect(screen.queryByText(NAME_B)).toBeNull();
 }

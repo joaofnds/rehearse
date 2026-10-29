@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
 import { z } from "zod";
 
 import type { Reply, SentRequest } from "#client/test-support/fetch-stub";
@@ -145,9 +151,7 @@ async function savesAnEditedSkillFromCasesWorkflowsAndCloses(): Promise<void> {
 	});
 	fireEvent.click(within(dialog).getByRole("button", { name: "Save steps" }));
 
-	await waitFor(() => {
-		expect(screen.queryByRole("dialog")).toBeNull();
-	});
+	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
 	const put = server.sent.filter(
 		({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
 	);
@@ -193,9 +197,7 @@ async function savesReorderedSteps(): Promise<void> {
 	fireEvent.click(
 		within(editingDialog).getByRole("button", { name: "Save steps" }),
 	);
-	await waitFor(() => {
-		expect(screen.queryByRole("dialog")).toBeNull();
-	});
+	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
 	const put = editingServer.sent.filter(
 		({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
 	);
