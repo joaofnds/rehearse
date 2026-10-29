@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 
+import { claimInFlight } from "./in-flight-claim";
 import type { ReplayDependencies } from "./replay";
 import type {
 	ReplayConfirmationOutcome,
@@ -19,6 +20,7 @@ async function runReplayConfirmation(
 		request.paths.runsDirectory,
 		request.groupId,
 	);
+	await claimInFlight(paths.directory);
 	await mkdir(paths.inputsDirectory, { recursive: true });
 	const frozen = await freezeReplayInputs(dependencies, request, {
 		groupDirectory: paths.directory,
