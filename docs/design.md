@@ -187,19 +187,28 @@ that run stays out of the list and the browser offers no analysis of it. The
 in-flight refusal that `diagnose` and the analysis route apply does not cover
 it, so either accepts such a run by id. A stream that ends in `run-completed`
 with no artifact is reported unreadable, since the artifact is the
-authoritative record of a completed run. A confirmation group or session attempt
-has no event stream, so it writes its own claim, `in-flight.json` with its pid
-and start, before its first file, and the report leaves one with no record out
-while a live launch whose pid matches, made no later than the claim, holds it.
-The launch's RUNNING row stands for it. Any launch kind can hold one, because
-case, replay, comparison and extension launches all write groups in their own
-process. The claim stays after the record is written, since the record settles
-the reading. An attempt claims only once its corpus resolves, so a corpus that
-does not resolve leaves no attempt directory. A group's directory exists for an
-instant before its claim does, so a read racing that write misreads for one
-poll. Event recording is best effort; it
+authoritative record of a completed run. Event recording is best effort; it
 must not turn a successful experiment into a failed one. It is not a substitute for the final artifact. There is no
 command that reconstructs a deleted event history from JSON records.
+
+A group or attempt in flight has no event stream, so a confirmation group or
+standalone session attempt writes its own claim, `in-flight.json` with its pid
+and an ISO start time, and the report ties that claim to a browser launch the
+way it ties a run's claim to one. A group writes the claim before its inputs,
+and an attempt once its corpus resolves, before its snapshot, so a corpus that
+does not resolve leaves no attempt directory. One refused after that keeps its directory and lists among the records that could not be read, as one refused after its snapshot always has. The report leaves a group or
+attempt with no record out while a live launch with the claim's pid, launched
+no later than the claim, holds it, and the launch's RUNNING row stands for it.
+Any launch kind can hold one, because case, replay, comparison and extension
+launches all write groups in their own process. A group the operator stopped or
+archived is left out first, as before. The claim stays after the record is
+written, since the record settles the reading. Three misreadings follow from
+the design. A launch is live by its pid alone, so a launch whose process died
+and whose pid a later process has taken still holds its abandoned group or
+attempt, and a terminal process given a dead launch's pid has its own work held
+by that launch. The claim's directory exists for an instant before its claim
+does, so a read racing that write misreads for one poll. The ordering compares
+two wall-clock readings, so a backward clock step can misread a claim.
 
 The corpus version store at `.benchmark-runs/corpus-versions/` is
 authoritative too, since a record's `corpusVersion` names a version whose files

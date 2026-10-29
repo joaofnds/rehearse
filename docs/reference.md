@@ -1504,14 +1504,7 @@ leaves transcripts and run artifacts where git can see them.
 | `comparison:<digest>`                   | `comparisons/<digest>/report.json`                           |
 
 Runs keeps confirmation directories with no `group.json` visible as incomplete:
-their execution and cost are unknown. A confirmation group or session attempt
-writes `in-flight.json`, naming its process's `pid` and `startedAt`, before its
-first file and leaves it in place. While a live browser launch with that pid,
-launched no later than `startedAt`, holds the claim, Runs lists the launch's
-RUNNING row and leaves the group or attempt out of the incomplete and unreadable
-lists. A directory with no claim, an unparseable one, or one no live launch holds
-lists as before, so records written before claims existed, and work started from
-a terminal, still list as incomplete while they record. Its Archive
+their execution and cost are unknown. Its Archive
 action saves `confirmation-archives/<group-id>.json` with `schemaVersion: 1`,
 `groupId` and `archivedAt`, without moving or deleting experiment files. Restore
 removes that metadata. Archived incomplete runs remain available in the browser
@@ -1519,6 +1512,16 @@ and through `rehearse list archived-groups`, which prints the group record ID,
 archive timestamp and `no saved summary` as tab-separated fields. Ordinary
 `list groups` retains diagnostics for unarchived incomplete runs. A later
 `group.json` takes precedence over archiving, whether it parses or is malformed.
+
+A confirmation group directory, and a session attempt directory, holds
+`in-flight.json` once its process starts writing it, with that process's `pid`
+and an ISO `startedAt`, and keeps it after the record is written. While a live
+browser launch with that pid, whose `launchedAt` is no later than the claim's
+`startedAt`, holds the claim, Runs lists the launch's RUNNING row and leaves the
+group out of the incomplete list and the attempt out of the unreadable records.
+A directory with no claim, an unparseable one, or one no live launch holds lists
+as before. That covers records written before claims existed and work started
+from a terminal, which still lists while it records.
 
 `GET /api/confirmation-archives` lists `archived` entries and per-ID `unreadable`
 metadata diagnostics. A diagnostic with `groupId` offers clearing invalid archive

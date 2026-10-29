@@ -21,12 +21,14 @@ Their IDs and unknown execution/cost remain visible until explicitly archived;
 the archived list and `list archived-groups` retain them for review and restoration.
 The decision is shared through the records directory and leaves experiment files
 unchanged. A later summary appears normally. This does not reconstruct lost
-measurements. A confirmation run or session attempt a browser launch is still
-recording lists only as that launch's RUNNING row, neither among the records
-that could not be read nor among those with no saved summary, and returns to
-those lists once its process ends without a record. One started from a terminal
-still lists as incomplete while it records, since no launch holds its claim, and
-a crashed one whose pid a later launch has taken can read as in flight.
+measurements. A group or attempt in flight that a browser launch started lists
+only as that launch's RUNNING row, neither among the records that could not be
+read nor among those with no saved summary. Once its process ends without a
+record it lists there again, unless the operator stopped the group. One started
+from a terminal still lists while it records, a group as having no saved
+summary and an attempt as a record that could not be read, since no launch
+holds its claim. A launch whose process crashed and whose pid a later process
+has taken keeps its group or attempt reading as in flight.
 
 ## Implemented
 
