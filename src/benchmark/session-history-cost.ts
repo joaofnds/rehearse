@@ -6,6 +6,7 @@ import type {
 import {
 	BOUNDARY_ABSENT,
 	NO_CATALOG,
+	ROOT_AGENT_ID,
 	TRANSCRIPT_ABSENT,
 } from "./session-history-request-contract";
 import {
@@ -22,9 +23,6 @@ const INITIAL_ATTEMPT_REQUEST_COUNT = 0;
 const NO_REQUEST_COUNT_CONTRIBUTION = 0;
 
 const EMPTY_REASON_COUNT = 0;
-
-/** The root agent carries no sub-agent id. */
-const ROOT_AGENT = undefined;
 
 /**
  * A billionth of a dollar, a hundredth of the cheapest token's price. Finer
@@ -46,7 +44,11 @@ class AttemptRequestCosts {
 		for (const entry of series.entries) {
 			this.observe(entry);
 		}
-		for (const reason of unreadableAttemptLines(series, ROOT_AGENT).values()) {
+
+		for (const reason of unreadableAttemptLines(
+			series,
+			ROOT_AGENT_ID,
+		).values()) {
 			this.reasons.add(reason);
 		}
 	}

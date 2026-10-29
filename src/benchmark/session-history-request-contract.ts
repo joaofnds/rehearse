@@ -76,6 +76,9 @@ const TRANSCRIPT_ABSENT = "the attempt has no saved transcript";
 const USAGE_INCOMPLETE =
 	"usage is incomplete: no row of the request carries a stop reason";
 
+/** The root agent carries no sub-agent id. */
+const ROOT_AGENT_ID = undefined;
+
 function unreadableLineReason(
 	agentId: string | undefined,
 	line: number,
@@ -123,6 +126,7 @@ export {
 	TOTAL_INPUT_TOKENS_OMITS,
 	USAGE_INCOMPLETE,
 	NO_CATALOG,
+	ROOT_AGENT_ID,
 	unreadableLineReason,
 };
 

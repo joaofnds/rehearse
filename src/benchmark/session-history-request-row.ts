@@ -58,31 +58,32 @@ const transcriptLineSchema = z.union([requestRowSchema, compactionRowSchema]);
 
 const assistantRowSchema = z.looseObject({ type: z.literal("assistant") });
 
-type TranscriptLine = Immutable<z.infer<typeof transcriptLineSchema>>;
+type DecodedTranscriptRow = Immutable<z.infer<typeof transcriptLineSchema>>;
 
 /**
  * An unreadable line may hold a request the series cannot read: it is not
  * JSON, or it is an assistant row that fails the request schema.
  */
 type TranscriptRowReading =
-	| { readonly kind: "row"; readonly row: TranscriptLine }
+	| { readonly kind: "row"; readonly row: DecodedTranscriptRow }
 	| { readonly kind: "unreadable" }
-	| { readonly kind: "other" };
+	| { readonly kind: "ignored" };
 
 /**
- * Decodes only the two row kinds the series reads. Walking the whole line as
- * generic JSON doubled the time to build a series from the largest saved
+ * Decodes only the two row kinds the series reads, then checks only the type
+ * of a row neither accepts. Walking the whole line as generic JSON doubled the time to build a series from the largest saved
  * transcript, and validated nothing either reader needs.
  */
 function transcriptRow(text: string): TranscriptRowReading {
 	if (text.trim() === "") {
-		return { kind: "other" };
+		return { kind: "ignored" };
 	}
 
 	const documentReading = parseJsonDocument(text, transcriptLineSchema);
 	if (documentReading.kind === "invalid-json") {
 		return { kind: "unreadable" };
 	}
+
 	const { parsed: row, value } = documentReading;
 	if (row.success) {
 		return { kind: "row", row: row.data };
@@ -90,11 +91,11 @@ function transcriptRow(text: string): TranscriptRowReading {
 
 	return assistantRowSchema.safeParse(value).success
 		? { kind: "unreadable" }
-		: { kind: "other" };
+		: { kind: "ignored" };
 }
 
 function parsedCompactionRow(
-	parsed: TranscriptLine,
+	parsed: DecodedTranscriptRow,
 	line: number,
 ): ParsedCompactionRow | undefined {
 	const row = compactionRowSchema.safeParse(parsed);
@@ -106,7 +107,7 @@ function parsedCompactionRow(
 }
 
 function parsedRequestRow(
-	parsed: TranscriptLine,
+	parsed: DecodedTranscriptRow,
 	line: number,
 ): ParsedRequestRow | undefined {
 	const row = requestRowSchema.safeParse(parsed);
@@ -204,8 +205,4 @@ export {
 	parsedRequestRow,
 };
 
-export type {
-	ParsedRequestRow,
-	ParsedCompactionRow,
-	TranscriptLine as DecodedTranscriptRow,
-};
+export type { ParsedRequestRow, ParsedCompactionRow, DecodedTranscriptRow };

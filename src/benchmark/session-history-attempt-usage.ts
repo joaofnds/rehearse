@@ -1,5 +1,6 @@
 import {
 	BOUNDARY_ABSENT,
+	ROOT_AGENT_ID,
 	TRANSCRIPT_ABSENT,
 	unreadableLineReason,
 } from "./session-history-request-contract";
@@ -15,9 +16,6 @@ const INITIAL_COUNTED_REQUEST_COUNT = 0;
 const EMPTY_REASON_COUNT = 0;
 
 const INITIAL_ATTEMPT_REQUEST_COUNT = 0;
-
-/** The series is the root's, which carries no sub-agent id. */
-const ROOT_AGENT = undefined;
 
 class AttemptUsageTotals {
 	private readonly usage = {
@@ -35,7 +33,7 @@ class AttemptUsageTotals {
 		region,
 	}: Readonly<SessionHistoryUnreadableLine>): void {
 		if (region === "attempt") {
-			this.unreadable.push(unreadableLineReason(ROOT_AGENT, line));
+			this.unreadable.push(unreadableLineReason(ROOT_AGENT_ID, line));
 		}
 	}
 	public observe(entry: Readonly<SessionHistoryRequestEntry>): void {
@@ -99,6 +97,7 @@ function attemptTotals(
 	for (const entry of entries) {
 		totals.observe(entry);
 	}
+
 	for (const line of unreadableLines) {
 		totals.observeUnreadable(line);
 	}

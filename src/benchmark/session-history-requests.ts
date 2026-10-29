@@ -29,6 +29,7 @@ class RequestTranscriptRows {
 	public observe(text: string): void {
 		this.lineNumber += 1;
 		const decoded = transcriptRow(text);
+
 		if (decoded.kind === "unreadable") {
 			this.unreadableLines.push(this.lineNumber);
 		}
@@ -41,6 +42,7 @@ class RequestTranscriptRows {
 		if (request !== undefined) {
 			this.rows.push(request);
 		}
+
 		const compaction = parsedCompactionRow(row, this.lineNumber);
 		if (compaction !== undefined) {
 			this.compactions.push(compaction);
