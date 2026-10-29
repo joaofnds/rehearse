@@ -38,6 +38,8 @@ type SessionHistoryAgents =
 
 const TRANSCRIPT_NOT_SAVED = "the attempt has no saved transcript";
 
+const SUBAGENT_FILES_REFUSED = "the attempt's sub-agent files were refused";
+
 /**
  * A child file is read through the same guard as the attempt's own evidence.
  * One the guard refuses, a link or a file swapped while it was checked, stays
@@ -161,8 +163,31 @@ async function attemptCostOverAgentsFor(
 
 	return attemptCostOverAgents(
 		rootCost,
-		everyAgentCalculated(await agentsFor(input, rates)),
+		everyAgentCalculated(await agentsOrRefusal(input, rates)),
 	);
+}
+
+/**
+ * The root's request series does not depend on its sub-agents, so a
+ * sub-agent file the guard refuses leaves only the attempt's calculated
+ * reading unavailable rather than refusing the whole series.
+ */
+async function agentsOrRefusal(
+	input: Readonly<ResolvedAttemptInput>,
+	rates: ContextRateCatalog,
+): Promise<SessionHistoryAgents> {
+	try {
+		return await agentsFor(input, rates);
+	} catch (error) {
+		if (
+			error instanceof SessionHistoryReaderError &&
+			error.kind === "refused"
+		) {
+			return { reason: SUBAGENT_FILES_REFUSED, state: "unavailable" };
+		}
+
+		throw error;
+	}
 }
 
 /**

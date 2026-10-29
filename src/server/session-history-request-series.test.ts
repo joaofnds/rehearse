@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { committedRateCatalog } from "#benchmark/rate-catalog";
@@ -36,12 +38,7 @@ describe(readSessionAttemptRequestSeries.name, () => {
 		);
 	});
 
-	describe("when the attempt kept its sub-agent's transcript", () => {
-		it(
-			"reads no remaining difference when the provider charged exactly every agent's requests",
-			verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent,
-		);
-	});
+	describe("sub-agent evidence", subagentEvidence);
 
 	describe("when the transcript is absent", () => {
 		it(
@@ -57,6 +54,22 @@ describe(readSessionAttemptRequestSeries.name, () => {
 		);
 	});
 });
+
+function subagentEvidence(): void {
+	describe("when the attempt kept its sub-agent's transcript", () => {
+		it(
+			"reads no remaining difference when the provider charged exactly every agent's requests",
+			verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent,
+		);
+	});
+
+	describe("when the sub-agents directory is refused", () => {
+		it(
+			"keeps the root series and reads the calculated attempt cost unavailable",
+			verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused,
+		);
+	});
+}
 
 async function verifyTotalsOnlyTheAttemptRegionOfAResumedSaved(): Promise<void> {
 	const fixture = await writtenResumedAttempt();
@@ -135,6 +148,25 @@ async function verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent(
 	);
 
 	expect(cost.difference).toEqual({ costUsd: 0, state: "complete" });
+}
+
+async function verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused(): Promise<void> {
+	const fixture = await writtenSubagentAttempt();
+	const paths = sessionAttemptPaths(fixture.runsDirectory, fixture);
+	const outside = await mkdtemp(join(tmpdir(), "rehearse-outside-"));
+	await rm(join(paths.directory, "subagents"), { recursive: true });
+	await symlink(outside, join(paths.directory, "subagents"));
+
+	const { cost, series } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
+
+	expect(series.boundary).toBe("known");
+	expect(cost.calculated).toEqual({
+		reasons: ["the attempt's sub-agent files were refused"],
+		state: "unavailable",
+	});
 }
 
 async function verifyReportsTotalsUnavailableRatherThanZeroWhenTheAttempt(): Promise<void> {
