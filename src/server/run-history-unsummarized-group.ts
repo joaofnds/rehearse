@@ -4,7 +4,8 @@ import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
 import heldInFlight from "#server/run-history-in-flight";
 
-interface UnsummarizedGroup {
+/** A group as the history listing reads it, with the launches live now. */
+interface ListedGroup {
 	readonly runsDirectory: string;
 	readonly groupId: string;
 	readonly launchByPid: ReadonlyMap<number, LaunchRecord>;
@@ -19,7 +20,7 @@ async function leftOutWithoutSummary({
 	runsDirectory,
 	groupId,
 	launchByPid,
-}: UnsummarizedGroup): Promise<boolean> {
+}: ListedGroup): Promise<boolean> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	if (await stoppedBeforeGroupRecord(paths)) {
 		return true;
@@ -35,3 +36,5 @@ async function leftOutWithoutSummary({
 }
 
 export { leftOutWithoutSummary as default };
+
+export type { ListedGroup };

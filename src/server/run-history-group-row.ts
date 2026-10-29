@@ -13,6 +13,7 @@ import { repAttempts } from "#server/run-history-group-reps";
 import sessionGroupSavedState from "#server/run-history-group-saved-state";
 import type { ListingIndexes } from "#server/run-history-listing-contract";
 import leftOutWithoutSummary from "#server/run-history-unsummarized-group";
+import type { ListedGroup } from "#server/run-history-unsummarized-group";
 
 type GroupRowIndexes = Pick<ListingIndexes, "attempts" | "launchByPid">;
 
@@ -21,7 +22,7 @@ async function groupRow(
 	{ groupId, shortId, checkpoint }: GroupRowIdentity,
 	{ attempts, launchByPid }: GroupRowIndexes,
 ): Promise<Unjudged<ConfirmationGroupRow> | undefined> {
-	const record = await groupRecord(runsDirectory, groupId, launchByPid);
+	const record = await groupRecord({ groupId, launchByPid, runsDirectory });
 	if (record === undefined) {
 		return undefined;
 	}
@@ -69,12 +70,11 @@ class IncompleteConfirmationError extends Error {
 }
 
 async function groupRecord(
-	runsDirectory: string,
-	groupId: string,
-	launchByPid: ListingIndexes["launchByPid"],
+	group: ListedGroup,
 ): Promise<Immutable<ParsedConfirmationGroupRecord> | undefined> {
+	const { runsDirectory, groupId } = group;
 	if (!(await hasConfirmationSummary({ groupId, runsDirectory }))) {
-		if (await leftOutWithoutSummary({ groupId, launchByPid, runsDirectory })) {
+		if (await leftOutWithoutSummary(group)) {
 			return undefined;
 		}
 
