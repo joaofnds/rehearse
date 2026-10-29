@@ -112,8 +112,9 @@ mise exec -- bun run rehearse run --case smoke \
 The terminal asks you to approve the projected budget before any provider call.
 For this example it is USD 0.50: two USD 0.20 sessions plus the USD 0.10 model
 probe. It is the sum of those budgets, each attempt held to the stored spend
-ceiling where the ceiling is lower, and the line names that ceiling per attempt
-and for the group. It is not a cap, since each session can overrun its own by
+ceiling where the ceiling is lower. The line also names the ceiling: with the
+USD 1 ceiling stored above, USD 1.00 per attempt and USD 2.00 for the group of
+2, which the lower session budgets keep the projection under. It is not a cap, since each session can overrun its own by
 the call that crosses it. For automation, add `--yes` to approve that
 projection without a prompt.
 Keep `--model` explicit; `--yes` does not select or authorize a case-default model
