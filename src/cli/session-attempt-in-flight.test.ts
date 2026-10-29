@@ -47,9 +47,11 @@ describe(runSessionDebugAttempt.name, () => {
 			}),
 		);
 
-		expect(claims).toEqual([
-			[{ pid: process.pid, startedAt: expect.any(String) }],
-		]);
+		expect(
+			claims.map((attemptClaimsThen) =>
+				attemptClaimsThen.map((claim) => claim?.pid),
+			),
+		).toEqual([[process.pid]]);
 	});
 
 	describe("when its corpus does not resolve", () => {

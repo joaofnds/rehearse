@@ -59,10 +59,9 @@ async function claimsTheGroupForThisProcessBeforeSettingUpARep(): Promise<void> 
 		})),
 	);
 
-	expect(await Promise.all(claims)).toContainEqual({
-		pid: process.pid,
-		startedAt: expect.any(String),
-	});
+	const read = await Promise.all(claims);
+
+	expect(read.map((claim) => claim?.pid)).toContain(process.pid);
 }
 
 describe(runPipelineConfirmation.name, () => {

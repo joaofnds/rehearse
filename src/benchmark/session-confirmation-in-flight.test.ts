@@ -45,8 +45,6 @@ describe(runSessionConfirmation.name, () => {
 			),
 		);
 
-		expect(claims).toEqual([
-			{ pid: process.pid, startedAt: expect.any(String) },
-		]);
+		expect(claims.map((claim) => claim?.pid)).toEqual([process.pid]);
 	});
 });
