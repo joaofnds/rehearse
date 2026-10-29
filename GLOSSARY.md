@@ -729,6 +729,12 @@ See [current state](docs/status.md) for implementation coverage and
 - **Group ceiling**: the spend a confirmation group may reach, its attempts
   times the spend ceiling. The group stops starting sessions once its spend
   reaches it.
+- **Projected budget**: the spend the CLI states for the operator to approve
+  before a confirmation group's attempts start, from the budgets its sessions
+  start with. A session case's figure adds its model probe allowance. Not a
+  cap: each session can overrun its budget by the call that crosses it, so the
+  charge can exceed it. Distinct from the group ceiling, which bounds what the
+  attempts may spend.
 - **Budget halt**: the provider ending a session because its spend reached
   the session budget passed to it. What it reports spent can exceed that
   budget. The envelope marks it an error, writes no result, reports the spend
