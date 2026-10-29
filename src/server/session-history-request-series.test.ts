@@ -15,6 +15,9 @@ import { clearSessionHistoryRoots } from "#server/session-history-workspace-test
 
 afterEach(clearSessionHistoryRoots);
 
+/** The fixture's one sub-agent request, at claude-sonnet-5's rates. */
+const UNKEPT_SUBAGENT_COST_USD = 0.375;
+
 describe(readSessionAttemptRequestSeries.name, () => {
 	describe("when the resumed attempt retains its transcript and boundary", () => {
 		it(
@@ -63,11 +66,40 @@ function subagentEvidence(): void {
 		);
 	});
 
+	describe("when the attempt did not keep its sub-agent's transcript", () => {
+		it(
+			"leaves the sub-agent's spend in an incomplete difference naming it",
+			verifyLeavesTheUnkeptSubagentsSpendInAnIncompleteDifference,
+		);
+	});
+
 	describe("when the sub-agents directory is refused", () => {
 		it(
 			"keeps the root series and reads the calculated attempt cost unavailable",
 			verifyKeepsTheRootSeriesWhenTheSubagentsDirectoryIsRefused,
 		);
+	});
+}
+
+async function verifyLeavesTheUnkeptSubagentsSpendInAnIncompleteDifference(): Promise<void> {
+	const fixture = await writtenSubagentAttempt();
+	const paths = sessionAttemptPaths(fixture.runsDirectory, fixture);
+	await rm(join(paths.directory, "subagents", "agent-k1.jsonl"));
+
+	const { cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
+
+	expect(cost.difference).toEqual({
+		costUsd: UNKEPT_SUBAGENT_COST_USD,
+		pricedRequestCount: 2,
+		reasons: [
+			"a reading it is drawn from is incomplete",
+			"no transcript was kept for sub-agent k1",
+		],
+		requestCount: 2,
+		state: "incomplete",
 	});
 }
 
