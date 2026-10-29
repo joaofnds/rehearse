@@ -1,13 +1,8 @@
-import {
-	hasConfirmationSummary,
-	readConfirmationArchive,
-} from "#benchmark/confirmation-archive";
+import { hasConfirmationSummary } from "#benchmark/confirmation-archive";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { ParsedConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { Immutable } from "#benchmark/contracts";
-import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
-import type { AttemptPosition } from "#server/checkpoint-attempts";
 import type {
 	ConfirmationGroupRow,
 	GroupRowIdentity,
@@ -16,13 +11,17 @@ import type {
 import groupEvidence from "#server/run-history-group-evidence";
 import { repAttempts } from "#server/run-history-group-reps";
 import sessionGroupSavedState from "#server/run-history-group-saved-state";
+import type { ListingIndexes } from "#server/run-history-listing-contract";
+import leftOutWithoutSummary from "#server/run-history-unsummarized-group";
+
+type GroupRowIndexes = Pick<ListingIndexes, "attempts" | "launchByPid">;
 
 async function groupRow(
 	runsDirectory: string,
 	{ groupId, shortId, checkpoint }: GroupRowIdentity,
-	attempts: ReadonlyMap<string, AttemptPosition>,
+	{ attempts, launchByPid }: GroupRowIndexes,
 ): Promise<Unjudged<ConfirmationGroupRow> | undefined> {
-	const record = await groupRecord(runsDirectory, groupId);
+	const record = await groupRecord(runsDirectory, groupId, launchByPid);
 	if (record === undefined) {
 		return undefined;
 	}
@@ -72,22 +71,17 @@ class IncompleteConfirmationError extends Error {
 async function groupRecord(
 	runsDirectory: string,
 	groupId: string,
+	launchByPid: ListingIndexes["launchByPid"],
 ): Promise<Immutable<ParsedConfirmationGroupRecord> | undefined> {
-	const paths = confirmationGroupPaths(runsDirectory, groupId);
-	const { groupFile } = paths;
 	if (!(await hasConfirmationSummary({ groupId, runsDirectory }))) {
-		if (await stoppedBeforeGroupRecord(paths)) {
-			return undefined;
-		}
-
-		if (
-			(await readConfirmationArchive({ groupId, runsDirectory })) !== undefined
-		) {
+		if (await leftOutWithoutSummary({ groupId, launchByPid, runsDirectory })) {
 			return undefined;
 		}
 
 		throw new IncompleteConfirmationError(groupId);
 	}
+
+	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
 
 	return parseConfirmationGroupRecord(await Bun.file(groupFile).text());
 }

@@ -11,14 +11,19 @@ import { sessionAttemptRow } from "#server/run-history-session-attempt-row";
 
 async function sessionListing(
 	{ runsDirectory, only }: ListingEnvironment,
-	{ shortIds }: ListingIndexes,
+	{ shortIds, launchByPid }: ListingIndexes,
 ): Promise<readonly RowRead[]> {
 	return listingSelection(await sessionAttemptIds(runsDirectory), {
 		idOf: (attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
 		kind: "session-attempt",
 		only,
 		read: async (attempt, shortId) =>
-			await sessionAttemptRow(runsDirectory, attempt, shortId),
+			await sessionAttemptRow({
+				attempt,
+				launchByPid,
+				runsDirectory,
+				shortId,
+			}),
 		shortIds,
 	});
 }

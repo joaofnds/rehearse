@@ -1,5 +1,6 @@
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
+import type { LaunchRecord } from "#benchmark/launch-record";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import type { SessionAttemptId } from "#benchmark/run-layout";
 import {
@@ -9,6 +10,7 @@ import {
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
 import type { SessionAttemptRow, Unjudged } from "#server/run-history-contract";
+import heldInFlight from "#server/run-history-in-flight";
 import savedStateAssessment from "#server/saved-state-assessment";
 
 const SESSION_COST_REASON = "the attempt recorded no call metrics";
@@ -49,13 +51,29 @@ function sessionChecks(
 	}
 }
 
-async function sessionAttemptRow(
-	runsDirectory: string,
-	attempt: SessionAttemptId,
-	shortId: string | undefined,
-): Promise<Unjudged<SessionAttemptRow>> {
-	const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
+interface SessionAttemptRowRequest {
+	readonly runsDirectory: string;
+	readonly attempt: SessionAttemptId;
+	readonly shortId: string | undefined;
+	readonly launchByPid: ReadonlyMap<number, LaunchRecord>;
+}
+
+/**
+ * Undefined for an attempt with no record whose writer a live launch holds,
+ * since the launch's own row stands for it until the record is written.
+ */
+async function sessionAttemptRow({
+	runsDirectory,
+	attempt,
+	shortId,
+	launchByPid,
+}: SessionAttemptRowRequest): Promise<Unjudged<SessionAttemptRow> | undefined> {
+	const { directory, recordFile } = sessionAttemptPaths(runsDirectory, attempt);
 	if (!(await Bun.file(recordFile).exists())) {
+		if (await heldInFlight(directory, launchByPid)) {
+			return undefined;
+		}
+
 		throw new Error("incomplete: no attempt.json recorded");
 	}
 

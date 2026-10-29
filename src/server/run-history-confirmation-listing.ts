@@ -10,7 +10,7 @@ import listingSelection from "#server/run-history-listing-contract";
 
 async function confirmationListing(
 	{ runsDirectory, only }: ListingEnvironment,
-	{ shortIds, attempts, groupCheckpoints }: ListingIndexes,
+	{ shortIds, attempts, groupCheckpoints, launchByPid }: ListingIndexes,
 ): Promise<readonly RowRead[]> {
 	return listingSelection(await confirmationGroupIds(runsDirectory), {
 		idOf: (groupId) => formatRecordId({ groupId, kind: "group" }),
@@ -20,7 +20,7 @@ async function confirmationListing(
 			await groupRow(
 				runsDirectory,
 				{ checkpoint: groupCheckpoints.get(groupId), groupId, shortId },
-				attempts,
+				{ attempts, launchByPid },
 			),
 		shortIds,
 	});
