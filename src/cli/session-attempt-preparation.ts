@@ -3,16 +3,14 @@ import { randomUUID } from "node:crypto";
 import type { HashedFile } from "#benchmark/checkpoint";
 import type { SessionSettings } from "#benchmark/claude";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
-import { measureCorpusVersion } from "#benchmark/corpus-version";
 import type { SessionAttemptPaths } from "#benchmark/session-attempt-layout";
 import { sessionAttemptPaths } from "#benchmark/session-attempt-layout";
 import { claimShortId } from "#benchmark/short-id";
 
 import type { AttemptCorpus } from "./session-attempt-corpus";
-import requireCorpus, {
-	matchingCorpusVersionFiles,
-} from "./session-attempt-corpus";
+import requireCorpus from "./session-attempt-corpus";
 import { lineageOf, settingsOf } from "./session-attempt-lineage";
+import measureAttemptCorpus from "./session-attempt-version-files";
 import type { SessionRunRequest } from "./session-run-contract";
 
 interface PreparedSessionDebugAttempt {
@@ -41,15 +39,10 @@ async function prepareSessionDebugAttempt(
 		request.resolveCorpus,
 	);
 
-	const corpusVersion = await (
-		request.measureCorpusVersion ?? measureCorpusVersion
-	)(request.runsDirectory, corpus.source);
-
-	const versionFiles = await matchingCorpusVersionFiles({
+	const { corpusVersion, versionFiles } = await measureAttemptCorpus(
+		request,
 		corpus,
-		measurement: corpusVersion,
-		runsDirectory: request.runsDirectory,
-	});
+	);
 
 	const lineage = await lineageOf(sessionCase, corpus.files, settings);
 

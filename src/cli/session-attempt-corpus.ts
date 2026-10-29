@@ -1,19 +1,15 @@
 import type { SessionCase } from "#benchmark/case";
-import type { HashedFile } from "#benchmark/checkpoint";
 import type { CorpusRoot, ResolvedCorpusFile } from "#benchmark/corpus-file";
 import {
 	CorpusConfigurationError,
 	hashCorpusFiles,
 } from "#benchmark/corpus-file";
-import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
-import { measuredCorpusFiles } from "#benchmark/corpus-version";
 import type { SessionCorpusSnapshot } from "#benchmark/session-corpus";
 import { snapshotSessionCorpus } from "#benchmark/session-corpus";
 import { UsageError } from "#cli/command-usage";
 import corpusRefusal from "#cli/corpus-failures";
-import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
 interface AttemptCorpus {
 	readonly source: CorpusRoot;
@@ -81,36 +77,6 @@ async function requireCorpus(
 	}
 }
 
-interface AttemptCorpusVersion {
-	readonly corpus: AttemptCorpus;
-	readonly measurement: CorpusMeasurement;
-	readonly runsDirectory: string;
-}
-
-async function matchingCorpusVersionFiles({
-	corpus,
-	measurement,
-	runsDirectory,
-}: AttemptCorpusVersion): Promise<readonly HashedFile[]> {
-	const files = await measuredCorpusFiles(runsDirectory, measurement);
-	if (measurement.kind === "version") {
-		const changed = corpus.files.find(
-			(declared) =>
-				!files.some(
-					(file) =>
-						file.path === declared.path && file.sha256 === declared.sha256,
-				),
-		);
-		if (changed !== undefined) {
-			throw new RefusedPreconditionError(
-				`Corpus entry ${changed.path} changed while preparing the attempt; retry with an unchanged corpus source`,
-			);
-		}
-	}
-
-	return files;
-}
-
-export { requireCorpus as default, matchingCorpusVersionFiles };
+export { requireCorpus as default };
 
 export type { AttemptCorpus };
