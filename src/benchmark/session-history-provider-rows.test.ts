@@ -1,14 +1,35 @@
 import { describe, expect, it } from "bun:test";
 
 import type { JsonValue } from "#benchmark/json-value";
-import { sessionHistoryReport } from "#benchmark/session-history";
-import type { SessionHistoryReport } from "#benchmark/session-history";
+import {
+	sessionHistoryDetail,
+	sessionHistoryReport,
+} from "#benchmark/session-history";
+import type {
+	SessionHistoryReport,
+	SessionHistoryReportInput,
+} from "#benchmark/session-history";
 
 import { call, row } from "./session-history-event-test-fixtures";
 import { sessionAttempt } from "./session-history-test-identities";
 
+function knownBoundaryInput(
+	rows: readonly string[],
+): SessionHistoryReportInput {
+	return {
+		attempt: sessionAttempt,
+		prefixLinesExcluded: 0,
+		resolvedCorpusFiles: [],
+		transcript: rows.join("\n"),
+	};
+}
+
+function knownBoundaryReport(rows: readonly string[]): SessionHistoryReport {
+	return sessionHistoryReport(knownBoundaryInput(rows));
+}
+
 function readsAMixedProviderTranscriptComplete(): void {
-	const transcript = [
+	const report = knownBoundaryReport([
 		row({ message: { content: "Summarise the notes." }, type: "user" }),
 		row({
 			attachment: { content: "skills: review", type: "skill_listing" },
@@ -25,14 +46,7 @@ function readsAMixedProviderTranscriptComplete(): void {
 		}),
 		row({ lastPrompt: "Summarise the notes.", type: "last-prompt" }),
 		row({ operation: "enqueue", type: "queue-operation" }),
-	].join("\n");
-
-	const report = sessionHistoryReport({
-		attempt: sessionAttempt,
-		prefixLinesExcluded: 0,
-		resolvedCorpusFiles: [],
-		transcript,
-	});
+	]);
 
 	expect(report.evidence).toEqual({ state: "complete" });
 	expect(
@@ -40,15 +54,6 @@ function readsAMixedProviderTranscriptComplete(): void {
 			.map(({ label }) => label)
 			.filter((label) => label.startsWith("Attachment")),
 	).toEqual(["Attachment · skill_listing"]);
-}
-
-function knownBoundaryReport(rows: readonly string[]): SessionHistoryReport {
-	return sessionHistoryReport({
-		attempt: sessionAttempt,
-		prefixLinesExcluded: 0,
-		resolvedCorpusFiles: [],
-		transcript: rows.join("\n"),
-	});
 }
 
 function showsEachAttachmentOnceByKindWithItsSizeUnavailable(): void {
@@ -157,6 +162,24 @@ function measuresThinkingFromItsText(): void {
 	expect(report.evidence).toEqual({ state: "complete" });
 }
 
+function showsThinkingTextInItsDetail(): void {
+	const detail = sessionHistoryDetail(
+		knownBoundaryInput([
+			assistantThinking({
+				signature: "sig",
+				thinking: "plan",
+				type: "thinking",
+			}),
+		]),
+		"1:1",
+	);
+
+	expect({ deliveredText: detail?.deliveredText, kind: detail?.kind }).toEqual({
+		deliveredText: "plan",
+		kind: "unclassified",
+	});
+}
+
 const UNRECORDED_THINKING = [
 	{
 		block: { signature: "sig", thinking: "", type: "thinking" },
@@ -248,6 +271,7 @@ describe(sessionHistoryReport.name, () => {
 	);
 	it("reads a request blob as metadata", readsARequestBlobAsMetadata);
 	it("measures thinking from its text", measuresThinkingFromItsText);
+	it("shows thinking text in its detail", showsThinkingTextInItsDetail);
 	it.each([...UNRECORDED_THINKING])(
 		"reports $label size unavailable when its text is not recorded",
 		reportsUnrecordedThinkingSizeUnavailable,

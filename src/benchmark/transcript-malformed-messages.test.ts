@@ -65,8 +65,17 @@ function readsARequestBlobAsMetadata(): void {
 			lines: transcript,
 			prefixLinesExcluded: 0,
 			sourceAvailable: true,
-		}).state,
-	).toBe("complete");
+		}),
+	).toEqual({
+		issues: [],
+		measuredLineCount: 3,
+		prefixLinesExcluded: 0,
+		repeatedBashCommands: [],
+		sourceLineCount: 3,
+		state: "complete",
+		toolErrors: [],
+		toolUseOccurrences: { byName: [{ count: 1, name: "Bash" }], total: 1 },
+	});
 }
 
 function marksMalformedOrEmptyMeasuredEvidencePartialWithoutHidingRawCounts(): void {
