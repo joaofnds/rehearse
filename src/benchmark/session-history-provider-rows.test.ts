@@ -198,6 +198,27 @@ const UNREADABLE_ROWS = [
 		text: row({ message: { content: "loaded text" }, type: "future-kind" }),
 	},
 	{
+		name: "a row without a type carrying a message",
+		text: row({ message: { content: "loaded text" } }),
+	},
+	{
+		name: "a row without a type or a message",
+		text: row({ note: "loaded text" }),
+	},
+	{ name: "a turn without a message", text: row({ type: "user" }) },
+	{
+		name: "an attachment row with an empty kind",
+		text: row({ attachment: { type: "" }, type: "attachment" }),
+	},
+	{
+		name: "an attachment row carrying a message",
+		text: row({
+			attachment: { type: "date" },
+			message: { content: "loaded text" },
+			type: "attachment",
+		}),
+	},
+	{
 		name: "a content block of an unknown type",
 		text: row({ message: { content: [{ type: "hologram" }] }, type: "user" }),
 	},

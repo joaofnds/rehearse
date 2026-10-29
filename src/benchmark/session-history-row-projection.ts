@@ -1,3 +1,4 @@
+import { unhandled } from "./contracts";
 import type { Immutable } from "./contracts";
 import type { JsonValue } from "./json-value";
 import contentBlockEvent from "./session-history-content-events";
@@ -10,7 +11,7 @@ import type {
 	ProjectionState,
 	RowEventProjectionRequest,
 } from "./session-history-event-contract";
-import { baseEvent, regionFor } from "./session-history-location";
+import { baseEvent, locatorId, regionFor } from "./session-history-location";
 import { measureContent } from "./session-history-measurement";
 import {
 	historyThinkingBlockSchema,
@@ -26,11 +27,60 @@ import { sourceForCall } from "./session-history-sources";
 
 const ATTACHMENT_BLOCK_NUMBER = 1;
 
+const TRANSCRIPT_BLOCK_NUMBER_BASE = 1;
+
 class RowEventProjection {
 	private readonly events: MutableEvent[] = [];
 	private readonly issues: string[] = [];
 	public constructor(private readonly request: RowEventProjectionRequest) {}
-	public observe({ block, value }: HistoryRowBlock): void {
+	public project(): ProjectionState {
+		this.observeRow();
+
+		return { events: this.events, issues: this.issues };
+	}
+	private observeRow(): void {
+		const { reading } = this.request.row;
+		switch (reading.kind) {
+			case "metadata": {
+				break;
+			}
+			case "attachment": {
+				this.observeAttachment(reading.attachmentKind);
+				break;
+			}
+			case "unreadable": {
+				this.observeUnreadableBlocks();
+				break;
+			}
+			case "turn": {
+				this.observeTurnBlocks();
+				break;
+			}
+			default: {
+				unhandled(reading, "history row reading");
+			}
+		}
+	}
+	private observeTurnBlocks(): void {
+		for (const block of this.numberedBlocks()) {
+			this.observe(block);
+		}
+	}
+	private observeUnreadableBlocks(): void {
+		for (const block of this.numberedBlocks()) {
+			this.issues.push(
+				`unsupported content at ${locatorId({ block: block.block, line: this.request.row.line })}`,
+			);
+			this.observe(block);
+		}
+	}
+	private numberedBlocks(): readonly HistoryRowBlock[] {
+		return this.request.row.blocks.map((value, index) => ({
+			block: index + TRANSCRIPT_BLOCK_NUMBER_BASE,
+			value,
+		}));
+	}
+	private observe({ block, value }: HistoryRowBlock): void {
 		const { row, input } = this.request;
 		const location = { block, line: row.line };
 		const common = baseEvent(
@@ -38,9 +88,6 @@ class RowEventProjection {
 			block,
 			regionFor(row.line, input.prefixLinesExcluded),
 		);
-		if (row.kind.kind === "unrecognised-message") {
-			this.issues.push(`unsupported content at ${common.id}`);
-		}
 		const call = historyToolCallSchema.safeParse(value);
 		if (call.success) {
 			this.projectCall({ call: call.data, common, location });
@@ -48,7 +95,7 @@ class RowEventProjection {
 			this.projectNonCall(common, value);
 		}
 	}
-	public observeAttachment(attachmentKind: string): void {
+	private observeAttachment(attachmentKind: string): void {
 		const { row, input } = this.request;
 		const common = baseEvent(
 			row,
@@ -62,16 +109,20 @@ class RowEventProjection {
 		value: JsonValue,
 	): void {
 		const result = historyToolResultSchema.safeParse(value);
-		const thinking = historyThinkingBlockSchema.safeParse(value);
 		if (result.success) {
 			this.projectResult({ common, result: result.data });
-		} else if (thinking.success) {
+			return;
+		}
+
+		const thinking = historyThinkingBlockSchema.safeParse(value);
+		if (thinking.success) {
 			this.events.push(
 				thinkingEvent(common, thinking.data, this.request.retainBodies),
 			);
-		} else {
-			this.projectContent(common, value);
+			return;
 		}
+
+		this.projectContent(common, value);
 	}
 	private projectCall({ common, location, call }: ProjectedCall): void {
 		const { row, input } = this.request;
@@ -134,9 +185,6 @@ class RowEventProjection {
 		if (event.measurement.state !== "complete") {
 			this.issues.push(`unsupported content at ${common.id}`);
 		}
-	}
-	public state(): ProjectionState {
-		return { events: this.events, issues: this.issues };
 	}
 }
 

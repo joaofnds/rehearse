@@ -86,6 +86,7 @@ function makesUnsupportedResultContentPartialAtReportLevel(): void {
 						},
 					],
 				},
+				type: "user",
 			}),
 		].join("\n"),
 	});

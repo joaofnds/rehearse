@@ -2247,9 +2247,11 @@ event. Each attachment row adds one event labelled by its kind, with its size
 unavailable, since the provider renders the attachment and the transcript does
 not record the text it delivered. A thinking or redacted thinking block adds
 one event, measured from its text when the provider recorded any. None of these
-adds an evidence gap. An unparseable line, a row the record schema rejects, an
-attachment without a kind, another row carrying a message, and a content block
-of an unknown type each add a gap naming its locator.
+adds an evidence gap. An unparseable line, a row the record schema rejects, a
+row without a type, an attachment without a kind, another row carrying a
+message, and a content block of an unknown type each add a gap naming its
+locator. The transcript diagnostics read rows by the same rule, so a row
+carrying a message outside a turn is `invalid-message-content` there.
 
 The run history screen and these pages name a record by its short id where
 `/api/runs` names it, keeping beneath it the name the record is filed under:

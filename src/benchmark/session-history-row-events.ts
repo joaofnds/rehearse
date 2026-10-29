@@ -13,8 +13,6 @@ import RowEventProjection from "./session-history-row-projection";
 
 const INITIAL_TRANSCRIPT_LINE_NUMBER = 0;
 
-const TRANSCRIPT_BLOCK_NUMBER_BASE = 1;
-
 class HistoryTranscriptProjection {
 	private readonly events: MutableEvent[] = [];
 	private readonly issues: string[] = [];
@@ -42,14 +40,7 @@ function parseRowEvents(
 	row: Immutable<ParsedRow>,
 	retainBodies: boolean,
 ): ProjectionState {
-	const projection = new RowEventProjection({ input, retainBodies, row });
-	if (row.kind.kind === "attachment") {
-		projection.observeAttachment(row.kind.attachmentKind);
-	}
-	for (const [index, value] of row.blocks.entries()) {
-		projection.observe({ block: index + TRANSCRIPT_BLOCK_NUMBER_BASE, value });
-	}
-	return projection.state();
+	return new RowEventProjection({ input, retainBodies, row }).project();
 }
 
 function parseEvents(

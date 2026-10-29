@@ -23,6 +23,39 @@ const toolUseSchema = z.looseObject({
  */
 const REQUEST_BLOB_RECORD_TYPE = "api-request-blob";
 
+/**
+ * What a provider record is to every reader of the transcript. A record that
+ * is neither a turn nor a request blob and carries no message holds no context
+ * to misread. One that carries a message holds context no reader can place.
+ */
+type TranscriptRecordRole =
+	| "turn"
+	| "metadata"
+	| "unplaced-message"
+	| "untyped";
+
+interface TranscriptRecordFields {
+	readonly type?: string | undefined;
+	readonly message?: unknown;
+}
+
+function transcriptRecordRole({
+	type,
+	message,
+}: TranscriptRecordFields): TranscriptRecordRole {
+	if (type === "assistant" || type === "user") {
+		return "turn";
+	}
+	if (type === REQUEST_BLOB_RECORD_TYPE) {
+		return "metadata";
+	}
+	if (message !== undefined) {
+		return "unplaced-message";
+	}
+
+	return type === undefined ? "untyped" : "metadata";
+}
+
 const transcriptRecordSchema = z.looseObject({
 	message: z
 		.looseObject({
@@ -103,6 +136,7 @@ type ToolUse = z.infer<typeof toolUseSchema>;
 
 export {
 	REQUEST_BLOB_RECORD_TYPE,
+	transcriptRecordRole,
 	namedAgentRecordSchema,
 	attachmentRecordSchema,
 	outputStyleAttachmentSchema,
@@ -118,4 +152,4 @@ export {
 	metaRecordSchema,
 };
 
-export type { ToolUse, UserRecord };
+export type { ToolUse, TranscriptRecordRole, UserRecord };

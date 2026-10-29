@@ -1,8 +1,9 @@
+import { unhandled } from "./contracts";
 import type { JsonValue } from "./json-value";
 import {
-	REQUEST_BLOB_RECORD_TYPE,
 	assistantRecordSchema,
 	providerIdSchema,
+	transcriptRecordRole,
 	transcriptRecordSchema,
 	userRecordSchema,
 } from "./transcript-message-contract";
@@ -49,24 +50,30 @@ function readMessage(parsed: JsonValue): ParsedTranscriptMessage | undefined {
 	if (!record.success) {
 		return undefined;
 	}
-	if (record.data.type === "assistant") {
-		return assistantMessage(parsed);
+
+	const role = transcriptRecordRole(record.data);
+	switch (role) {
+		case "turn": {
+			return record.data.type === "assistant"
+				? assistantMessage(parsed)
+				: userMessage(parsed);
+		}
+		case "unplaced-message": {
+			return undefined;
+		}
+		case "metadata":
+		case "untyped": {
+			return {
+				blocks: [],
+				requestId: undefined,
+				type: record.data.type,
+				user: undefined,
+			};
+		}
+		default: {
+			return unhandled(role, "transcript record role");
+		}
 	}
-	if (record.data.type === "user") {
-		return userMessage(parsed);
-	}
-	if (
-		record.data.message !== undefined &&
-		record.data.type !== REQUEST_BLOB_RECORD_TYPE
-	) {
-		return undefined;
-	}
-	return {
-		blocks: [],
-		requestId: undefined,
-		type: record.data.type,
-		user: undefined,
-	};
 }
 
 export { readMessage as default };
