@@ -43,27 +43,19 @@ function keepsDuplicateResultIDsAsSeparatePartialEvidence(): void {
 	]);
 }
 
-function retainsNoContentHistoricalRowsAsUnsupportedLocatorEvidence(): void {
+function retainsANoContentMessageRowAsUnsupportedLocatorEvidence(): void {
 	const report = sessionHistoryReport({
 		attempt: sessionAttempt,
 		prefixLinesExcluded: undefined,
 		resolvedCorpusFiles: [],
-		transcript: [
-			row({ type: "system" }),
-			row({ message: { content: [] } }),
-		].join("\n"),
+		transcript: row({ message: { content: [] } }),
 	});
 
 	expect(report.boundaryUnknown).toEqual([
 		expect.objectContaining({ id: "1:1", state: "recorded" }),
-		expect.objectContaining({ id: "2:1", state: "recorded" }),
 	]);
 	expect(report.evidence).toEqual({
-		reasons: [
-			"unsupported content at 1:1",
-			"unsupported content at 2:1",
-			"attempt boundary unavailable",
-		],
+		reasons: ["unsupported content at 1:1", "attempt boundary unavailable"],
 		state: "partial",
 	});
 	expect(report.sources).toEqual([
@@ -113,8 +105,8 @@ describe(sessionHistoryReport.name, () => {
 		keepsDuplicateResultIDsAsSeparatePartialEvidence,
 	);
 	it(
-		"retains no-content historical rows as unsupported locator evidence",
-		retainsNoContentHistoricalRowsAsUnsupportedLocatorEvidence,
+		"retains a no-content message row as unsupported locator evidence",
+		retainsANoContentMessageRowAsUnsupportedLocatorEvidence,
 	);
 	it(
 		"makes unsupported result content partial at report level",

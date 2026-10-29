@@ -1,14 +1,30 @@
 import { z } from "zod";
 
+import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { JsonValue } from "./json-value";
+import { REQUEST_BLOB_RECORD_TYPE } from "./transcript-message-contract";
 
 const TRANSCRIPT_LINE_NUMBER_BASE = 1;
 
 const EMPTY_COLLECTION_LENGTH = 0;
 
+const TURN_TYPES: ReadonlySet<string> = new Set(["assistant", "user"]);
+
+/**
+ * How the history reads a row. A provider row that is neither a turn nor an
+ * attachment and carries no message holds no context to misread, so it is
+ * metadata. One that does carry a message is a row this reader cannot place.
+ */
+type HistoryRowKind =
+	| { readonly kind: "content" }
+	| { readonly kind: "metadata" }
+	| { readonly kind: "attachment"; readonly attachmentKind: string }
+	| { readonly kind: "unrecognised-message" };
+
 interface ParsedRow {
 	readonly line: number;
+	readonly kind: HistoryRowKind;
 	readonly timestamp: string | undefined;
 	readonly cwd: string | undefined;
 	readonly value: HistoryRecord | undefined;
@@ -33,15 +49,17 @@ const historyRecordSchema = z.looseObject({
 	message: z.looseObject({ content: historyContentSchema }).optional(),
 	sourceToolUseID: z.string().nonempty().optional(),
 	timestamp: z.string().nonempty().optional(),
-	toolUseResult: z
-		.looseObject({
-			file: readToolResultFileSchema,
-		})
-		.optional(),
+	toolUseResult: z.unknown().optional(),
 	type: z.string().optional(),
 });
 
 type HistoryRecord = z.infer<typeof historyRecordSchema>;
+
+const readToolResultSchema = z.looseObject({ file: readToolResultFileSchema });
+
+const attachmentKindSchema = z.looseObject({
+	attachment: z.looseObject({ type: z.string() }),
+});
 
 const historyBlockInputSchema = z.record(z.string(), jsonValueSchema);
 
@@ -66,6 +84,14 @@ const historyTextBlockSchema = z.looseObject({
 	type: z.literal("text"),
 });
 
+const historyThinkingBlockSchema = z.discriminatedUnion("type", [
+	z.looseObject({
+		thinking: z.string().optional(),
+		type: z.literal("thinking"),
+	}),
+	z.looseObject({ type: z.literal("redacted_thinking") }),
+]);
+
 function readHistoryRecord(text: string): HistoryRecord | undefined {
 	try {
 		return historyRecordSchema.safeParse(JSON.parse(text)).data;
@@ -74,17 +100,45 @@ function readHistoryRecord(text: string): HistoryRecord | undefined {
 	}
 }
 
+function attachmentRowKind(value: Immutable<HistoryRecord>): HistoryRowKind {
+	const attachment = attachmentKindSchema.safeParse(value);
+
+	return attachment.success
+		? { attachmentKind: attachment.data.attachment.type, kind: "attachment" }
+		: { kind: "content" };
+}
+
+function rowKind(value: Immutable<HistoryRecord> | undefined): HistoryRowKind {
+	const type = value?.type;
+	if (value === undefined || type === undefined || TURN_TYPES.has(type)) {
+		return { kind: "content" };
+	}
+	if (type === REQUEST_BLOB_RECORD_TYPE) {
+		return { kind: "metadata" };
+	}
+	if (value.message !== undefined) {
+		return { kind: "unrecognised-message" };
+	}
+
+	return type === "attachment"
+		? attachmentRowKind(value)
+		: { kind: "metadata" };
+}
+
 function parsedRow(text: string, line: number): ParsedRow | undefined {
 	if (text.trim() === "") {
 		return undefined;
 	}
 
 	const value = readHistoryRecord(text);
-	const content = value?.message?.content;
+	const kind = rowKind(value);
+	const readsBlocks =
+		kind.kind === "content" || kind.kind === "unrecognised-message";
 
 	return {
-		blocks: historyMessageBlocks(content),
+		blocks: readsBlocks ? historyMessageBlocks(value?.message?.content) : [],
 		cwd: value?.cwd,
+		kind,
 		line,
 		timestamp: value?.timestamp,
 		value,
@@ -114,9 +168,11 @@ function historyMessageBlocks(
 export {
 	parsedRow,
 	historyTextBlockSchema,
+	historyThinkingBlockSchema,
 	historyToolCallSchema,
 	historyToolResultSchema,
 	parsedRows,
+	readToolResultSchema,
 };
 
 export type { HistoryBlockInput, HistoryRecord, ParsedRow };

@@ -16,6 +16,13 @@ const toolUseSchema = z.looseObject({
 	type: z.literal("tool_use"),
 });
 
+/**
+ * The provider's copy of the messages it sent in one request. Its turns are
+ * already recorded as user and assistant rows, so reading its message again
+ * would count every turn twice.
+ */
+const REQUEST_BLOB_RECORD_TYPE = "api-request-blob";
+
 const transcriptRecordSchema = z.looseObject({
 	message: z
 		.looseObject({
@@ -95,6 +102,7 @@ const taskNotificationSchema = z.looseObject({
 type ToolUse = z.infer<typeof toolUseSchema>;
 
 export {
+	REQUEST_BLOB_RECORD_TYPE,
 	namedAgentRecordSchema,
 	attachmentRecordSchema,
 	outputStyleAttachmentSchema,

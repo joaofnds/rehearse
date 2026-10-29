@@ -777,7 +777,10 @@ cost, or causality.
 The diagnostic `state` is `complete`, `partial`, or `unavailable`. Complete
 means the measured JSONL uses the supported message, tool-use, and tool-result
 shapes; valid string user content and metadata records can therefore produce a
-complete zero. Empty or malformed measured evidence, unsupported content
+complete zero. An `api-request-blob` record, the provider's copy of the
+messages it sent in one request, is a metadata record: its turns are already
+recorded as user and assistant records, so it adds no tool use and no issue.
+Empty or malformed measured evidence, unsupported content
 blocks, invalid tool blocks, missing results, and missing, duplicate, or
 unmatched IDs produce `partial` with named `issues` while preserving any raw
 observations that were possible. `unavailable` means the provider transcript
@@ -2236,6 +2239,17 @@ The local browser can inspect standalone session attempts at
 `/<line>:<block>` to any of those API paths returns the selected event detail.
 Each locator is the saved transcript's one-based physical line and content
 block.
+
+A transcript row adds an evidence gap only when the report cannot read it as
+what it is. A provider row other than a user, assistant or attachment row that
+carries no message, and every `api-request-blob` row, is metadata and adds no
+event. Each attachment row adds one event labelled by its kind, with its size
+unavailable, since the provider renders the attachment and the transcript does
+not record the text it delivered. A thinking or redacted thinking block adds
+one event, measured from its text when the provider recorded any. None of these
+adds an evidence gap. An unparseable line, a row the record schema rejects, an
+attachment without a kind, another row carrying a message, and a content block
+of an unknown type each add a gap naming its locator.
 
 The run history screen and these pages name a record by its short id where
 `/api/runs` names it, keeping beneath it the name the record is filed under:

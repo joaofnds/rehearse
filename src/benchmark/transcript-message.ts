@@ -1,5 +1,6 @@
 import type { JsonValue } from "./json-value";
 import {
+	REQUEST_BLOB_RECORD_TYPE,
 	assistantRecordSchema,
 	providerIdSchema,
 	transcriptRecordSchema,
@@ -54,7 +55,10 @@ function readMessage(parsed: JsonValue): ParsedTranscriptMessage | undefined {
 	if (record.data.type === "user") {
 		return userMessage(parsed);
 	}
-	if (record.data.message !== undefined) {
+	if (
+		record.data.message !== undefined &&
+		record.data.type !== REQUEST_BLOB_RECORD_TYPE
+	) {
 		return undefined;
 	}
 	return {

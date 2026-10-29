@@ -13,11 +13,18 @@ import type {
 import { baseEvent, regionFor } from "./session-history-location";
 import { measureContent } from "./session-history-measurement";
 import {
+	historyThinkingBlockSchema,
 	historyToolCallSchema,
 	historyToolResultSchema,
 } from "./session-history-message";
+import {
+	attachmentEvent,
+	thinkingEvent,
+} from "./session-history-provider-events";
 import snapshotFor from "./session-history-snapshots";
 import { sourceForCall } from "./session-history-sources";
+
+const ATTACHMENT_BLOCK_NUMBER = 1;
 
 class RowEventProjection {
 	private readonly events: MutableEvent[] = [];
@@ -31,6 +38,9 @@ class RowEventProjection {
 			block,
 			regionFor(row.line, input.prefixLinesExcluded),
 		);
+		if (row.kind.kind === "unrecognised-message") {
+			this.issues.push(`unsupported content at ${common.id}`);
+		}
 		const call = historyToolCallSchema.safeParse(value);
 		if (call.success) {
 			this.projectCall({ call: call.data, common, location });
@@ -38,13 +48,27 @@ class RowEventProjection {
 			this.projectNonCall(common, value);
 		}
 	}
+	public observeAttachment(attachmentKind: string): void {
+		const { row, input } = this.request;
+		const common = baseEvent(
+			row,
+			ATTACHMENT_BLOCK_NUMBER,
+			regionFor(row.line, input.prefixLinesExcluded),
+		);
+		this.events.push(attachmentEvent(common, attachmentKind));
+	}
 	private projectNonCall(
 		common: Immutable<CommonEvent>,
 		value: JsonValue,
 	): void {
 		const result = historyToolResultSchema.safeParse(value);
+		const thinking = historyThinkingBlockSchema.safeParse(value);
 		if (result.success) {
 			this.projectResult({ common, result: result.data });
+		} else if (thinking.success) {
+			this.events.push(
+				thinkingEvent(common, thinking.data, this.request.retainBodies),
+			);
 		} else {
 			this.projectContent(common, value);
 		}

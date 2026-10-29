@@ -45,6 +45,30 @@ function rejectsToolContentFromUnknownRecords(): void {
 	).toEqual(unknownRecordExpected);
 }
 
+function readsARequestBlobAsMetadata(): void {
+	const transcript = parseTranscript(
+		[
+			assistantWith(bashCall("bash-1", "pwd")),
+			line({
+				message: { content: [toolResult("bash-1")] },
+				type: "user",
+			}),
+			line({
+				message: { content: [bashCall("bash-1", "pwd")] },
+				type: "api-request-blob",
+			}),
+		].join("\n"),
+	);
+
+	expect(
+		transcriptDiagnostics({
+			lines: transcript,
+			prefixLinesExcluded: 0,
+			sourceAvailable: true,
+		}).state,
+	).toBe("complete");
+}
+
 function marksMalformedOrEmptyMeasuredEvidencePartialWithoutHidingRawCounts(): void {
 	const malformed = parseTranscript(
 		[
@@ -142,6 +166,7 @@ describe(transcriptDiagnostics.name, () => {
 		"does not accept tool-shaped message content from an unknown record kind",
 		rejectsToolContentFromUnknownRecords,
 	);
+	it("reads a request blob as metadata", readsARequestBlobAsMetadata);
 	it(
 		"marks malformed or empty measured evidence partial without hiding raw counts",
 		marksMalformedOrEmptyMeasuredEvidencePartialWithoutHidingRawCounts,

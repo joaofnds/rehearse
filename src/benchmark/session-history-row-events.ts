@@ -43,6 +43,9 @@ function parseRowEvents(
 	retainBodies: boolean,
 ): ProjectionState {
 	const projection = new RowEventProjection({ input, retainBodies, row });
+	if (row.kind.kind === "attachment") {
+		projection.observeAttachment(row.kind.attachmentKind);
+	}
 	for (const [index, value] of row.blocks.entries()) {
 		projection.observe({ block: index + TRANSCRIPT_BLOCK_NUMBER_BASE, value });
 	}
