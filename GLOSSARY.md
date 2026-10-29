@@ -465,6 +465,15 @@ See [current state](docs/status.md) for implementation coverage and
   graceful signal handler still writes on its own. Before a start records it,
   and when no start can, the run-history report shows the run as `INTERRUPTED` once its own claim in its
   checkout is no longer held by a live process, without recording it.
+- **Group or attempt in flight** — a confirmation group or standalone session
+  attempt whose process is still executing, so its summary or attempt record is
+  not written yet. It is the counterpart for those records of a **run in
+  flight**. One whose process ended before its record was written, with no
+  **operator stop** recorded, is abandoned. Run history shows an abandoned
+  attempt among the records that could not be read, and an abandoned group
+  among the confirmation runs with no saved summary until the operator archives
+  it. Name accepted unattended as unsettled, pending the operator's
+  confirmation (ACT-369).
 - **Judge** — evaluator attached to a stage transition: deterministic check or
   rubric-scored LLM with rationale.
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
