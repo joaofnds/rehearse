@@ -1504,7 +1504,14 @@ leaves transcripts and run artifacts where git can see them.
 | `comparison:<digest>`                   | `comparisons/<digest>/report.json`                           |
 
 Runs keeps confirmation directories with no `group.json` visible as incomplete:
-their execution and cost are unknown, and they may still be recording. Its Archive
+their execution and cost are unknown. A confirmation group or session attempt
+writes `in-flight.json`, naming its process's `pid` and `startedAt`, before its
+first file and leaves it in place. While a live browser launch with that pid,
+launched no later than `startedAt`, holds the claim, Runs lists the launch's
+RUNNING row and leaves the group or attempt out of the incomplete and unreadable
+lists. A directory with no claim, an unparseable one, or one no live launch holds
+lists as before, so records written before claims existed, and work started from
+a terminal, still list as incomplete while they record. Its Archive
 action saves `confirmation-archives/<group-id>.json` with `schemaVersion: 1`,
 `groupId` and `archivedAt`, without moving or deleting experiment files. Restore
 removes that metadata. Archived incomplete runs remain available in the browser

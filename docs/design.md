@@ -187,7 +187,17 @@ that run stays out of the list and the browser offers no analysis of it. The
 in-flight refusal that `diagnose` and the analysis route apply does not cover
 it, so either accepts such a run by id. A stream that ends in `run-completed`
 with no artifact is reported unreadable, since the artifact is the
-authoritative record of a completed run. Event recording is best effort; it
+authoritative record of a completed run. A confirmation group or session attempt
+has no event stream, so it writes its own claim, `in-flight.json` with its pid
+and start, before its first file, and the report leaves one with no record out
+while a live launch whose pid matches, made no later than the claim, holds it.
+The launch's RUNNING row stands for it. Any launch kind can hold one, because
+case, replay, comparison and extension launches all write groups in their own
+process. The claim stays after the record is written, since the record settles
+the reading. An attempt claims only once its corpus resolves, so a corpus that
+does not resolve leaves no attempt directory. A group's directory exists for an
+instant before its claim does, so a read racing that write misreads for one
+poll. Event recording is best effort; it
 must not turn a successful experiment into a failed one. It is not a substitute for the final artifact. There is no
 command that reconstructs a deleted event history from JSON records.
 

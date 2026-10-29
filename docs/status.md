@@ -21,7 +21,12 @@ Their IDs and unknown execution/cost remain visible until explicitly archived;
 the archived list and `list archived-groups` retain them for review and restoration.
 The decision is shared through the records directory and leaves experiment files
 unchanged. A later summary appears normally. This does not reconstruct lost
-measurements or establish whether an incomplete run is still executing.
+measurements. A confirmation run or session attempt a browser launch is still
+recording lists only as that launch's RUNNING row, neither among the records
+that could not be read nor among those with no saved summary, and returns to
+those lists once its process ends without a record. One started from a terminal
+still lists as incomplete while it records, since no launch holds its claim, and
+a crashed one whose pid a later launch has taken can read as in flight.
 
 ## Implemented
 
