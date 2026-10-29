@@ -7,6 +7,7 @@ import { linkCorpus, unlinkCorpus } from "#benchmark/corpus-source";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { TestResources } from "#benchmark/test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
+import executeRun from "#cli/pipeline-run-execution";
 import { runRunCommand } from "#cli/run-command";
 
 import {
@@ -169,7 +170,50 @@ async function refusesAnUnknownCaseBeforeTheRunStarts(): Promise<void> {
 	expect(stdout).toEqual([]);
 }
 
+const STORED_SPEND_CEILING_BELOW_THE_REP_BUDGETS_USD = 0.5;
+
+async function namesTheStoredSpendCeilingTheConfirmationIsHeldTo(): Promise<void> {
+	const { output, stderr } = recordOutput();
+	const closed: string[] = [];
+	const declines = {
+		close: () => {
+			closed.push("questioner");
+		},
+		question: async () => await Promise.resolve("no"),
+	};
+
+	const failure = await failureOf(
+		runRunCommand(
+			{
+				args: [...args, "--confirm", "--reps", "2"],
+				json: false,
+				stdinIsTerminal: true,
+			},
+			{
+				assertPreflight: passingPreflight,
+				execute: async (execution) => await executeRun(execution, declines),
+				executeSession: neverASession,
+				output,
+				probeModel: passingProbe,
+				requireCase: loadsAuditLog().requireCase,
+				requireSpendCeiling: async () =>
+					await Promise.resolve(STORED_SPEND_CEILING_BELOW_THE_REP_BUDGETS_USD),
+			},
+		),
+	);
+
+	expect(failure.message).toBe("Confirmation declined");
+	expect(closed).toEqual(["questioner"]);
+	expect(stderr).toContain(
+		"Projected budget: $1.00 (2 reps x $0.50). Ceiling $0.50 per attempt, $1.00 for the group of 2. A session stops only after the call that crosses its budget, so the charge can exceed this.\n",
+	);
+}
+
 describe(runRunCommand.name, () => {
+	it(
+		"names the stored spend ceiling a pipeline confirmation is held to",
+		namesTheStoredSpendCeilingTheConfirmationIsHeldTo,
+	);
 	it(
 		"refuses --pause before the run starts when stdin is not a terminal",
 		refusesPauseBeforeTheRunStartsWhenStdinIs,

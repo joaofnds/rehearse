@@ -41,14 +41,18 @@ class PipelineRunAttempts {
 		);
 	};
 }
-async function executeRun({
-	config,
-	output,
-	benchmarkCase,
-	loadedSettings,
-	spendCeilingUsd,
-}: PipelineRunExecution): Promise<RunOutcome> {
-	const questioner = terminalQuestioner(signalDiagnostics(output).flush);
+async function executeRun(
+	{
+		config,
+		output,
+		benchmarkCase,
+		loadedSettings,
+		spendCeilingUsd,
+	}: PipelineRunExecution,
+	questioner: TerminalQuestioner = terminalQuestioner(
+		signalDiagnostics(output).flush,
+	),
+): Promise<RunOutcome> {
 	const attempts = new PipelineRunAttempts(
 		{ benchmarkCase, config, loadedSettings, output, spendCeilingUsd },
 		questioner,
