@@ -2243,15 +2243,21 @@ block.
 A transcript row adds an evidence gap only when the report cannot read it as
 what it is. A provider row other than a user, assistant or attachment row that
 carries no message, and every `api-request-blob` row, is metadata and adds no
-event. Each attachment row adds one event labelled by its kind, with its size
-unavailable, since the provider renders the attachment and the transcript does
-not record the text it delivered. A thinking or redacted thinking block adds
-one event, measured from its text when the provider recorded any. None of these
-adds an evidence gap. An unparseable line, a row the record schema rejects, a
-row without a type, an attachment without a kind, another row carrying a
-message, and a content block of an unknown type each add a gap naming its
-locator. The transcript diagnostics read rows by the same rule, so a row
-carrying a message outside a turn is `invalid-message-content` there.
+event. Each attachment row that names its kind and carries no message adds one
+event labelled by its kind. Its size is unavailable, because the transcript does
+not record the attachment as the provider rendered it, and the event is not an
+observed delivery. A thinking or redacted thinking block adds one event,
+measured from its text when the provider recorded any. None of these adds an
+evidence gap. An unparseable line, a row whose fields have the wrong type (an
+empty `cwd` or `timestamp`, for example), a row without a type, an attachment
+without a kind, another row carrying a message, and a content block the report
+does not read (an image, a known block with a malformed field, or a block of an
+unknown type) each add a gap naming its locator. The row still appears as
+unclassified recorded content. The transcript diagnostics share only the rule
+for which rows are turns, request blobs, or messages outside a turn, so a row
+carrying a message outside a turn is `invalid-message-content` there. They do
+not inspect attachments or content blocks, so a row that is a history gap for
+those reasons can read complete in the diagnostics.
 
 The run history screen and these pages name a record by its short id where
 `/api/runs` names it, keeping beneath it the name the record is filed under:
