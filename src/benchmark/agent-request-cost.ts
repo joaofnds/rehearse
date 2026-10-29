@@ -1,5 +1,5 @@
 import type { Participant } from "./agent-cost-participants";
-import { tally, unreadableLineReason } from "./agent-cost-tally";
+import { tally } from "./agent-cost-tally";
 import type { Tally } from "./agent-cost-tally";
 import type { ContextRateCatalog } from "./context-evidence-contract";
 import type { Immutable } from "./contracts";
@@ -9,6 +9,7 @@ import type {
 	SessionHistoryRequestEntry,
 	SessionHistoryRequestSeries,
 } from "./session-history";
+import { unreadableLineReason } from "./session-history-request-contract";
 import type { RequestLocator, SkillWindow } from "./skill-cost-windows";
 import { skillWindows, windowAt } from "./skill-cost-windows";
 import type { TranscriptLine } from "./transcript";

@@ -999,7 +999,8 @@ See [current state](docs/status.md) for implementation coverage and
   agent incomplete, with a reason naming it, and its spend stays in the
   difference. So does a kept transcript's attempt line that is not JSON, or an
   assistant row the request reader cannot read, since it may hold a request on
-  any model. A kept transcript with no request reads as a complete zero. The
+  any model, and such a line in the root's transcript leaves the root's own sum
+  incomplete too. A kept transcript with no request reads as a complete zero. The
   readings are never folded into
   one figure, because the gap between a provider charge and a catalog-derived
   sum is evidence about the catalog. Each reading is complete, incomplete, or

@@ -91,21 +91,5 @@ function reading(
 function unavailableAgentReason(agentId: string): string {
 	return `no transcript was kept for sub-agent ${agentId}`;
 }
-
-function unreadableLineReason(
-	agentId: string | undefined,
-	line: number,
-): string {
-	return agentId === undefined
-		? `the attempt transcript's line ${line} cannot be read`
-		: `sub-agent ${agentId}'s transcript line ${line} cannot be read`;
-}
-export {
-	tally,
-	summed,
-	readingOf,
-	reading,
-	unavailableAgentReason,
-	unreadableLineReason,
-};
+export { tally, summed, readingOf, reading, unavailableAgentReason };
 export type { Tally };

@@ -76,6 +76,15 @@ const TRANSCRIPT_ABSENT = "the attempt has no saved transcript";
 const USAGE_INCOMPLETE =
 	"usage is incomplete: no row of the request carries a stop reason";
 
+function unreadableLineReason(
+	agentId: string | undefined,
+	line: number,
+): string {
+	return agentId === undefined
+		? `the attempt transcript's line ${line} cannot be read`
+		: `sub-agent ${agentId}'s transcript line ${line} cannot be read`;
+}
+
 const TOTAL_INPUT_TOKENS_OMITS = [
 	"the request's own output tokens",
 	"the model's context window limit, which the transcript does not carry",
@@ -114,6 +123,7 @@ export {
 	TOTAL_INPUT_TOKENS_OMITS,
 	USAGE_INCOMPLETE,
 	NO_CATALOG,
+	unreadableLineReason,
 };
 
 export type {

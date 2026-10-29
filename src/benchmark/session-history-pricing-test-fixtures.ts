@@ -94,6 +94,7 @@ function seriesWith(prefixLinesExcluded?: number): SessionHistoryRequestSeries {
 export {
 	rates,
 	bothModels,
+	pricedTranscript,
 	seriesWith,
 	INHERITED_REQUEST_PREFIX_LINES,
 	NO_PREFIX_LINES,

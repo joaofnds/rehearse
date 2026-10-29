@@ -7,6 +7,7 @@ import {
 	BOUNDARY_ABSENT,
 	NO_CATALOG,
 	TRANSCRIPT_ABSENT,
+	unreadableLineReason,
 } from "./session-history-request-contract";
 import { pricedRequest } from "./session-history-request-pricing";
 
@@ -34,7 +35,17 @@ class AttemptRequestCosts {
 	private priced = INITIAL_PRICED_REQUEST_COUNT;
 	private requestCount = INITIAL_ATTEMPT_REQUEST_COUNT;
 	public constructor(private readonly rates: ContextRateCatalog) {}
-	public observe(entry: SessionHistoryRequestEntry): void {
+	public observeSeries(series: SessionHistoryRequestSeries): void {
+		for (const entry of series.entries) {
+			this.observe(entry);
+		}
+		for (const { line, region } of series.unreadableLines) {
+			if (region === "attempt") {
+				this.observeUnreadable(line);
+			}
+		}
+	}
+	private observe(entry: SessionHistoryRequestEntry): void {
 		if (entry.region !== "attempt") {
 			return;
 		}
@@ -46,6 +57,10 @@ class AttemptRequestCosts {
 		} else {
 			this.reasons.add(result.reason);
 		}
+	}
+	private observeUnreadable(line: number): void {
+		this.requestCount += 1;
+		this.reasons.add(unreadableLineReason(undefined, line));
 	}
 	public reading(): SessionHistoryCostReading {
 		if (this.priced === this.requestCount) {
@@ -110,9 +125,7 @@ function calculatedCost(
 	}
 
 	const totals = new AttemptRequestCosts(rates);
-	for (const entry of series.entries) {
-		totals.observe(entry);
-	}
+	totals.observeSeries(series);
 	return totals.reading();
 }
 
