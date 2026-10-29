@@ -124,7 +124,7 @@ async function listsOnlyTheInvalidatedResultsTheSearchMatches(): Promise<void> {
 
 	searchRuns("brief");
 
-	await waitForElementToBeRemoved(() => screen.queryByText(NAME_A));
+	await waitForElementToBeRemoved(() => screen.queryAllByText(NAME_A));
 	expect(screen.getByText(NAME_C)).toBeInTheDocument();
 	expect(screen.queryByText(NAME_B)).toBeNull();
 }

@@ -177,6 +177,6 @@ async function leavesOnceItsStopIsAcceptedWithoutWaitingForAPoll(): Promise<void
 	fireEvent.click(within(shown).getByRole("button", { name: "Stop" }));
 
 	await waitForElementToBeRemoved(() =>
-		screen.queryByRole("region", { name: IN_FLIGHT }),
+		screen.queryAllByRole("region", { name: IN_FLIGHT }),
 	);
 }

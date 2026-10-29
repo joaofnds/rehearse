@@ -150,7 +150,7 @@ async function savesAnEditedSkillFromCasesWorkflowsAndCloses(): Promise<void> {
 	});
 	fireEvent.click(within(dialog).getByRole("button", { name: "Save steps" }));
 
-	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
+	await waitForElementToBeRemoved(() => screen.queryAllByRole("dialog"));
 	const put = server.sent.filter(
 		({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
 	);
@@ -196,7 +196,7 @@ async function savesReorderedSteps(): Promise<void> {
 	fireEvent.click(
 		within(editingDialog).getByRole("button", { name: "Save steps" }),
 	);
-	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
+	await waitForElementToBeRemoved(() => screen.queryAllByRole("dialog"));
 	const put = editingServer.sent.filter(
 		({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
 	);

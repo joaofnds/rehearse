@@ -207,7 +207,7 @@ async function closesOnceTheLaunchIsAccepted(): Promise<void> {
 
 	fireEvent.click(await startButton());
 
-	await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
+	await waitForElementToBeRemoved(() => screen.queryAllByRole("dialog"));
 }
 
 async function marksACaseWithNoDeclaredModelAsOneItCannotStart(): Promise<void> {

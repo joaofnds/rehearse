@@ -204,7 +204,7 @@ async function filtersToEndedLaunches(): Promise<void> {
 	).toHaveTextContent("launch ended-la");
 	fireEvent.click(screen.getByRole("button", { name: "Ended" }));
 	await waitForElementToBeRemoved(() =>
-		screen.queryByRole("table", { name: "Active launch queue" }),
+		screen.queryAllByRole("table", { name: "Active launch queue" }),
 	);
 	expect(
 		screen.getByText(
