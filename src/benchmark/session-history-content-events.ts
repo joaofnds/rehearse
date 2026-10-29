@@ -9,7 +9,8 @@ import type {
 } from "./session-history-event-contract";
 import { measureContent } from "./session-history-measurement";
 import { historyTextBlockSchema } from "./session-history-message";
-import { skillSource, unclassifiedSource } from "./session-history-sources";
+import { recordedEvent } from "./session-history-provider-events";
+import { skillSource } from "./session-history-sources";
 import { skillBodyDirectory } from "./transcript";
 
 /**
@@ -68,23 +69,27 @@ function standaloneContentEvent({
 	measurement,
 	slashSkill,
 }: StandaloneContent): MutableEvent {
-	const source =
-		slashSkill === undefined
-			? unclassifiedSource()
-			: skillSource(basename(slashSkill));
+	if (slashSkill === undefined) {
+		return recordedEvent({
+			common,
+			content,
+			label: "Unclassified recorded content",
+			measurement,
+		});
+	}
+
+	const source = skillSource(basename(slashSkill));
+
 	return {
 		...common,
 		content,
-		isDelivery: slashSkill !== undefined,
-		kind: slashSkill === undefined ? "unclassified" : "instruction-delivery",
-		label:
-			slashSkill === undefined
-				? "Unclassified recorded content"
-				: "Skill delivered",
+		isDelivery: true,
+		kind: "instruction-delivery",
+		label: "Skill delivered",
 		measurement,
 		source,
 		sourceId: source.id,
-		state: slashSkill === undefined ? "recorded" : "delivered",
+		state: "delivered",
 	};
 }
 

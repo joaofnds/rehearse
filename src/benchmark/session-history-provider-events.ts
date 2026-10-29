@@ -92,4 +92,4 @@ function thinkingEvent(
 	});
 }
 
-export { attachmentEvent, thinkingEvent };
+export { attachmentEvent, recordedEvent, thinkingEvent };
