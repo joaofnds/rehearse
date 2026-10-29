@@ -25,7 +25,8 @@ const NO_REQUEST_COUNT_CONTRIBUTION = 0;
  */
 const DIFFERENCE_DECIMAL_PLACES = 9;
 
-const POSITIVE_ZERO = 0;
+/** Rounding a small negative difference leaves -0, which reads as -$0.00. */
+const ZERO_DIFFERENCE_USD = 0;
 
 class AttemptRequestCosts {
 	private readonly reasons = new Set<string>();
@@ -76,8 +77,10 @@ type SessionHistoryCostReading =
  * per-request calculations answer different questions, and the gap between
  * them is evidence about the catalog rather than an error to hide. Folding
  * them would make a missing rate look like a cost of zero. The provider
- * charges for every agent of the attempt, so the difference is drawn from the
- * calculated reading over every agent, never from the root's requests alone.
+ * charges for every agent of the attempt, so an attempt that launched
+ * sub-agents reconciles against the calculated reading over every agent,
+ * which attemptCostOverAgents draws. Until then the calculated reading and the
+ * difference cover the root's requests alone.
  */
 interface SessionHistoryAttemptCost {
 	readonly reported: SessionHistoryCostReading;
@@ -165,12 +168,11 @@ function difference(
 			state: "unavailable",
 		};
 	}
+	const rounded = Number(
+		(reported.costUsd - calculated.costUsd).toFixed(DIFFERENCE_DECIMAL_PLACES),
+	);
 	const costUsd =
-		Number(
-			(reported.costUsd - calculated.costUsd).toFixed(
-				DIFFERENCE_DECIMAL_PLACES,
-			),
-		) + POSITIVE_ZERO;
+		rounded === ZERO_DIFFERENCE_USD ? ZERO_DIFFERENCE_USD : rounded;
 	if (reported.state === "complete" && calculated.state === "complete") {
 		return { costUsd, state: "complete" };
 	}

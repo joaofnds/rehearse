@@ -992,10 +992,12 @@ See [current state](docs/status.md) for implementation coverage and
   once, and the difference between those two. Beside them stands the same sum
   over the root agent's own requests, the series the request timeline plots.
   The difference is drawn from the sum over every agent because the provider
-  charges for every agent, so sub-agent spend never reads as unexplained, and
-  it is stated to a billionth of a dollar, below which a difference is float
-  noise. A sub-agent whose transcript was not kept leaves the sum over every
-  agent incomplete, with a reason naming it. The readings are never folded into
+  charges for every agent, so the spend of a sub-agent whose transcript was
+  kept is explained rather than left in the difference. The difference is
+  stated to a billionth of a dollar, a hundredth of the cheapest catalog rate
+  per token. A sub-agent whose transcript was not kept leaves the sum over every
+  agent incomplete, with a reason naming it, and its spend stays in the
+  difference. The readings are never folded into
   one figure, because the gap between a provider charge and a catalog-derived
   sum is evidence about the catalog. Each reading is complete, incomplete, or
   unavailable with its reasons, and a reader takes the state before the figure:
