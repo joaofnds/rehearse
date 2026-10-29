@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
 	fireEvent,
 	screen,
-	waitFor,
 	waitForElementToBeRemoved,
 	within,
 } from "@testing-library/react";
