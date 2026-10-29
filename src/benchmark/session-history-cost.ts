@@ -7,9 +7,11 @@ import {
 	BOUNDARY_ABSENT,
 	NO_CATALOG,
 	TRANSCRIPT_ABSENT,
-	unreadableLineReason,
 } from "./session-history-request-contract";
-import { pricedRequest } from "./session-history-request-pricing";
+import {
+	pricedRequest,
+	unreadableAttemptLines,
+} from "./session-history-request-pricing";
 
 const INITIAL_CALCULATED_COST_USD = 0;
 
@@ -18,6 +20,11 @@ const INITIAL_PRICED_REQUEST_COUNT = 0;
 const INITIAL_ATTEMPT_REQUEST_COUNT = 0;
 
 const NO_REQUEST_COUNT_CONTRIBUTION = 0;
+
+const EMPTY_REASON_COUNT = 0;
+
+/** The root agent carries no sub-agent id. */
+const ROOT_AGENT = undefined;
 
 /**
  * A billionth of a dollar, a hundredth of the cheapest token's price. Finer
@@ -39,10 +46,8 @@ class AttemptRequestCosts {
 		for (const entry of series.entries) {
 			this.observe(entry);
 		}
-		for (const { line, region } of series.unreadableLines) {
-			if (region === "attempt") {
-				this.observeUnreadable(line);
-			}
+		for (const reason of unreadableAttemptLines(series, ROOT_AGENT).values()) {
+			this.reasons.add(reason);
 		}
 	}
 	private observe(entry: SessionHistoryRequestEntry): void {
@@ -58,12 +63,8 @@ class AttemptRequestCosts {
 			this.reasons.add(result.reason);
 		}
 	}
-	private observeUnreadable(line: number): void {
-		this.requestCount += 1;
-		this.reasons.add(unreadableLineReason(undefined, line));
-	}
 	public reading(): SessionHistoryCostReading {
-		if (this.priced === this.requestCount) {
+		if (this.reasons.size === EMPTY_REASON_COUNT) {
 			return { costUsd: this.costUsd, state: "complete" };
 		}
 		return {

@@ -6,6 +6,7 @@ import { known, spentModels } from "./agent-request-cost";
 import type { Allocation } from "./agent-request-cost";
 import type { AgentTree } from "./agent-tree";
 import type { Immutable } from "./contracts";
+import type { SessionHistoryRequestSeries } from "./session-history";
 
 const COVERAGE_UNKNOWN_MODEL =
 	"an agent without a kept transcript may have run on the same model";
@@ -24,23 +25,50 @@ const REPORTED_BASIS =
 
 const EMPTY_COLLECTION_LENGTH = 0;
 
-/** The root's prefix requests and every inherited agent's. */
-function modelsBeforeAttempt(
+/** The root's series and every inherited agent's, unless one was not kept. */
+function seriesBeforeAttempt(
 	tree: Immutable<AgentTree>,
-): ReadonlySet<string> | undefined {
-	const entries = tree.root.series.entries.filter(
-		({ region }) => region !== "attempt",
-	);
+): readonly Immutable<SessionHistoryRequestSeries>[] | undefined {
+	const series = [tree.root.series];
 	for (const agent of tree.agents) {
 		if (agent.context === "inherited") {
 			if (agent.evidence !== "available") {
 				return undefined;
 			}
 
-			entries.push(...agent.series.entries);
+			series.push(agent.series);
 		}
 	}
-	const models = spentModels(entries);
+
+	return series;
+}
+
+function readsBeforeAttempt({ region }: { readonly region: string }): boolean {
+	return region !== "attempt";
+}
+
+/**
+ * The models of the root's prefix requests and every inherited agent's. An
+ * unreadable line before the attempt may be a request on any model.
+ */
+function modelsBeforeAttempt(
+	tree: Immutable<AgentTree>,
+): ReadonlySet<string> | undefined {
+	const series = seriesBeforeAttempt(tree);
+	if (
+		series === undefined ||
+		series.some(({ unreadableLines }) =>
+			unreadableLines.some((line) => readsBeforeAttempt(line)),
+		)
+	) {
+		return undefined;
+	}
+
+	const models = spentModels(
+		series.flatMap(({ entries }) =>
+			entries.filter((entry) => readsBeforeAttempt(entry)),
+		),
+	);
 
 	return models.has(undefined) ? undefined : known(models);
 }
@@ -48,6 +76,11 @@ function modelsBeforeAttempt(
 function providerCoverageReason(ledger: Readonly<Ledger>): string | undefined {
 	if (!ledger.coverageComplete) {
 		return COVERAGE_UNKNOWN_MODEL;
+	}
+
+	const [unreadable] = ledger.unreadable;
+	if (unreadable !== undefined) {
+		return `${unreadable}, so the model it ran on is unknown`;
 	}
 
 	if (ledger.unmodeled) {
@@ -158,10 +191,11 @@ function modelCosts(
 
 		return {
 			calculated: readingOf(
-				summed(
-					parts,
-					ledger.unmodeled ? [...missing, UNMODELED_REQUEST] : missing,
-				),
+				summed(parts, [
+					...missing,
+					...ledger.unreadable,
+					...(ledger.unmodeled ? [UNMODELED_REQUEST] : []),
+				]),
 			),
 			model,
 			reported:

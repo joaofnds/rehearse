@@ -18,15 +18,14 @@ import {
 	modelsBeforeAttempt,
 	providerCost,
 } from "./agent-cost-provider";
-import {
-	reading,
-	readingOf,
-	summed,
-	tally,
-	unavailableAgentReason,
-} from "./agent-cost-tally";
+import { readingOf, summed, unavailableAgentReason } from "./agent-cost-tally";
 import type { Tally } from "./agent-cost-tally";
-import { allocate, linesWhere, ownTally } from "./agent-request-cost";
+import {
+	allocate,
+	linesWhere,
+	ownTally,
+	tallyWhere,
+} from "./agent-request-cost";
 import type { Allocation } from "./agent-request-cost";
 import agentTree from "./agent-tree";
 import type { AgentTree, SubAgent } from "./agent-tree";
@@ -58,6 +57,8 @@ interface Ledger {
 	readonly modelUsage: ReadonlyMap<string, ReportedUsage>;
 	readonly coverageComplete: boolean;
 	readonly totals: ReadonlyMap<Owner, Tally>;
+	/** Every agent's unreadable attempt lines, which may be on any model. */
+	readonly unreadable: readonly string[];
 }
 
 function skillCosts(
@@ -71,8 +72,10 @@ function skillCosts(
 				invocations.length === EXCLUSIVE_SKILL_INVOCATION_COUNT,
 		)
 		.flatMap((window) => {
-			const requestLines = linesWhere(allocation, (each) => each === window);
-			const own = tally(requestLines, allocation.costs);
+			const inWindow = (each: Immutable<SkillWindow> | undefined): boolean =>
+				each === window;
+			const requestLines = linesWhere(allocation, inWindow);
+			const own = tallyWhere(allocation, inWindow);
 			const launched = children.filter(({ launchCallLine }) => {
 				const request =
 					launchCallLine === undefined
@@ -107,6 +110,10 @@ function isSharedSkillWindow(
 	);
 }
 
+function isUnattributed(window: Immutable<SkillWindow> | undefined): boolean {
+	return window === undefined;
+}
+
 function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 	const allocation = ledger.allocations.get(owner);
 	const total = ledger.totals.get(owner);
@@ -119,10 +126,7 @@ function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 	const children = childrenOf(owner, ledger.agents);
 	const own = ownTally(allocation);
 	const sharedLines = linesWhere(allocation, isSharedSkillWindow);
-	const unattributedLines = linesWhere(
-		allocation,
-		(window) => window === undefined,
-	);
+	const unattributedLines = linesWhere(allocation, isUnattributed);
 
 	return {
 		includingDescendants: descendantTotal(total, children),
@@ -134,7 +138,7 @@ function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 		provider: providerCost(owner, allocation, ledger),
 		shared: {
 			basis: SHARED_BASIS,
-			cost: reading(sharedLines, allocation.costs),
+			cost: readingOf(tallyWhere(allocation, isSharedSkillWindow)),
 			requestLines: sharedLines,
 			skills: allocation.windows
 				.filter(isSharedSkillWindow)
@@ -143,7 +147,7 @@ function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 		skills: skillCosts(allocation, children, ledger.totals),
 		unattributed: {
 			basis: UNATTRIBUTED_BASIS,
-			cost: reading(unattributedLines, allocation.costs),
+			cost: readingOf(tallyWhere(allocation, isUnattributed)),
 			requestLines: unattributedLines,
 		},
 	};
@@ -199,6 +203,9 @@ function agentCostAllocation(
 		totals: descendantTotals(tree.agents, allocations),
 		unmodeled: [...allocations.values()].some(({ models }) =>
 			models.has(undefined),
+		),
+		unreadable: [...allocations.values()].flatMap(({ unreadable }) =>
+			unreadable.map(({ reason }) => reason),
 		),
 	};
 	const missing =

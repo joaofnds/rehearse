@@ -35,7 +35,7 @@ async function leavesUnreadableSpendInIncompleteDifference(): Promise<void> {
 			"a reading it is drawn from is incomplete",
 			"sub-agent k1's transcript line 1 cannot be read",
 		],
-		requestCount: 3,
+		requestCount: 2,
 		state: "incomplete",
 	});
 }

@@ -8,6 +8,7 @@ import type { PricedTokenUsage } from "./context-evidence-rates-contract";
 import {
 	NO_CATALOG,
 	USAGE_INCOMPLETE,
+	unreadableLineReason,
 } from "./session-history-request-contract";
 import type {
 	SessionHistoryRequestEntry,
@@ -129,6 +130,22 @@ function costUsingRate(
 	return { costUsd: costFromRate(usage, rate), state: "priced" };
 }
 
-export { sessionHistoryRequestCosts, pricedRequest };
+/**
+ * An attempt line the series could not read, with the reason it leaves a
+ * reading incomplete. It may hold a request on any model or be one row of a
+ * request already read, so it is a gap in the evidence rather than a request.
+ */
+function unreadableAttemptLines(
+	series: Readonly<SessionHistoryRequestSeries>,
+	agentId: string | undefined,
+): ReadonlyMap<number, string> {
+	return new Map(
+		series.unreadableLines
+			.filter(({ region }) => region === "attempt")
+			.map(({ line }) => [line, unreadableLineReason(agentId, line)]),
+	);
+}
+
+export { sessionHistoryRequestCosts, pricedRequest, unreadableAttemptLines };
 
 export type { SessionHistoryRequestCost };

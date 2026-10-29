@@ -997,10 +997,12 @@ See [current state](docs/status.md) for implementation coverage and
   stated to a billionth of a dollar, a hundredth of the cheapest catalog rate
   per token. A sub-agent whose transcript was not kept leaves the sum over every
   agent incomplete, with a reason naming it, and its spend stays in the
-  difference. So does a kept transcript's attempt line that is not JSON, or an
-  assistant row the request reader cannot read, since it may hold a request on
-  any model, and such a line in the root's transcript leaves the root's own sum
-  incomplete too. A kept transcript with no request reads as a complete zero. The
+  difference. So does an attempt line of a kept transcript that is not a
+  well-formed record, or a model response record whose usage, model or request
+  id is malformed, since it may hold a request on any model. Such a line leaves
+  every model's calculated reading incomplete, and in the root's transcript it
+  leaves the root's own sum incomplete too. A kept transcript with no request
+  reads as a complete zero. The
   readings are never folded into
   one figure, because the gap between a provider charge and a catalog-derived
   sum is evidence about the catalog. Each reading is complete, incomplete, or

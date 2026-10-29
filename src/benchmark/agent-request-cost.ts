@@ -1,5 +1,5 @@
 import type { Participant } from "./agent-cost-participants";
-import { tally } from "./agent-cost-tally";
+import { summed, tally } from "./agent-cost-tally";
 import type { Tally } from "./agent-cost-tally";
 import type { ContextRateCatalog } from "./context-evidence-contract";
 import type { Immutable } from "./contracts";
@@ -9,14 +9,12 @@ import type {
 	SessionHistoryRequestEntry,
 	SessionHistoryRequestSeries,
 } from "./session-history";
-import { unreadableLineReason } from "./session-history-request-contract";
+import { unreadableAttemptLines } from "./session-history-request-pricing";
 import type { RequestLocator, SkillWindow } from "./skill-cost-windows";
 import { skillWindows, windowAt } from "./skill-cost-windows";
 import type { TranscriptLine } from "./transcript";
 
 const NO_TOKENS = 0;
-
-const NO_UNREADABLE_LINES = 0;
 
 /** Where each attempt request of one agent went, keyed by its first line. */
 interface Allocation {
@@ -27,6 +25,13 @@ interface Allocation {
 	readonly attemptEntries: readonly SessionHistoryRequestEntry[];
 	/** Undefined among them for a request that names no model. */
 	readonly models: ReadonlySet<string | undefined>;
+	/** Each unreadable attempt line's reason, in the window it falls in. */
+	readonly unreadable: readonly UnreadableLine[];
+}
+
+interface UnreadableLine {
+	readonly reason: string;
+	readonly window: SkillWindow | undefined;
 }
 
 /** The first line of the request a transcript row belongs to. */
@@ -52,47 +57,28 @@ function requestLocator(
 	};
 }
 
-/**
- * An attempt line the series could not read may be a request on any model,
- * so it reads as one that no rate prices.
- */
-function unreadableCosts(
-	participant: Immutable<Participant>,
-): readonly (readonly [number, SessionHistoryRequestCost])[] {
-	const agentId = participant.agent?.agentId;
-
-	return participant.series.unreadableLines
-		.filter(({ region }) => region === "attempt")
-		.map(({ line }) => [
-			line,
-			{ reason: unreadableLineReason(agentId, line), state: "unpriced" },
-		]);
-}
-
 function allocate(
 	participant: Immutable<Participant>,
 	rates: ContextRateCatalog,
 ): Allocation {
 	const requestOf = requestLocator(participant.series, participant.lines);
 	const windows = skillWindows(participant, requestOf);
-	const unreadable = unreadableCosts(participant);
-	const costs = new Map(
-		[
-			...sessionHistoryRequestCosts(participant.series, rates),
-			...unreadable,
-		].toSorted(([line], [other]) => line - other),
-	);
+	const costs = sessionHistoryRequestCosts(participant.series, rates);
 	const entries = attemptEntries(participant.series);
-	const models = spentModels(entries);
+	const unreadable = unreadableAttemptLines(
+		participant.series,
+		participant.agent?.agentId,
+	);
 
 	return {
 		attemptEntries: entries,
 		costs,
-		models:
-			unreadable.length === NO_UNREADABLE_LINES
-				? models
-				: new Set([...models, undefined]),
+		models: spentModels(entries),
 		requestOf,
+		unreadable: [...unreadable].map(([line, reason]) => ({
+			reason,
+			window: windowAt(windows, line),
+		})),
 		windowByRequest: new Map(
 			[...costs.keys()].map((line) => [line, windowAt(windows, line)]),
 		),
@@ -139,8 +125,29 @@ function known(models: ReadonlySet<string | undefined>): ReadonlySet<string> {
 	return new Set([...models].filter((model) => model !== undefined));
 }
 
-function ownTally(allocation: Readonly<Allocation>): Tally {
-	return tally([...allocation.windowByRequest.keys()], allocation.costs);
+/** The requests of the windows kept, and the unreadable lines inside them. */
+function tallyWhere(
+	allocation: Readonly<Allocation>,
+	keep: (window: Immutable<SkillWindow> | undefined) => boolean,
+): Tally {
+	return summed(
+		[tally(linesWhere(allocation, keep), allocation.costs)],
+		allocation.unreadable
+			.filter(({ window }) => keep(window))
+			.map(({ reason }) => reason),
+	);
 }
-export { allocate, linesWhere, spentModels, attemptEntries, known, ownTally };
+
+function ownTally(allocation: Readonly<Allocation>): Tally {
+	return tallyWhere(allocation, () => true);
+}
+export {
+	allocate,
+	linesWhere,
+	spentModels,
+	attemptEntries,
+	known,
+	ownTally,
+	tallyWhere,
+};
 export type { Allocation };

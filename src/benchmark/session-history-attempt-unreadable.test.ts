@@ -4,6 +4,7 @@ import {
 	sessionHistoryAttemptCost,
 	sessionHistoryRequestSeries,
 } from "#benchmark/session-history";
+import type { SessionHistoryCostReading } from "#benchmark/session-history";
 
 import {
 	INHERITED_REQUEST_PREFIX_LINES,
@@ -11,17 +12,15 @@ import {
 	rates,
 } from "./session-history-pricing-test-fixtures";
 
-/** The priced transcript's one attempt request, at the fixture's rates. */
+/** The priced transcript, two lines, holds one attempt request at these rates. */
 const ATTEMPT_REQUEST_COST_USD = 1.009051;
-
-const COST_COMPARISON_DECIMAL_PLACES = 6;
 
 /** The priced transcript's one inherited request, counted from zero. */
 const PREFIX_LINE_INDEX = 0;
 
 function rootRequestsOf(
 	transcript: readonly string[],
-): ReturnType<typeof sessionHistoryAttemptCost>["rootRequests"] {
+): SessionHistoryCostReading {
 	return sessionHistoryAttemptCost({
 		rates,
 		reportedCostUsd: undefined,
@@ -38,21 +37,13 @@ function readsUnreadableAttemptLineIncomplete(): void {
 		'{"type":"assistant","requestId":"req-cut',
 	]);
 
-	expect(reading).toMatchObject({
+	expect(reading).toEqual({
+		costUsd: ATTEMPT_REQUEST_COST_USD,
 		pricedRequestCount: 1,
 		reasons: ["the attempt transcript's line 3 cannot be read"],
-		requestCount: 2,
+		requestCount: 1,
 		state: "incomplete",
 	});
-}
-
-function keepsTheReadableRequestsCost(): void {
-	const reading = rootRequestsOf([pricedTranscript, "not json"]);
-
-	expect(reading.state !== "unavailable" && reading.costUsd).toBeCloseTo(
-		ATTEMPT_REQUEST_COST_USD,
-		COST_COMPARISON_DECIMAL_PLACES,
-	);
 }
 
 function ignoresUnreadablePrefixLine(): void {
@@ -69,12 +60,8 @@ function ignoresUnreadablePrefixLine(): void {
 describe(sessionHistoryAttemptCost.name, () => {
 	describe("when an attempt line of the root transcript cannot be read", () => {
 		it(
-			"reads the root requests' cost incomplete, naming the line",
+			"reads the root requests' cost incomplete over its readable requests, naming the line",
 			readsUnreadableAttemptLineIncomplete,
-		);
-		it(
-			"still counts the readable requests' cost",
-			keepsTheReadableRequestsCost,
 		);
 	});
 	describe("when the inherited prefix holds an unreadable line", () => {
