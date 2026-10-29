@@ -4,6 +4,8 @@ const EXHAUSTED_BUDGET_USD = 0;
 
 const SPEND_DECIMAL_PLACES = 4;
 
+const USD_FRACTION_DIGITS = 2;
+
 class SpendCeilingReachedError extends Error {
 	public readonly ceilingUsd: number;
 	public readonly spentUsd: number;
@@ -105,6 +107,14 @@ function groupSpendCeilingUsd(props: {
 	return props.spendCeilingUsd * props.reps;
 }
 
+/** The hold a group's ceiling states, worded alike wherever spend is approved. */
+function groupCeilingReading(props: {
+	readonly spendCeilingUsd: number;
+	readonly reps: number;
+}): string {
+	return `Ceiling $${props.spendCeilingUsd.toFixed(USD_FRACTION_DIGITS)} per attempt, $${groupSpendCeilingUsd(props).toFixed(USD_FRACTION_DIGITS)} for the group of ${String(props.reps)}`;
+}
+
 /**
  * A confirmation group's reps run at once, each held to the stored ceiling and
  * all of them together to the group ceiling.
@@ -133,6 +143,7 @@ export {
 	SpendCeilingReachedError,
 	createSpendCeiling,
 	groupSpendCeilingUsd,
+	groupCeilingReading,
 	repSpendCeilings,
 	CEILING_OVERRUN_STATEMENT,
 };

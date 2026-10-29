@@ -1,5 +1,8 @@
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
-import { groupSpendCeilingUsd } from "#benchmark/spend-ceiling";
+import {
+	groupCeilingReading,
+	groupSpendCeilingUsd,
+} from "#benchmark/spend-ceiling";
 import { spendReading } from "#client/run-history/run-progress";
 
 import type { SettledTarget } from "./launch-target-contract";
@@ -73,11 +76,11 @@ function ceilingHolds(
 	) {
 		return `Ceiling ${spendReading(ceilingUsd)} per attempt`;
 	}
-	const perGroup = `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ reps: attempts, spendCeilingUsd: ceilingUsd }))}`;
+	if (groups === SINGLE_CONFIRMATION_GROUP_COUNT) {
+		return groupCeilingReading({ reps: attempts, spendCeilingUsd: ceilingUsd });
+	}
 
-	return groups === SINGLE_CONFIRMATION_GROUP_COUNT
-		? `${perGroup} for the group of ${String(attempts)}`
-		: `${perGroup} for each of the ${String(groups)} groups of ${String(attempts)}`;
+	return `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ reps: attempts, spendCeilingUsd: ceilingUsd }))} for each of the ${String(groups)} groups of ${String(attempts)}`;
 }
 
 /**

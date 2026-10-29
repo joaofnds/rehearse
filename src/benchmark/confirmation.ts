@@ -2,7 +2,7 @@ import type { ConfirmationConfig } from "./config";
 import { unhandled } from "./contracts";
 import { MAX_JUDGE_ATTEMPTS } from "./judge-attempt";
 import { MODEL_PREFLIGHT_MAXIMUM_USD } from "./model-preflight";
-import { groupSpendCeilingUsd } from "./spend-ceiling";
+import { groupCeilingReading } from "./spend-ceiling";
 
 const SESSION_CASE_PROVIDER_CALL_COUNT = 1;
 const STAGE_PRE_JUDGE_SESSION_COUNT = 2;
@@ -102,11 +102,10 @@ function formatProjectedCost(
 	projection: ConfirmationCostProjection,
 	spendCeilingUsd: number,
 ): string {
-	const groupCeilingUsd = groupSpendCeilingUsd({
+	const ceilingHolds = groupCeilingReading({
 		reps: projection.reps,
 		spendCeilingUsd,
 	});
-	const ceilingHolds = `Ceiling $${spendCeilingUsd.toFixed(USD_FRACTION_DIGITS)} per attempt, $${groupCeilingUsd.toFixed(USD_FRACTION_DIGITS)} for the group of ${String(projection.reps)}`;
 	const repBudgets = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(USD_FRACTION_DIGITS)}`;
 	const breakdown =
 		projection.preflightMaximumUsd === undefined
