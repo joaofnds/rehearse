@@ -30,6 +30,7 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 			calculated: { costUsd: 0, state: "complete" },
 			difference: { costUsd: 0, state: "complete" },
 			reported: { costUsd: 0, state: "complete" },
+			rootRequests: { costUsd: 0, state: "complete" },
 		},
 		instructionLoads: { state: "unavailable" },
 		requestCosts: [],

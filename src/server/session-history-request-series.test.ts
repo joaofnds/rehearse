@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
+import { committedRateCatalog } from "#benchmark/rate-catalog";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
+import { writtenSubagentAttempt } from "#server/session-history-agents-test-fixture";
 import {
 	writtenIncompleteAttempt,
 	writtenResumedAttempt,
@@ -31,6 +33,13 @@ describe(readSessionAttemptRequestSeries.name, () => {
 		it(
 			"reads the provider cost the attempt record carries",
 			verifyReadsTheProviderCostTheAttemptRecordCarries,
+		);
+	});
+
+	describe("when the attempt kept its sub-agent's transcript", () => {
+		it(
+			"reads no remaining difference when the provider charged exactly every agent's requests",
+			verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent,
 		);
 	});
 
@@ -115,6 +124,17 @@ async function verifyReadsTheProviderCostTheAttemptRecordCarries(): Promise<void
 	const { cost } = await readSessionAttemptRequestSeries(fixture);
 
 	expect(cost.reported).toEqual({ costUsd: 1.008294, state: "complete" });
+}
+
+async function verifyReadsNoRemainingDifferenceWhenTheProviderChargedEveryAgent(): Promise<void> {
+	const fixture = await writtenSubagentAttempt();
+
+	const { cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
+
+	expect(cost.difference).toEqual({ costUsd: 0, state: "complete" });
 }
 
 async function verifyReportsTotalsUnavailableRatherThanZeroWhenTheAttempt(): Promise<void> {

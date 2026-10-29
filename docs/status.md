@@ -216,8 +216,9 @@ links no attempt history, since its attempts record no session.
   active context window. The saved-attempt browser also renders a per-request
   timeline from that transcript: total input tokens, the four usage categories,
   the executing model, each request's calculated cost against the committed rate
-  catalog, the attempt's provider-reported and calculated costs as distinct
-  readings, the request in flight when a compaction happened, and the automatic
+  catalog, the attempt's provider-reported cost beside the calculated cost of
+  every agent's attempt requests, each request once, and of the root's own
+  requests, as distinct readings, the request in flight when a compaction happened, and the automatic
   instruction loads with their file names. Load reason, trigger, and include
   parent stay unavailable, because a transcript does not record them. The
   harness can also normalize a supplied provider capture into request usage,

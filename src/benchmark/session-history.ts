@@ -187,6 +187,7 @@ export {
 } from "./session-history-requests";
 
 export {
+	attemptCostOverAgents,
 	sessionHistoryRequestCosts,
 	sessionHistoryAttemptCost,
 } from "./session-history-cost";

@@ -17,6 +17,13 @@ const REQUEST_READING: RequestSeriesResponse = {
 			state: "incomplete",
 		},
 		reported: { costUsd: 2.5, state: "complete" },
+		rootRequests: {
+			costUsd: 2.25,
+			pricedRequestCount: 3,
+			reasons: ["a request's duplicate rows disagree on usage"],
+			requestCount: 4,
+			state: "incomplete",
+		},
 	},
 	instructionLoads: {
 		loads: [

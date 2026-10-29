@@ -983,12 +983,19 @@ See [current state](docs/status.md) for implementation coverage and
   monotonically: a cache re-warm moves tokens from `cache_read_input_tokens` to
   `cache_creation_input_tokens` and lowers the sum, observed in 6 of 54 saved
   attempts, and rows recording no model request report every category zero.
-- **Attempt cost reconciliation** — three separately stated readings of one
-  attempt's cost, taken from its saved transcript and record rather than from a
-  supplied context evidence bundle, whose own per-request pricing is described
-  in [reference](docs/reference.md): the cost the provider reported on the
-  attempt record, the sum of per-request calculated costs over attempt-region
-  requests only, and the difference between them. They are never folded into
+- **Attempt cost reconciliation** — separately stated readings of one attempt's
+  cost, taken from its saved transcript, its kept sub-agent transcripts and its
+  record rather than from a supplied context evidence bundle, whose own
+  per-request pricing is described in [reference](docs/reference.md): the cost
+  the provider reported on the attempt record, the sum of per-request
+  calculated costs over every agent's attempt-region requests, each request
+  once, and the difference between those two. Beside them stands the same sum
+  over the root agent's own requests, the series the request timeline plots.
+  The difference is drawn from the sum over every agent because the provider
+  charges for every agent, so sub-agent spend never reads as unexplained, and
+  it is stated to a billionth of a dollar, below which a difference is float
+  noise. A sub-agent whose transcript was not kept leaves the sum over every
+  agent incomplete, with a reason naming it. The readings are never folded into
   one figure, because the gap between a provider charge and a catalog-derived
   sum is evidence about the catalog. Each reading is complete, incomplete, or
   unavailable with its reasons, and a reader takes the state before the figure:

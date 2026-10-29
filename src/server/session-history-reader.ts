@@ -19,9 +19,16 @@ import type {
 } from "#benchmark/session-history";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
-import { agentDetailFor, agentsFor } from "#server/history-agent-reading";
+import {
+	agentDetailFor,
+	agentsFor,
+	attemptCostOverAgentsFor,
+} from "#server/history-agent-reading";
 import type { SessionHistoryAgents } from "#server/history-agent-reading";
-import type { ResolvedHistoryInput } from "#server/history-input-contract";
+import type {
+	ResolvedAttemptInput,
+	ResolvedHistoryInput,
+} from "#server/history-input-contract";
 import type {
 	ConfirmationAttemptHistoryIdentity,
 	ReplayHistoryIdentityInput,
@@ -159,7 +166,7 @@ interface SessionHistoryAttemptSeries {
  * (3.9MB), against the coordination a shared single pass would need.
  */
 async function seriesFor(
-	input: Readonly<ResolvedHistoryInput>,
+	input: Readonly<ResolvedAttemptInput>,
 	rates: ContextRateCatalog | undefined,
 ): Promise<SessionHistoryAttemptSeries> {
 	const { transcriptFile } = input;
@@ -175,11 +182,14 @@ async function seriesFor(
 				);
 
 	return {
-		cost: sessionHistoryAttemptCost({
-			rates,
-			reportedCostUsd: input.reportedCostUsd,
-			series,
-		}),
+		cost:
+			rates === undefined
+				? sessionHistoryAttemptCost({
+						rates,
+						reportedCostUsd: input.reportedCostUsd,
+						series,
+					})
+				: await attemptCostOverAgentsFor(input, series, rates),
 		instructionLoads:
 			transcriptFile === undefined
 				? { state: "unavailable" }

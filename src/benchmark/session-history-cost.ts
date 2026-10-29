@@ -18,6 +18,15 @@ const INITIAL_ATTEMPT_REQUEST_COUNT = 0;
 
 const NO_REQUEST_COUNT_CONTRIBUTION = 0;
 
+/**
+ * A billionth of a dollar, a hundredth of the cheapest token's price. Finer
+ * digits of a difference are float noise, which the provider's own recorded
+ * figures carry, and would read as -$0.00 or as an exact amount of 4e-16.
+ */
+const DIFFERENCE_DECIMAL_PLACES = 9;
+
+const POSITIVE_ZERO = 0;
+
 class AttemptRequestCosts {
 	private readonly reasons = new Set<string>();
 	private costUsd = INITIAL_CALCULATED_COST_USD;
@@ -63,14 +72,17 @@ type SessionHistoryCostReading =
 	| { readonly state: "unavailable"; readonly reasons: readonly string[] };
 
 /**
- * Three readings, never folded into one. The provider's charge and a sum of
+ * Separate readings, never folded into one. The provider's charge and a sum of
  * per-request calculations answer different questions, and the gap between
  * them is evidence about the catalog rather than an error to hide. Folding
- * them would make a missing rate look like a cost of zero.
+ * them would make a missing rate look like a cost of zero. The provider
+ * charges for every agent of the attempt, so the difference is drawn from the
+ * calculated reading over every agent, never from the root's requests alone.
  */
 interface SessionHistoryAttemptCost {
 	readonly reported: SessionHistoryCostReading;
 	readonly calculated: SessionHistoryCostReading;
+	readonly rootRequests: SessionHistoryCostReading;
 	readonly difference: SessionHistoryCostReading;
 }
 
@@ -111,9 +123,30 @@ function sessionHistoryAttemptCost(
 					state: "unavailable",
 				}
 			: { costUsd: input.reportedCostUsd, state: "complete" };
-	const calculated = calculatedCost(input.series, input.rates);
+	const rootRequests = calculatedCost(input.series, input.rates);
 
-	return { calculated, difference: difference(reported, calculated), reported };
+	return {
+		calculated: rootRequests,
+		difference: difference(reported, rootRequests),
+		reported,
+		rootRequests,
+	};
+}
+
+/**
+ * The attempt's cost once its sub-agents are counted: the calculated reading
+ * over every agent's attempt requests, each once, and the difference redrawn
+ * from it.
+ */
+function attemptCostOverAgents(
+	cost: SessionHistoryAttemptCost,
+	calculated: SessionHistoryCostReading,
+): SessionHistoryAttemptCost {
+	return {
+		...cost,
+		calculated,
+		difference: difference(cost.reported, calculated),
+	};
 }
 
 function difference(
@@ -132,7 +165,12 @@ function difference(
 			state: "unavailable",
 		};
 	}
-	const costUsd = reported.costUsd - calculated.costUsd;
+	const costUsd =
+		Number(
+			(reported.costUsd - calculated.costUsd).toFixed(
+				DIFFERENCE_DECIMAL_PLACES,
+			),
+		) + POSITIVE_ZERO;
 	if (reported.state === "complete" && calculated.state === "complete") {
 		return { costUsd, state: "complete" };
 	}
@@ -159,7 +197,7 @@ export { sessionHistoryRequestCosts } from "./session-history-request-pricing";
 
 export type { SessionHistoryRequestCost } from "./session-history-request-pricing";
 
-export { sessionHistoryAttemptCost };
+export { attemptCostOverAgents, sessionHistoryAttemptCost };
 
 export type {
 	SessionHistoryCostReading,

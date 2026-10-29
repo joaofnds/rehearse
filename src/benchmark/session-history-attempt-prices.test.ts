@@ -22,8 +22,6 @@ const EXPECTED_COST_DIFFERENCE_USD = -0.000757;
 
 const EXPECTED_WHOLE_TRANSCRIPT_COST_USD = 2.3683135;
 
-const RECORDED_PROVIDER_COST_USD = 1.008294;
-
 const conflictingPriceTranscript = [
 	row({
 		cwd: "/work",
@@ -129,7 +127,7 @@ const zeroUsageTranscript = [
 	}),
 ].join("\n");
 
-function reportsProviderCalculatedAndDifferenceAsThreeReadings(): void {
+function reportsProviderCalculatedAndDifferenceAsSeparateReadings(): void {
 	const cost = sessionHistoryAttemptCost({
 		rates,
 		reportedCostUsd: 1.008294,
@@ -205,7 +203,7 @@ function refusesToPriceARequestWhoseUsageIsInConflict(): void {
 		state: "incomplete",
 	});
 	expect(cost.difference).toEqual({
-		costUsd: RECORDED_PROVIDER_COST_USD - EXPECTED_REQUEST_COST_USD,
+		costUsd: EXPECTED_COST_DIFFERENCE_USD,
 		pricedRequestCount: 1,
 		reasons: [
 			"a reading it is drawn from is incomplete",
@@ -258,8 +256,8 @@ function refusesToPriceARequestWhoseRowsNeverSettled(): void {
 
 describe(sessionHistoryAttemptCost.name, () => {
 	it(
-		"reports provider, calculated and difference as three readings",
-		reportsProviderCalculatedAndDifferenceAsThreeReadings,
+		"reports provider, calculated and difference as separate readings",
+		reportsProviderCalculatedAndDifferenceAsSeparateReadings,
 	);
 	it(
 		"prices a zero-usage row at zero without a catalogued rate",

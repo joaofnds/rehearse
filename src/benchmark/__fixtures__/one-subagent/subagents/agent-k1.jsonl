@@ -1,0 +1,2 @@
+{"type":"user","message":{"role":"user","content":"review it"},"parentUuid":null,"isSidechain":true,"cwd":"/work"}
+{"type":"assistant","requestId":"req-k1-1","message":{"model":"claude-sonnet-5","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"findings"}],"usage":{"input_tokens":125000,"output_tokens":12500,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}},"cwd":"/work"}

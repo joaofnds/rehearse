@@ -5,8 +5,17 @@ import type { AttemptCostAllocation } from "#benchmark/agent-cost";
 import agentTree from "#benchmark/agent-tree";
 import type { AgentTree, SubagentEvidence } from "#benchmark/agent-tree";
 import type { ContextRateCatalog } from "#benchmark/context-evidence-contract";
-import { sessionHistoryDetail } from "#benchmark/session-history";
-import type { SessionHistoryDetail } from "#benchmark/session-history";
+import {
+	attemptCostOverAgents,
+	sessionHistoryAttemptCost,
+	sessionHistoryDetail,
+} from "#benchmark/session-history";
+import type {
+	SessionHistoryAttemptCost,
+	SessionHistoryCostReading,
+	SessionHistoryDetail,
+	SessionHistoryRequestSeries,
+} from "#benchmark/session-history";
 import {
 	SUBAGENTS_DIRECTORY,
 	subagentTranscriptAgentId,
@@ -122,6 +131,40 @@ async function agentsFor(
 	};
 }
 
+function everyAgentCalculated(
+	agents: SessionHistoryAgents,
+): SessionHistoryCostReading {
+	if (agents.state === "unavailable") {
+		return { reasons: [agents.reason], state: "unavailable" };
+	}
+
+	return agents.cost.state === "unavailable"
+		? { reasons: agents.cost.reasons, state: "unavailable" }
+		: agents.cost.calculated;
+}
+
+/**
+ * The provider charges for every agent of the attempt, so its cost is
+ * reconciled with the calculated cost of every agent's requests, the root's
+ * series kept beside it.
+ */
+async function attemptCostOverAgentsFor(
+	input: Readonly<ResolvedAttemptInput>,
+	series: SessionHistoryRequestSeries,
+	rates: ContextRateCatalog,
+): Promise<SessionHistoryAttemptCost> {
+	const rootCost = sessionHistoryAttemptCost({
+		rates,
+		reportedCostUsd: input.reportedCostUsd,
+		series,
+	});
+
+	return attemptCostOverAgents(
+		rootCost,
+		everyAgentCalculated(await agentsFor(input, rates)),
+	);
+}
+
 /**
  * One event of a sub-agent's own transcript, so a delivery an agent received
  * opens on the text it received. An agent the record holds no transcript for
@@ -155,5 +198,5 @@ async function agentDetailFor(
 	);
 }
 
-export { agentsFor, agentDetailFor };
+export { agentsFor, agentDetailFor, attemptCostOverAgentsFor };
 export type { SessionHistoryAgents };

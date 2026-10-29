@@ -45,6 +45,11 @@ describe(RequestCostReadings.name, () => {
 		"keeps a partial subtotal separate from complete pricing reasons containing separators",
 		keepsAPartialSubtotalSeparateFromCompletePricingReasonsContainingSeparators,
 	);
+
+	it(
+		"states the calculated attempt cost over every agent apart from the root's requests",
+		statesTheCalculatedAttemptCostOverEveryAgentApartFromTheRoots,
+	);
 });
 
 function keepsPeakRequestInputSeparateFromAttemptTotals(): void {
@@ -152,6 +157,7 @@ function roundsAHeadlineWhileRetainingTheExactSavedAmountInDetail(): void {
 				calculated: { costUsd: 0, state: "complete" },
 				difference: { costUsd: 0, state: "complete" },
 				reported: { costUsd: 0.0123456, state: "complete" },
+				rootRequests: { costUsd: 0, state: "complete" },
 			}}
 		/>,
 	);
@@ -168,20 +174,25 @@ function roundsAHeadlineWhileRetainingTheExactSavedAmountInDetail(): void {
 	expect(within(reading).getByText("Exact amount: $0.0123456")).toBeVisible();
 }
 
+const SEPARATED_REASON = "missing rates · catalog unavailable";
+
+const PARTIAL_READING = {
+	costUsd: 1.25,
+	pricedRequestCount: 2,
+	reasons: [SEPARATED_REASON, "conflicting usage"],
+	requestCount: 3,
+	state: "incomplete",
+} as const;
+
 function keepsAPartialSubtotalSeparateFromCompletePricingReasonsContainingSeparators(): void {
-	const reason = "missing rates · catalog unavailable";
+	const reason = SEPARATED_REASON;
 	render(
 		<RequestCostReadings
 			cost={{
-				calculated: {
-					costUsd: 1.25,
-					pricedRequestCount: 2,
-					reasons: [reason, "conflicting usage"],
-					requestCount: 3,
-					state: "incomplete",
-				},
+				calculated: PARTIAL_READING,
 				difference: { costUsd: 0.75, state: "complete" },
 				reported: { costUsd: 2, state: "complete" },
+				rootRequests: PARTIAL_READING,
 			}}
 		/>,
 	);
@@ -204,6 +215,31 @@ function keepsAPartialSubtotalSeparateFromCompletePricingReasonsContainingSepara
 	expect(
 		within(reading).getByText("conflicting usage", { exact: true }),
 	).toBeVisible();
+}
+
+function readingText(term: string): string | null | undefined {
+	return screen.getByText(term).closest("div")?.textContent;
+}
+
+function statesTheCalculatedAttemptCostOverEveryAgentApartFromTheRoots(): void {
+	render(
+		<RequestCostReadings
+			cost={{
+				calculated: { costUsd: 2.95, state: "complete" },
+				difference: { costUsd: 0, state: "complete" },
+				reported: { costUsd: 2.95, state: "complete" },
+				rootRequests: { costUsd: 1.79, state: "complete" },
+			}}
+		/>,
+	);
+
+	expect(readingText("Calculated · attempt, each request once")).toContain(
+		"✓ Complete · $2.95",
+	);
+	expect(readingText("Calculated · root requests")).toContain(
+		"✓ Complete · $1.79",
+	);
+	expect(readingText("Remaining difference")).toContain("✓ Complete · $0.00");
 }
 
 function peakRequestSeries(): SessionHistoryRequestSeries {

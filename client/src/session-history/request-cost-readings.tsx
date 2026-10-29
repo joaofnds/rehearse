@@ -131,8 +131,8 @@ function RequestCostReadings({
 }: RequestCostReadingsProps): React.JSX.Element {
 	return (
 		<dl
-			aria-label="Session root attempt cost"
-			className="grid gap-5 rounded-lg border border-divider bg-card p-4 md:grid-cols-3"
+			aria-label="Attempt cost reconciliation"
+			className="grid gap-5 rounded-lg border border-divider bg-card p-4 md:grid-cols-4"
 		>
 			{[
 				{
@@ -143,6 +143,11 @@ function RequestCostReadings({
 				{
 					difference: false,
 					reading: cost.calculated,
+					term: "Calculated · attempt, each request once",
+				},
+				{
+					difference: false,
+					reading: cost.rootRequests,
 					term: "Calculated · root requests",
 				},
 				{
