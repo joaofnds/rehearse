@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { InFlightClaim } from "#benchmark/in-flight-claim";
@@ -217,6 +218,23 @@ async function verifyListsAnUnclaimedAttemptBesideALiveLaunch(): Promise<void> {
 	expect(unreadable).toMatchObject([{ kind: "session-attempt" }]);
 }
 
+async function verifyListsAnUnclaimedGroupBesideALiveLaunch(): Promise<void> {
+	const fixture = await writtenFixture();
+	await writeLaunchRecord(fixture.runsDirectory, CASE_LAUNCH);
+	await mkdir(
+		confirmationGroupPaths(fixture.runsDirectory, GROUP_ID).directory,
+		{
+			recursive: true,
+		},
+	);
+
+	const { unreadable } = await historyOf(fixture);
+
+	expect(unreadable).toMatchObject([
+		{ incompleteConfirmation: { groupId: GROUP_ID }, kind: "group" },
+	]);
+}
+
 describe(runHistoryReport.name, () => {
 	describe("when a session attempt is in flight", () => {
 		it(
@@ -255,11 +273,18 @@ describe(runHistoryReport.name, () => {
 			verifyListsAGroupClaimedBeforeTheLaunch,
 		);
 	});
+});
 
+describe(runHistoryReport.name, () => {
 	describe("when a record has no claim", () => {
 		it(
 			"lists the attempt as unreadable beside a live launch",
 			verifyListsAnUnclaimedAttemptBesideALiveLaunch,
+		);
+
+		it(
+			"lists the group as having no saved summary beside a live launch",
+			verifyListsAnUnclaimedGroupBesideALiveLaunch,
 		);
 	});
 });

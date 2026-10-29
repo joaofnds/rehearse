@@ -47,21 +47,19 @@ async function claimsTheGroupForThisProcessBeforeSettingUpARep(): Promise<void> 
 		harness.runsDirectory,
 		"pipeline-claimed",
 	);
-	const claims: Promise<InFlightClaim | undefined>[] = [];
+	const claims: (InFlightClaim | undefined)[] = [];
 
 	await failureOf(
 		harness.run({ groupId: "pipeline-claimed" }, (dependencies) => ({
 			...dependencies,
-			runSetup: () => {
-				claims.push(readInFlightClaim(directory));
+			runSetup: async () => {
+				claims.push(await readInFlightClaim(directory));
 				throw new Error("setup unavailable");
 			},
 		})),
 	);
 
-	const read = await Promise.all(claims);
-
-	expect(read.map((claim) => claim?.pid)).toContain(process.pid);
+	expect(claims.map((claim) => claim?.pid)).toEqual([process.pid]);
 }
 
 describe(runPipelineConfirmation.name, () => {

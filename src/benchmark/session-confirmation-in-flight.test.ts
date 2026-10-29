@@ -38,7 +38,6 @@ describe(runSessionConfirmation.name, () => {
 				},
 				confirmationRequest({
 					groupId: "claimed-group",
-					preflight: { missing: "metrics", status: "MISSING" },
 					runsDirectory,
 					sessionCase,
 				}),
