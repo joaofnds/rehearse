@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import {
 	fireEvent,
@@ -160,19 +160,14 @@ async function savesAnEditedSkillFromCasesWorkflowsAndCloses(): Promise<void> {
 	});
 }
 
-let editingServer: FakeServer | null = null;
-let editingDialog: HTMLElement | null = null;
 function addedDeliveryStep(): void {
-	beforeEach(prepareAddedDeliveryStep);
 	it(
 		"adds, moves and removes steps before it saves them in their new order",
 		savesReorderedSteps,
 	);
 }
-async function prepareAddedDeliveryStep(): Promise<void> {
-	editingServer = serving();
-	editingDialog = await openEditor();
-	const dialog = editingDialog;
+async function openEditorWithAddedDeliveryStep(): Promise<HTMLElement> {
+	const dialog = await openEditor();
 	fireEvent.click(within(dialog).getByRole("button", { name: "Add a step" }));
 	const added = within(dialog).getByRole("group", { name: "Step 3" });
 	fireEvent.change(within(added).getByLabelText("Name"), {
@@ -181,11 +176,12 @@ async function prepareAddedDeliveryStep(): Promise<void> {
 	fireEvent.change(within(added).getByLabelText("Skill"), {
 		target: { value: "verify" },
 	});
+
+	return dialog;
 }
 async function savesReorderedSteps(): Promise<void> {
-	if (editingServer === null || editingDialog === null) {
-		throw new Error("The added delivery step was not prepared");
-	}
+	const server = serving();
+	const editingDialog = await openEditorWithAddedDeliveryStep();
 	const added = within(editingDialog).getByRole("group", { name: "Step 3" });
 	fireEvent.click(within(added).getByRole("button", { name: "Move up" }));
 	fireEvent.click(
@@ -197,7 +193,7 @@ async function savesReorderedSteps(): Promise<void> {
 		within(editingDialog).getByRole("button", { name: "Save steps" }),
 	);
 	await waitForElementToBeRemoved(() => screen.queryAllByRole("dialog"));
-	const put = editingServer.sent.filter(
+	const put = server.sent.filter(
 		({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
 	);
 	expect(put).toHaveLength(EXPECTED_PUT_REQUESTS);
