@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { constants as HTTP_STATUS } from "node:http2";
 
+import { committedRateCatalog } from "#benchmark/rate-catalog";
 import writtenConfirmationAttempt from "#server/session-history-confirmation-test-fixture";
 import {
 	SessionHistoryReaderError,
@@ -69,7 +70,10 @@ async function verifyRefusesAConfirmationSeriesRouteWhoseGroupDoesNot(): Promise
 async function verifyReadsTheSeriesOfTheRepItWasAsked(): Promise<void> {
 	const fixture = await writtenConfirmationAttempt();
 
-	const { series } = await readConfirmationAttemptRequestSeries(fixture);
+	const { series } = await readConfirmationAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(series.transcriptState).toBe("saved");
 	expect(series.boundary).toBe("unknown");
@@ -83,9 +87,9 @@ async function verifyRefusesARepWhoseGroupDoesNotOwnIt(): Promise<void> {
 	const fixture = await writtenConfirmationAttempt();
 
 	expect(
-		readConfirmationAttemptRequestSeries({
-			...fixture,
-			repId: "group-a-rep-2",
-		}),
+		readConfirmationAttemptRequestSeries(
+			{ ...fixture, repId: "group-a-rep-2" },
+			committedRateCatalog,
+		),
 	).rejects.toBeInstanceOf(SessionHistoryReaderError);
 }

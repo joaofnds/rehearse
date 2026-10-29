@@ -1,6 +1,5 @@
 import type { ContextRateCatalog } from "#benchmark/context-evidence-contract";
 import {
-	sessionHistoryAttemptCost,
 	sessionHistoryDetailFromLine,
 	sessionHistoryReport,
 	sessionHistoryReportFromLines,
@@ -167,7 +166,7 @@ interface SessionHistoryAttemptSeries {
  */
 async function seriesFor(
 	input: Readonly<ResolvedAttemptInput>,
-	rates: ContextRateCatalog | undefined,
+	rates: ContextRateCatalog,
 ): Promise<SessionHistoryAttemptSeries> {
 	const { transcriptFile } = input;
 	const series =
@@ -182,14 +181,7 @@ async function seriesFor(
 				);
 
 	return {
-		cost:
-			rates === undefined
-				? sessionHistoryAttemptCost({
-						rates,
-						reportedCostUsd: input.reportedCostUsd,
-						series,
-					})
-				: await attemptCostOverAgentsFor(input, series, rates),
+		cost: await attemptCostOverAgentsFor(input, series, rates),
 		instructionLoads:
 			transcriptFile === undefined
 				? { state: "unavailable" }
@@ -205,14 +197,14 @@ async function seriesFor(
 
 async function readSessionAttemptRequestSeries(
 	identity: Readonly<SessionAttemptHistoryIdentity>,
-	rates?: ContextRateCatalog,
+	rates: ContextRateCatalog,
 ): Promise<SessionHistoryAttemptSeries> {
 	return await seriesFor(await standaloneInput(identity), rates);
 }
 
 async function readConfirmationAttemptRequestSeries(
 	identity: Readonly<ConfirmationAttemptHistoryIdentity>,
-	rates?: ContextRateCatalog,
+	rates: ContextRateCatalog,
 ): Promise<SessionHistoryAttemptSeries> {
 	return await seriesFor(await confirmationInput(identity), rates);
 }

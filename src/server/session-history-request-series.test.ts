@@ -128,7 +128,10 @@ async function verifyLeavesTheUnkeptSubagentsSpendInAnIncompleteDifference(): Pr
 async function verifyTotalsOnlyTheAttemptRegionOfAResumedSaved(): Promise<void> {
 	const fixture = await writtenResumedAttempt();
 
-	const { series } = await readSessionAttemptRequestSeries(fixture);
+	const { series } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(series.boundary).toBe("known");
 	expect(series.attemptTotals).toEqual({
@@ -147,7 +150,10 @@ async function verifyTotalsOnlyTheAttemptRegionOfAResumedSaved(): Promise<void> 
 async function verifyReportsInstructionLoadsUnavailableWhenTheTranscriptCarriesNo(): Promise<void> {
 	const fixture = await writtenResumedAttempt();
 
-	const { instructionLoads } = await readSessionAttemptRequestSeries(fixture);
+	const { instructionLoads } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(instructionLoads).toEqual({ state: "unavailable" });
 }
@@ -169,7 +175,10 @@ async function verifyCarriesTheInstructionLoadsTheTranscriptAttachmentNames(): P
 		})}`,
 	);
 
-	const { instructionLoads } = await readSessionAttemptRequestSeries(fixture);
+	const { instructionLoads } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(instructionLoads).toEqual({
 		loads: [
@@ -188,7 +197,10 @@ async function verifyCarriesTheInstructionLoadsTheTranscriptAttachmentNames(): P
 async function verifyReadsTheProviderCostTheAttemptRecordCarries(): Promise<void> {
 	const fixture = await writtenResumedAttempt();
 
-	const { cost } = await readSessionAttemptRequestSeries(fixture);
+	const { cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(cost.reported).toEqual({ costUsd: 1.008294, state: "complete" });
 }
@@ -249,7 +261,10 @@ async function verifyReportsTotalsUnavailableRatherThanZeroWhenTheAttempt(): Pro
 async function verifyReportsBoundaryUnknownWithTotalsUnavailableOnAnAttempt(): Promise<void> {
 	const fixture = await writtenIncompleteAttempt("boundary");
 
-	const { series, cost } = await readSessionAttemptRequestSeries(fixture);
+	const { series, cost } = await readSessionAttemptRequestSeries(
+		fixture,
+		committedRateCatalog,
+	);
 
 	expect(series.boundary).toBe("unknown");
 	expect(series.entries.map(({ region }) => region)).toEqual([
