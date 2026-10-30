@@ -1143,13 +1143,19 @@ that list, or one the drop removes, so a stage session cannot receive one the
 group does not record. A session confirmation group's reps carry it on their
 own attempt records. An attempt or group recorded without the field inherited
 what it inherited unrecorded. `compare`, `compare attempts` and `compare
-extend` print a line on stderr for each pair of arms whose records inherited
-different configuration, naming each variable whose digest differs or that
-only one arm inherited, for each arm whose own records disagree, which reads
-as mixed, and for the arms whose records lack the field, since then whether
-the arms matched is unknown. The comparison page shows the same lines in each
-case's lead. Neither refuses the comparison: the contrast is still reported,
-and the line says it may measure the shell as well as the corpus.
+extend` print a line on stderr, per case, for each pair of arms whose records
+inherited different configuration, naming each variable whose digest differs
+or that only one arm inherited. They print one for each arm whose own records
+disagree, or only some of whose records carry the field, which reads as mixed,
+and one for the arms none of whose records carry it, since then whether the
+arms matched is unknown. An arm is compared with the others by every
+configuration its records hold, so a mixed arm still shows how it differs from
+them. Records holding the same names and digests in any order read as alike,
+and a name recorded without a digest is compared by whether it was inherited
+alone. The comparison page reads the same findings from the records the report
+names and shows them in each case's lead, where the line on a differing pair
+says the contrast may measure that difference too. Neither refuses the
+comparison, so the contrast is still reported.
 
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140
@@ -2792,8 +2798,16 @@ cannot be read. `corpusVersions` gives, per case and arm, the `digest` of the
 corpus version every group of the arm ran, or `unavailable` with the reason:
 `version not recorded` for groups written before versions, the arm's distinct
 readings when its groups ran more than one, or the group record that could not
-be read. A record that cannot be read costs only these fields, never the
-comparison. `attempts` lists,
+be read. `inheritedConfiguration` gives, per case, the `findings` of
+[inherited Claude Code configuration](#corpus-sources-and-delivery) read
+from the records the report names: `differs` with the two `arms` and each
+differing variable, `kind` `value` when the digests differ or `only` with the
+`arm` that alone inherited it; `mixed` with the `arm`, the `names` its records
+disagree on and `unrecorded` when some of its records lack the field; and
+`unrecorded` with the `arms` none of whose records carry it. An empty list means
+every arm inherited the same configuration. It reads `unavailable` with the
+reason when a record cannot be read. A record that cannot be read costs only
+these fields, never the comparison. `attempts` lists,
 per case and arm, each recorded attempt in the order the arm recorded it, with
 its rep id, ordinal, stage outcomes, the hard blockers that fired and its words;
 a field a report never recorded reads `unavailable` with its reason. Attempts

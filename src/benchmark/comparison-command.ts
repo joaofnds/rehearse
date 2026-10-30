@@ -14,7 +14,7 @@ interface WriteComparisonReportRequest {
 	readonly runsDirectory: string;
 	/** How `compare attempts` made the control group, written beside the report. */
 	readonly baselineRecord?: ComparisonBaselineRecord | undefined;
-	/** Receives each line naming an arm that read a file under test live. */
+	/** Receives each line naming an arm that read a file under test live or inherited different Claude Code configuration. */
 	readonly notice?: ((line: string) => void) | undefined;
 }
 
