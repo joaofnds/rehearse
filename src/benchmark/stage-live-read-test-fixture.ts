@@ -63,6 +63,17 @@ async function failStagesWithLiveReads(
 	);
 }
 
+/** Each rep's stages as the live reads each recorded, or "none" without them. */
+function recordedLiveReads(
+	reps: Immutable<readonly Pick<ConfirmationRepRecord, "stages">[]>,
+): readonly (readonly (Immutable<LiveCorpusRead[]> | "none")[])[] {
+	return reps.map(({ stages }) =>
+		stages.map((stage) =>
+			"liveReads" in stage ? (stage.liveReads ?? "none") : "none",
+		),
+	);
+}
+
 /** One transcript line in which the session reads `filePath`. */
 function readTranscriptLine(filePath: string): string {
 	const read = {
@@ -142,5 +153,6 @@ export {
 	failingBeforeSessionStarts,
 	namedFailure,
 	readTranscriptLine,
+	recordedLiveReads,
 	unnamedFailure,
 };

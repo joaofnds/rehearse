@@ -11,6 +11,7 @@ import {
 	failingBeforeSessionStarts,
 	namedFailure,
 	readTranscriptLine,
+	recordedLiveReads,
 	unnamedFailure,
 } from "./stage-live-read-test-fixture";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
@@ -90,11 +91,7 @@ async function recordsTheLiveReadsOfAStageItsJudgeRejected(): Promise<void> {
 		await harness.run({}, liveReadingStages(projects), rejectingJudge),
 	);
 
-	expect(
-		reps.map(({ stages }) =>
-			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
-		),
-	).toEqual([
+	expect(recordedLiveReads(reps)).toEqual([
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
@@ -121,11 +118,7 @@ async function recordsAJudgedStagesLiveReadsOnceWhenItsCheckpointFails(): Promis
 		await harness.run({}, liveReadingStages(projects), rejectingCheckpoint),
 	);
 
-	expect(
-		reps.map(({ stages }) =>
-			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
-		),
-	).toEqual([
+	expect(recordedLiveReads(reps)).toEqual([
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
@@ -153,11 +146,7 @@ async function recordsTheLiveReadsOfAStageWhoseSessionFailed({
 		await harness.run({}, liveReadingStages(projects), failure),
 	);
 
-	expect(
-		reps.map(({ stages }) =>
-			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
-		),
-	).toEqual([
+	expect(recordedLiveReads(reps)).toEqual([
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
 		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],

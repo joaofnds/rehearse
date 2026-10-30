@@ -11,6 +11,7 @@ import {
 	failingBeforeSessionStarts,
 	namedFailure,
 	readTranscriptLine,
+	recordedLiveReads,
 	unnamedFailure,
 } from "./stage-live-read-test-fixture";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
@@ -77,11 +78,7 @@ async function recordsEachStagesLiveReadsOnItsRepWhetherJudgedOrRejected(): Prom
 	const outcome = await runReplayConfirmation(dependencies, request);
 
 	const records = await readReplayReps(outcome.repRecordFiles);
-	expect(
-		records.map(({ stages }) =>
-			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
-		),
-	).toEqual([
+	expect(recordedLiveReads(records)).toEqual([
 		[[{ count: 1, path: "rulebook/ownership.md" }]],
 		[[{ count: 1, path: "rulebook/ownership.md" }]],
 	]);
