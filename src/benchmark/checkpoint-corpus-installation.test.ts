@@ -8,7 +8,7 @@ import {
 	snapshotStageCorpus,
 } from "./checkpoint";
 import { corpusSources } from "./checkpoint-corpus-test-fixture";
-import { noCitations } from "./checkpoint-filesystem-test-fixture";
+import { uncitedStage } from "./checkpoint-filesystem-test-fixture";
 import {
 	installReviewedBuild,
 	installationFixture,
@@ -39,8 +39,8 @@ async function testInstallsFrozenSkillBytesAfterTheirSourceChanges(): Promise<vo
 	);
 
 	await Promise.all([
-		installStageCorpusSnapshot(snapshotDirectory, firstWorktree, noCitations),
-		installStageCorpusSnapshot(snapshotDirectory, secondWorktree, noCitations),
+		installStageCorpusSnapshot(snapshotDirectory, firstWorktree, uncitedStage),
+		installStageCorpusSnapshot(snapshotDirectory, secondWorktree, uncitedStage),
 	]);
 
 	const first = await captureStageCorpus(
@@ -75,7 +75,7 @@ async function testInstallsTheFrozenInstructionsAsCLAUDEMdUnderTheTargetSClaudeD
 		snapshotDirectory,
 	);
 
-	await installStageCorpusSnapshot(snapshotDirectory, worktree, noCitations);
+	await installStageCorpusSnapshot(snapshotDirectory, worktree, uncitedStage);
 
 	expect(await Bun.file(join(worktree, ".claude", "CLAUDE.md")).text()).toBe(
 		"frozen instructions",
@@ -92,7 +92,7 @@ async function testRemovesAPriorStageSAgentsAndOutputStylesTheNextStageSSnapshot
 		corpusSources(roots),
 		firstSnapshot,
 	);
-	await installStageCorpusSnapshot(firstSnapshot, worktree, noCitations);
+	await installStageCorpusSnapshot(firstSnapshot, worktree, uncitedStage);
 	expect(
 		await stat(join(worktree, ".claude", "agents", "reviewer.md")),
 	).toBeDefined();
@@ -106,7 +106,7 @@ async function testRemovesAPriorStageSAgentsAndOutputStylesTheNextStageSSnapshot
 		corpusSources(roots),
 		secondSnapshot,
 	);
-	await installStageCorpusSnapshot(secondSnapshot, worktree, noCitations);
+	await installStageCorpusSnapshot(secondSnapshot, worktree, uncitedStage);
 
 	expect(
 		stat(join(worktree, ".claude", "agents", "reviewer.md")),

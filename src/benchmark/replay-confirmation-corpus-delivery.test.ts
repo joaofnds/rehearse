@@ -26,12 +26,12 @@ const rewritingInstall: ReplayDependencyOverride = (dependencies) => ({
 	installStageCorpusSnapshot: async (
 		snapshotDirectory,
 		targetDirectory,
-		citations,
+		installation,
 	) => {
 		const delivery = await dependencies.installStageCorpusSnapshot(
 			snapshotDirectory,
 			targetDirectory,
-			citations,
+			installation,
 		);
 		await rewriteInstalledSkill(targetDirectory, "discuss");
 

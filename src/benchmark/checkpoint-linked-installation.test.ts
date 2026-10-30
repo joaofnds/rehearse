@@ -11,7 +11,7 @@ import { dirname, join, relative } from "node:path";
 
 import { captureStageCorpus, installStageCorpusSnapshot } from "./checkpoint";
 import {
-	noCitations,
+	uncitedStage,
 	writeFixtureFiles,
 } from "./checkpoint-filesystem-test-fixture";
 import { installedCorpus } from "./checkpoint-linked-corpus-test-fixture";
@@ -74,7 +74,7 @@ async function testInstallsADirectoryVariantSAllowedLinksAsIndependentFiles(): P
 	]);
 	const target = join(dirname(source.root), "target");
 
-	await installStageCorpusSnapshot(source.root, target, noCitations);
+	await installStageCorpusSnapshot(source.root, target, uncitedStage);
 	await rm(source.root, { recursive: true });
 
 	const installed = await captureStageCorpus("build", "instructions", [
@@ -88,7 +88,7 @@ async function testLeavesEveryFileInTheLinkedDirectoryUnchanged(): Promise<void>
 	const { snapshot, linked, target } = await linkedTarget();
 	const before = await fileContents(linked);
 
-	await installStageCorpusSnapshot(snapshot, target, noCitations);
+	await installStageCorpusSnapshot(snapshot, target, uncitedStage);
 
 	expect(await fileContents(linked)).toEqual(before);
 }
@@ -96,7 +96,7 @@ async function testLeavesEveryFileInTheLinkedDirectoryUnchanged(): Promise<void>
 async function testInstallsTheStageCorpusInADirectoryOfTheTargetSOwn(): Promise<void> {
 	const { snapshot, target } = await linkedTarget();
 
-	await installStageCorpusSnapshot(snapshot, target, noCitations);
+	await installStageCorpusSnapshot(snapshot, target, uncitedStage);
 
 	const installed = await lstat(join(target, ".claude"));
 	expect({

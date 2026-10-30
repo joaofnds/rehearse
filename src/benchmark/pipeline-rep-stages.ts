@@ -20,7 +20,7 @@ function installedPipelineStages({
 		await scope.dependencies.installStageCorpusSnapshot(
 			stage.directory,
 			plan.worktreePath,
-			frozen.citations,
+			{ citations: frozen.citations, skill: stage.definition.skill },
 		);
 		progress.completeSetup();
 

@@ -87,6 +87,61 @@ async function recordsTheDeliveryRuleAndRedirectCountOnTheGroup(): Promise<void>
 	expect(group.inputs.corpusDelivery).toEqual({ redirected: 1, rule: 1 });
 }
 
+/**
+ * A control arm runs without its stage skill, so a citation of that skill
+ * points at the arm's own install, where the skill is absent, rather than at
+ * the live copy the arm is meant to go without.
+ */
+async function pointsACitationOfTheAbsentStageSkillAtTheArmsInstall(): Promise<void> {
+	const installed: string[] = [];
+	const { harness, run } = await new ReplayConfirmationFixtureBuilder().build(
+		testResources,
+	);
+	const corpus = await new ReplayCorpusBuilder({
+		files: [
+			{
+				content: "Load /home/user/.agents/skills/discuss/SKILL.md.\n",
+				path: "agents/reviewer.md",
+			},
+		],
+	}).build(testResources);
+	const { dependencies, request } = harness.prepareConfirmation(
+		{ corpusRoots: [{ kind: "directory", root: corpus }], paths: run.paths },
+		{ reps: 2, stageSkill: "absent" },
+		(base) => ({
+			...base,
+			liveCitations: async () =>
+				await Promise.resolve({
+					home: "/home/user",
+					roots: [{ layoutPath: "skills", path: "/home/user/.agents/skills" }],
+				}),
+			stageSession: {
+				...base.stageSession,
+				runWorkflowStage: async (stage) => {
+					installed.push(
+						await Bun.file(
+							join(stage.targetDir, ".claude/agents/reviewer.md"),
+						).text(),
+					);
+
+					return await base.stageSession.runWorkflowStage(stage);
+				},
+			},
+		}),
+	);
+
+	const outcome = await runReplayConfirmation(dependencies, request);
+
+	expect(installed).toEqual([
+		"Load .claude/skills/discuss/SKILL.md.\n",
+		"Load .claude/skills/discuss/SKILL.md.\n",
+	]);
+	const group = parseConfirmationGroupRecord(
+		await Bun.file(outcome.groupRecordFile).text(),
+	);
+	expect(group.inputs.corpusDelivery).toEqual({ redirected: 1, rule: 1 });
+}
+
 describe(runReplayConfirmation.name, () => {
 	it(
 		"delivers the citations to every rep's install",
@@ -96,5 +151,10 @@ describe(runReplayConfirmation.name, () => {
 	it(
 		"records the delivery rule and redirect count on the group",
 		recordsTheDeliveryRuleAndRedirectCountOnTheGroup,
+	);
+
+	it(
+		"points a citation of the absent stage skill at the arm's install",
+		pointsACitationOfTheAbsentStageSkillAtTheArmsInstall,
 	);
 });

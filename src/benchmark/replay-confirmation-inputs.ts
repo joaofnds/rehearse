@@ -62,7 +62,10 @@ async function freezeReplayInputs(
 	return {
 		checkpointDirectory: lineage.checkpointDirectory,
 		citations,
-		corpusDelivery: await planStageCorpusDelivery(corpusDirectory, citations),
+		corpusDelivery: await planStageCorpusDelivery(corpusDirectory, {
+			citations,
+			skill: lineage.plan.definition.skill,
+		}),
 		corpusDirectory,
 		corpusVersion,
 		files,

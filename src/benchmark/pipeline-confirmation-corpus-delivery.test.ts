@@ -32,12 +32,12 @@ const rewritingInstall: PipelineDependencyOverride = (dependencies) => ({
 	installStageCorpusSnapshot: async (
 		snapshotDirectory,
 		worktreePath,
-		citations,
+		installation,
 	) => {
 		const delivery = await dependencies.installStageCorpusSnapshot(
 			snapshotDirectory,
 			worktreePath,
-			citations,
+			installation,
 		);
 		await rewriteInstalledSkill(worktreePath, basename(snapshotDirectory));
 
@@ -67,12 +67,15 @@ async function recordsTheDeliveryRuleAndRedirectCountOnTheGroup(): Promise<void>
 
 const rulebookCitations = {
 	home: "/home/user",
-	roots: [{ layoutPath: "rulebook", path: "/home/user/.agents/rulebook" }],
+	roots: [
+		{ layoutPath: "rulebook", path: "/home/user/.agents/rulebook" },
+		{ layoutPath: "skills", path: "/home/user/.agents/skills" },
+	],
 };
 
 /**
- * Each stage's skill cites the rulebook through the live install, and the
- * stage session keeps the text it found installed.
+ * Each stage's skill cites the rulebook and itself through the live install,
+ * and the stage session keeps the text it found installed.
  */
 async function citingStages(corpusRoot: string): Promise<{
 	readonly installed: readonly string[];
@@ -83,7 +86,7 @@ async function citingStages(corpusRoot: string): Promise<{
 	await Array.fromAsync(["discuss", "build"], async (stage) => {
 		await Bun.write(
 			join(corpusRoot, "skills", stage, "SKILL.md"),
-			"Follow /home/user/.agents/rulebook/ownership.md.\n",
+			`Follow /home/user/.agents/rulebook/ownership.md and /home/user/.agents/skills/${stage}/SKILL.md.\n`,
 		);
 	});
 
@@ -118,9 +121,12 @@ async function deliversEachStagesCitationsToItsOwnInstall(): Promise<void> {
 
 	await harness.run({}, override);
 
-	expect([...new Set(installed)]).toEqual([
-		"Follow .claude/rulebook/ownership.md.\n",
-	]);
+	expect([...new Set(installed)]).toEqual(
+		["discuss", "build"].map(
+			(stage) =>
+				`Follow .claude/rulebook/ownership.md and .claude/skills/${stage}/SKILL.md.\n`,
+		),
+	);
 }
 
 async function recordsTheRedirectsOfEveryStageOnTheGroup(): Promise<void> {
@@ -130,7 +136,7 @@ async function recordsTheRedirectsOfEveryStageOnTheGroup(): Promise<void> {
 
 	const group = await readGroup(await harness.run({}, override));
 
-	expect(group.inputs.corpusDelivery).toEqual({ redirected: 2, rule: 1 });
+	expect(group.inputs.corpusDelivery).toEqual({ redirected: 4, rule: 1 });
 }
 
 /**

@@ -47,11 +47,10 @@ async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
 	const snapshot = await citingSnapshot();
 	const target = await resources.createControlDirectory();
 
-	const delivery = await installStageCorpusSnapshot(
-		snapshot,
-		target,
+	const delivery = await installStageCorpusSnapshot(snapshot, target, {
 		citations,
-	);
+		skill: "shape",
+	});
 
 	expect(await Bun.file(join(target, ".claude/CLAUDE.md")).text()).toBe(
 		[
@@ -72,7 +71,10 @@ async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
 async function plansWhatAnInstallWouldDeliverWithoutWriting(): Promise<void> {
 	const snapshot = await citingSnapshot();
 
-	const planned = await planStageCorpusDelivery(snapshot, citations);
+	const planned = await planStageCorpusDelivery(snapshot, {
+		citations,
+		skill: "shape",
+	});
 
 	expect(planned).toEqual({
 		delivery: { redirected: 3, rule: 1 },
@@ -81,6 +83,33 @@ async function plansWhatAnInstallWouldDeliverWithoutWriting(): Promise<void> {
 	expect(await Bun.file(join(snapshot, "CLAUDE.md")).text()).toBe(
 		AUTHORED_INSTRUCTIONS,
 	);
+}
+
+async function holdsTheStagesOwnSkillWhenTheSnapshotLacksIt(): Promise<void> {
+	const snapshot = await resources.createControlDirectory();
+	await writeFixtureFiles({
+		files: [["CLAUDE.md", AUTHORED_INSTRUCTIONS]],
+		root: snapshot,
+	});
+	const target = await resources.createControlDirectory();
+
+	await installStageCorpusSnapshot(snapshot, target, {
+		citations,
+		skill: "shape",
+	});
+
+	expect(await Bun.file(join(target, ".claude/CLAUDE.md")).text()).toBe(
+		[
+			"Read .claude/rulebook/ownership.md.",
+			"Load .claude/skills/shape/SKILL.md, then ~/.agents/skills/delivery/SKILL.md.",
+			"",
+		].join("\n"),
+	);
+	const planned = await planStageCorpusDelivery(snapshot, {
+		citations,
+		skill: "shape",
+	});
+	expect(planned.held).toContain("skills/shape");
 }
 
 describe("installing a stage corpus whose text cites its files by home path", () => {
@@ -92,5 +121,10 @@ describe("installing a stage corpus whose text cites its files by home path", ()
 	it(
 		"plans what an install would deliver without writing",
 		plansWhatAnInstallWouldDeliverWithoutWriting,
+	);
+
+	it(
+		"holds the stage's own skill when the snapshot lacks it",
+		holdsTheStagesOwnSkillWhenTheSnapshotLacksIt,
 	);
 });

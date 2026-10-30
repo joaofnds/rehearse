@@ -48,10 +48,6 @@ async function refuseUncontainedEntries(
 
 const INSTALLED_CORPUS_IGNORE = ".gitignore";
 
-const SKILL_ROOT_START = 0;
-
-const SKILL_ROOT_END = 2;
-
 async function snapshotDirectories(
 	source: CorpusRoot,
 ): Promise<readonly CorpusDirectory[]> {
@@ -97,10 +93,19 @@ async function readStageSnapshot(
 }
 
 /**
+ * The stage a snapshot freezes for: its skill, which the install holds whether
+ * or not the snapshot carries it, and the citation map it delivers against.
+ */
+interface StageCorpusInstallation {
+	readonly citations: HomePathCitationMap;
+	readonly skill: string;
+}
+
+/**
  * What a snapshot stands for: one stage's freeze, which holds its own skill
  * only, or a whole corpus directory, which holds every layout directory.
  */
-type CorpusHolding = "stage" | "whole";
+type CorpusHolding = { readonly skill: string } | "whole";
 
 /**
  * Installs the snapshot under the target's `.claude` and redirects the
@@ -131,15 +136,19 @@ async function installCorpusSnapshot(
 	);
 }
 
-/** Installs one stage's frozen snapshot, which holds its own skill only. */
+/**
+ * Installs one stage's frozen snapshot, which holds its own skill only, so a
+ * control arm frozen without that skill reads its absence rather than the
+ * live copy.
+ */
 async function installStageCorpusSnapshot(
 	snapshotDirectory: string,
 	targetDirectory: string,
-	citations: HomePathCitationMap,
+	{ citations, skill }: StageCorpusInstallation,
 ): Promise<CorpusDelivery> {
 	return await installCorpusSnapshot(snapshotDirectory, targetDirectory, {
 		citations,
-		holding: "stage",
+		holding: { skill },
 	});
 }
 
@@ -173,31 +182,20 @@ async function freezeStageSnapshot(
 
 /**
  * A stage holds its instructions, every agent, output style and rule whole,
- * since it freezes those kinds whole, and its own skill. A whole directory
- * holds every skill too, the ones it lacks included.
+ * since it freezes those kinds whole, and its own skill, present or not. A
+ * whole directory holds every skill too, the ones it lacks included.
  */
 function stageCorpusInstall(
 	snapshot: Pick<CorpusCopy, "files">,
-	holding: CorpusHolding = "stage",
+	holding: CorpusHolding,
 ): CorpusInstall {
-	const files = snapshot.files.map(({ file }) => file.path);
-	if (holding === "whole") {
-		return {
-			files: ["CLAUDE.md", ...files],
-			held: ["CLAUDE.md", ...CORPUS_LAYOUT_DIRECTORIES].toSorted(),
-		};
-	}
-	const skills = files
-		.filter((path) => path.startsWith("skills/"))
-		.map((path) => path.split("/").slice(SKILL_ROOT_START, SKILL_ROOT_END))
-		.map((steps) => steps.join("/"));
+	const files = ["CLAUDE.md", ...snapshot.files.map(({ file }) => file.path)];
+	const held =
+		holding === "whole"
+			? ["CLAUDE.md", ...CORPUS_LAYOUT_DIRECTORIES]
+			: ["CLAUDE.md", ...LAYOUT_DIRECTORY_KINDS, `skills/${holding.skill}`];
 
-	return {
-		files: ["CLAUDE.md", ...files],
-		held: [
-			...new Set(["CLAUDE.md", ...LAYOUT_DIRECTORY_KINDS, ...skills]),
-		].toSorted(),
-	};
+	return { files, held: held.toSorted() };
 }
 
 /**
@@ -243,10 +241,11 @@ interface StageCorpusDelivery {
 
 async function planStageCorpusDelivery(
 	snapshotDirectory: string,
-	citations: HomePathCitationMap,
+	{ citations, skill }: StageCorpusInstallation,
 ): Promise<StageCorpusDelivery> {
 	const install = stageCorpusInstall(
 		await readStageSnapshot(snapshotDirectory),
+		{ skill },
 	);
 
 	return {
@@ -261,4 +260,4 @@ export {
 	installStageCorpusSnapshot as default,
 	planStageCorpusDelivery,
 };
-export type { StageCorpusDelivery };
+export type { StageCorpusDelivery, StageCorpusInstallation };

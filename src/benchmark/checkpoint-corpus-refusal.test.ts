@@ -10,8 +10,8 @@ import {
 	escapingSnapshotFixture,
 } from "./checkpoint-corpus-test-fixture";
 import {
-	noCitations,
 	temporaryDirectory,
+	uncitedStage,
 	writeFixtureFiles,
 } from "./checkpoint-filesystem-test-fixture";
 import { SymlinkedEntryError } from "./file-presence";
@@ -50,7 +50,7 @@ async function testRefusesToInstallASnapshotEntryThatResolvesOutsideTheSnapshotD
 		await escapingSnapshotFixture(testResources);
 
 	const failure = await failureOf(
-		installStageCorpusSnapshot(snapshotDirectory, worktree, noCitations),
+		installStageCorpusSnapshot(snapshotDirectory, worktree, uncitedStage),
 	);
 
 	expect(failure).toBeInstanceOf(SymlinkedEntryError);

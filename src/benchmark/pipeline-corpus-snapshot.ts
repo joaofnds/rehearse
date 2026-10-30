@@ -33,7 +33,10 @@ async function freezePipelineCorpus({
 			);
 
 			return {
-				corpusDelivery: await planStageCorpusDelivery(directory, citations),
+				corpusDelivery: await planStageCorpusDelivery(directory, {
+					citations,
+					skill: definition.skill,
+				}),
 				definition,
 				directory,
 				files,

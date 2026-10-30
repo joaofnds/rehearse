@@ -104,7 +104,7 @@ class ReplayStagePreparation {
 		await dependencies.installStageCorpusSnapshot(
 			frozen.corpusDirectory,
 			plan.worktreePath,
-			frozen.citations,
+			{ citations: frozen.citations, skill: frozen.plan.definition.skill },
 		);
 
 		return baseSha;

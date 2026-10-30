@@ -59,7 +59,7 @@ class PipelineWorkspaceFake {
 	private corpusInstaller(
 		dependencies: PipelineConfirmationDependencies,
 	): PipelineConfirmationDependencies["installStageCorpusSnapshot"] {
-		return async (snapshotDirectory, worktreePath, citations) => {
+		return async (snapshotDirectory, worktreePath, installation) => {
 			const ordinal = repOrdinal(worktreePath);
 			const stage = basename(snapshotDirectory);
 			if (
@@ -81,7 +81,7 @@ class PipelineWorkspaceFake {
 			return await dependencies.installStageCorpusSnapshot(
 				snapshotDirectory,
 				worktreePath,
-				citations,
+				installation,
 			);
 		};
 	}
