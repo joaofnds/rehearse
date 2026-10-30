@@ -41,20 +41,19 @@ function armList(arms: readonly ComparisonArm[]): string {
 function variableText(variable: DifferingVariable): string {
 	return variable.kind === "value"
 		? `${variable.name} (different values)`
-		: `${variable.name} (${variable.arm} only)`;
+		: `${variable.name}, which only ${armProse(variable.arm)} inherited`;
 }
 
 function mixedText({ arm, names, unrecorded }: MixedFinding): string {
 	const lead = `${capitalized(armProse(arm))} is mixed: `;
-	const pooled = "Its figures pool attempts that ran differently.";
 	if (names.length === NONE) {
-		return `${lead}some of its records predate recording the ${INHERITED}. ${pooled}`;
+		return `${lead}some of its records predate recording the ${INHERITED}, so whether its attempts ran alike is unknown.`;
 	}
 	const predates = unrecorded
 		? ", and some of its records predate recording it"
 		: "";
 
-	return `${lead}its records inherited different Claude Code configuration from the shell that started them: ${names.join(", ")}${predates}. ${pooled}`;
+	return `${lead}its records inherited different Claude Code configuration from the shell that started them: ${names.join(", ")}${predates}. Its figures pool attempts that ran differently.`;
 }
 
 function findingText(finding: Finding): string {
@@ -68,7 +67,7 @@ function findingText(finding: Finding): string {
 		case "differs": {
 			const [left, right] = finding.arms;
 
-			return `${capitalized(armProse(left))} and ${armProse(right)} inherited different Claude Code configuration from the shell that started them: ${finding.variables.map(variableText).join(", ")}. The contrast between them may measure that difference as well as the corpus.`;
+			return `${capitalized(armProse(left))} and ${armProse(right)} inherited different Claude Code configuration from the shell that started them: ${finding.variables.map(variableText).join(", ")}. The contrast between them may measure that difference too.`;
 		}
 		default: {
 			return finding satisfies never;

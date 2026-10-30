@@ -50,7 +50,7 @@ const DIFFERING_BASE_URL: CaseReading = {
 };
 
 const DIFFERING_BASE_URL_TEXT =
-	"Candidate (after) and baseline (before) inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values), DISABLE_PROMPT_CACHING (candidate only). The contrast between them may measure that difference as well as the corpus.";
+	"Candidate (after) and baseline (before) inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values), DISABLE_PROMPT_CACHING, which only candidate (after) inherited. The contrast between them may measure that difference too.";
 
 async function namesWhatTwoArmsInheritedDifferentlyBesideTheContrastUnderWhatMoved(): Promise<void> {
 	renderPage(withCaseTwoReading(DIFFERING_BASE_URL));
@@ -59,9 +59,19 @@ async function namesWhatTwoArmsInheritedDifferentlyBesideTheContrastUnderWhatMov
 
 	expect(lines).toEqual([DIFFERING_BASE_URL_TEXT]);
 	expect(
-		within(
-			screen.getByRole("region", { name: "What moved · case-1" }),
-		).queryByRole("list", { name: LIST_NAME }),
+		screen.getByRole("table", { name: "What moved · case-2" }),
+	).toBeInTheDocument();
+}
+
+async function drawsNoListForACaseWhoseArmsMatch(): Promise<void> {
+	renderPage(withCaseTwoReading(DIFFERING_BASE_URL));
+
+	const caseOne = await screen.findByRole("region", {
+		name: "What moved · case-1",
+	});
+
+	expect(
+		within(caseOne).queryByRole("list", { name: LIST_NAME }),
 	).not.toBeInTheDocument();
 }
 
@@ -89,26 +99,71 @@ async function namesTheArmsWhoseRecordsDoNotSay(): Promise<void> {
 	]);
 }
 
-async function showsAnArmMixed(): Promise<void> {
+interface MixedArm {
+	readonly expected: string;
+	readonly names: readonly string[];
+	readonly records: string;
+	readonly unrecorded: boolean;
+}
+
+const MIXED_ARMS: MixedArm[] = [
+	{
+		expected:
+			"The control arm is mixed: its records inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL. Its figures pool attempts that ran differently.",
+		names: ["ANTHROPIC_BASE_URL"],
+		records: "its records disagree",
+		unrecorded: false,
+	},
+	{
+		expected:
+			"The control arm is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them, so whether its attempts ran alike is unknown.",
+		names: [],
+		records: "some of its records predate recording it",
+		unrecorded: true,
+	},
+	{
+		expected:
+			"The control arm is mixed: its records inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL, and some of its records predate recording it. Its figures pool attempts that ran differently.",
+		names: ["ANTHROPIC_BASE_URL"],
+		records: "both",
+		unrecorded: true,
+	},
+];
+
+async function showsAnArmMixed({
+	expected,
+	names,
+	unrecorded,
+}: MixedArm): Promise<void> {
 	renderPage(
 		withCaseTwoReading({
-			findings: [
-				{
-					arm: "control",
-					kind: "mixed",
-					names: ["ANTHROPIC_BASE_URL"],
-					unrecorded: true,
-				},
-			],
+			findings: [{ arm: "control", kind: "mixed", names, unrecorded }],
 			state: "available",
 		}),
 	);
 
 	const lines = await caseTwoLines("What moved · case-2");
 
-	expect(lines).toEqual([
-		"The control arm is mixed: its records inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL, and some of its records predate recording it. Its figures pool attempts that ran differently.",
-	]);
+	expect(lines).toEqual([expected]);
+}
+
+async function keepsTheCaseLeadAndOutcomeWithoutAReading(): Promise<void> {
+	const body = comparisonResponseBody();
+	renderPage({
+		...body,
+		inheritedConfiguration: { "case-1": { findings: [], state: "available" } },
+	});
+
+	const caseTwo = await screen.findByRole("region", {
+		name: "What moved · case-2",
+	});
+
+	expect(
+		within(caseTwo).getByRole("heading", { name: "case-2" }),
+	).toBeInTheDocument();
+	expect(
+		within(caseTwo).queryByRole("list", { name: LIST_NAME }),
+	).not.toBeInTheDocument();
 }
 
 async function saysTheReadingCouldNotBeMade(): Promise<void> {
@@ -146,9 +201,18 @@ describe(ComparisonPage.name, () => {
 	);
 
 	it(
-		"shows an arm as mixed when its records inherited different configuration",
-		showsAnArmMixed,
+		"draws no list for a case whose arms inherited the same configuration",
+		drawsNoListForACaseWhoseArmsMatch,
 	);
+
+	it.each(MIXED_ARMS)("shows an arm as mixed when $records", showsAnArmMixed);
+
+	describe("when the response holds no reading for a case", () => {
+		it(
+			"keeps the case's lead and outcome",
+			keepsTheCaseLeadAndOutcomeWithoutAReading,
+		);
+	});
 
 	describe("when the records cannot be read", () => {
 		it(

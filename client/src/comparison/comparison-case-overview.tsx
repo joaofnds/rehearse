@@ -49,7 +49,7 @@ function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
 interface CaseLeadProps {
 	readonly caseId: string;
 	readonly attribution: ComparisonResponse["attribution"][string][string];
-	readonly inheritedConfiguration: CaseInheritedConfiguration;
+	readonly inheritedConfiguration: CaseInheritedConfiguration | undefined;
 }
 
 function CaseLead({
@@ -61,7 +61,10 @@ function CaseLead({
 		attribution.claim === "identical"
 			? "Baseline and candidate used identical corpora"
 			: `Changed: ${attribution.differingPaths.join(", ")}`;
-	const inherited = inheritedConfigurationLines(inheritedConfiguration);
+	const inherited =
+		inheritedConfiguration === undefined
+			? []
+			: inheritedConfigurationLines(inheritedConfiguration);
 
 	return (
 		<header className="flex flex-col gap-1">
@@ -134,18 +137,13 @@ function CaseOpening({
 	comparison,
 	attribution,
 	attempts,
-}: CaseOpeningProps): React.JSX.Element | null {
-	const inheritedConfiguration = comparison.inheritedConfiguration[caseId];
-	if (inheritedConfiguration === undefined) {
-		return null;
-	}
-
+}: CaseOpeningProps): React.JSX.Element {
 	return (
 		<>
 			<CaseLead
 				caseId={caseId}
 				attribution={attribution}
-				inheritedConfiguration={inheritedConfiguration}
+				inheritedConfiguration={comparison.inheritedConfiguration[caseId]}
 			/>
 			<AssessmentOverview
 				mode={comparison.report.mode}
