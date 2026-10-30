@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 import { rewriteInstalledSkill } from "./checkpoint-filesystem-test-fixture";
 import runPipelineConfirmation from "./pipeline-confirmation";
@@ -63,6 +63,74 @@ async function recordsTheDeliveryRuleAndRedirectCountOnTheGroup(): Promise<void>
 	const group = await readGroup(await harness.run({}));
 
 	expect(group.inputs.corpusDelivery).toEqual({ redirected: 0, rule: 1 });
+}
+
+const rulebookCitations = {
+	home: "/home/user",
+	roots: [{ layoutPath: "rulebook", path: "/home/user/.agents/rulebook" }],
+};
+
+/**
+ * Each stage's skill cites the rulebook through the live install, and the
+ * stage session keeps the text it found installed.
+ */
+async function citingStages(corpusRoot: string): Promise<{
+	readonly installed: readonly string[];
+	readonly override: PipelineDependencyOverride;
+}> {
+	const installed: string[] = [];
+	await Bun.write(join(corpusRoot, "rulebook/ownership.md"), "rule\n");
+	await Array.fromAsync(["discuss", "build"], async (stage) => {
+		await Bun.write(
+			join(corpusRoot, "skills", stage, "SKILL.md"),
+			"Follow /home/user/.agents/rulebook/ownership.md.\n",
+		);
+	});
+
+	const override: PipelineDependencyOverride = (dependencies) => ({
+		...dependencies,
+		liveCitations: async () => await Promise.resolve(rulebookCitations),
+		stageSession: {
+			...dependencies.stageSession,
+			runWorkflowStage: async (request) => {
+				installed.push(
+					await Bun.file(
+						join(
+							request.targetDir,
+							".claude/skills",
+							request.stage,
+							"SKILL.md",
+						),
+					).text(),
+				);
+
+				return await dependencies.stageSession.runWorkflowStage(request);
+			},
+		},
+	});
+
+	return { installed, override };
+}
+
+async function deliversEachStagesCitationsToItsOwnInstall(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const { installed, override } = await citingStages(harness.corpusRoot);
+
+	await harness.run({}, override);
+
+	expect([...new Set(installed)]).toEqual([
+		"Follow .claude/rulebook/ownership.md.\n",
+	]);
+}
+
+async function recordsTheRedirectsOfEveryStageOnTheGroup(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+
+	const { override } = await citingStages(harness.corpusRoot);
+
+	const group = await readGroup(await harness.run({}, override));
+
+	expect(group.inputs.corpusDelivery).toEqual({ redirected: 2, rule: 1 });
 }
 
 /**
@@ -157,6 +225,16 @@ describe(runPipelineConfirmation.name, () => {
 	it(
 		"records the live reads of a stage its judge rejected",
 		recordsTheLiveReadsOfAStageItsJudgeRejected,
+	);
+
+	it(
+		"delivers each stage's citations to its own install",
+		deliversEachStagesCitationsToItsOwnInstall,
+	);
+
+	it(
+		"records the redirects of every stage on the group",
+		recordsTheRedirectsOfEveryStageOnTheGroup,
 	);
 
 	it(
