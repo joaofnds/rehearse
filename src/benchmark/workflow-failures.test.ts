@@ -6,8 +6,8 @@ import { WorkflowExecutionError, runWorkflowStage } from "./workflow";
 import type { ProductOwner, WorkflowStageRequest } from "./workflow";
 import {
 	budgetHalt,
-	queuedResponses,
 	questionTurn,
+	queuedResponses,
 	testResources,
 	workflowStageRequest,
 } from "./workflow-test-fixtures";
