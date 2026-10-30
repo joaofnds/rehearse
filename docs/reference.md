@@ -971,23 +971,27 @@ These checks do not constrain hard-linked data, make provider execution a
 filesystem sandbox, or prevent a concurrent process from replacing a link
 between its check and read. Corpus sources remain trusted experimental inputs.
 
-| Mode                                | Live corpus                                           | Directory supplied with `--corpus`                                      |
-| ----------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| Pipeline debug `run`                | Supported                                             | Refused                                                                 |
-| Pipeline confirmation               | Frozen stage/global inputs installed in rep worktrees | Refused by `run`                                                        |
-| Stage replay, debug or confirmation | Supported                                             | Supported; installed in the worktree with project settings sources      |
-| Session debug                       | Declared overlaid inputs are copied, then hashed      | Declared styles, agents, rulebook, skills, and `CLAUDE.md` are overlaid |
-| Session confirmation                | Declared files are frozen                             | Declared files are frozen                                               |
-| `stale`                             | Compare against live files                            | Compare against the supplied directory                                  |
+| Mode                                | Live corpus                                                                              | Directory supplied with `--corpus`                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Pipeline debug `run`                | Supported                                                                                | Refused                                                                          |
+| Pipeline confirmation               | Frozen stage/global inputs installed in rep worktrees                                    | Refused by `run`                                                                 |
+| Stage replay, debug or confirmation | Supported                                                                                | Supported; installed in the worktree with project settings sources               |
+| Session debug                       | The whole corpus is copied, then hashed; an isolated case copies only its declared files | The whole corpus is installed; an isolated case installs only its declared files |
+| Session confirmation                | The whole corpus is frozen; an isolated case freezes only its declared files             | The whole corpus is frozen; an isolated case freezes only its declared files     |
+| `stale`                             | Compare against live files                                                               | Compare against the supplied directory                                           |
 
-Session overlays write declared styles, agents, rulebook, skills, and `CLAUDE.md`
-under the attempt's `.claude/`, and session attempts run with the project
+Session overlays write the arm's whole corpus, every style, agent, rulebook
+file, skill and `CLAUDE.md` it holds, under the attempt's `.claude/`. A case
+that declares `"isolated": true` gets only its declared files there. The
+user-level source never loads, so an arm that carried only its declared files
+would run without the rest of the user's instructions and would not be the
+setup the user gets. Session attempts run with the project
 settings source, the local one too unless the case declares isolation, and never
 the user source. That flag is what makes the overlay authoritative: a project-level skill
 does not otherwise shadow a same-named user-level one, so without it a declared
-skill would be hashed into lineage and never read. A session attempt does not
-load the operator's `~/.claude/CLAUDE.md`, and a declared `CLAUDE.md` is framed
-the way Claude Code frames a repository's own `CLAUDE.md`, not as user-level
+skill would be hashed into lineage and never read. A session attempt reads the arm's `CLAUDE.md` only from
+that install, never from the operator's `~/.claude/`, and it is framed the way
+Claude Code frames a repository's own `CLAUDE.md`, not as user-level
 instructions.
 
 Unless the case declares `"isolated": true`, the session still runs with your
@@ -1032,12 +1036,19 @@ connectors included. Those connectors would otherwise arrive at no fixed point i
 session and differ between reps of one group, and one that arrives between two
 calls makes the second rewrite the prompt cache.
 
-A live session attempt copies the declared files it must overlay and hashes the
-copies, so `resolvedPath` names the frozen copy rather than the operator's
-install; `corpusOrigin` keeps the provenance. A live source declaring no overlaid
-file keeps its pointer. The undeclared remainder of the live install is never
-copied or modified. Only a declared output style is selected; an unrelated style
-in the source does not become the measured style.
+A live session attempt copies the files it must overlay and hashes the copies,
+so `resolvedPath` names the frozen copy rather than the operator's install;
+`corpusOrigin` keeps the provenance. A case run with the actual setup copies the
+whole live install. An isolated case copies only its declared overlaid files,
+and one that declares none keeps its pointer. The live install itself is never
+modified. Only a declared output style is selected; an unrelated style in the
+source does not become the measured style. Lineage and staleness still hash
+only the declared files, so a change to an undeclared corpus file does not
+mark a record stale.
+
+A comparison refuses arms whose attempts ran under different setups, naming
+the field `setup`. An attempt recorded before the setup was recorded reads as
+isolated.
 
 An attempt record carries `settingsDigest`, the identity of the case's declared
 behavior settings, beside the per-file corpus digests. Lineage already covers

@@ -121,8 +121,8 @@ projection without a prompt.
 Keep `--model` explicit; `--yes` does not select or authorize a case-default model
 for unattended use.
 
-A group freezes the declaration, fixture, prefix, and declared corpus inputs
-once. Each repetition gets its own attempt directory and evidence. Failed
+A group freezes the declaration, fixture, prefix, and corpus inputs once: the
+whole corpus, or only the declared files when the case declares isolation. Each repetition gets its own attempt directory and evidence. Failed
 repetitions remain in the group rather than disappearing from the result.
 
 ```sh
@@ -138,15 +138,16 @@ Two reps demonstrate the mechanism. They do not establish that an instruction
 helps. Confirmation defaults to five reps and requires at least two; choose a
 sample size appropriate to the result's variability.
 
-Session confirmation writes every declared corpus file, skills and `CLAUDE.md`
-included, under the attempt's own `.claude/`, and a declared skill brings its
-whole directory. The session runs with the project settings source, the local
-one too unless the case declares isolation, and never the user source, so a declared
-skill is the copy it runs, whether the model or a slash command invokes it, even
-when `~/.claude/skills` holds a skill of the same name. A declared `CLAUDE.md`
-is framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
-operator's user-level instructions, and an undeclared `~/.claude/CLAUDE.md` is
-not loaded. Unless the case declares isolation, the session still gets your
+Session confirmation writes the arm's whole corpus, skills and `CLAUDE.md`
+included, under the attempt's own `.claude/`. An isolated case gets only its
+declared corpus files there, and a declared skill brings its whole directory.
+The session runs with the project settings source, the local one too unless
+the case declares isolation, and never the user source, so the arm's skill is
+the copy it runs, whether the model or a slash command invokes it, even when
+`~/.claude/skills` holds a skill of the same name. The arm's `CLAUDE.md` is
+framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
+operator's user-level instructions, and `~/.claude/CLAUDE.md` is never read
+from the home. Unless the case declares isolation, the session still gets your
 settings, MCP servers and synced plugins, as the
 [reference](reference.md#corpus-sources-and-delivery) describes. An isolated
 case runs with `--strict-mcp-config`, so no MCP server reaches it, the claude.ai
