@@ -69,13 +69,16 @@ async function pluginName(plugin: string): Promise<string[]> {
 	}
 }
 
-async function pluginNamesUnder(directory: string): Promise<string[]> {
-	const plugins = await subdirectories(directory);
+async function pluginNamesIn(plugins: readonly string[]): Promise<string[]> {
 	const names = await Promise.all(
 		plugins.map(async (plugin) => await pluginName(plugin)),
 	);
 
 	return names.flat();
+}
+
+async function pluginNamesUnder(directory: string): Promise<string[]> {
+	return await pluginNamesIn(await subdirectories(directory));
 }
 
 const HOME_PREFIX = /^~(?=\/|$)/u;
@@ -97,11 +100,8 @@ async function pluginNamesInDirectoryList(
 		.split(delimiter)
 		.filter((plugin) => plugin !== "")
 		.map((plugin) => plugin.replace(HOME_PREFIX, home));
-	const names = await Promise.all(
-		plugins.map(async (plugin) => await pluginName(plugin)),
-	);
 
-	return names.flat();
+	return await pluginNamesIn(plugins);
 }
 
 export {
