@@ -60,7 +60,7 @@ async function completedAttempt({
 			checks: result.results,
 			...(await readAttemptContext({
 				attemptDirectory: base.attemptDirectory,
-				installedCorpus: attempt.installedCorpus,
+				installedCorpus: attempt.corpusOverlay.installed,
 				request,
 				turn,
 			})),

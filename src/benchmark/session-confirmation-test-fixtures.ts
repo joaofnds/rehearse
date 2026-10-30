@@ -127,6 +127,7 @@ async function recordedAttempt(
 		attemptDirectory: join(plan.recordDirectory, "execution"),
 		checks: [{ detail: "1 word", kind: "word-band", status: "PASS" }],
 		contextManifest: undefined,
+		corpusDelivery: { liveReads: [], redirected: 0, rule: 1 },
 		metrics,
 		outcome: "SUCCESSFUL",
 		reply: "OK",

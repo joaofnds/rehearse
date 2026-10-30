@@ -138,6 +138,7 @@ async function runSession({
 			request,
 			{
 				attemptDirectory,
+				corpusOverlay: overlay,
 				error: failure,
 				setup: withLoaded(setup.record, loaded),
 				writtenTranscript: transcriptPath,

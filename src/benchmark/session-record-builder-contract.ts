@@ -42,6 +42,7 @@ interface MutableSessionAttemptRecord {
 	effort?: SessionSettings["effort"];
 	sessionBudgetUsd: number;
 	spendCeilingUsd: number;
+	corpusDelivery: SessionAttempt["corpusDelivery"];
 	corpusFiles: ResolvedCorpusFile[];
 	corpusOrigin: CorpusSnapshotOrigin;
 	corpusVersion?: CorpusMeasurement;

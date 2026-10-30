@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import type { Immutable } from "./contracts";
 import deliverHomePathCitations from "./home-path-citation";
 import type { HomePathCitationMap } from "./home-path-citation";
 
@@ -20,6 +21,26 @@ const corpusDeliverySchema = z
 	.strict();
 
 type CorpusDelivery = z.infer<typeof corpusDeliverySchema>;
+
+const liveCorpusReadSchema = z
+	.object({
+		count: z.number().int().positive(),
+		path: z.string().nonempty(),
+	})
+	.strict();
+
+/**
+ * How the corpus reached a session: the rule and its redirect count, and each
+ * file under test the session or a sub-agent still reached through its live
+ * copy, by layout path.
+ */
+const corpusDeliveryRecordSchema = corpusDeliverySchema
+	.extend({ liveReads: z.array(liveCorpusReadSchema) })
+	.strict();
+
+type CorpusDeliveryRecord = Immutable<
+	z.infer<typeof corpusDeliveryRecordSchema>
+>;
 
 const NOTHING_DELIVERED: CorpusDelivery = {
 	redirected: 0,
@@ -75,6 +96,7 @@ export {
 	HOME_PATH_DELIVERY_RULE,
 	NOTHING_DELIVERED,
 	corpusDeliverySchema,
+	corpusDeliveryRecordSchema,
 	deliverInstalledCorpus,
 };
-export type { CorpusDelivery };
+export type { CorpusDelivery, CorpusDeliveryRecord };

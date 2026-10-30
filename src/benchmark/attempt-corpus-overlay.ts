@@ -25,7 +25,12 @@ async function installCorpusOverlay(
 ): Promise<CorpusOverlay> {
 	const snapshot = request.corpusSnapshot;
 	if (snapshot === undefined) {
-		return { delivery: NOTHING_DELIVERED, installed: [], styleName: undefined };
+		return {
+			citations: { home: request.home, roots: [] },
+			delivery: NOTHING_DELIVERED,
+			installed: [],
+			styleName: undefined,
+		};
 	}
 
 	const citations = await liveCitationMap(
@@ -42,6 +47,7 @@ async function installCorpusOverlay(
 			attemptDirectory,
 			citations,
 		)),
+		citations,
 		styleName: snapshotStyleName(snapshot),
 	};
 }

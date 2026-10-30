@@ -47,6 +47,42 @@ function isHeld(layoutPath: string, held: ReadonlySet<string>): boolean {
 	);
 }
 
+interface HeldCitation {
+	readonly layoutPath: string;
+	readonly replacement: string;
+}
+
+function heldCitation(
+	written: string,
+	map: HomePathCitationMap,
+	held: ReadonlySet<string>,
+): HeldCitation | undefined {
+	const path = written.replace(/\.+$/u, "");
+	const trailing = written.slice(path.length);
+	const absolute = posix.normalize(`${map.home}${path}`);
+	const slash = absolute.endsWith("/") ? "/" : "";
+	const layoutPath = layoutPathOf(absolute.replace(/\/$/u, ""), map.roots);
+	if (layoutPath === undefined || !isHeld(layoutPath, held)) {
+		return undefined;
+	}
+
+	return {
+		layoutPath,
+		replacement: `.claude/${layoutPath}${slash}${trailing}`,
+	};
+}
+
+/** The layout path of each citation in `text` of a file `held` names. */
+function heldCitations(
+	text: string,
+	map: HomePathCitationMap,
+	held: ReadonlySet<string>,
+): readonly string[] {
+	return [...text.matchAll(citationPattern(map.home))]
+		.map(([, written = ""]) => heldCitation(written, map, held)?.layoutPath)
+		.filter((layoutPath) => layoutPath !== undefined);
+}
+
 /**
  * The text an arm's install delivers: each citation of a file or directory
  * the install holds, written through the user's home directory, names the
@@ -63,23 +99,19 @@ function deliverHomePathCitations(
 	const delivered = text.replaceAll(
 		citationPattern(map.home),
 		(citation: string, written: string) => {
-			const path = written.replace(/\.+$/u, "");
-			const trailing = written.slice(path.length);
-			const absolute = posix.normalize(`${map.home}${path}`);
-			const slash = absolute.endsWith("/") ? "/" : "";
-			const layoutPath = layoutPathOf(absolute.replace(/\/$/u, ""), map.roots);
-			if (layoutPath === undefined || !isHeld(layoutPath, held)) {
+			const found = heldCitation(written, map, held);
+			if (found === undefined) {
 				return citation;
 			}
 
-			redirected.push(layoutPath);
+			redirected.push(found.layoutPath);
 
-			return `.claude/${layoutPath}${slash}${trailing}`;
+			return found.replacement;
 		},
 	);
 
 	return { redirected: redirected.length, text: delivered };
 }
 
-export { deliverHomePathCitations as default };
+export { deliverHomePathCitations as default, heldCitations };
 export type { DeliveredCorpusText, HomePathCitationMap, HomePathCitationRoot };

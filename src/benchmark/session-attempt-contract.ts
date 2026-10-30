@@ -2,7 +2,11 @@ import type { HashedFile } from "./checkpoint";
 import type { ContextEvidence } from "./context-evidence";
 import type { ContextManifest } from "./context-manifest";
 import type { ClaudeCallMetrics, Immutable } from "./contracts";
-import type { SessionAttemptRequest } from "./session-attempt-preparation-contract";
+import type { CorpusDeliveryRecord } from "./corpus-delivery";
+import type {
+	CorpusOverlay,
+	SessionAttemptRequest,
+} from "./session-attempt-preparation-contract";
 import type { CheckResult } from "./session-check";
 import type { SessionSetupRecord } from "./session-setup";
 import type { StateResult } from "./session-state-check";
@@ -22,6 +26,7 @@ interface SessionAttempt {
 	readonly contextManifest: ContextManifest | undefined;
 	/** The user's setup the session ran with, or that it declared isolation. */
 	readonly setup: SessionSetupRecord;
+	readonly corpusDelivery: CorpusDeliveryRecord;
 	/**
 	 * The declared project files the seeded fixture held, hashed before the
 	 * session could write them. A declared file the fixture lacked is absent.
@@ -47,7 +52,7 @@ interface AttemptOutput {
 	readonly setup: SessionSetupRecord;
 	readonly writtenTranscript: string;
 	readonly contextEvidence?: ContextEvidence | undefined;
-	readonly installedCorpus: readonly string[];
+	readonly corpusOverlay: CorpusOverlay;
 }
 
 interface PreservedTranscript {
@@ -66,6 +71,7 @@ interface TranscriptRecord {
 interface FailedInvocationEvidence {
 	readonly attemptDirectory: string;
 	readonly setup: SessionSetupRecord;
+	readonly corpusOverlay: CorpusOverlay;
 	readonly writtenTranscript: string;
 	readonly error: Readonly<Error>;
 }
@@ -73,6 +79,7 @@ interface FailedInvocationEvidence {
 interface InvocationFailureEvidence {
 	readonly attemptDirectory: string;
 	readonly setup: SessionSetupRecord;
+	readonly corpusDelivery: CorpusDeliveryRecord;
 	readonly recorded: TranscriptRecord;
 }
 

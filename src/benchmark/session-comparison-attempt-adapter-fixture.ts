@@ -81,6 +81,7 @@ class SessionComparisonAttemptAdapter implements SessionConfirmationDependencies
 			attemptDirectory: join(plan.recordDirectory, "execution"),
 			checks: attemptChecks(caseId, pass, plan.ordinal),
 			contextManifest: undefined,
+			corpusDelivery: { liveReads: [], redirected: 0, rule: 1 },
 			metrics: attemptMetrics(caseId, plan.ordinal),
 			outcome: pass ? "SUCCESSFUL" : "UNSUCCESSFUL",
 			reply: pass ? "OK" : "too many words",

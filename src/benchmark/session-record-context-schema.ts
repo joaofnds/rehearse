@@ -133,4 +133,5 @@ export {
 	legacyContextManifestSchema,
 	legacyManifestDivergenceSchema,
 };
+export { corpusDeliveryRecordSchema } from "./corpus-delivery";
 export type { CorpusSnapshotOrigin, ContextHalf };

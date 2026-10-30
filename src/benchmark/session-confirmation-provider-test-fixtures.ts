@@ -122,6 +122,7 @@ async function outcomeRep(
 	const common = {
 		attemptDirectory: join(plan.recordDirectory, "execution"),
 		contextManifest: undefined,
+		corpusDelivery: { liveReads: [], redirected: 0, rule: 1 } as const,
 		metrics: plan.ordinal === FOURTH_REP_ORDINAL ? undefined : metrics,
 		setup: { kind: "isolated" } as const,
 		transcriptDiagnostics: unavailableTranscriptDiagnostics,

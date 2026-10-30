@@ -1,5 +1,11 @@
+import attemptCorpusDelivery from "./attempt-corpus-delivery";
 import { parseClaudeEnvelope, readClaudeCallMetrics } from "./claude";
-import type { AttemptOutput, SessionAttempt } from "./session-attempt-contract";
+import type {
+	AttemptOutput,
+	PreservedTranscript,
+	SessionAttempt,
+	TranscriptRecord,
+} from "./session-attempt-contract";
 import {
 	NO_TRANSCRIPT_PREFIX_ROWS,
 	invocationError,
@@ -13,11 +19,20 @@ import {
 } from "./session-attempt-transcript";
 import { preserveStateEvidence } from "./session-state-evidence";
 
-async function recordAttempt(
+interface RecordedTurn {
+	readonly corpusDelivery: SessionAttempt["corpusDelivery"];
+	readonly recorded: TranscriptRecord;
+	readonly turn: PreservedTranscript["lines"];
+}
+
+/**
+ * The turn the attempt recorded, read once for both its transcript record
+ * and the live reads its corpus delivery reports.
+ */
+async function recordedTurn(
 	request: SessionAttemptRequest,
-	attemptDirectory: string,
 	attempt: AttemptOutput,
-): Promise<SessionAttempt> {
+): Promise<RecordedTurn> {
 	const cut =
 		request.sessionCase.declaration.transcript?.cut ??
 		NO_TRANSCRIPT_PREFIX_ROWS;
@@ -26,14 +41,35 @@ async function recordAttempt(
 		attempt.writtenTranscript,
 		cut,
 	);
-	const recorded = transcriptRecord(cut, transcript);
+	const turn = transcript.lines.slice(cut);
+
+	return {
+		corpusDelivery: await attemptCorpusDelivery(
+			attempt.corpusOverlay,
+			turn,
+			request.recordDirectory,
+		),
+		recorded: transcriptRecord(cut, transcript),
+		turn,
+	};
+}
+
+async function recordAttempt(
+	request: SessionAttemptRequest,
+	attemptDirectory: string,
+	attempt: AttemptOutput,
+): Promise<SessionAttempt> {
+	const { corpusDelivery, recorded, turn } = await recordedTurn(
+		request,
+		attempt,
+	);
 
 	const envelope = parseClaudeEnvelope(attempt.output);
 	const metrics = readClaudeCallMetrics(envelope);
 	if (envelope.is_error === true) {
 		throw invocationError(
 			providerFailureMessage(envelope, "Claude session failed"),
-			{ attemptDirectory, recorded, setup: attempt.setup },
+			{ attemptDirectory, corpusDelivery, recorded, setup: attempt.setup },
 			{ contextEvidence: attempt.contextEvidence, metrics },
 		);
 	}
@@ -51,6 +87,7 @@ async function recordAttempt(
 		attempt,
 		base: {
 			attemptDirectory,
+			corpusDelivery,
 			reply: envelope.result,
 			setup: attempt.setup,
 			...recorded,
@@ -59,7 +96,7 @@ async function recordAttempt(
 		request,
 		stateEvidenceDirectory,
 		stateGrade,
-		turn: transcript.lines.slice(cut),
+		turn,
 	});
 }
 

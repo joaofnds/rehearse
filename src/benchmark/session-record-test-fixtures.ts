@@ -95,6 +95,7 @@ function smokeAttempt(): SessionAttempt {
 		attemptDirectory: "/runs/attempt",
 		checks: [{ detail: "1 word", kind: "word-band", status: "PASS" }],
 		contextManifest: undefined,
+		corpusDelivery: { liveReads: [], redirected: 0, rule: 1 },
 		metrics: undefined,
 		outcome: "SUCCESSFUL",
 		reply: "OK",

@@ -253,4 +253,9 @@ function undeclaredSkillClaude(
 		);
 	};
 }
-export { diagnosticClaude, fakeClaude, undeclaredSkillClaude };
+export {
+	diagnosticClaude,
+	fakeClaude,
+	fakeClaudeEnvelope,
+	undeclaredSkillClaude,
+};

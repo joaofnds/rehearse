@@ -1,3 +1,4 @@
+import attemptCorpusDelivery from "./attempt-corpus-delivery";
 import {
 	failedCommandEnvelope,
 	readClaudeCallMetrics,
@@ -29,15 +30,23 @@ async function failedInvocation(
 		writtenTranscript,
 		error,
 		setup,
+		corpusOverlay,
 	}: FailedInvocationEvidence,
 	contextEvidence: ContextEvidence | undefined,
 ): Promise<SessionInvocationError> {
 	const cut =
 		request.sessionCase.declaration.transcript?.cut ??
 		NO_TRANSCRIPT_PREFIX_ROWS;
-	const recorded = transcriptRecord(
+	const transcript = await preservedTranscript(
+		request.recordDirectory,
+		writtenTranscript,
 		cut,
-		await preservedTranscript(request.recordDirectory, writtenTranscript, cut),
+	);
+	const recorded = transcriptRecord(cut, transcript);
+	const corpusDelivery = await attemptCorpusDelivery(
+		corpusOverlay,
+		transcript.lines.slice(cut),
+		request.recordDirectory,
 	);
 
 	if (error instanceof CommandError) {
@@ -45,7 +54,7 @@ async function failedInvocation(
 		if (envelope !== undefined) {
 			return invocationError(
 				providerFailureMessage(envelope, error.message, error.stderr),
-				{ attemptDirectory, recorded, setup },
+				{ attemptDirectory, corpusDelivery, recorded, setup },
 				{ contextEvidence, metrics: readClaudeCallMetrics(envelope) },
 			);
 		}
@@ -53,7 +62,7 @@ async function failedInvocation(
 
 	return invocationError(
 		error.message,
-		{ attemptDirectory, recorded, setup },
+		{ attemptDirectory, corpusDelivery, recorded, setup },
 		{ contextEvidence, metrics: undefined },
 	);
 }
@@ -79,7 +88,12 @@ function providerFailureMessage(
 
 function invocationError(
 	message: string,
-	{ attemptDirectory, recorded, setup }: InvocationFailureEvidence,
+	{
+		attemptDirectory,
+		corpusDelivery,
+		recorded,
+		setup,
+	}: InvocationFailureEvidence,
 	{ metrics, contextEvidence }: InvocationFailureUsage = {},
 ): SessionInvocationError {
 	return new SessionInvocationError(
@@ -91,6 +105,7 @@ function invocationError(
 				...recorded,
 				checks: [],
 				contextManifest: undefined,
+				corpusDelivery,
 				metrics,
 				outcome: "EXECUTION_FAILED",
 				setup,

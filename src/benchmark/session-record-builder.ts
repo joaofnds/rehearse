@@ -37,6 +37,7 @@ function sessionRecordBase(
 	return {
 		caseId: sessionCase.declaration.id,
 		checks: attempt.checks.map((check) => ({ ...check })),
+		corpusDelivery: attempt.corpusDelivery,
 		corpusFiles: inputs.corpusFiles.map((file) => ({ ...file })),
 		corpusOrigin: inputs.corpusOrigin,
 		corpusVersion: { ...inputs.corpusVersion },

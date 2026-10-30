@@ -68,7 +68,7 @@ async function executeAttempt(
 
 		const recorded = await recordAttempt(request, attemptDirectory, {
 			contextEvidence,
-			installedCorpus: overlay.installed,
+			corpusOverlay: overlay,
 			output,
 			setup,
 			writtenTranscript: transcriptPath,

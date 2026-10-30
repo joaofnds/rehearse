@@ -7,6 +7,7 @@ import type {
 	ContextRateCatalog,
 } from "./context-evidence";
 import type { CorpusDelivery } from "./corpus-delivery";
+import type { HomePathCitationMap } from "./home-path-citation";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 import type { PreparedSetup } from "./session-setup";
 
@@ -43,6 +44,8 @@ interface CorpusOverlay {
 	readonly styleName: string | undefined;
 	readonly installed: readonly string[];
 	readonly delivery: CorpusDelivery;
+	/** Where the installed files' live copies are, to find reads that reached them. */
+	readonly citations: HomePathCitationMap;
 }
 
 interface AttemptPreparation {

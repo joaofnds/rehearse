@@ -146,6 +146,7 @@ async function doesNotFinalizeAGroupWhenARepRecordCannotBePersisted(): Promise<v
 					attemptDirectory: join(plan.recordDirectory, "execution"),
 					checks: [{ detail: "named pass", kind: "word-band", status: "PASS" }],
 					contextManifest: undefined,
+					corpusDelivery: { liveReads: [], redirected: 0, rule: 1 },
 					metrics,
 					outcome: "SUCCESSFUL",
 					reply: "OK",
