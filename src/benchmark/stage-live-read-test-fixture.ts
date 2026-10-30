@@ -1,5 +1,6 @@
 import { confirmationRepRecordSchema } from "./confirmation-record";
 import type { ConfirmationRepRecord } from "./confirmation-record";
+import type { Immutable } from "./contracts";
 import type { LiveCorpusRead } from "./stage-live-reads";
 import type { StageSessionDependencies } from "./stage-session-dependencies";
 import StageSessionError from "./stage-session-error";
@@ -7,23 +8,58 @@ import type { WorkflowStageRequest } from "./workflow";
 
 const RECORD_JSON_INDENT_SPACES = 2;
 
+type RecordedStage = ConfirmationRepRecord["stages"][number];
+
+type JudgedStage = Extract<RecordedStage, { status: "JUDGED" }>;
+
+/** Rewrites a recorded rep's every judged stage, and its outcome to `outcome`. */
+async function rewriteJudgedStages(
+	repFile: string,
+	rewrite: (stage: Immutable<JudgedStage>) => RecordedStage,
+	outcome?: ConfirmationRepRecord["outcome"],
+): Promise<void> {
+	const rep = confirmationRepRecordSchema.parse(
+		JSON.parse(await Bun.file(repFile).text()),
+	);
+	const stages: RecordedStage[] = [];
+	for (const stage of rep.stages) {
+		stages.push(stage.status === "JUDGED" ? rewrite(stage) : stage);
+	}
+	const rewritten = { ...rep, outcome: outcome ?? rep.outcome, stages };
+	await Bun.write(
+		repFile,
+		`${JSON.stringify(rewritten, null, RECORD_JSON_INDENT_SPACES)}\n`,
+	);
+}
+
 /** Rewrites a recorded rep as one whose every judged stage made `reads` live. */
 async function addStageLiveReads(
 	repFile: string,
 	reads: readonly LiveCorpusRead[],
 ): Promise<void> {
-	const rep = confirmationRepRecordSchema.parse(
-		JSON.parse(await Bun.file(repFile).text()),
-	);
-	const stages: ConfirmationRepRecord["stages"][number][] = [];
-	for (const stage of rep.stages) {
-		stages.push(
-			stage.status === "JUDGED" ? { ...stage, liveReads: [...reads] } : stage,
-		);
-	}
-	await Bun.write(
+	await rewriteJudgedStages(repFile, (stage) => ({
+		...stage,
+		liveReads: [...reads],
+	}));
+}
+
+/**
+ * Rewrites a recorded rep as one whose every judged stage made `reads` live
+ * and then failed.
+ */
+async function failStagesWithLiveReads(
+	repFile: string,
+	reads: readonly LiveCorpusRead[],
+): Promise<void> {
+	await rewriteJudgedStages(
 		repFile,
-		`${JSON.stringify({ ...rep, stages }, null, RECORD_JSON_INDENT_SPACES)}\n`,
+		({ stage }) => ({
+			error: "synthetic stage failure",
+			liveReads: [...reads],
+			stage,
+			status: "EXECUTION_FAILED",
+		}),
+		"UNSUCCESSFUL",
 	);
 }
 
@@ -101,6 +137,7 @@ function namedFailure(request: WorkflowStageRequest): Error {
 
 export {
 	addStageLiveReads,
+	failStagesWithLiveReads,
 	failingBeforeSessionEnds,
 	failingBeforeSessionStarts,
 	namedFailure,
