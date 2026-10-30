@@ -1,5 +1,4 @@
 import type { ProviderCall } from "./contracts";
-import type { StageSessionResult } from "./stage-session-contract";
 
 function reasonOf(cause: unknown): string {
 	return cause instanceof Error ? cause.message : String(cause);
@@ -39,17 +38,5 @@ class StageSessionError extends Error {
 	}
 }
 
-/** The session a failed stage ran, whether it ended or threw, if it started. */
-function failedStageSessionId(
-	session: StageSessionResult | undefined,
-	failure: Readonly<Error>,
-): string | undefined {
-	if (session !== undefined) {
-		return session.transcript.sessionId;
-	}
-
-	return failure instanceof StageSessionError ? failure.sessionId : undefined;
-}
-
-export { StageSessionError as default, failedStageSessionId };
+export { StageSessionError as default };
 export type { SessionSpend, StageSessionFailure };

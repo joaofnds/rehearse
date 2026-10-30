@@ -1,7 +1,7 @@
 import type { ConfirmationRepResult } from "./confirmation-evidence";
 import failedPipelineRep from "./pipeline-failed-rep";
 import type { PipelineRepExecutionState } from "./pipeline-rep-state";
-import { failedStageSessionId } from "./stage-session-error";
+import { failedStageSessionId } from "./stage-live-reads";
 
 async function failPipelineRep(
 	{ scope, progress, evidence }: PipelineRepExecutionState,

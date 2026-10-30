@@ -1,8 +1,7 @@
 import type { ReplayRepContext } from "./replay-confirmation-runtime";
-import stageLiveReads from "./stage-live-reads";
+import stageLiveReads, { failedStageSessionId } from "./stage-live-reads";
 import type { LiveCorpusRead } from "./stage-live-reads";
 import type { StageSessionResult } from "./stage-session-contract";
-import { failedStageSessionId } from "./stage-session-error";
 
 /** The live reads a replayed stage's session made of its frozen install. */
 async function replayStageLiveReads(
@@ -22,7 +21,10 @@ async function replayStageLiveReads(
 	});
 }
 
-/** The live reads of a replayed stage that failed, none if no session started. */
+/**
+ * The live reads of a replayed stage that failed, unknown when no session id
+ * names it or no transcript sits at that id's path.
+ */
 async function failedReplayStageLiveReads(
 	context: ReplayRepContext,
 	session: StageSessionResult | undefined,

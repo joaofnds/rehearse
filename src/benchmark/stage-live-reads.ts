@@ -1,6 +1,8 @@
 import type { HomePathCitationMap } from "./home-path-citation";
 import liveCorpusReads from "./live-corpus-reads";
 import type { LiveCorpusRead } from "./live-corpus-reads";
+import type { StageSessionResult } from "./stage-session-contract";
+import StageSessionError from "./stage-session-error";
 import type { StageTranscriptSource } from "./stage-transcript-evidence";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
 import {
@@ -50,6 +52,22 @@ function liveReadsField(reads: readonly LiveCorpusRead[] | undefined): {
 	return reads === undefined ? {} : { liveReads: [...reads] };
 }
 
-export { stageLiveReads as default, liveReadsField };
+/**
+ * The session whose transcript holds what a failed stage did: the one it
+ * ended, or the one the failure names. A stage that failed before any session
+ * id existed has none, and its reads are unknown.
+ */
+function failedStageSessionId(
+	session: StageSessionResult | undefined,
+	failure: Readonly<Error>,
+): string | undefined {
+	if (session !== undefined) {
+		return session.transcript.sessionId;
+	}
+
+	return failure instanceof StageSessionError ? failure.sessionId : undefined;
+}
+
+export { stageLiveReads as default, failedStageSessionId, liveReadsField };
 export type { StageLiveReadsRequest };
 export type { LiveCorpusRead } from "./live-corpus-reads";
