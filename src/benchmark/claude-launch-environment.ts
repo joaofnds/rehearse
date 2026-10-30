@@ -77,8 +77,8 @@ const PREFIXES_CLAUDE_CODE_READS = [
 
 /**
  * Names outside the prefixes that the 2.1.314 binary reads, taken from its
- * list of names a settings file may set, its provider names and its proxy
- * names.
+ * list of names a settings file may set, its provider names, its proxy names
+ * in both cases and its extra certificate authority file.
  */
 const NAMES_CLAUDE_CODE_READS: ReadonlySet<string> = new Set([
 	"ALL_PROXY",
@@ -106,16 +106,21 @@ const NAMES_CLAUDE_CODE_READS: ReadonlySet<string> = new Set([
 	"HTTP_PROXY",
 	"MAX_MCP_OUTPUT_TOKENS",
 	"MAX_STRUCTURED_OUTPUT_RETRIES",
+	"NODE_EXTRA_CA_CERTS",
 	"NO_PROXY",
 	"SLASH_COMMAND_TOOL_CHAR_BUDGET",
 	"USE_BUILTIN_RIPGREP",
+	"all_proxy",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
 ]);
 
 /**
- * Words of a name whose value can be a credential or an identity, so the
- * record keeps the name alone: the browser serves records without
- * authentication, and a short secret's digest can be guessed. A proxy URL can
- * carry user info, and the proxy bypass list cannot.
+ * Words of a name whose value can be a credential, so the record keeps the
+ * name alone: the browser serves records without authentication, and a short
+ * secret's digest can be guessed. A proxy URL can carry user info, and the
+ * proxy bypass list cannot.
  */
 const SECRET_NAME_WORDS: ReadonlySet<string> = new Set([
 	"ATTRIBUTES",
@@ -145,9 +150,11 @@ function isReadByClaudeCode(name: string): boolean {
 }
 
 function isSecretBearing(name: string): boolean {
+	const upperCaseName = name.toUpperCase();
+
 	return (
-		name !== PROXY_BYPASS_LIST &&
-		name.split("_").some((word) => SECRET_NAME_WORDS.has(word))
+		upperCaseName !== PROXY_BYPASS_LIST &&
+		upperCaseName.split("_").some((word) => SECRET_NAME_WORDS.has(word))
 	);
 }
 

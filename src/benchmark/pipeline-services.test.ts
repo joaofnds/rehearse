@@ -124,6 +124,13 @@ const invalidPipelineServiceDeclarationsExamples = [
 	{
 		definition: {
 			...target,
+			services: [{ ...postgres, exports: { https_proxy: "http://{port}" } }],
+		},
+		name: "a service export of a lowercase proxy",
+	},
+	{
+		definition: {
+			...target,
 			services: [{ ...postgres, exports: { HOME: "/tmp/{port}" } }],
 		},
 		name: "a service export of the home directory",
