@@ -102,8 +102,8 @@ const SKILLS_KIND = "skills/";
 /**
  * What the attempt installs for each declared path. A skill is a directory whose
  * `SKILL.md` refers to the files beside it, so installing the declared file
- * alone delivers a skill whose references do not resolve, and under
- * `--setting-sources project` the user-level copy cannot supply them either.
+ * alone delivers a skill whose references do not resolve, and with the user
+ * setting source left out the user-level copy cannot supply them either.
  * Every other kind is a single file and is installed as itself. For an
  * isolated case, snapshotting copies these same roots and the loader accepts
  * files under them, so what a group freezes, what its attempts install, and
@@ -113,9 +113,10 @@ const SKILLS_KIND = "skills/";
  * Every path a case may declare is overlaid, because `isCorpusLayoutPath` is
  * also what `resolveCorpusFile` requires: a declared path outside corpus layout
  * is refused before a snapshot exists. A declared skill only reaches the session
- * because `sessionCaseArgs` passes `--setting-sources project`; without that
- * flag a same-named user-level skill wins and the overlaid bytes are hashed into
- * lineage but never read. Measured on claude 2.1.278 with both copies installed.
+ * because `sessionCaseArgs` leaves the user source out of `--setting-sources`
+ * (`project`, or `project,local` under the actual setup); with it a same-named
+ * user-level skill wins and the overlaid bytes are hashed into lineage but
+ * never read. Measured on claude 2.1.278 with both copies installed.
  */
 function overlaidRoots(declaredPaths: readonly string[]): readonly string[] {
 	const roots = declaredPaths
