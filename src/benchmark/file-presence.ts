@@ -116,6 +116,10 @@ const REFUSED_READ_REASONS = new Map([
 	["ELOOP", "is a link that never resolves to a file, so it names no bytes"],
 	["EACCES", "cannot be read, so its bytes cannot be hashed"],
 	["EPERM", "cannot be read, so its bytes cannot be hashed"],
+	[
+		"ENOTDIR",
+		"lies under a file rather than a directory, so it names no bytes",
+	],
 ]);
 
 /**

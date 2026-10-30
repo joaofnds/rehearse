@@ -3,6 +3,7 @@ import { chmod, mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
+	classifyEntry,
 	lstatIfPresent,
 	pathExists,
 	removeUntilAbsent,
@@ -128,6 +129,22 @@ describe(pathExists.name, () => {
 	it(
 		"answers whether the path is there",
 		pathExistsAnswersWhetherThePathIsThere,
+	);
+});
+
+const classifyEntryRefusesAPathThatLiesUnderAFile = async (): Promise<void> => {
+	const directory = await resources.createControlDirectory();
+	await Bun.write(join(directory, "agents"), "a file where a directory goes\n");
+
+	const entry = await classifyEntry(join(directory, "agents/advisor.md"));
+
+	expect(entry.kind).toBe("refused");
+};
+
+describe(classifyEntry.name, () => {
+	it(
+		"refuses a path that lies under a file",
+		classifyEntryRefusesAPathThatLiesUnderAFile,
 	);
 });
 
