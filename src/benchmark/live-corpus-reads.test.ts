@@ -34,6 +34,14 @@ describe(liveCorpusReads.name, () => {
 		]);
 	});
 
+	it("counts a glob whose pattern names a held directory's live copy", () => {
+		const glob = use("Glob", { pattern: "/home/user/.agents/rulebook/*.md" });
+
+		expect(liveCorpusReads([glob], citations, held)).toEqual([
+			{ count: 1, path: "rulebook" },
+		]);
+	});
+
 	it.each([
 		[
 			"the install's own copy",

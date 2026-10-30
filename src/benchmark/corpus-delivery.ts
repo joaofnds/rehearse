@@ -47,13 +47,17 @@ const NOTHING_DELIVERED: CorpusDelivery = {
 	rule: HOME_PATH_DELIVERY_RULE,
 };
 
-const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
+/** The file's text, or nothing for a file that is not UTF-8 and stays as authored. */
 function textOf(bytes: Readonly<Uint8Array>): string | undefined {
 	try {
 		return strictUtf8.decode(bytes);
-	} catch {
-		return undefined;
+	} catch (error) {
+		if (error instanceof TypeError) {
+			return undefined;
+		}
+		throw error;
 	}
 }
 

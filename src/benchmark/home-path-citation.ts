@@ -52,12 +52,35 @@ interface HeldCitation {
 	readonly replacement: string;
 }
 
+const ONE_CHARACTER = 1;
+
+const START = 0;
+
+const PARENT_STEP = "..";
+
+/**
+ * The citation without the dots that end its sentence. A `..` after a slash
+ * is a path step, so it stays.
+ */
+function withoutClosingPunctuation(written: string): string {
+	let end = written.length;
+	while (written.at(end - ONE_CHARACTER) === ".") {
+		end -= ONE_CHARACTER;
+	}
+
+	const isParentStep =
+		written.at(end - ONE_CHARACTER) === "/" &&
+		written.length - end >= PARENT_STEP.length;
+
+	return isParentStep ? written : written.slice(START, end);
+}
+
 function heldCitation(
 	written: string,
 	map: HomePathCitationMap,
 	held: ReadonlySet<string>,
 ): HeldCitation | undefined {
-	const path = written.replace(/\.+$/u, "");
+	const path = withoutClosingPunctuation(written);
 	const trailing = written.slice(path.length);
 	const absolute = posix.normalize(`${map.home}${path}`);
 	const slash = absolute.endsWith("/") ? "/" : "";

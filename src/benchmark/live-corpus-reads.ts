@@ -15,10 +15,17 @@ const NO_CALLS = 0;
 
 const ONE_CALL = 1;
 
-function accessField(field: string): z.ZodType<string> {
+/** The text of whichever of `fields` the input carries, one per line. */
+function accessField(...fields: readonly string[]): z.ZodType<string> {
+	const fieldSchemas = Object.fromEntries(
+		fields.map((field) => [field, z.string().optional()]),
+	);
+
 	return z
-		.looseObject({ [field]: z.string() })
-		.transform((input) => String(input[field]));
+		.looseObject(fieldSchemas)
+		.transform((input) =>
+			fields.flatMap((field) => input[field] ?? []).join("\n"),
+		);
 }
 
 /**
@@ -29,7 +36,7 @@ function accessField(field: string): z.ZodType<string> {
 const ACCESS_FIELDS = new Map([
 	["Bash", accessField("command")],
 	["Edit", accessField("file_path")],
-	["Glob", accessField("path")],
+	["Glob", accessField("path", "pattern")],
 	["Grep", accessField("path")],
 	["NotebookEdit", accessField("notebook_path")],
 	["Read", accessField("file_path")],

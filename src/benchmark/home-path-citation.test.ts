@@ -62,6 +62,7 @@ describe(deliverHomePathCitations.name, () => {
 		["a path under the live root outside the layout", "$HOME/.claude/projects"],
 		["a path that climbs out of every root", "~/.agents/rulebook/../../x.md"],
 		["a tilde inside a word", "a~/.agents/rulebook/ownership.md"],
+		["a parent step out of a root", "~/.agents/rulebook/.."],
 	])("leaves %s as written", (_name, citation) => {
 		expect(delivered(`see ${citation} now`)).toEqual({
 			redirected: 0,
