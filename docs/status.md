@@ -154,6 +154,13 @@ links no attempt history, since its attempts record no session.
   groups run under different setups compare as alike. A group that records no
   setup cannot say which settings its stages ran with. See
   [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
+- **Home-path citations reach an arm's copy only of what it installs.** A
+  stage citing a skill it does not install, and an isolated case citing a file
+  it does not declare, read the live file unrecorded. Stage reps record no live
+  reads, so a stage comparison cannot name an arm that reached a file under
+  test through the live install. A session that changes directory before
+  reading a redirected `.claude/` path misses the arm's copy unrecorded. See
+  [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
 - **Only signals are confined.** Commands whose sessions can run commands keep
   those sessions from directly signalling a process outside the run with a
   `sandbox-exec` sandbox, which makes them macOS-only, and setuid programs such

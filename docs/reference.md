@@ -996,6 +996,46 @@ that install, never from the operator's `~/.claude/`, and it is framed the way
 Claude Code frames a repository's own `CLAUDE.md`, not as user-level
 instructions.
 
+Corpus text often names another corpus file by where it sits in your live
+install, such as `~/.agents/rulebook/ownership.md` or
+`$HOME/.claude/skills/build/SKILL.md`. Each install rewrites such a home-path
+citation of a file or directory the install holds to `.claude/<layout path>`,
+so the session and its sub-agents read the arm's own copy rather than yours.
+The spellings `~/`, `$HOME/`, `${HOME}/` and the literal home directory are
+recognized, followed by a path under `~/.claude` or through a link under it,
+so a `~/.claude/rulebook` that links to `~/.agents/rulebook` makes
+`~/.agents/rulebook/...` a citation too. A run maps those paths from the live
+install once, when it freezes its inputs, and reads nothing else there for it.
+Session attempts and all three stage installs (pipeline confirmation stages, a
+stage replay and a replay confirmation) deliver the same way. A citation of a
+file the install does not hold stays as written and reaches your live file,
+since that file is not under test: a stage installs `CLAUDE.md`, the agents,
+output styles and rulebook, the global skills and its own skill, so its
+citation of another skill reads your live skill, and an
+isolated case installs only its declared files, so its citation of an
+undeclared file reads the live file and nothing records it. A path outside the
+corpus layout, such as `~/.agents/backlog-config.yml`, stays as written.
+
+Delivered text therefore differs from the authored text in those citations
+only. Records hash the authored bytes, so the same corpus records the same
+`corpusFiles` digests whatever it cites. Each session attempt and each
+confirmation group records `corpusDelivery`: the delivery `rule` and how many
+citations it `redirected`. A session attempt adds `liveReads`: each held file
+that a file-access tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit
+path, or a Bash command) in its transcript or a sub-agent's still named by its
+live path, as the layout path and a call count, never the command text.
+`compare` prints a line on stderr naming each arm with a live read, since that
+arm measured your live file rather than its own. Stage reps do not record live
+reads. The rewrite is relative, so a session that changes directory and then
+reads a cited `.claude/` path misses the copy, and no live read records it.
+
+A group or attempt recorded without `corpusDelivery` ran before delivery, so
+its citations read the live install whatever its corpus held. `compare
+attempts` refuses such a group, and `compare` refuses arms whose delivery
+differs, naming `corpusDelivery`. Run the group again to compare it. Arms
+delivered by the same rule compare whatever their redirect counts, because
+each count is a property of that arm's own text.
+
 Unless the case declares `"isolated": true`, the session still runs with your
 actual setup. Your `~/.claude/settings.json`, merged with the case's declared
 `settings`, is passed as a file by `--settings`. The MCP servers in
