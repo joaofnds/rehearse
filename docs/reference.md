@@ -1003,9 +1003,14 @@ permissive mode such as `bypassPermissions` lets it run commands its `tools`
 list never named, which is why such a session is
 [confined](#signal-confinement). Each attempt record's `setup` field names what
 the session ran with: settings key names and a digest, MCP server names and a
-digest of their configuration, plugin names, and hook event names. It holds no
-setting value. Claude Code's built-in plugins and claude.ai connectors are not
-named.
+digest of their configuration, plugin names, and hook event names. Every
+attempt, an isolated one included, asks Claude Code for its verbose JSON output,
+and `setup.loaded` names the MCP servers, with the status each reached, and the
+plugins the session's init event reported it loaded. Those names come from the
+session rather than from files, so a server that failed to connect or a plugin
+the files never named shows there. The setup record holds no setting value, no
+plugin path and no server configuration. Whether claude.ai connectors appear in
+`setup.loaded` is unobserved, since the machine this was built on disables them.
 
 A case that declares `"isolated": true` runs with the project settings source
 alone, so the operator's permission defaults do not reach the session. Such a

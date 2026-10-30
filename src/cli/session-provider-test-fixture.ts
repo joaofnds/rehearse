@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import type { ClaudeRunner } from "#benchmark/session-attempt";
 import { projectSlug } from "#benchmark/session-capture";
+import verboseOutput from "#benchmark/session-output-test-fixtures";
 
 const OPTION_VALUE_POSITION_OFFSET = 1;
 
@@ -11,7 +12,11 @@ const OPTION_VALUE_POSITION_OFFSET = 1;
  * The provider writes its session file under the id the command line named,
  * which is what lets the harness account for the file it must remove.
  */
-function fakeClaude(projects: string, reply: string): ClaudeRunner {
+function fakeClaude(
+	projects: string,
+	reply: string,
+	init?: string,
+): ClaudeRunner {
 	return async (command, cwd) => {
 		const sessionId =
 			command[command.indexOf("--session-id") + OPTION_VALUE_POSITION_OFFSET] ??
@@ -26,7 +31,7 @@ function fakeClaude(projects: string, reply: string): ClaudeRunner {
 			})}\n`,
 		);
 
-		return fakeClaudeEnvelope(sessionId, reply);
+		return fakeClaudeEnvelope(sessionId, reply, init);
 	};
 }
 const DIAGNOSTIC_TRANSCRIPT = [
@@ -129,8 +134,12 @@ function diagnosticClaude(projects: string): ClaudeRunner {
 	};
 }
 
-function fakeClaudeEnvelope(sessionId: string, reply: string): string {
-	return JSON.stringify({
+function fakeClaudeEnvelope(
+	sessionId: string,
+	reply: string,
+	init?: string,
+): string {
+	const result = JSON.stringify({
 		duration_api_ms: 700,
 		duration_ms: 800,
 		is_error: false,
@@ -138,6 +147,7 @@ function fakeClaudeEnvelope(sessionId: string, reply: string): string {
 		result: reply,
 		session_id: sessionId,
 		total_cost_usd: 0.0011,
+		type: "result",
 		usage: {
 			cache_creation_input_tokens: 0,
 			cache_read_input_tokens: 0,
@@ -145,6 +155,8 @@ function fakeClaudeEnvelope(sessionId: string, reply: string): string {
 			output_tokens: 2,
 		},
 	});
+
+	return verboseOutput(result, init);
 }
 interface RecordedSkillCall {
 	readonly id: string;
@@ -210,21 +222,24 @@ function undeclaredSkillClaude(projects: string): ClaudeRunner {
 				.join("\n")}\n`,
 		);
 
-		return JSON.stringify({
-			duration_api_ms: 700,
-			duration_ms: 800,
-			is_error: false,
-			num_turns: 1,
-			result: "OK",
-			session_id: sessionId,
-			total_cost_usd: 0.0011,
-			usage: {
-				cache_creation_input_tokens: 0,
-				cache_read_input_tokens: 0,
-				input_tokens: 10,
-				output_tokens: 2,
-			},
-		});
+		return verboseOutput(
+			JSON.stringify({
+				duration_api_ms: 700,
+				duration_ms: 800,
+				is_error: false,
+				num_turns: 1,
+				result: "OK",
+				session_id: sessionId,
+				total_cost_usd: 0.0011,
+				type: "result",
+				usage: {
+					cache_creation_input_tokens: 0,
+					cache_read_input_tokens: 0,
+					input_tokens: 10,
+					output_tokens: 2,
+				},
+			}),
+		);
 	};
 }
 export { diagnosticClaude, fakeClaude, undeclaredSkillClaude };

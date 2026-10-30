@@ -12,6 +12,7 @@ import {
 	recordDirectory,
 	resources,
 } from "./session-attempt-workspace-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 
 resources.registerCleanup();
 
@@ -35,7 +36,7 @@ const SESSION_EXAMPLES_72 = (
 		[_label, errors, message, spentUsd] as const,
 );
 async function namesABudgetHaltSStatedErrorAndCostWhenTheCommandExitsNonZero(): Promise<void> {
-	const halt = await budgetHaltEnvelope();
+	const halt = verboseOutput(await budgetHaltEnvelope());
 
 	const attemptRequest = request({
 		projectsDirectory: await projectsRoot(),
@@ -62,7 +63,7 @@ async function namesABudgetHaltSStatedErrorAndCostWhenTheCommandExitsNonZero(): 
 }
 
 async function keepsAHaltedCommandSStderrOnItsOwnLineAfterTheStatedError(): Promise<void> {
-	const halt = await budgetHaltEnvelope();
+	const halt = verboseOutput(await budgetHaltEnvelope());
 
 	const attemptRequest = request({
 		projectsDirectory: await projectsRoot(),
@@ -86,11 +87,14 @@ async function keepsAHaltedCommandSStderrOnItsOwnLineAfterTheStatedError(): Prom
 async function addsTheSpendOnceToAFailedCommandThatStatesNoFailure(): Promise<void> {
 	const expectedSplitCount = 2;
 
-	const unstated = JSON.stringify({
-		is_error: true,
-		session_id: "session-1",
-		total_cost_usd: 0.01,
-	});
+	const unstated = verboseOutput(
+		JSON.stringify({
+			is_error: true,
+			session_id: "session-1",
+			total_cost_usd: 0.01,
+			type: "result",
+		}),
+	);
 	let rejected = new Error("the runner was never called");
 
 	const attemptRequest = request({
@@ -115,7 +119,7 @@ async function addsTheSpendOnceToAFailedCommandThatStatesNoFailure(): Promise<vo
 }
 
 async function namesABudgetHaltSStatedErrorAndCostWhenTheCommandExits0(): Promise<void> {
-	const halt = await budgetHaltEnvelope();
+	const halt = verboseOutput(await budgetHaltEnvelope());
 
 	const attemptRequest = request({
 		projectsDirectory: await projectsRoot(),
@@ -159,12 +163,15 @@ describe(runSessionAttempt.name, () => {
 				recordDirectory: await recordDirectory(),
 				runClaude: async () =>
 					await Promise.resolve(
-						JSON.stringify({
-							errors,
-							is_error: true,
-							session_id: "session-1",
-							total_cost_usd: spentUsd,
-						}),
+						verboseOutput(
+							JSON.stringify({
+								errors,
+								is_error: true,
+								session_id: "session-1",
+								total_cost_usd: spentUsd,
+								type: "result",
+							}),
+						),
 					),
 			});
 

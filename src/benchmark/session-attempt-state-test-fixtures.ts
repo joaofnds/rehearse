@@ -10,6 +10,7 @@ import {
 	envelope,
 	transcriptLine,
 } from "./session-attempt-transcript-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 
 async function replyFrom(
 	projects: string,
@@ -73,14 +74,16 @@ function writingClaude(
 			`${transcriptLine(sessionId, "OK")}\n`,
 		);
 
-		return JSON.stringify({
-			is_error: false,
-			num_turns: 30,
-			session_id: sessionId,
-			subtype: "error_max_turns",
-			total_cost_usd: 0.0012,
-			type: "result",
-		});
+		return verboseOutput(
+			JSON.stringify({
+				is_error: false,
+				num_turns: 30,
+				session_id: sessionId,
+				subtype: "error_max_turns",
+				total_cost_usd: 0.0012,
+				type: "result",
+			}),
+		);
 	};
 }
 
@@ -97,15 +100,17 @@ function failingStateClaude(
 			`${transcriptLine(sessionId, "OK")}\n`,
 		);
 
-		return JSON.stringify({
-			is_error: true,
-			num_turns: 2,
-			result: "the provider refused",
-			session_id: sessionId,
-			subtype: "error_during_execution",
-			total_cost_usd: 0.0012,
-			type: "result",
-		});
+		return verboseOutput(
+			JSON.stringify({
+				is_error: true,
+				num_turns: 2,
+				result: "the provider refused",
+				session_id: sessionId,
+				subtype: "error_during_execution",
+				total_cost_usd: 0.0012,
+				type: "result",
+			}),
+		);
 	};
 }
 

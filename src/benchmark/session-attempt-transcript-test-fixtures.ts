@@ -1,24 +1,27 @@
 import { WRITTEN_SESSION } from "./session-attempt-case-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 import type { TranscriptDiagnostics } from "./transcript";
 
 function envelope(result: string): string {
-	return JSON.stringify({
-		duration_api_ms: 800,
-		duration_ms: 900,
-		is_error: false,
-		num_turns: 1,
-		result,
-		session_id: WRITTEN_SESSION,
-		subtype: "success",
-		total_cost_usd: 0.0012,
-		type: "result",
-		usage: {
-			cache_creation_input_tokens: 0,
-			cache_read_input_tokens: 0,
-			input_tokens: 12,
-			output_tokens: 3,
-		},
-	});
+	return verboseOutput(
+		JSON.stringify({
+			duration_api_ms: 800,
+			duration_ms: 900,
+			is_error: false,
+			num_turns: 1,
+			result,
+			session_id: WRITTEN_SESSION,
+			subtype: "success",
+			total_cost_usd: 0.0012,
+			type: "result",
+			usage: {
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				input_tokens: 12,
+				output_tokens: 3,
+			},
+		}),
+	);
 }
 
 function transcriptLine(sessionId: string, text: string): string {

@@ -9,6 +9,7 @@ import {
 	frozenInputCase,
 	simpleSessionCase,
 } from "./session-confirmation-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 import {
 	TestResources,
 	budgetHaltEnvelope,
@@ -181,7 +182,11 @@ async function budgetSessionWorkspace(): Promise<{
 	const projectsDirectory = join(workspace.root, "projects");
 	await mkdir(projectsDirectory);
 
-	return { ...workspace, halt: await budgetHaltEnvelope(), projectsDirectory };
+	return {
+		...workspace,
+		halt: verboseOutput(await budgetHaltEnvelope()),
+		projectsDirectory,
+	};
 }
 
 export {

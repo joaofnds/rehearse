@@ -20,6 +20,7 @@ import {
 	recordDirectory,
 	resources,
 } from "./session-attempt-workspace-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 
 resources.registerCleanup();
 
@@ -30,11 +31,14 @@ async function keepsASchemaInvalidProviderEnvelopeOutsideTypedInvocationFailures
 		recordDirectory: await recordDirectory(),
 		runClaude: async () =>
 			await Promise.resolve(
-				JSON.stringify({
-					is_error: "yes",
-					result: "not valid",
-					session_id: "session-1",
-				}),
+				verboseOutput(
+					JSON.stringify({
+						is_error: "yes",
+						result: "not valid",
+						session_id: "session-1",
+						type: "result",
+					}),
+				),
 			),
 	});
 
@@ -115,24 +119,11 @@ async function retainsMetricsFromARejectedCommandSValidProviderEnvelope(): Promi
 				recordDirectory: records,
 				runClaude: async (command, cwd) => {
 					await claude.run(command, cwd);
+					const halted = budgetErrorEnvelope(namedSession(command));
 					throw new CommandError(command, {
 						exitCode: 1,
 						stderr: "",
-						stdout: JSON.stringify({
-							duration_api_ms: 800,
-							duration_ms: 900,
-							is_error: true,
-							num_turns: 2,
-							result: "session exhausted its budget",
-							session_id: namedSession(command),
-							total_cost_usd: 0.0012,
-							usage: {
-								cache_creation_input_tokens: 0,
-								cache_read_input_tokens: 0,
-								input_tokens: 12,
-								output_tokens: 3,
-							},
-						}),
+						stdout: halted,
 					});
 				},
 			}),
@@ -194,11 +185,14 @@ async function givesABlankProviderErrorResultARecordableDiagnostic(): Promise<vo
 		recordDirectory: await recordDirectory(),
 		runClaude: async () =>
 			await Promise.resolve(
-				JSON.stringify({
-					is_error: true,
-					result: "",
-					session_id: "session-1",
-				}),
+				verboseOutput(
+					JSON.stringify({
+						is_error: true,
+						result: "",
+						session_id: "session-1",
+						type: "result",
+					}),
+				),
 			),
 	});
 

@@ -168,7 +168,40 @@ async function recordsTheActualSetupTheAttemptRanWith(): Promise<void> {
 }
 
 async function recordsIsolationForACaseThatDeclaresIt(): Promise<void> {
-	expect(await recordedSetup(true)).toEqual({ kind: "isolated" });
+	expect(await recordedSetup(true)).toEqual({
+		kind: "isolated",
+		loaded: { mcpServers: [], plugins: [] },
+	});
+}
+
+async function writesTheMCPServersAndPluginsTheSessionReportedLoadingToItsRecordFile(): Promise<void> {
+	const runs = await files.temporary("rehearse-runs-");
+	const projects = await files.temporary("rehearse-projects-");
+	const init = JSON.stringify({
+		mcp_servers: [{ name: "claude.ai Gmail", status: "connected" }],
+		plugins: [{ name: "compaction-judge", path: "/home/user/plugins/cj" }],
+		subtype: "init",
+		type: "system",
+	});
+
+	const outcome = await runSessionDebugAttempt({
+		config,
+		environment: {},
+		home: ABSENT_HOME,
+		projectsDirectory: projects,
+		runClaude: fakeClaude(projects, "OK", init),
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder().build(),
+		spendCeilingUsd: 100,
+	});
+
+	const written = parseSessionAttemptRecord(
+		await Bun.file(outcome.recordFile).text(),
+	);
+	expect(written.setup?.loaded).toEqual({
+		mcpServers: [{ name: "claude.ai Gmail", status: "connected" }],
+		plugins: ["compaction-judge"],
+	});
 }
 
 describe(runSessionDebugAttempt.name, () => {
@@ -179,6 +212,10 @@ describe(runSessionDebugAttempt.name, () => {
 	it(
 		"records isolation for a case that declares it",
 		recordsIsolationForACaseThatDeclaresIt,
+	);
+	it(
+		"writes the MCP servers and plugins the session reported loading to its record file",
+		writesTheMCPServersAndPluginsTheSessionReportedLoadingToItsRecordFile,
 	);
 
 	it(

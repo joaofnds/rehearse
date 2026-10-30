@@ -5,6 +5,7 @@ import { runCommand } from "./command";
 import type { ComparisonArm } from "./comparison-record";
 import type { SessionAttemptRequest } from "./session-attempt";
 import { projectSlug } from "./session-capture";
+import verboseOutput from "./session-output-test-fixtures";
 
 const MISSING_OPTION_INDEX = -1;
 
@@ -22,23 +23,25 @@ interface ObservedArm {
 }
 
 function envelope(result: string): string {
-	return JSON.stringify({
-		duration_api_ms: 800,
-		duration_ms: 900,
-		is_error: false,
-		num_turns: 1,
-		result,
-		session_id: WRITTEN_SESSION,
-		subtype: "success",
-		total_cost_usd: 0.0012,
-		type: "result",
-		usage: {
-			cache_creation_input_tokens: 0,
-			cache_read_input_tokens: 0,
-			input_tokens: 12,
-			output_tokens: 3,
-		},
-	});
+	return verboseOutput(
+		JSON.stringify({
+			duration_api_ms: 800,
+			duration_ms: 900,
+			is_error: false,
+			num_turns: 1,
+			result,
+			session_id: WRITTEN_SESSION,
+			subtype: "success",
+			total_cost_usd: 0.0012,
+			type: "result",
+			usage: {
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				input_tokens: 12,
+				output_tokens: 3,
+			},
+		}),
+	);
 }
 
 async function overlaidStyle(cwd: string): Promise<string | undefined> {

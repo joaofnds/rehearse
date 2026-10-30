@@ -15,6 +15,7 @@ import {
 	envelope,
 	transcriptLine,
 } from "./session-attempt-transcript-test-fixtures";
+import verboseOutput from "./session-output-test-fixtures";
 
 const MISSING_OPTION_INDEX = -1;
 
@@ -158,14 +159,16 @@ function replylessClaude(
 	return async (command, cwd) => {
 		await run(command, cwd);
 
-		return JSON.stringify({
-			is_error: false,
-			num_turns: 30,
-			session_id: namedSession(command),
-			subtype: "error_max_turns",
-			total_cost_usd: 0.0012,
-			type: "result",
-		});
+		return verboseOutput(
+			JSON.stringify({
+				is_error: false,
+				num_turns: 30,
+				session_id: namedSession(command),
+				subtype: "error_max_turns",
+				total_cost_usd: 0.0012,
+				type: "result",
+			}),
+		);
 	};
 }
 
@@ -188,21 +191,24 @@ function plantingClaude(
 }
 
 function budgetErrorEnvelope(sessionId: string): string {
-	return JSON.stringify({
-		duration_api_ms: 800,
-		duration_ms: 900,
-		is_error: true,
-		num_turns: 2,
-		result: "session exhausted its budget",
-		session_id: sessionId,
-		total_cost_usd: 0.0012,
-		usage: {
-			cache_creation_input_tokens: 0,
-			cache_read_input_tokens: 0,
-			input_tokens: 12,
-			output_tokens: 3,
-		},
-	});
+	return verboseOutput(
+		JSON.stringify({
+			duration_api_ms: 800,
+			duration_ms: 900,
+			is_error: true,
+			num_turns: 2,
+			result: "session exhausted its budget",
+			session_id: sessionId,
+			total_cost_usd: 0.0012,
+			type: "result",
+			usage: {
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				input_tokens: 12,
+				output_tokens: 3,
+			},
+		}),
+	);
 }
 
 export {

@@ -32,6 +32,18 @@ const corpusFileSchema = z
 const namesSchema = z.array(z.string().nonempty());
 
 /**
+ * What the session's init event reported it loaded, by name, so a server or
+ * plugin the files name but the session never loaded shows.
+ */
+const loadedServerSchema = z
+	.object({ name: z.string().nonempty(), status: z.string().nonempty() })
+	.strict();
+
+const loadedSetupSchema = z
+	.object({ mcpServers: z.array(loadedServerSchema), plugins: namesSchema })
+	.strict();
+
+/**
  * The setup a session ran with, as names and digests only, since the browser
  * serves records on loopback without authentication and a setting value can be
  * a credential.
@@ -40,6 +52,7 @@ const actualSetupRecordSchema = z
 	.object({
 		hookEvents: namesSchema,
 		kind: z.literal("actual"),
+		loaded: loadedSetupSchema.optional(),
 		mcpConfigSha256: sha256Schema,
 		mcpServers: namesSchema,
 		plugins: namesSchema,
@@ -49,7 +62,12 @@ const actualSetupRecordSchema = z
 	.strict();
 
 const sessionSetupRecordSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("isolated") }).strict(),
+	z
+		.object({
+			kind: z.literal("isolated"),
+			loaded: loadedSetupSchema.optional(),
+		})
+		.strict(),
 	actualSetupRecordSchema,
 ]);
 
@@ -102,6 +120,7 @@ export {
 	sha256Schema,
 	corpusFileSchema,
 	actualSetupRecordSchema,
+	loadedSetupSchema,
 	sessionSetupRecordSchema,
 	contextHalfSchema,
 	manifestEntrySchema,

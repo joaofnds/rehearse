@@ -1,5 +1,6 @@
 import type { SessionCase } from "./case";
 import type { SessionSettings } from "./claude";
+import { CommandError } from "./command";
 import { failedInvocation } from "./session-attempt-failure";
 import type {
 	PreparedAttempt,
@@ -7,7 +8,13 @@ import type {
 } from "./session-attempt-preparation-contract";
 import { declaredSettings } from "./session-attempt-setup";
 import SessionInvocationError from "./session-invocation-error";
-import type { ActualSetupFiles, SessionSetup } from "./session-setup";
+import { readFailedSessionOutput, readSessionOutput } from "./session-output";
+import type { LoadedSetup } from "./session-output";
+import type {
+	ActualSetupFiles,
+	SessionSetup,
+	SessionSetupRecord,
+} from "./session-setup";
 
 function selectedSettings(
 	sessionCase: SessionCase,
@@ -70,6 +77,7 @@ function sessionCaseArgs(
 		String(settings.budgetUsd),
 		"--output-format",
 		"json",
+		"--verbose",
 		...(setup.kind === "isolated"
 			? isolatedSetupArgs(sessionCase, styleName)
 			: actualSetupArgs(setup)),
@@ -82,7 +90,45 @@ function sessionCaseArgs(
 	];
 }
 
-async function invokeSession({
+interface InvokedSession {
+	/** The result message, read as the json envelope. */
+	readonly output: string;
+	readonly setup: SessionSetupRecord;
+}
+
+function withLoaded(
+	setup: SessionSetupRecord,
+	loaded: LoadedSetup | undefined,
+): SessionSetupRecord {
+	return loaded === undefined ? setup : { ...setup, loaded };
+}
+
+interface FailedSession {
+	readonly failure: Error;
+	readonly loaded: LoadedSetup | undefined;
+}
+
+/**
+ * The failed command reports only the result message as its output, as a
+ * session without `--verbose` would, so its message never carries the
+ * transcript the other messages hold.
+ */
+function failedSession(error: Readonly<Error>): FailedSession {
+	if (!(error instanceof CommandError)) {
+		return { failure: error, loaded: undefined };
+	}
+
+	const { envelope, loaded } = readFailedSessionOutput(error.stdout);
+	const failure = new CommandError(error.command, {
+		exitCode: error.exitCode,
+		stderr: error.stderr,
+		stdout: envelope,
+	});
+
+	return { failure, loaded };
+}
+
+async function runSession({
 	request,
 	sessionCase,
 	settings,
@@ -105,13 +151,15 @@ async function invokeSession({
 			attemptDirectory,
 		);
 	} catch (error) {
-		const failure = error instanceof Error ? error : new Error(String(error));
+		const { failure, loaded } = failedSession(
+			error instanceof Error ? error : new Error(String(error)),
+		);
 		const invocation = await failedInvocation(
 			request,
 			{
 				attemptDirectory,
 				error: failure,
-				setup: setup.record,
+				setup: withLoaded(setup.record, loaded),
 				writtenTranscript: transcriptPath,
 			},
 			contextEvidence,
@@ -122,6 +170,21 @@ async function invokeSession({
 			startingProjectFiles,
 		});
 	}
+}
+
+/**
+ * Output that ends without a result is not a failed invocation: the session
+ * may have run, and nothing in its output says what it spent.
+ */
+async function invokeSession(
+	execution: PreparedAttempt,
+): Promise<InvokedSession> {
+	const { envelope, loaded } = readSessionOutput(await runSession(execution));
+
+	return {
+		output: envelope,
+		setup: withLoaded(execution.setup.record, loaded),
+	};
 }
 
 export { sessionCaseArgs, invokeSession };

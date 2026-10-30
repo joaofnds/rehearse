@@ -96,6 +96,13 @@ function carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget(): void {
 	expect(valueAfter(flags, "--output-format")).toBe("json");
 }
 
+function asksForEveryMessageSoTheInitEventReachesTheRecord(): void {
+	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
+
+	expect(valueAfter(flags, "--output-format")).toBe("json");
+	expect(flags).toContain("--verbose");
+}
+
 function carriesTheRunModelAndEffortWithTheActualSetup(): void {
 	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
 
@@ -145,6 +152,10 @@ function leavesTheUserToolsAndMCPServersInPlace(): void {
 }
 
 function describeWhenTheSessionRunsWithTheActualSetup(): void {
+	it(
+		"asks for every message, so the init event reaches the record",
+		asksForEveryMessageSoTheInitEventReachesTheRecord,
+	);
 	it(
 		"carries the run's model and effort",
 		carriesTheRunModelAndEffortWithTheActualSetup,

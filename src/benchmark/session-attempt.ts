@@ -64,13 +64,13 @@ async function executeAttempt(
 	} = execution;
 
 	try {
-		const output = await invokeSession(execution);
+		const { output, setup } = await invokeSession(execution);
 
 		const recorded = await recordAttempt(request, attemptDirectory, {
 			contextEvidence,
 			installedCorpus: overlay.installed,
 			output,
-			setup: execution.setup.record,
+			setup,
 			writtenTranscript: transcriptPath,
 		});
 
