@@ -2,9 +2,11 @@ import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
 import writeComparisonReport from "./comparison-command";
+import { SHA256_HEX_CHARACTERS } from "./comparison-comparability-record-fixtures";
 import {
 	updateAttemptChecks,
 	updateAttemptPrompts,
+	updateAttempts,
 } from "./session-comparison-attempt-record-fixture";
 import { writeManifest } from "./session-comparison-group-test-fixture";
 import {
@@ -16,6 +18,16 @@ import type { SharedSessionCaseField } from "./session-comparison-test-contract"
 import { comparisonSuiteRoot } from "./session-comparison-workspace-fixture";
 
 const root = comparisonSuiteRoot();
+
+const ACTUAL_SETUP = {
+	hookEvents: [],
+	kind: "actual",
+	mcpConfigSha256: "a".repeat(SHA256_HEX_CHARACTERS),
+	mcpServers: [],
+	plugins: [],
+	settingsKeys: [],
+	settingsSha256: "b".repeat(SHA256_HEX_CHARACTERS),
+} as const;
 
 async function testRefusesAChangedSharedPromptWithItsCaseAndArmsNamed(): Promise<void> {
 	const runsDirectory = join(root, "runs");
@@ -132,6 +144,36 @@ async function refusesChangedSharedChecks(): Promise<void> {
 	);
 }
 
+async function refusesArmsThatRanUnderDifferentSetups(): Promise<void> {
+	const runsDirectory = join(root, "runs");
+	const manifestPath = await writeManifest({ root, runsDirectory });
+
+	await updateAttempts(
+		sessionGroupFile({ caseId: "case-one", role: "candidate", runsDirectory }),
+		(attempt) => ({ ...attempt, setup: ACTUAL_SETUP }),
+	);
+
+	expect(
+		writeComparisonReport({ manifestPath, runsDirectory }),
+	).rejects.toThrow(
+		"case case-one arms baseline and candidate field setup differs",
+	);
+}
+
+async function readsAnAttemptWithNoRecordedSetupAsIsolated(): Promise<void> {
+	const runsDirectory = join(root, "runs");
+	const manifestPath = await writeManifest({ root, runsDirectory });
+
+	await updateAttempts(
+		sessionGroupFile({ caseId: "case-one", role: "candidate", runsDirectory }),
+		({ setup: _setup, ...attempt }) => attempt,
+	);
+
+	expect(
+		writeComparisonReport({ manifestPath, runsDirectory }),
+	).resolves.toEndWith("report.json");
+}
+
 describe("session comparison case inputs", () => {
 	it(
 		"refuses a changed shared prompt with its case and arms named",
@@ -155,4 +197,14 @@ describe("session comparison case inputs", () => {
 	);
 
 	it("refuses changed shared case checks", refusesChangedSharedChecks);
+
+	it(
+		"refuses arms that ran under different setups",
+		refusesArmsThatRanUnderDifferentSetups,
+	);
+
+	it(
+		"reads an attempt with no recorded setup as isolated",
+		readsAnAttemptWithNoRecordedSetupAsIsolated,
+	);
 });

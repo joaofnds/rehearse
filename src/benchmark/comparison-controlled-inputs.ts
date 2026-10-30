@@ -79,6 +79,26 @@ function sessionCaseDifference(
 	return undefined;
 }
 
+/**
+ * Every recorded session attempt before the actual setup ran isolated, so an
+ * attempt that records no setup reads as isolated.
+ */
+function setupKinds(arm: Immutable<ComparisonArmEvidence>): string {
+	const kinds = arm.reps.map(
+		({ attempt }) => attempt?.record.setup?.kind ?? "isolated",
+	);
+
+	return [...new Set(kinds)].toSorted().join(",");
+}
+
+function setupDifference(
+	comparison: Immutable<ControlledInputComparison>,
+): string | undefined {
+	return setupKinds(comparison.reference) === setupKinds(comparison.other)
+		? undefined
+		: "setup";
+}
+
 function sessionInputDifference(
 	comparison: Immutable<ControlledInputComparison>,
 ): string | undefined {
@@ -155,7 +175,7 @@ function controlledInputDifference(
 		if (referenceGroup.mode !== "session" || otherGroup.mode !== "session") {
 			return "mode";
 		}
-		return sessionInputDifference(comparison);
+		return setupDifference(comparison) ?? sessionInputDifference(comparison);
 	}
 	return stageInputDifference(comparison);
 }
