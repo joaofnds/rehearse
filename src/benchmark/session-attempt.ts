@@ -64,7 +64,7 @@ async function executeAttempt(
 	} = execution;
 
 	try {
-		const { output, setup } = await invokeSession(execution);
+		const { envelope: output, setup } = await invokeSession(execution);
 
 		const recorded = await recordAttempt(request, attemptDirectory, {
 			contextEvidence,

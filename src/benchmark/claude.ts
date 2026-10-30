@@ -125,11 +125,7 @@ async function runStreamedSession(
 	} catch (error) {
 		if (error instanceof CommandError) {
 			throw sessionFailure(
-				new CommandError(error.command, {
-					exitCode: error.exitCode,
-					stderr: error.stderr,
-					stdout: streamResultLine(error.stdout) ?? "",
-				}),
+				error.withStdout(streamResultLine(error.stdout) ?? ""),
 			);
 		}
 
@@ -168,7 +164,13 @@ function sessionFailure(
 		: error;
 }
 
-export { claudeArgs, readStreamResult, runStreamedSession, runJsonSession };
+export {
+	claudeArgs,
+	readStreamResult,
+	runStreamedSession,
+	runJsonSession,
+	streamResultLine,
+};
 export type { SessionSettings, ClaudeInvocation };
 export {
 	ClaudeSessionError,

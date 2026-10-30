@@ -8,7 +8,7 @@ import type {
 } from "./session-attempt-preparation-contract";
 import { declaredSettings } from "./session-attempt-setup";
 import SessionInvocationError from "./session-invocation-error";
-import { readFailedSessionOutput, readSessionOutput } from "./session-output";
+import { carriesMessages, readSessionOutput } from "./session-output";
 import type { LoadedSetup } from "./session-output";
 import type {
 	ActualSetupFiles,
@@ -76,7 +76,7 @@ function sessionCaseArgs(
 		"--max-budget-usd",
 		String(settings.budgetUsd),
 		"--output-format",
-		"json",
+		"stream-json",
 		"--verbose",
 		...(setup.kind === "isolated"
 			? isolatedSetupArgs(sessionCase, styleName)
@@ -91,8 +91,7 @@ function sessionCaseArgs(
 }
 
 interface InvokedSession {
-	/** The result message, read as the json envelope. */
-	readonly output: string;
+	readonly envelope: string;
 	readonly setup: SessionSetupRecord;
 }
 
@@ -109,21 +108,19 @@ interface FailedSession {
 }
 
 /**
- * The failed command reports only the result message as its output, as a
- * session without `--verbose` would, so its message never carries the
- * transcript the other messages hold.
+ * A failed command that wrote messages reports only its result line, so its
+ * message never carries the transcript the other lines hold. Output that is
+ * no message, a diagnostic, stays as it was written.
  */
 function failedSession(error: Readonly<Error>): FailedSession {
 	if (!(error instanceof CommandError)) {
 		return { failure: error, loaded: undefined };
 	}
 
-	const { envelope, loaded } = readFailedSessionOutput(error.stdout);
-	const failure = new CommandError(error.command, {
-		exitCode: error.exitCode,
-		stderr: error.stderr,
-		stdout: envelope,
-	});
+	const { envelope, loaded } = readSessionOutput(error.stdout);
+	const failure = carriesMessages(error.stdout)
+		? error.withStdout(envelope)
+		: error;
 
 	return { failure, loaded };
 }
@@ -173,18 +170,16 @@ async function runSession({
 }
 
 /**
- * Output that ends without a result is not a failed invocation: the session
- * may have run, and nothing in its output says what it spent.
+ * Output that ends without a result reads as an empty envelope, which
+ * recording refuses after it keeps the transcript: the session may have run,
+ * and nothing in its output says what it spent.
  */
 async function invokeSession(
 	execution: PreparedAttempt,
 ): Promise<InvokedSession> {
 	const { envelope, loaded } = readSessionOutput(await runSession(execution));
 
-	return {
-		output: envelope,
-		setup: withLoaded(execution.setup.record, loaded),
-	};
+	return { envelope, setup: withLoaded(execution.setup.record, loaded) };
 }
 
 export { sessionCaseArgs, invokeSession };

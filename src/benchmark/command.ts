@@ -49,6 +49,15 @@ class CommandError extends Error {
 		this.stdout = stdout;
 		this.stderr = stderr;
 	}
+
+	/** The same failure reporting `stdout` as its output. */
+	public withStdout(stdout: string): CommandError {
+		return new CommandError(this.command, {
+			exitCode: this.exitCode,
+			stderr: this.stderr,
+			stdout,
+		});
+	}
 }
 
 async function readLines(

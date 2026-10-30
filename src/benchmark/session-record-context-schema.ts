@@ -31,14 +31,17 @@ const corpusFileSchema = z
 
 const namesSchema = z.array(z.string().nonempty());
 
+const loadedServerSchema = z
+	.object({
+		name: z.string().nonempty(),
+		status: z.string().nonempty().optional(),
+	})
+	.strict();
+
 /**
  * What the session's init event reported it loaded, by name, so a server or
  * plugin the files name but the session never loaded shows.
  */
-const loadedServerSchema = z
-	.object({ name: z.string().nonempty(), status: z.string().nonempty() })
-	.strict();
-
 const loadedSetupSchema = z
 	.object({ mcpServers: z.array(loadedServerSchema), plugins: namesSchema })
 	.strict();

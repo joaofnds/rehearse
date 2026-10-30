@@ -1,93 +1,109 @@
 import { z } from "zod";
 
+import { streamResultLine } from "./claude";
 import type { Immutable } from "./contracts";
 import parseJsonDocument from "./json-document";
 import type { loadedSetupSchema } from "./session-record-context-schema";
 
 type LoadedSetup = Immutable<z.infer<typeof loadedSetupSchema>>;
 
-/** What `--output-format json --verbose` writes: every message, ending on the result. */
 interface SessionOutput {
-	/** The result message, the one envelope a session without `--verbose` writes. */
+	/** The result line, the one envelope a `json` session writes, or empty. */
 	readonly envelope: string;
 	readonly loaded: LoadedSetup | undefined;
 }
 
-const messagesSchema = z.array(z.looseObject({ type: z.string() }));
-
 const initServerSchema = z.looseObject({
 	name: z.string().nonempty(),
-	status: z.string().nonempty(),
+	status: z.string().nonempty().optional(),
 });
 
 const initPluginSchema = z.looseObject({ name: z.string().nonempty() });
 
+/**
+ * Entries are read one by one, so an entry a later Claude Code shapes
+ * differently costs that entry rather than the whole record.
+ */
 const initSchema = z.looseObject({
-	mcp_servers: z.array(initServerSchema),
-	plugins: z.array(initPluginSchema).optional(),
+	mcp_servers: z.array(z.unknown()).optional(),
+	plugins: z.array(z.unknown()).optional(),
 	subtype: z.literal("init"),
 	type: z.literal("system"),
 });
 
-function loadedSetup(
-	messages: Immutable<z.infer<typeof messagesSchema>>,
-): LoadedSetup | undefined {
-	const init = messages
-		.map((message) => initSchema.safeParse(message))
-		.find((parsed) => parsed.success);
+function readable<T>(
+	entries: readonly unknown[] | undefined,
+	schema: z.ZodType<T>,
+): T[] {
+	return (entries ?? []).flatMap((entry) => {
+		const parsed = schema.safeParse(entry);
+
+		return parsed.success ? [parsed.data] : [];
+	});
+}
+
+/** Code-unit order, as `toSorted` gives the names the setup files list. */
+function byName(
+	left: Readonly<{ name: string }>,
+	right: Readonly<{ name: string }>,
+): number {
+	return Number(left.name > right.name) - Number(left.name < right.name);
+}
+
+const messageSchema = z.looseObject({ type: z.string() });
+
+function isMessage(line: string): boolean {
+	const document = parseJsonDocument(line, messageSchema);
+
+	return document.kind !== "invalid-json" && document.parsed.success;
+}
+
+/** Whether any line of the output is a message, rather than a diagnostic. */
+function carriesMessages(output: string): boolean {
+	return output.split("\n").some((line) => isMessage(line));
+}
+
+function initMessage(line: string): z.infer<typeof initSchema> | undefined {
+	const document = parseJsonDocument(line, initSchema);
+
+	return document.kind === "invalid-json" || !document.parsed.success
+		? undefined
+		: document.parsed.data;
+}
+
+function loadedSetup(output: string): LoadedSetup | undefined {
+	const init = output
+		.split("\n")
+		.map((line) => initMessage(line))
+		.find((message) => message !== undefined);
 	if (init === undefined) {
 		return undefined;
 	}
 
+	const servers = readable(init.mcp_servers, initServerSchema);
+
 	return {
-		mcpServers: init.data.mcp_servers
-			.map(({ name, status }) => ({ name, status }))
-			.toSorted((left, right) => left.name.localeCompare(right.name)),
-		plugins: (init.data.plugins ?? []).map(({ name }) => name).toSorted(),
+		mcpServers: servers
+			.map(({ name, status }) =>
+				status === undefined ? { name } : { name, status },
+			)
+			.toSorted(byName),
+		plugins: readable(init.plugins, initPluginSchema)
+			.map(({ name }) => name)
+			.toSorted(),
 	};
-}
-
-function readMessages(
-	output: string,
-): Immutable<z.infer<typeof messagesSchema>> {
-	const document = parseJsonDocument(output, messagesSchema);
-	if (document.kind === "invalid-json" || !document.parsed.success) {
-		return [];
-	}
-
-	return document.parsed.data;
-}
-
-function resultEnvelope(
-	messages: Immutable<z.infer<typeof messagesSchema>>,
-): string | undefined {
-	const result = messages.findLast((message) => message.type === "result");
-
-	return result === undefined ? undefined : JSON.stringify(result);
-}
-
-function readSessionOutput(output: string): SessionOutput {
-	const messages = readMessages(output);
-	const envelope = resultEnvelope(messages);
-	if (envelope === undefined) {
-		throw new Error("Claude session output ended without a result");
-	}
-
-	return { envelope, loaded: loadedSetup(messages) };
 }
 
 /**
- * A failed session's output, which may hold no messages at all. The envelope
- * is empty then, as a failed command's stdout is.
+ * What `--output-format stream-json --verbose` writes, a message a line. A
+ * session cut off before its result still names what it loaded.
  */
-function readFailedSessionOutput(output: string): SessionOutput {
-	const messages = readMessages(output);
-
+function readSessionOutput(output: string): SessionOutput {
 	return {
-		envelope: resultEnvelope(messages) ?? "",
-		loaded: loadedSetup(messages),
+		envelope: streamResultLine(output) ?? "",
+		loaded: loadedSetup(output),
 	};
 }
 
-export { readFailedSessionOutput, readSessionOutput };
-export type { LoadedSetup, SessionOutput };
+export { carriesMessages, readSessionOutput };
+export type { LoadedSetup };

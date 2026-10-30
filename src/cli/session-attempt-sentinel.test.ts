@@ -41,14 +41,21 @@ const SENTINEL_INIT = JSON.stringify({
 	type: "system",
 });
 
-async function everyWrittenText(directory: string): Promise<string> {
+/**
+ * The transcript is Claude Code's own, copied as it was written, and a real
+ * one carries the hook commands the user's settings hold, so this scan leaves
+ * it out by name.
+ */
+const COPIED_TRANSCRIPT = "transcript.jsonl";
+
+async function everyAuthoredText(directory: string): Promise<string> {
 	const entries = await readdir(directory, {
 		recursive: true,
 		withFileTypes: true,
 	});
 	const texts = await Promise.all(
 		entries
-			.filter((entry) => entry.isFile())
+			.filter((entry) => entry.isFile() && entry.name !== COPIED_TRANSCRIPT)
 			.map(
 				async (entry) =>
 					await Bun.file(join(entry.parentPath, entry.name)).text(),
@@ -78,12 +85,12 @@ async function writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors(): Pro
 		kind: "actual",
 		loaded: { mcpServers: [{ name: "tracker" }], plugins: ["alpha"] },
 	});
-	expect(await everyWrittenText(runs)).not.toContain(SENTINEL);
+	expect(await everyAuthoredText(runs)).not.toContain(SENTINEL);
 }
 
-describe("a value in the user's setup", () => {
+describe(runSessionDebugAttempt.name, () => {
 	it(
-		"is written into no record field Rehearse authors, the transcript Claude Code writes aside",
+		"writes no value of the user's setup into a record file Rehearse authors",
 		writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors,
 	);
 });

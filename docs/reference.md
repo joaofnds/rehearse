@@ -981,8 +981,9 @@ between its check and read. Corpus sources remain trusted experimental inputs.
 | `stale`                             | Compare against live files                            | Compare against the supplied directory                                  |
 
 Session overlays write declared styles, agents, rulebook, skills, and `CLAUDE.md`
-under the attempt's `.claude/`, and session attempts run with the project and
-local settings sources and never the user source. That flag is what makes the overlay authoritative: a project-level skill
+under the attempt's `.claude/`, and session attempts run with the project
+settings source, the local one too unless the case declares isolation, and never
+the user source. That flag is what makes the overlay authoritative: a project-level skill
 does not otherwise shadow a same-named user-level one, so without it a declared
 skill would be hashed into lineage and never read. A session attempt does not
 load the operator's `~/.claude/CLAUDE.md`, and a declared `CLAUDE.md` is framed
@@ -1004,13 +1005,21 @@ list never named, which is why such a session is
 [confined](#signal-confinement). Each attempt record's `setup` field names what
 the session ran with: settings key names and a digest, MCP server names and a
 digest of their configuration, plugin names, and hook event names. Every
-attempt, an isolated one included, asks Claude Code for its verbose JSON output,
-and `setup.loaded` names the MCP servers, with the status each reached, and the
-plugins the session's init event reported it loaded. Those names come from the
-session rather than from files, so a server that failed to connect or a plugin
-the files never named shows there. The setup record holds no setting value, no
-plugin path and no server configuration. Whether claude.ai connectors appear in
-`setup.loaded` is unobserved, since the machine this was built on disables them.
+attempt, an isolated one included, asks Claude Code for its message stream
+(`--output-format stream-json --verbose`), and `setup.loaded` names the MCP
+servers, with the status each reported where it reported one, and the plugins
+the session's init event reported it loaded. Those names come from the session
+rather than from files, so a server that failed to connect or a plugin the files
+never named shows there, and a session cut off before its result still names
+them. A status reflects timing, so the same setup can record a server as
+pending in one attempt and connected in another. `setup.loaded` is missing when
+the output held no init event. The setup record holds no setting value, no
+plugin path and no server configuration. The copied `transcript.jsonl` does:
+Claude Code writes each hook it runs into the transcript with its command and
+output, and the copy keeps them. Whether claude.ai connectors appear in an
+actual-setup attempt's `setup.loaded` is unobserved: the machine it was built
+on disables them (Claude Code 2.1.312, 2026-10-30). An isolated attempt runs
+with `--strict-mcp-config`, which shuts out every MCP server it never declared.
 
 A case that declares `"isolated": true` runs with the project settings source
 alone, so the operator's permission defaults do not reach the session. Such a

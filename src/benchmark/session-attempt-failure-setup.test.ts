@@ -14,51 +14,59 @@ import {
 
 resources.registerCleanup();
 
+const INIT = JSON.stringify({
+	cwd: "/home/user/INIT_VALUE",
+	mcp_servers: [{ name: "linear", status: "failed" }],
+	plugins: [{ name: "compaction-judge", path: "/home/user/INIT_VALUE" }],
+	subtype: "init",
+	type: "system",
+});
+
+const ASSISTANT = JSON.stringify({
+	message: { content: [{ text: "TRANSCRIPT_TEXT", type: "text" }] },
+	type: "assistant",
+});
+
 function haltedSessionOutput(sessionId: string): string {
-	return JSON.stringify([
-		{
-			mcp_servers: [{ name: "linear", status: "failed" }],
-			plugins: [{ name: "compaction-judge", path: "/home/user/cj" }],
-			subtype: "init",
-			type: "system",
-		},
-		{
-			message: { content: [{ text: "TRANSCRIPT_TEXT", type: "text" }] },
-			type: "assistant",
-		},
-		{
-			is_error: true,
-			result: "session exhausted its budget",
-			session_id: sessionId,
-			total_cost_usd: 0.0012,
-			type: "result",
-		},
-	]);
+	const result = JSON.stringify({
+		is_error: true,
+		result: "session exhausted its budget",
+		session_id: sessionId,
+		total_cost_usd: 0.0012,
+		type: "result",
+	});
+
+	return [INIT, ASSISTANT, result].join("\n");
 }
 
-function haltedCommandRequest(
+function failedCommandRequest(
 	projects: string,
 	records: string,
+	stdout: (sessionId: string) => string,
 ): ReturnType<typeof request> {
 	return request({
 		projectsDirectory: projects,
 		recordDirectory: records,
 		runClaude: (command) => {
-			const halted = haltedSessionOutput(namedSession(command));
 			throw new CommandError(command, {
 				exitCode: 1,
 				stderr: "",
-				stdout: halted,
+				stdout: stdout(namedSession(command)),
 			});
 		},
 	});
 }
 
-async function recordsWhatAFailedSessionReportedLoading(): Promise<void> {
-	const attemptRequest = haltedCommandRequest(
+async function haltedCommandRequest(): Promise<ReturnType<typeof request>> {
+	return failedCommandRequest(
 		await projectsRoot(),
 		await recordDirectory(),
+		haltedSessionOutput,
 	);
+}
+
+async function recordsWhatAFailedSessionReportedLoading(): Promise<void> {
+	const attemptRequest = await haltedCommandRequest();
 
 	const failure = await failureOf(runSessionAttempt(attemptRequest));
 
@@ -75,15 +83,37 @@ async function recordsWhatAFailedSessionReportedLoading(): Promise<void> {
 }
 
 async function namesAFailedSessionSFailureWithoutItsTranscriptMessages(): Promise<void> {
-	const attemptRequest = haltedCommandRequest(
-		await projectsRoot(),
-		await recordDirectory(),
-	);
+	const attemptRequest = await haltedCommandRequest();
 
 	const failure = await failureOf(runSessionAttempt(attemptRequest));
 
 	expect(failure.message).toBe("session exhausted its budget (spent $0.0012)");
 	expect(JSON.stringify(failure)).not.toContain("TRANSCRIPT_TEXT");
+}
+
+async function namesASessionCutOffBeforeItsResultWithoutItsMessages(): Promise<void> {
+	const attemptRequest = failedCommandRequest(
+		await projectsRoot(),
+		await recordDirectory(),
+		() => [INIT, ASSISTANT].join("\n"),
+	);
+
+	const failure = await failureOf(runSessionAttempt(attemptRequest));
+
+	expect(failure.message).not.toContain("INIT_VALUE");
+	expect(failure.message).not.toContain("TRANSCRIPT_TEXT");
+}
+
+async function keepsAFailedCommandSPlainTextOutputInItsMessage(): Promise<void> {
+	const attemptRequest = failedCommandRequest(
+		await projectsRoot(),
+		await recordDirectory(),
+		() => "Error: Invalid API key",
+	);
+
+	const failure = await failureOf(runSessionAttempt(attemptRequest));
+
+	expect(failure.message).toContain("Error: Invalid API key");
 }
 
 describe(runSessionAttempt.name, () => {
@@ -94,5 +124,13 @@ describe(runSessionAttempt.name, () => {
 	it(
 		"names a failed session's failure without its transcript messages",
 		namesAFailedSessionSFailureWithoutItsTranscriptMessages,
+	);
+	it(
+		"names a session cut off before its result without its messages",
+		namesASessionCutOffBeforeItsResultWithoutItsMessages,
+	);
+	it(
+		"keeps a failed command's plain-text output in its message",
+		keepsAFailedCommandSPlainTextOutputInItsMessage,
 	);
 });

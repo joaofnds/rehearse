@@ -87,19 +87,20 @@ function excludesTheOperatorSOwnSettingsWithSettingSourcesProject(): void {
 	expect(valueAfter(flags, "--setting-sources")).toBe("project");
 }
 
-function carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget(): void {
+function carriesTheSessionKnobsTheMessageStreamAndTheBudget(): void {
 	const flags = sessionCaseArgs(sessionCase(), sessionCaseOptions());
 
 	expect(valueAfter(flags, "--model")).toBe("haiku");
 	expect(valueAfter(flags, "--effort")).toBe("low");
 	expect(valueAfter(flags, "--max-budget-usd")).toBe("0.2");
-	expect(valueAfter(flags, "--output-format")).toBe("json");
+	expect(valueAfter(flags, "--output-format")).toBe("stream-json");
+	expect(flags).toContain("--verbose");
 }
 
 function asksForEveryMessageSoTheInitEventReachesTheRecord(): void {
 	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
 
-	expect(valueAfter(flags, "--output-format")).toBe("json");
+	expect(valueAfter(flags, "--output-format")).toBe("stream-json");
 	expect(flags).toContain("--verbose");
 }
 
@@ -217,8 +218,8 @@ function describeWhenTheCaseDeclaresIsolation(): void {
 		excludesTheOperatorSOwnSettingsWithSettingSourcesProject,
 	);
 	it(
-		"carries the session knobs, the JSON envelope, and the budget",
-		carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget,
+		"carries the session knobs, the message stream, and the budget",
+		carriesTheSessionKnobsTheMessageStreamAndTheBudget,
 	);
 }
 

@@ -140,8 +140,8 @@ sample size appropriate to the result's variability.
 
 Session confirmation writes every declared corpus file, skills and `CLAUDE.md`
 included, under the attempt's own `.claude/`, and a declared skill brings its
-whole directory. The session runs with the project and local settings sources
-and never the user source, so a declared
+whole directory. The session runs with the project settings source, the local
+one too unless the case declares isolation, and never the user source, so a declared
 skill is the copy it runs, whether the model or a slash command invokes it, even
 when `~/.claude/skills` holds a skill of the same name. A declared `CLAUDE.md`
 is framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
