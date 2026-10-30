@@ -93,16 +93,19 @@ async function showsAnArmAsMixedWhenItsGroupsInheritedDifferently(
 
 	expect(notices).toEqual([
 		"case case-2 arm control is mixed: its records inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL",
+		"case case-2 arms baseline and control inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values)",
+		"case case-2 arms candidate and control inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values)",
 	]);
 }
 
-async function showsAnArmAsMixedWhenAnOlderGroupPredatesRecordingIt(
+async function namesWhatArmsExtendedOverOlderGroupsInheritedDifferently(
 	stageFixture: ComparisonEvidenceFixture,
 ): Promise<void> {
 	await extendEveryComparisonArm(stageFixture);
 	await forgetEveryGroupConfiguration(stageFixture);
 	await recordEveryGroup(stageFixture, {
-		configurationOf: () => GATEWAY_A,
+		configurationOf: (caseId, role) =>
+			caseId === "case-1" && role === "candidate" ? GATEWAY_B : GATEWAY_A,
 		suffix: "-more",
 	});
 
@@ -111,14 +114,16 @@ async function showsAnArmAsMixedWhenAnOlderGroupPredatesRecordingIt(
 		runsDirectory,
 	);
 
-	expect(notices).toEqual(
-		["case-1", "case-2"].flatMap((caseId) =>
-			["baseline", "candidate", "control"].map(
-				(arm) =>
-					`case ${caseId} arm ${arm} is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them`,
-			),
-		),
-	);
+	expect(notices).toEqual([
+		"case case-1 arm baseline is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+		"case case-1 arm candidate is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+		"case case-1 arm control is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+		"case case-1 arms candidate and baseline inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values)",
+		"case case-1 arms candidate and control inherited different Claude Code configuration from the shell that started them: ANTHROPIC_BASE_URL (different values)",
+		"case case-2 arm baseline is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+		"case case-2 arm candidate is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+		"case case-2 arm control is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them",
+	]);
 }
 
 describe("a stage comparison", () => {
@@ -138,7 +143,7 @@ describe("a stage comparison", () => {
 		await showsAnArmAsMixedWhenItsGroupsInheritedDifferently(fixture);
 	});
 
-	it("shows an arm as mixed when it extends a group that predates recording what it inherited", async () => {
-		await showsAnArmAsMixedWhenAnOlderGroupPredatesRecordingIt(fixture);
+	it("names what arms extended over groups that predate recording it inherited differently", async () => {
+		await namesWhatArmsExtendedOverOlderGroupsInheritedDifferently(fixture);
 	});
 });

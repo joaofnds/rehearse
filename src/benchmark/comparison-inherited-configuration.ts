@@ -4,7 +4,9 @@ import type { InheritedVariable } from "./session-record-context-schema";
 
 const NONE = 0;
 
-const ONE_CONFIGURATION = 1;
+const ONE_VALUE = 1;
+
+const ABSENT = "absent";
 
 /** What one record says its session inherited, undefined when it predates recording it. */
 type RecordedConfiguration = Immutable<InheritedVariable[]> | undefined;
@@ -31,17 +33,11 @@ type InheritedConfigurationFinding =
 			readonly variables: readonly DifferingVariable[];
 	  };
 
-type ArmConfiguration =
-	| {
-			readonly state: "recorded";
-			readonly variables: Immutable<InheritedVariable[]>;
-	  }
-	| { readonly state: "unrecorded" }
-	| {
-			readonly state: "mixed";
-			readonly names: readonly string[];
-			readonly unrecorded: boolean;
-	  };
+/** An arm's distinct recorded configurations, and whether some of its records predate recording it. */
+interface ArmConfiguration {
+	readonly configurations: readonly Immutable<InheritedVariable[]>[];
+	readonly unrecorded: boolean;
+}
 
 /** Contrast order: each pair's first arm is the one its contrast subtracts from. */
 const ARM_PAIRS: readonly (readonly [ComparisonArm, ComparisonArm])[] = [
@@ -58,73 +54,125 @@ function digests(
 	return new Map(variables.map(({ name, sha256 }) => [name, sha256]));
 }
 
-function namesThatDiffer(
-	configurations: readonly Immutable<InheritedVariable[]>[],
+/** What one configuration says of a name: absent, inherited by name alone, or its digest. */
+function valueOf(
+	configuration: ReadonlyMap<string, string | undefined>,
+	name: string,
+): string {
+	if (!configuration.has(name)) {
+		return ABSENT;
+	}
+
+	return `inherited:${configuration.get(name) ?? ""}`;
+}
+
+function valuesOf(
+	configurations: readonly ReadonlyMap<string, string | undefined>[],
+	name: string,
+): ReadonlySet<string> {
+	return new Set(
+		configurations.map((configuration) => valueOf(configuration, name)),
+	);
+}
+
+function sameValues(
+	left: ReadonlySet<string>,
+	right: ReadonlySet<string>,
+): boolean {
+	return (
+		left.size === right.size && [...left].every((value) => right.has(value))
+	);
+}
+
+function onlyAbsent(values: ReadonlySet<string>): boolean {
+	return values.size === ONE_VALUE && values.has(ABSENT);
+}
+
+function namesIn(
+	configurations: readonly ReadonlyMap<string, string | undefined>[],
 ): readonly string[] {
-	const maps = configurations.map((variables) => digests(variables));
-	const names = new Set(maps.flatMap((map) => [...map.keys()]));
+	return [
+		...new Set(
+			configurations.flatMap((configuration) => [...configuration.keys()]),
+		),
+	].toSorted();
+}
 
-	return [...names]
-		.filter((name) => {
-			const [first, ...rest] = maps;
+function namesThatDiffer(
+	configurations: readonly ReadonlyMap<string, string | undefined>[],
+): readonly string[] {
+	return namesIn(configurations).filter(
+		(name) => valuesOf(configurations, name).size > ONE_VALUE,
+	);
+}
 
-			return rest.some(
-				(map) =>
-					map.has(name) !== first?.has(name) ||
-					map.get(name) !== first.get(name),
-			);
-		})
-		.toSorted();
+function canonical(variables: Immutable<InheritedVariable[]>): string {
+	return JSON.stringify(
+		[...digests(variables)].toSorted(([left], [right]) =>
+			left.localeCompare(right),
+		),
+	);
 }
 
 function armConfiguration(
 	records: readonly RecordedConfiguration[],
 ): ArmConfiguration {
 	const recorded = records.filter((record) => record !== undefined);
-	const unrecorded = recorded.length < records.length;
-	const distinct = new Set(records.map((record) => JSON.stringify(record)));
-	const [variables] = recorded;
-	if (distinct.size > ONE_CONFIGURATION) {
-		return { names: namesThatDiffer(recorded), state: "mixed", unrecorded };
-	}
-	if (variables === undefined) {
-		return { state: "unrecorded" };
-	}
+	const distinct = new Map(
+		recorded.map((variables) => [canonical(variables), variables]),
+	);
 
-	return { state: "recorded", variables };
+	return {
+		configurations: [...distinct.values()],
+		unrecorded: recorded.length < records.length,
+	};
 }
 
-function differingVariables(
-	[left, right]: readonly [ComparisonArm, ComparisonArm],
-	leftVariables: Immutable<InheritedVariable[]>,
-	rightVariables: Immutable<InheritedVariable[]>,
-): readonly DifferingVariable[] {
-	const leftDigests = digests(leftVariables);
-	const rightDigests = digests(rightVariables);
+function mixedFinding(
+	arm: ComparisonArm,
+	{ configurations, unrecorded }: ArmConfiguration,
+): readonly InheritedConfigurationFinding[] {
+	const names = namesThatDiffer(
+		configurations.map((variables) => digests(variables)),
+	);
+	const isMixed =
+		names.length > NONE || (unrecorded && configurations.length > NONE);
 
-	return namesThatDiffer([leftVariables, rightVariables]).map((name) => {
-		if (!rightDigests.has(name)) {
-			return { arm: left, kind: "only", name };
-		}
-		if (!leftDigests.has(name)) {
-			return { arm: right, kind: "only", name };
-		}
-
-		return { kind: "value", name };
-	});
+	return isMixed ? [{ arm, kind: "mixed", names, unrecorded }] : [];
 }
 
+/** Compares every configuration each arm recorded, so an arm mixed with older records still shows what differs. */
 function pairFinding(
 	pair: readonly [ComparisonArm, ComparisonArm],
 	arms: Readonly<Record<ComparisonArm, ArmConfiguration>>,
 ): readonly InheritedConfigurationFinding[] {
 	const [leftArm, rightArm] = pair;
-	const left = arms[leftArm];
-	const right = arms[rightArm];
-	if (left.state !== "recorded" || right.state !== "recorded") {
+	const left = arms[leftArm].configurations.map((variables) =>
+		digests(variables),
+	);
+	const right = arms[rightArm].configurations.map((variables) =>
+		digests(variables),
+	);
+	if (left.length === NONE || right.length === NONE) {
 		return [];
 	}
-	const variables = differingVariables(pair, left.variables, right.variables);
+	const variables = namesIn([...left, ...right]).flatMap(
+		(name): DifferingVariable[] => {
+			const leftValues = valuesOf(left, name);
+			const rightValues = valuesOf(right, name);
+			if (sameValues(leftValues, rightValues)) {
+				return [];
+			}
+			if (onlyAbsent(rightValues)) {
+				return [{ arm: leftArm, kind: "only", name }];
+			}
+			if (onlyAbsent(leftValues)) {
+				return [{ arm: rightArm, kind: "only", name }];
+			}
+
+			return [{ kind: "value", name }];
+		},
+	);
 
 	return variables.length === NONE
 		? []
@@ -144,21 +192,10 @@ function inheritedConfigurationFindings(
 		candidate: armConfiguration(records.candidate),
 		control: armConfiguration(records.control),
 	};
-	const unrecorded = ARMS.filter((arm) => arms[arm].state === "unrecorded");
-	const mixed = ARMS.flatMap((arm): InheritedConfigurationFinding[] => {
-		const configuration = arms[arm];
-
-		return configuration.state === "mixed"
-			? [
-					{
-						arm,
-						kind: "mixed",
-						names: configuration.names,
-						unrecorded: configuration.unrecorded,
-					},
-				]
-			: [];
-	});
+	const unrecorded = ARMS.filter(
+		(arm) => arms[arm].configurations.length === NONE,
+	);
+	const mixed = ARMS.flatMap((arm) => mixedFinding(arm, arms[arm]));
 
 	return [
 		...(unrecorded.length === NONE

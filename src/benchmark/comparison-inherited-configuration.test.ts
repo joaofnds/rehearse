@@ -84,6 +84,22 @@ function showsAnArmAsMixedWhenItsGroupsInheritedDifferentConfiguration(): void {
 			names: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"],
 			unrecorded: false,
 		},
+		{
+			arms: ["candidate", "baseline"],
+			kind: "differs",
+			variables: [
+				{ arm: "candidate", kind: "only", name: "ANTHROPIC_API_KEY" },
+				{ kind: "value", name: "ANTHROPIC_BASE_URL" },
+			],
+		},
+		{
+			arms: ["candidate", "control"],
+			kind: "differs",
+			variables: [
+				{ arm: "candidate", kind: "only", name: "ANTHROPIC_API_KEY" },
+				{ kind: "value", name: "ANTHROPIC_BASE_URL" },
+			],
+		},
 	]);
 }
 
@@ -95,6 +111,99 @@ function showsAnArmAsMixedWhenOnlySomeOfItsGroupsRecordedIt(): void {
 			control: [[BASE_URL_A]],
 		}),
 	).toEqual([{ arm: "baseline", kind: "mixed", names: [], unrecorded: true }]);
+}
+
+function namesWhatAMixedArmInheritedDifferentlyFromTheOtherArms(): void {
+	const findings = inheritedConfigurationFindings({
+		baseline: [undefined, [BASE_URL_A]],
+		candidate: [undefined, [BASE_URL_B]],
+		control: [undefined, [BASE_URL_A]],
+	});
+
+	expect(findings).toEqual([
+		{ arm: "baseline", kind: "mixed", names: [], unrecorded: true },
+		{ arm: "candidate", kind: "mixed", names: [], unrecorded: true },
+		{ arm: "control", kind: "mixed", names: [], unrecorded: true },
+		{
+			arms: ["candidate", "baseline"],
+			kind: "differs",
+			variables: [{ kind: "value", name: "ANTHROPIC_BASE_URL" }],
+		},
+		{
+			arms: ["candidate", "control"],
+			kind: "differs",
+			variables: [{ kind: "value", name: "ANTHROPIC_BASE_URL" }],
+		},
+	]);
+}
+
+function readsRecordsListingTheSameVariablesInAnotherOrderAsAlike(): void {
+	expect(
+		inheritedConfigurationFindings({
+			baseline: [
+				[BASE_URL_A, API_KEY],
+				[API_KEY, BASE_URL_A],
+			],
+			candidate: [[BASE_URL_A, API_KEY]],
+			control: [[API_KEY, BASE_URL_A]],
+		}),
+	).toEqual([]);
+}
+
+function namesWhatAMixedArmsRecordsDisagreeOnBesideTheOnesThatPredateIt(): void {
+	const findings = inheritedConfigurationFindings({
+		baseline: [[BASE_URL_A], [BASE_URL_B], undefined],
+		candidate: [[BASE_URL_A]],
+		control: [[BASE_URL_A]],
+	});
+
+	expect(findings).toEqual([
+		{
+			arm: "baseline",
+			kind: "mixed",
+			names: ["ANTHROPIC_BASE_URL"],
+			unrecorded: true,
+		},
+		{
+			arms: ["candidate", "baseline"],
+			kind: "differs",
+			variables: [{ kind: "value", name: "ANTHROPIC_BASE_URL" }],
+		},
+		{
+			arms: ["baseline", "control"],
+			kind: "differs",
+			variables: [{ kind: "value", name: "ANTHROPIC_BASE_URL" }],
+		},
+	]);
+}
+
+function findsNoDifferenceBetweenArmsMixedTheSameWay(): void {
+	expect(
+		inheritedConfigurationFindings({
+			baseline: [[BASE_URL_A], [BASE_URL_B]],
+			candidate: [[BASE_URL_B], [BASE_URL_A]],
+			control: [[BASE_URL_A], [BASE_URL_B]],
+		}),
+	).toEqual([
+		{
+			arm: "baseline",
+			kind: "mixed",
+			names: ["ANTHROPIC_BASE_URL"],
+			unrecorded: false,
+		},
+		{
+			arm: "candidate",
+			kind: "mixed",
+			names: ["ANTHROPIC_BASE_URL"],
+			unrecorded: false,
+		},
+		{
+			arm: "control",
+			kind: "mixed",
+			names: ["ANTHROPIC_BASE_URL"],
+			unrecorded: false,
+		},
+	]);
 }
 
 describe(inheritedConfigurationFindings.name, () => {
@@ -121,5 +230,25 @@ describe(inheritedConfigurationFindings.name, () => {
 	it(
 		"shows an arm as mixed when only some of its groups recorded what they inherited",
 		showsAnArmAsMixedWhenOnlySomeOfItsGroupsRecordedIt,
+	);
+
+	it(
+		"names what a mixed arm inherited differently from the other arms",
+		namesWhatAMixedArmInheritedDifferentlyFromTheOtherArms,
+	);
+
+	it(
+		"reads records listing the same variables in another order as alike",
+		readsRecordsListingTheSameVariablesInAnotherOrderAsAlike,
+	);
+
+	it(
+		"names what a mixed arm's records disagree on beside the ones that predate it",
+		namesWhatAMixedArmsRecordsDisagreeOnBesideTheOnesThatPredateIt,
+	);
+
+	it(
+		"finds no difference between arms mixed the same way",
+		findsNoDifferenceBetweenArmsMixedTheSameWay,
 	);
 });
