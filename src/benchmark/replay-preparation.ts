@@ -4,6 +4,7 @@ import {
 	stageCorpusRoots,
 } from "./checkpoint";
 import type { Immutable } from "./contracts";
+import type { CorpusRoot } from "./corpus-file";
 import type { ReplayExecutionContext } from "./replay-contract";
 import { currentChainCorpus, readPriorArtifacts } from "./replay-corpus";
 import { createSpendCeiling } from "./spend-ceiling";
@@ -41,31 +42,32 @@ class ReplayPreparation {
 			this.#context.lifetime.worktreeDir,
 			this.#context.inputs.plan.priorArtifacts,
 		);
-		const staleness = await this.staleness(restored.corpusRoots);
+		const { source, ...installed } = restored;
+		const staleness = await this.staleness(installed.corpusRoots, source);
 		const session = await this.session();
 
-		return { ...restored, ...session, environment, priorArtifacts, staleness };
+		return { ...installed, ...session, environment, priorArtifacts, staleness };
 	}
+	/** Restores the checkpoint and installs the corpus the stage reads. */
 	private async restore(): Promise<
-		Pick<PreparedReplayStage, "corpusRoots" | "baselineSha">
+		Pick<PreparedReplayStage, "corpusRoots" | "baselineSha"> & {
+			readonly source: CorpusRoot;
+		}
 	> {
 		const {
 			dependencies,
 			request,
 			inputs: { plan },
-			lifetime: { worktreeDir, corpusDirectory },
+			lifetime: { worktreeDir },
 		} = this.#context;
 		await dependencies.materializeCheckpoint(
 			request.paths.checkpointDirectory(plan.consumed.stage),
 			worktreeDir,
 		);
-		let source = request.corpusSource;
+		const source = await this.frozenSource();
 		if (source.kind === "directory") {
-			// The source stays editable during setup and the session.
-			await freezeStageSnapshot(source.root, corpusDirectory);
-			source = { kind: "directory", root: corpusDirectory };
 			await dependencies.installCorpusDirectory(
-				corpusDirectory,
+				source.root,
 				worktreeDir,
 				await dependencies.liveCitations(),
 			);
@@ -73,7 +75,23 @@ class ReplayPreparation {
 		const corpusRoots = stageCorpusRoots(source, worktreeDir);
 		const baselineSha = await dependencies.currentSha(worktreeDir);
 
-		return { baselineSha, corpusRoots };
+		return { baselineSha, corpusRoots, source };
+	}
+	/**
+	 * A corpus directory stays editable while the replay sets up and runs, so
+	 * the replay installs and judges a copy taken before setup.
+	 */
+	private async frozenSource(): Promise<CorpusRoot> {
+		const {
+			request: { corpusSource },
+			lifetime: { corpusDirectory },
+		} = this.#context;
+		if (corpusSource.kind !== "directory") {
+			return corpusSource;
+		}
+		await freezeStageSnapshot(corpusSource.root, corpusDirectory);
+
+		return { kind: "directory", root: corpusDirectory };
 	}
 	private async startServices(): Promise<ServiceEnvironment> {
 		const {
@@ -98,6 +116,7 @@ class ReplayPreparation {
 	}
 	private async staleness(
 		corpusRoots: PreparedReplayStage["corpusRoots"],
+		source: CorpusRoot,
 	): Promise<PreparedReplayStage["staleness"]> {
 		const {
 			dependencies,
@@ -111,7 +130,7 @@ class ReplayPreparation {
 				{
 					instructions: request.instructions,
 					roots: corpusRoots,
-					source: request.corpusSource,
+					source,
 				},
 				dependencies.stageSession.captureStageCorpus,
 			),

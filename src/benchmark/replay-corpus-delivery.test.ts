@@ -145,7 +145,51 @@ async function hashesTheSourceAsItWasInstalled(): Promise<void> {
 	expect(outcome.record.corpusFiles).toEqual(expected);
 }
 
+/** A file the upstream stage loaded beyond its corpus is judged from the copy too. */
+async function judgesStalenessFromTheSourceAsItWasInstalled(): Promise<void> {
+	const { source, instructions } = await new ReplayCorpusVariantBuilder().build(
+		testResources,
+	);
+	await Bun.write(join(source.root, "skills/shape/SKILL.md"), "shape");
+	const run = await new ReplaySavedRunBuilder({
+		discussCorpus: await captureStageCorpus("discuss", instructions, [source]),
+		discussReads: [
+			{
+				evidence: "observed",
+				half: "corpus",
+				path: "skills/shape/SKILL.md",
+				role: "read for context",
+				sha256: new Bun.CryptoHasher("sha256").update("shape").digest("hex"),
+			},
+		],
+	}).build(testResources);
+	const fake = new ReplayConfirmationHarness();
+
+	const outcome = await runReplay(
+		{
+			...fake.dependencies,
+			runSetup: async (targetDir, setup, log) => {
+				await Bun.write(join(source.root, "skills/shape/SKILL.md"), "edited");
+				await fake.dependencies.runSetup(targetDir, setup, log);
+			},
+			stageSession: { ...fake.dependencies.stageSession, captureStageCorpus },
+		},
+		{
+			...new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
+			corpusSource: source,
+			instructions,
+		},
+	);
+
+	expect(outcome.record.staleness).toEqual([]);
+}
+
 describe(runReplay.name, () => {
+	it(
+		"judges staleness from the source as it was installed",
+		judgesStalenessFromTheSourceAsItWasInstalled,
+	);
+
 	it("hashes the source as it was installed", hashesTheSourceAsItWasInstalled);
 
 	it(
