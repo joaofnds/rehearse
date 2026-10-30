@@ -160,6 +160,24 @@ async function namesThePluginsTheSettingsPluginVariableLoads(): Promise<void> {
 	expect(record.plugins).toEqual(["env-plugin"]);
 }
 
+async function namesAPluginTheSettingsPluginVariableNamesFromHome(): Promise<void> {
+	await writeJson(
+		join(home, "mods", "home-plugin", ".claude-plugin", "plugin.json"),
+		{ name: "home-plugin" },
+	);
+	await writeJson(join(home, ".claude", "settings.json"), {
+		env: { CLAUDE_CODE_PLUGIN_DIRS: "~/mods/home-plugin" },
+	});
+
+	const { record } = await prepareActualSetup({
+		declared: {},
+		directory: setupDirectory,
+		home,
+	});
+
+	expect(record.plugins).toEqual(["home-plugin"]);
+}
+
 async function skipsAPluginWhoseManifestIsMalformed(): Promise<void> {
 	const plugin = join(home, "mods", "broken-plugin");
 	await mkdir(join(plugin, ".claude-plugin"), { recursive: true });
@@ -213,14 +231,20 @@ describe(prepareActualSetup.name, () => {
 		"passes no MCP configuration when the user file declares no servers",
 		passesNoMCPConfigurationWhenTheUserFileDeclaresNoServers,
 	);
-	it(
-		"names the plugins the settings plugin variable loads",
-		namesThePluginsTheSettingsPluginVariableLoads,
-	);
-	it(
-		"skips a plugin whose manifest is malformed",
-		skipsAPluginWhoseManifestIsMalformed,
-	);
+	describe("when the settings plugin variable names plugins", () => {
+		it(
+			"names the plugins it loads",
+			namesThePluginsTheSettingsPluginVariableLoads,
+		);
+		it(
+			"names a plugin it names from home",
+			namesAPluginTheSettingsPluginVariableNamesFromHome,
+		);
+		it(
+			"skips a plugin whose manifest is malformed",
+			skipsAPluginWhoseManifestIsMalformed,
+		);
+	});
 	describe("when the user has no setup", () => {
 		it(
 			"runs with the declared keys alone",

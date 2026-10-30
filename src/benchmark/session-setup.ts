@@ -211,6 +211,7 @@ async function prepareActualSetup({
 	const settings = mergedSettings(user.settings, declared);
 	const settingsEnvPlugins = await pluginNamesInDirectoryList(
 		objectAt(settings["env"])[PLUGIN_DIRECTORIES_VARIABLE],
+		home,
 	);
 	const settingsText = JSON.stringify(settings);
 	const settingsFile = join(directory, "settings.json");

@@ -78,16 +78,25 @@ async function pluginNamesUnder(directory: string): Promise<string[]> {
 	return names.flat();
 }
 
-/** The plugins named by a `CLAUDE_CODE_PLUGIN_DIRS` value, which is a path list. */
+const HOME_PREFIX = /^~(?=\/|$)/u;
+
+/**
+ * The plugins named by a `CLAUDE_CODE_PLUGIN_DIRS` value, which is a path list
+ * whose `~` Claude Code reads as the user's home.
+ */
 async function pluginNamesInDirectoryList(
 	directoryList: Immutable<JsonValue> | undefined,
+	home: string,
 ): Promise<string[]> {
 	const list = z.string().safeParse(directoryList);
 	if (!list.success) {
 		return [];
 	}
 
-	const plugins = list.data.split(delimiter).filter((plugin) => plugin !== "");
+	const plugins = list.data
+		.split(delimiter)
+		.filter((plugin) => plugin !== "")
+		.map((plugin) => plugin.replace(HOME_PREFIX, home));
 	const names = await Promise.all(
 		plugins.map(async (plugin) => await pluginName(plugin)),
 	);
