@@ -19,8 +19,8 @@ interface StageLiveReadsRequest {
 /**
  * The live reads a stage session and its sub-agents made of files the stage's
  * install held, read from the provider's own transcripts once the stage ends.
- * Without a transcript to read nothing is known, which differs from a
- * session that made no live read, so there is no list.
+ * Without a transcript to read, or with none at its path, nothing is known,
+ * which differs from a session that made no live read, so there is no list.
  */
 async function stageLiveReads(
 	request: StageLiveReadsRequest,
@@ -29,6 +29,9 @@ async function stageLiveReads(
 		return undefined;
 	}
 	const main = stageTranscriptFile(request.targetDir, request.transcript);
+	if (!(await Bun.file(main).exists())) {
+		return undefined;
+	}
 	const subagents = await recordedSubagents(providerSessionDirectory(main));
 	const uses = [
 		...toolUses(await parseTranscriptFile(main)),

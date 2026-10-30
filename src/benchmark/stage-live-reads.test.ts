@@ -68,6 +68,22 @@ async function readsNothingWithoutATranscript(): Promise<void> {
 	).toBeUndefined();
 }
 
+async function readsNothingWhenTheTranscriptIsMissing(): Promise<void> {
+	const root = await resources.createControlDirectory();
+
+	expect(
+		await stageLiveReads({
+			citations,
+			held: ["rulebook/ownership.md"],
+			targetDir: join(root, "target"),
+			transcript: {
+				projectsDirectory: join(root, "projects"),
+				sessionId: SESSION_ID,
+			},
+		}),
+	).toBeUndefined();
+}
+
 describe(stageLiveReads.name, () => {
 	it(
 		"counts live reads in the stage session and its sub-agents",
@@ -75,4 +91,9 @@ describe(stageLiveReads.name, () => {
 	);
 
 	it("reads nothing without a transcript", readsNothingWithoutATranscript);
+
+	it(
+		"reads nothing when the transcript is missing",
+		readsNothingWhenTheTranscriptIsMissing,
+	);
 });
