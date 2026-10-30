@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
-import { captureStageCorpus, installStageCorpusSnapshot } from "./checkpoint";
+import { captureStageCorpus, installCorpusDirectory } from "./checkpoint";
 import {
 	noCitations,
 	rewriteInstalledSkill,
@@ -32,11 +32,8 @@ async function replaysAgainstTheAuthoredCorpusNotTheDeliveredInstall(): Promise<
 	const outcome = await runReplay(
 		{
 			...fake.dependencies,
-			installStageCorpusSnapshot: async (
-				snapshotDirectory,
-				targetDirectory,
-			) => {
-				const delivery = await installStageCorpusSnapshot(
+			installCorpusDirectory: async (snapshotDirectory, targetDirectory) => {
+				const delivery = await installCorpusDirectory(
 					snapshotDirectory,
 					targetDirectory,
 					noCitations,
@@ -58,14 +55,25 @@ async function replaysAgainstTheAuthoredCorpusNotTheDeliveredInstall(): Promise<
 	expect(outcome.record.staleness).toEqual([]);
 }
 
-/** The stage session keeps the skill text it found installed. */
+const ruleAndSkillCitations = {
+	home: "/home/user",
+	roots: [
+		{ layoutPath: "rulebook", path: "/home/user/.agents/rulebook" },
+		{ layoutPath: "skills", path: "/home/user/.agents/skills" },
+	],
+};
+
+/**
+ * A replay installs the whole directory, so a skill the directory lacks is
+ * missing in the session rather than read from the live install.
+ */
 async function deliversTheSourcesCitationsToTheReplayInstall(): Promise<void> {
 	const { source, instructions } = await new ReplayCorpusVariantBuilder().build(
 		testResources,
 	);
 	await Bun.write(
 		join(source.root, "skills/build/SKILL.md"),
-		"Follow /home/user/.agents/rulebook/ownership.md.\n",
+		"Follow /home/user/.agents/rulebook/ownership.md and /home/user/.agents/skills/gone/SKILL.md.\n",
 	);
 	await Bun.write(join(source.root, "rulebook/ownership.md"), "rule\n");
 	const run = await new ReplaySavedRunBuilder({
@@ -77,14 +85,8 @@ async function deliversTheSourcesCitationsToTheReplayInstall(): Promise<void> {
 	await runReplay(
 		{
 			...fake.dependencies,
-			installStageCorpusSnapshot,
-			liveCitations: async () =>
-				await Promise.resolve({
-					home: "/home/user",
-					roots: [
-						{ layoutPath: "rulebook", path: "/home/user/.agents/rulebook" },
-					],
-				}),
+			installCorpusDirectory,
+			liveCitations: async () => await Promise.resolve(ruleAndSkillCitations),
 			stageSession: {
 				...fake.dependencies.stageSession,
 				runWorkflowStage: async (request) => {
@@ -105,7 +107,9 @@ async function deliversTheSourcesCitationsToTheReplayInstall(): Promise<void> {
 		},
 	);
 
-	expect(installed).toEqual(["Follow .claude/rulebook/ownership.md.\n"]);
+	expect(installed).toEqual([
+		"Follow .claude/rulebook/ownership.md and .claude/skills/gone/SKILL.md.\n",
+	]);
 }
 
 /**
@@ -145,7 +149,7 @@ describe(runReplay.name, () => {
 	it("hashes the source as it was installed", hashesTheSourceAsItWasInstalled);
 
 	it(
-		"delivers the source's citations to the replay install",
+		"delivers the source's citations, absent skills included, to the replay install",
 		deliversTheSourcesCitationsToTheReplayInstall,
 	);
 

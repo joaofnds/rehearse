@@ -1,4 +1,5 @@
 import {
+	installCorpusDirectory,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
@@ -38,6 +39,7 @@ class PipelineConfirmationWorkspaceRuntime implements PipelineConfirmationWorksp
 	public readonly captureBaselineContext = captureBaselineContext;
 	public readonly captureBuildCandidate = captureBuildCandidate;
 	public readonly captureFileHashes = captureFileHashes;
+	public readonly installCorpusDirectory = installCorpusDirectory;
 	public readonly installStageCorpusSnapshot = installStageCorpusSnapshot;
 	public readonly liveCitations = userCitationMap;
 	public readonly log: PipelineConfirmationWorkspace["log"];

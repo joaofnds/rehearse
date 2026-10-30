@@ -1,5 +1,6 @@
 import type {
 	HomePathCitationMap,
+	installCorpusDirectory,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 } from "./checkpoint";
@@ -47,6 +48,8 @@ interface ReplayDependencies {
 	/** The services one replay, or one attempt of a replay confirmation, starts and stops. */
 	readonly services: (owner: ContainerOwner) => TargetServices;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	/** Installs the corpus directory a plain replay runs against. */
+	readonly installCorpusDirectory: typeof installCorpusDirectory;
 	/** The live install's citation map, read once when a run freezes its inputs. */
 	readonly liveCitations: () => Promise<HomePathCitationMap>;
 	/**

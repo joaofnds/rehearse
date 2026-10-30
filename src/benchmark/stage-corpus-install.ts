@@ -97,14 +97,23 @@ async function readStageSnapshot(
 }
 
 /**
+ * What a snapshot stands for: one stage's freeze, which holds its own skill
+ * only, or a whole corpus directory, which holds every layout directory.
+ */
+type CorpusHolding = "stage" | "whole";
+
+/**
  * Installs the snapshot under the target's `.claude` and redirects the
  * home-path citations its text makes of what the install holds, so the stage
  * reads this snapshot's copy of each. The snapshot keeps its authored bytes.
  */
-async function installStageCorpusSnapshot(
+async function installCorpusSnapshot(
 	snapshotDirectory: string,
 	targetDirectory: string,
-	citations: HomePathCitationMap,
+	delivery: {
+		readonly citations: HomePathCitationMap;
+		readonly holding: CorpusHolding;
+	},
 ): Promise<CorpusDelivery> {
 	const snapshot = await readStageSnapshot(snapshotDirectory);
 	const destination = join(targetDirectory, ".claude");
@@ -117,9 +126,36 @@ async function installStageCorpusSnapshot(
 
 	return await deliverInstalledCorpus(
 		destination,
-		stageCorpusInstall(snapshot),
-		citations,
+		stageCorpusInstall(snapshot, delivery.holding),
+		delivery.citations,
 	);
+}
+
+/** Installs one stage's frozen snapshot, which holds its own skill only. */
+async function installStageCorpusSnapshot(
+	snapshotDirectory: string,
+	targetDirectory: string,
+	citations: HomePathCitationMap,
+): Promise<CorpusDelivery> {
+	return await installCorpusSnapshot(snapshotDirectory, targetDirectory, {
+		citations,
+		holding: "stage",
+	});
+}
+
+/**
+ * Installs a whole corpus directory, which holds every layout directory, so a
+ * citation of a skill the directory lacks reaches the missing copy.
+ */
+async function installCorpusDirectory(
+	corpusDirectory: string,
+	targetDirectory: string,
+	citations: HomePathCitationMap,
+): Promise<CorpusDelivery> {
+	return await installCorpusSnapshot(corpusDirectory, targetDirectory, {
+		citations,
+		holding: "whole",
+	});
 }
 
 /**
@@ -137,12 +173,20 @@ async function freezeStageSnapshot(
 
 /**
  * A stage holds its instructions, every agent, output style and rule whole,
- * since it freezes those kinds whole, and its own skill.
+ * since it freezes those kinds whole, and its own skill. A whole directory
+ * holds every skill too, the ones it lacks included.
  */
 function stageCorpusInstall(
 	snapshot: Pick<CorpusCopy, "files">,
+	holding: CorpusHolding = "stage",
 ): CorpusInstall {
 	const files = snapshot.files.map(({ file }) => file.path);
+	if (holding === "whole") {
+		return {
+			files: ["CLAUDE.md", ...files],
+			held: ["CLAUDE.md", ...CORPUS_LAYOUT_DIRECTORIES].toSorted(),
+		};
+	}
 	const skills = files
 		.filter((path) => path.startsWith("skills/"))
 		.map((path) => path.split("/").slice(SKILL_ROOT_START, SKILL_ROOT_END))
@@ -213,6 +257,7 @@ async function planStageCorpusDelivery(
 
 export {
 	freezeStageSnapshot,
+	installCorpusDirectory,
 	installStageCorpusSnapshot as default,
 	planStageCorpusDelivery,
 };

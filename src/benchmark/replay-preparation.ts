@@ -64,7 +64,7 @@ class ReplayPreparation {
 			// The source stays editable during setup and the session.
 			await freezeStageSnapshot(source.root, corpusDirectory);
 			source = { kind: "directory", root: corpusDirectory };
-			await dependencies.installStageCorpusSnapshot(
+			await dependencies.installCorpusDirectory(
 				corpusDirectory,
 				worktreeDir,
 				await dependencies.liveCitations(),

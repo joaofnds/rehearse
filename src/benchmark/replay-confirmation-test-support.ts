@@ -73,6 +73,11 @@ class ReplayConfirmationHarness extends ReplayStageSessionHarness {
 
 			return await Promise.resolve("base-sha");
 		},
+		installCorpusDirectory: async (snapshotDirectory, targetDirectory) => {
+			this.corpusInstalls.push({ snapshotDirectory, targetDirectory });
+
+			return await Promise.resolve(NOTHING_DELIVERED);
+		},
 		installStageCorpusSnapshot: async (snapshotDirectory, targetDirectory) => {
 			this.corpusInstalls.push({ snapshotDirectory, targetDirectory });
 

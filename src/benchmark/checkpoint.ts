@@ -75,6 +75,7 @@ export {
 export {
 	default as installStageCorpusSnapshot,
 	freezeStageSnapshot,
+	installCorpusDirectory,
 	planStageCorpusDelivery,
 } from "./stage-corpus-install";
 export type { StageCorpusDelivery } from "./stage-corpus-install";

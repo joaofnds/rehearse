@@ -58,7 +58,7 @@ class ReplayRepositoryProvider extends ReplayConfirmationHarness {
 	public readonly repositoryDependencies: ReplayDependencies = {
 		...this.dependencies,
 		...REAL_REPLAY_WORKTREES,
-		installStageCorpusSnapshot: async () =>
+		installCorpusDirectory: async () =>
 			await Promise.reject(new Error("no corpus source")),
 		loadStageRubric,
 		log: (message) => {
