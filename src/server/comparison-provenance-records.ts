@@ -66,4 +66,4 @@ async function readCaseGroups(
 	};
 }
 
-export { readCaseGroups as default };
+export { readCaseGroups as default, groupPaths };

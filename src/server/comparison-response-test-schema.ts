@@ -81,6 +81,49 @@ const movedItemSchema = z
 
 const caseSummarySchema = z.record(z.string(), z.unknown());
 
+const unrecordedFindingSchema = z.object({
+	arms: z.array(z.string()),
+	kind: z.literal("unrecorded"),
+});
+
+const mixedFindingSchema = z.object({
+	arm: z.string(),
+	kind: z.literal("mixed"),
+	names: z.array(z.string()),
+	unrecorded: z.boolean(),
+});
+
+const differingVariableSchema = z
+	.object({ kind: z.string(), name: z.string() })
+	.loose();
+
+const differsFindingSchema = z.object({
+	arms: z.tuple([z.string(), z.string()]),
+	kind: z.literal("differs"),
+	variables: z.array(differingVariableSchema),
+});
+
+const inheritedConfigurationFindingSchema = z.discriminatedUnion("kind", [
+	unrecordedFindingSchema,
+	mixedFindingSchema,
+	differsFindingSchema,
+]);
+
+const availableInheritedConfigurationSchema = z.object({
+	findings: z.array(inheritedConfigurationFindingSchema),
+	state: z.literal("available"),
+});
+
+const unavailableReadingSchema = z.object({
+	reasons: z.array(z.string()),
+	state: z.literal("unavailable"),
+});
+
+const caseInheritedConfigurationSchema = z.discriminatedUnion("state", [
+	availableInheritedConfigurationSchema,
+	unavailableReadingSchema,
+]);
+
 const comparisonResponseSchema = z.object({
 	armFigures: z.record(z.string(), caseArmFiguresSchema),
 	attempts: z.record(
@@ -92,6 +135,10 @@ const comparisonResponseSchema = z.object({
 		}),
 	),
 	attribution: z.record(z.string(), caseAttributionSchema),
+	inheritedConfiguration: z.record(
+		z.string(),
+		caseInheritedConfigurationSchema,
+	),
 	qualityReadings: z.record(z.string(), armQualityReadingsSchema),
 	report: z.unknown(),
 	summary: z.record(z.string(), caseSummarySchema),

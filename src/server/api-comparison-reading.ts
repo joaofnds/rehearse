@@ -4,12 +4,16 @@ import { readComparisonBaselineArm } from "#benchmark/comparison-baseline-record
 import recordedComparison from "#server/api-recorded-comparison";
 import { comparisonArmDiff } from "#server/comparison-arm-diff";
 import { comparisonAttemptHistoryLinks } from "#server/comparison-history-links";
+import comparisonInheritedConfiguration from "#server/comparison-inherited-configuration";
 import comparisonProvenance from "#server/comparison-provenance";
 import comparisonReport from "#server/comparisons";
 
 type ComparisonReading = ReturnType<typeof comparisonReport> &
 	Awaited<ReturnType<typeof comparisonProvenance>> & {
 		readonly baselineArm: Awaited<ReturnType<typeof readComparisonBaselineArm>>;
+		readonly inheritedConfiguration: Awaited<
+			ReturnType<typeof comparisonInheritedConfiguration>
+		>;
 	};
 
 interface ComparisonReadRequest {
@@ -29,6 +33,10 @@ async function comparisonReading({
 		),
 		...(await comparisonProvenance(report, runsDirectory)),
 		baselineArm: await readComparisonBaselineArm(dirname(file)),
+		inheritedConfiguration: await comparisonInheritedConfiguration(
+			report,
+			runsDirectory,
+		),
 	};
 }
 
