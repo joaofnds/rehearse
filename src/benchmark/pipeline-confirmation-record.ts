@@ -3,6 +3,7 @@ import type { PipelineConfirmationExecution } from "./pipeline-confirmation-exec
 import type { PipelineConfirmationRepResults } from "./pipeline-confirmation-reps";
 import type { PipelineConfirmationOutcome } from "./pipeline-confirmation-request";
 import type { FrozenPipelineInputs } from "./pipeline-frozen-inputs";
+import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
 
 interface PipelineConfirmationRecordInputs {
 	readonly execution: PipelineConfirmationExecution;
@@ -34,7 +35,7 @@ async function finalizePipelineConfirmation({
 			model: request.model,
 			pipelinePath: request.pipelinePath,
 			sessionBudgetUsd: request.sessionBudgetUsd,
-			setup: "actual",
+			setup: CONFIRMATION_STAGE_SETUP,
 			spendCeilingUsd: request.spendCeilingUsd,
 		},
 		makespanMs,

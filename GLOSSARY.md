@@ -9,8 +9,10 @@ See [current state](docs/status.md) for implementation coverage and
   rather than a minimum. This is case-specific evidence, not a general rule for
   reply length.
 - **Actual setup**: the user's own Claude Code settings, MCP servers, plugins
-  and hooks, which a session case runs with unless it declares isolation, so its
-  outcome is closer to the one the user gets. The skills, agents and `CLAUDE.md`
+  and hooks, which a session case runs with unless it declares isolation, and
+  which every pipeline and replay confirmation stage runs with, so the outcome
+  is closer to the one the user gets. A confirmation group records only that
+  its stages ran with it. The skills, agents and `CLAUDE.md`
   under the user's `~/.claude` still reach it only through the case's declared
   corpus. The case's declared settings replace the
   user's keys of the same name, deny rules survive, and the run alone decides

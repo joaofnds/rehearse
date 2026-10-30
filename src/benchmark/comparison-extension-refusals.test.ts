@@ -3,7 +3,10 @@ import { rm, unlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { compareAttempts, extendComparison } from "./compare-attempts";
-import { loseFirstAttemptMetrics } from "./compare-attempts-evidence-test-fixtures";
+import {
+	forgetSetup,
+	loseFirstAttemptMetrics,
+} from "./compare-attempts-evidence-test-fixtures";
 import {
 	RESOURCE_DRAIN_START_INDEX,
 	SHA256_HEX_DIGITS,
@@ -55,8 +58,35 @@ describe(extendComparison.name, () => {
 			"when the stage's rubric changed since arm A was recorded",
 			whenTheStagesRubricChangedSinceArmAWasRecorded,
 		);
+
+		it("when the arms record no setup", whenTheArmsRecordNoSetup);
 	});
 });
+
+async function whenTheArmsRecordNoSetup(): Promise<void> {
+	const { arms, armA, armB } = await armsDifferingInOneSkill();
+	const { reportFile } = await compareAttempts(
+		{ armA, armB, runsDirectory: arms.runsDirectory },
+		{ runBaselineGroup: arms.runBaselineGroup },
+	);
+	await forgetSetup({ groupId: armA, runsDirectory: arms.runsDirectory });
+	await forgetSetup({ groupId: armB, runsDirectory: arms.runsDirectory });
+	const comparison = basename(dirname(reportFile));
+
+	const refusal = await refusalOf(
+		extendComparison(
+			{ attemptsPerArm: 2, comparison, runsDirectory: arms.runsDirectory },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		),
+	);
+
+	expect({ message: refusal.message, moreRequests: arms.moreRequests }).toEqual(
+		{
+			message: `group ${armA} records no setup, so it ran before groups recorded one, and a group replayed now under the actual setup cannot be compared with it`,
+			moreRequests: [],
+		},
+	);
+}
 
 async function whenNoComparisonWasSavedUnderThatDigest(): Promise<void> {
 	const arms = await recordedArms();

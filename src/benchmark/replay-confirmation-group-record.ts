@@ -6,6 +6,7 @@ import type {
 	ReplayConfirmationRequest,
 } from "./replay-confirmation-contract";
 import type { ReplayConfirmationRuntime } from "./replay-confirmation-runtime";
+import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
 
 interface ReplayGroupReadings {
 	readonly makespanMs: number;
@@ -34,7 +35,7 @@ function replayGroupInputs(
 		model: request.model,
 		pipelinePath: frozen.manifest.pipelinePath,
 		sessionBudgetUsd: request.sessionBudgetUsd,
-		setup: "actual",
+		setup: CONFIRMATION_STAGE_SETUP,
 		spendCeilingUsd: request.spendCeilingUsd,
 	};
 }

@@ -1048,10 +1048,15 @@ loads. The merged file sits in a temporary directory that is removed when the
 stage session ends. A pipeline has no isolation to declare. A pipeline or
 replay confirmation group records `inputs.setup` as `actual`, the setup kind
 only: unlike a session attempt's `setup` field, it names no settings key, MCP
-server, plugin or hook. A group recorded before this default has no
-`inputs.setup` and reads as `project`, since its stages ran with project
-settings alone. A pipeline debug `run` and a plain live replay pass no setting source, so
-they keep running with every source, the user's included, as before. Stage
+server, plugin or hook. A group recorded before groups recorded their setup
+has no `inputs.setup` and reads as `project`. Its stages ran with project
+settings alone from 2026-09-04, with every setting source before that, and
+under the actual setup for a short window on 2026-10-30, and nothing in the
+group tells these apart. `compare attempts` and `compare extend` refuse such a
+group as an arm before they run anything, since the groups they would add run
+under the actual setup. A pipeline debug `run` and a plain live replay pass no
+setting source, so they keep running with every source, the user's included,
+as before. Stage
 sessions run with `--dangerously-skip-permissions`, so an MCP server your setup
 loads can act during an unattended stage, and nothing here confines it.
 

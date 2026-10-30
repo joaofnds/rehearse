@@ -164,6 +164,7 @@ function comparisonStageGroup({
 			model: "sonnet",
 			pipelinePath: "pipelines/default.json",
 			sessionBudgetUsd: 5,
+			setup: "actual",
 		},
 		makespanMs: 200,
 		mode: "stage",

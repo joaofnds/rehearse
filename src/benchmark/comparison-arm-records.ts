@@ -7,6 +7,7 @@ import { CorpusVersionError, readCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import { confirmationGroupPaths } from "./run-layout";
 import { claimedReplaySource, readShortIds } from "./short-id";
+import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
 import type { ValidationFieldOrder } from "./validation-issue-order";
 import orderedValidationIssues from "./validation-issue-order";
 
@@ -143,6 +144,11 @@ async function recordedArm(
 	if (version?.kind !== "version") {
 		throw new RefusedPreconditionError(
 			`group ${groupId} records no corpus version`,
+		);
+	}
+	if (group.inputs.setup !== CONFIRMATION_STAGE_SETUP) {
+		throw new RefusedPreconditionError(
+			`group ${groupId} records no setup, so it ran before groups recorded one, and a group replayed now under the ${CONFIRMATION_STAGE_SETUP} setup cannot be compared with it`,
 		);
 	}
 

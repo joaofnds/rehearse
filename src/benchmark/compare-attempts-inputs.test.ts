@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 import { compareAttempts } from "./compare-attempts";
 import {
 	corruptGroup,
+	forgetSetup,
 	useModel,
 	useUnrecordedCorpusVersion,
 } from "./compare-attempts-evidence-test-fixtures";
@@ -89,6 +90,11 @@ describe(compareAttempts.name, () => {
 			"refuses a group whose corpus version the store does not hold",
 			refusesAGroupWhoseCorpusVersionTheStoreDoesNotHold,
 		);
+
+		it(
+			"refuses before running a baseline group when the arms record no setup",
+			refusesBeforeRunningABaselineGroupWhenTheArmsRecordNoSetup,
+		);
 	});
 
 	describe("when arms A and B ran with different controlled inputs", () => {
@@ -169,6 +175,27 @@ async function refusesAGroupWhoseCorpusVersionTheStoreDoesNotHold(): Promise<voi
 	expect(refusal.message).toBe(
 		`group ${armA} ran corpus version ${"0".repeat(SHA256_HEX_DIGITS)}, which cannot be read: No corpus version ${"0".repeat(SHA256_HEX_DIGITS)} is recorded`,
 	);
+}
+
+async function refusesBeforeRunningABaselineGroupWhenTheArmsRecordNoSetup(): Promise<void> {
+	const { arms, armA, armB } = await armsDifferingInOneSkill();
+	await forgetSetup({ groupId: armA, runsDirectory: arms.runsDirectory });
+	await forgetSetup({ groupId: armB, runsDirectory: arms.runsDirectory });
+
+	const refusal = await refusalOf(
+		compareAttempts(
+			{ armA, armB, runsDirectory: arms.runsDirectory },
+			{ runBaselineGroup: arms.runBaselineGroup },
+		),
+	);
+
+	expect({
+		baselineRequests: arms.baselineRequests,
+		message: refusal.message,
+	}).toEqual({
+		baselineRequests: [],
+		message: `group ${armA} records no setup, so it ran before groups recorded one, and a group replayed now under the actual setup cannot be compared with it`,
+	});
 }
 
 async function refusesAndNamesTheDifferingFieldBeforeRunningABaselineGroup(): Promise<void> {

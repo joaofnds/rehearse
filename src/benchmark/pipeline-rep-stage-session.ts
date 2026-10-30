@@ -7,6 +7,7 @@ import {
 	executeStageSession,
 	stageSessionsWithServices,
 } from "./stage-session";
+import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
 import type { StageSessionResult } from "./stage-session-contract";
 import type { StageSessionDependencies } from "./stage-session-dependencies";
 
@@ -52,7 +53,7 @@ async function executePipelineStageSession(
 			sessionBudgetUsd: request.sessionBudgetUsd,
 			sessionId: randomUUID(),
 			settingsOverlay: request.loadedSettings?.json,
-			setup: "actual",
+			setup: CONFIRMATION_STAGE_SETUP,
 			spendCeiling: scope.runtime.spendCeiling,
 			target: request.pipeline.target,
 			targetDir: plan.worktreePath,

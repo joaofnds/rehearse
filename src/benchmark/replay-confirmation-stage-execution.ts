@@ -11,6 +11,7 @@ import {
 	executeStageSession,
 	stageSessionsWithServices,
 } from "./stage-session";
+import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
 import type {
 	StageSessionEnvironment,
 	StageSessionResult,
@@ -66,7 +67,7 @@ function replayStageEnvironment(
 		sessionBudgetUsd: request.sessionBudgetUsd,
 		sessionId: randomUUID(),
 		settingsOverlay: request.loadedSettings?.json,
-		setup: "actual",
+		setup: CONFIRMATION_STAGE_SETUP,
 		spendCeiling,
 		target: frozen.manifest.pipeline.target,
 		targetDir: plan.worktreePath,

@@ -25,7 +25,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-baseline/group.json",
-                "sha256": "5aa90013514678fcd51a2a77115409f2fb4b9a8cc25d23c7090a76fd8c69478a"
+                "sha256": "7ac62b1c67df0e8e7f283ea9ecb843c70ef4494791dee18b3f460d5efd73e0ba"
               }
             ],
             "reps": [
@@ -346,7 +346,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-candidate/group.json",
-                "sha256": "c29e6af386b72c088632fad25e46d175dff6c707a38ace15b8e2a42e68b47fb6"
+                "sha256": "dfb0798b8e628d8191825119fcc2f08669c9441c5f4b3aa614902c03dbbfd99c"
               }
             ],
             "reps": [
@@ -667,7 +667,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-control/group.json",
-                "sha256": "d4d4317762a746756a810b3cdacd0dbe3d1b2da31397c1a1aa4287c3d1a4a85e"
+                "sha256": "568fd8d7fee4f53a6fd9afc416ffd2de284d8c1b56faa7f9c44a3d74eb75ed0a"
               }
             ],
             "reps": [
@@ -993,7 +993,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-baseline/group.json",
-                "sha256": "793af7043c6b6ac3465dcbe94f9b37d594ea53e65d555714f680a7f7cab44806"
+                "sha256": "614bb0bf565a5f8560bb0ecb9f31d8a66c1d3e733d90abf3f72059f9281b143d"
               }
             ],
             "reps": [
@@ -1314,7 +1314,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-candidate/group.json",
-                "sha256": "155f435844633f24fbceba459b8297ead7518dbae756da8157535daf82bb3a25"
+                "sha256": "f1958b2360eeab92885f0bc9bf3f08460b2c2d184292ffbb88dc38ab1c528aa0"
               }
             ],
             "reps": [
@@ -1635,7 +1635,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-control/group.json",
-                "sha256": "30397d53fc7cffdc0b2d3ae322cddf164579ada8d701a82bfdb32154b6933e60"
+                "sha256": "31d0153cbf5bc12c8ce17a7c65a3b5f99bcf46ac85b2fbc78a3d8e992425d3c9"
               }
             ],
             "reps": [

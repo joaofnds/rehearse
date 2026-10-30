@@ -55,6 +55,14 @@ interface StageExecutionInputs {
 	readonly priorArtifacts: readonly ContextFile[];
 }
 
+/**
+ * The setup every confirmation stage runs under, which its group records so a
+ * comparison can refuse arms that ran under different ones.
+ */
+const CONFIRMATION_STAGE_SETUP = "actual";
+
+export { CONFIRMATION_STAGE_SETUP as default };
+
 export type {
 	StageSessionEnvironment,
 	StageSessionResult,

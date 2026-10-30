@@ -97,6 +97,25 @@ async function useUnrecordedCorpusVersion({
 }
 
 /**
+ * Rewrites a recorded arm as a group written before groups recorded the setup
+ * their reps ran under.
+ */
+async function forgetSetup({
+	runsDirectory,
+	groupId,
+}: RecordedGroupLocation): Promise<void> {
+	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
+	const { inputs, ...group } = z
+		.looseObject({ inputs: z.looseObject({}) })
+		.parse(JSON.parse(await Bun.file(groupFile).text()));
+	const { setup: _setup, ...unrecorded } = inputs;
+	await Bun.write(
+		groupFile,
+		`${JSON.stringify({ ...group, inputs: unrecorded }, null, FIXTURE_JSON_INDENT_SPACES)}\n`,
+	);
+}
+
+/**
  * Records that the provider reported no metrics for the arm's first
  * attempt, which a successful attempt cannot lack.
  */
@@ -139,6 +158,7 @@ async function corruptGroup({
 
 export {
 	corruptGroup,
+	forgetSetup,
 	freezeRubric,
 	loseFirstAttemptMetrics,
 	useModel,

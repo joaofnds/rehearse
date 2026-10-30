@@ -81,9 +81,11 @@ function sessionCaseDifference(
 
 /**
  * Every recorded session attempt before the actual setup ran isolated, so an
- * attempt that records no setup reads as isolated. A stage group recorded
- * before the actual setup ran with project settings only, so a stage group
- * that records no setup reads as project.
+ * attempt that records no setup reads as isolated. A stage group that records
+ * no setup ran before groups recorded one, with project settings alone from
+ * 2026-09-04, every setting source before that, or for a short window on
+ * 2026-10-30 the actual setup. Nothing in the group tells these apart, so it
+ * reads as project, which never matches a group that records actual.
  */
 function setupKinds(arm: Immutable<ComparisonArmEvidence>): string {
 	const group = arm.group.record;
