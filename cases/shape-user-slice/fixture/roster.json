@@ -1,0 +1,159 @@
+[
+  {
+    "first_name": "Maya",
+    "last_name": "Chen",
+    "gender": "F",
+    "birthdate": "2010-03-14",
+    "grades": [
+      {
+        "level": 11,
+        "assigned_at": "2026-08-20"
+      }
+    ]
+  },
+  {
+    "first_name": "Leo",
+    "last_name": "Park",
+    "gender": "M",
+    "birthdate": "2012-01-30",
+    "grades": [
+      {
+        "level": 9,
+        "assigned_at": "2026-08-22"
+      }
+    ]
+  },
+  {
+    "first_name": "Ava",
+    "last_name": "Brooks",
+    "gender": "F",
+    "birthdate": "2010-11-02",
+    "grades": [
+      {
+        "level": 10,
+        "assigned_at": "2025-09-02"
+      }
+    ]
+  },
+  {
+    "first_name": "Omar",
+    "last_name": "Haddad",
+    "gender": "M",
+    "birthdate": "2008-06-19",
+    "grades": [
+      {
+        "level": 11,
+        "assigned_at": "2024-10-01"
+      }
+    ]
+  },
+  {
+    "first_name": "Sofia",
+    "last_name": "Reyes",
+    "gender": "F",
+    "birthdate": "2011-04-07",
+    "grades": [
+      {
+        "level": 8,
+        "assigned_at": "2025-03-10"
+      }
+    ]
+  },
+  {
+    "first_name": "Ben",
+    "last_name": "Ortiz",
+    "gender": "M",
+    "birthdate": "2009-02-25",
+    "grades": [
+      {
+        "level": 12,
+        "assigned_at": "2026-08-25"
+      }
+    ]
+  },
+  {
+    "first_name": "Nina",
+    "last_name": "Patel",
+    "gender": "F",
+    "birthdate": "2011-09-12",
+    "grades": []
+  },
+  {
+    "first_name": "Jonah",
+    "last_name": "Wu",
+    "gender": "M",
+    "grades": []
+  },
+  {
+    "first_name": "Grace",
+    "last_name": "Kim",
+    "gender": "F",
+    "grades": [
+      {
+        "level": 10,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40211"
+  },
+  {
+    "first_name": "Eli",
+    "last_name": "Turner",
+    "gender": "M",
+    "grades": [
+      {
+        "level": 9,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40212"
+  },
+  {
+    "first_name": "Zoe",
+    "last_name": "Adams",
+    "gender": "F",
+    "grades": [
+      {
+        "level": 11,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40213"
+  },
+  {
+    "first_name": "Sam",
+    "last_name": "Rivera",
+    "gender": "M",
+    "grades": [
+      {
+        "level": 12,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40214"
+  },
+  {
+    "first_name": "Lily",
+    "last_name": "Nguyen",
+    "gender": "F",
+    "grades": [
+      {
+        "level": 10,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40215"
+  },
+  {
+    "first_name": "Theo",
+    "last_name": "Brown",
+    "gender": "M",
+    "grades": [
+      {
+        "level": 9,
+        "assigned_at": "2026-09-05"
+      }
+    ],
+    "meetsite_id": "ms-40216"
+  }
+]
