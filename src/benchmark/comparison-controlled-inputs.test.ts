@@ -48,13 +48,18 @@ describe(assertComparableComparison.name, () => {
 	);
 
 	it(
-		"rejects stage arms that ran under different setups",
-		rejectsStageArmsThatRanUnderDifferentSetups,
+		"rejects a stage arm run under the actual setup beside arms that record no setup",
+		rejectsAStageArmRunUnderTheActualSetupBesideArmsThatRecordNoSetup,
 	);
 
 	it(
-		"rejects stage cases that ran under different setups",
-		rejectsStageCasesThatRanUnderDifferentSetups,
+		"rejects a pipeline arm run under the actual setup beside arms that record no setup",
+		rejectsAPipelineArmRunUnderTheActualSetupBesideArmsThatRecordNoSetup,
+	);
+
+	it(
+		"rejects a stage case run under the actual setup beside one that records no setup",
+		rejectsAStageCaseRunUnderTheActualSetupBesideOneThatRecordsNoSetup,
 	);
 });
 
@@ -209,7 +214,7 @@ function underActualSetup(
 	});
 }
 
-function rejectsStageArmsThatRanUnderDifferentSetups(): void {
+function rejectsAStageArmRunUnderTheActualSetupBesideArmsThatRecordNoSetup(): void {
 	const first = benchmarkCase("case-1", CORPUS_DIGESTS);
 	const changedCandidate = underActualSetup(first.arms.candidate);
 
@@ -223,7 +228,21 @@ function rejectsStageArmsThatRanUnderDifferentSetups(): void {
 	);
 }
 
-function rejectsStageCasesThatRanUnderDifferentSetups(): void {
+function rejectsAPipelineArmRunUnderTheActualSetupBesideArmsThatRecordNoSetup(): void {
+	const first = pipelineBenchmarkCase("case-1");
+	const changedCandidate = underActualSetup(first.arms.candidate);
+
+	expect(() =>
+		assertComparableComparison([
+			{ ...first, arms: { ...first.arms, candidate: changedCandidate } },
+			pipelineBenchmarkCase("case-2"),
+		]),
+	).toThrow(
+		"case case-1 arm candidate field setup differs from case case-1 arm baseline",
+	);
+}
+
+function rejectsAStageCaseRunUnderTheActualSetupBesideOneThatRecordsNoSetup(): void {
 	const second = benchmarkCase("case-2", CORPUS_DIGESTS);
 	const actualSecond = {
 		...second,

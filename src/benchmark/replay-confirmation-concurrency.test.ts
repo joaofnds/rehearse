@@ -102,16 +102,27 @@ const consumesTheSameFrozenInputInEveryRep = async (): Promise<void> => {
 		lineage: inputs.initial.lineage,
 		targetSha: inputs.taskSha,
 	});
-	expect({
-		pipelinePath: group.inputs.pipelinePath,
-		sessionBudgetUsd: group.inputs.sessionBudgetUsd,
-		setup: group.inputs.setup,
-	}).toEqual({
-		pipelinePath: "pipelines/default.json",
-		sessionBudgetUsd: expectedSessionBudgetUsd,
-		setup: "actual",
-	});
+	expect(group.inputs.pipelinePath).toBe("pipelines/default.json");
+	expect(group.inputs.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 };
+const recordsOnTheGroupThatItsStagesRanUnderTheActualSetup =
+	async (): Promise<void> => {
+		const inputs = await new ReplayConcurrentWorkspaceBuilder().build(
+			testResources,
+		);
+		const provider = new ReplayConcurrentProvider();
+		provider.release.resolve(true);
+		const { dependencies, request } = provider.prepareConfirmation(
+			inputs,
+			{ effort: "high", judgeEffort: "high" },
+			provider.override,
+		);
+
+		const outcome = await runReplayConfirmation(dependencies, request);
+		const group = await readReplayGroup(outcome.groupRecordFile);
+
+		expect(group.inputs.setup).toBe("actual");
+	};
 const preservesThePrimaryCheckoutAndRemovesTemporaryWorktrees =
 	async (): Promise<void> => {
 		const inputs = await new ReplayConcurrentWorkspaceBuilder().build(
@@ -188,6 +199,10 @@ describe(runReplayConfirmation.name, () => {
 		it(
 			"consumes the same frozen stage input in every rep",
 			consumesTheSameFrozenInputInEveryRep,
+		);
+		it(
+			"records on the group that its stages ran under the actual setup",
+			recordsOnTheGroupThatItsStagesRanUnderTheActualSetup,
 		);
 		it(
 			"preserves the primary checkout and removes temporary worktrees",

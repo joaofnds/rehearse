@@ -72,13 +72,27 @@ async function recordsOnTheGroupTheInstantItsRepsStarted(): Promise<void> {
 	expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
 }
 
-async function recordsOnTheGroupThatItsRepsRanUnderTheActualSetup(): Promise<void> {
+async function runsEveryStageUnderTheActualSetupAndRecordsItOnTheGroup(): Promise<void> {
 	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const stageSetups: (string | undefined)[] = [];
 
-	const outcome = await harness.run({});
+	const outcome = await harness.run({}, (dependencies) => ({
+		...dependencies,
+		stageSession: {
+			...dependencies.stageSession,
+			runWorkflowStage: async (request) => {
+				stageSetups.push(request.setup);
+
+				return await dependencies.stageSession.runWorkflowStage(request);
+			},
+		},
+	}));
 	const group = await readGroup(outcome);
 
-	expect(group.inputs.setup).toBe("actual");
+	expect({ group: group.inputs.setup, stages: new Set(stageSetups) }).toEqual({
+		group: "actual",
+		stages: new Set(["actual"]),
+	});
 }
 
 async function namesTheCaseItsGroupAndRepRecordsRan(): Promise<void> {
@@ -125,8 +139,8 @@ describe(runPipelineConfirmation.name, () => {
 			recordsOnTheGroupTheInstantItsRepsStarted,
 		);
 		it(
-			"records on the group that its reps ran under the actual setup",
-			recordsOnTheGroupThatItsRepsRanUnderTheActualSetup,
+			"runs every stage under the actual setup and records it on the group",
+			runsEveryStageUnderTheActualSetupAndRecordsItOnTheGroup,
 		);
 		it(
 			"names the case its group and rep records ran",
