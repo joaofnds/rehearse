@@ -28,6 +28,8 @@ const asConfigured = (pipelineArgument: string): string =>
 			"/tmp/target",
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--session-budget-usd",
 			"5",
 			"--pipeline",

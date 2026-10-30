@@ -170,5 +170,6 @@
 		]
 	},
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 12
 }

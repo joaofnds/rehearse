@@ -24,7 +24,14 @@ async function runsTheTargetTheCaseDeclaresWhenNoFlag(): Promise<void> {
 
 	await runRunCommand(
 		{
-			args: ["--model", "sonnet", "--session-budget-usd", "1"],
+			args: [
+				"--model",
+				"sonnet",
+				"--effort",
+				"medium",
+				"--session-budget-usd",
+				"1",
+			],
 			json: false,
 			stdinIsTerminal: true,
 		},

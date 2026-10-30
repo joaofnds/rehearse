@@ -19,6 +19,8 @@ const STORED_SPEND_CEILING_USD = 100;
 const sessionArgs = [
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--judge-model",
 	"opus",
 	"--session-budget-usd",

@@ -54,6 +54,8 @@ interface ActualSetupSource {
 
 const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
 
+const RUN_DECIDED_VARIABLES = new Set(["CLAUDE_CODE_EFFORT_LEVEL"]);
+
 const pluginManifestSchema = z.object({ name: z.string().nonempty() });
 
 function sha256(text: string): string {
@@ -98,21 +100,37 @@ function unionedPermissions(
 	};
 }
 
+function withoutRunDecidedKeys(
+	settings: Immutable<JsonObject>,
+): Immutable<JsonObject> {
+	const kept = Object.fromEntries(
+		Object.entries(settings).filter(([key]) => !RUN_DECIDED_KEYS.has(key)),
+	);
+	if (settings["env"] === undefined) {
+		return kept;
+	}
+
+	return {
+		...kept,
+		env: Object.fromEntries(
+			Object.entries(objectAt(settings["env"])).filter(
+				([name]) => !RUN_DECIDED_VARIABLES.has(name),
+			),
+		),
+	};
+}
+
 /**
  * The declared keys replace the user's, except that permission rules are
  * unioned so the user's deny rules survive a case's grants. The user's model
- * and effort are dropped, since the run passes its own on the command line.
+ * and effort are dropped, the effort variable in their env included, since
+ * the run passes its own on the command line.
  */
 function mergedSettings(
 	user: Immutable<JsonObject>,
 	declared: Immutable<JsonObject>,
 ): Immutable<JsonObject> {
-	const merged = {
-		...Object.fromEntries(
-			Object.entries(user).filter(([key]) => !RUN_DECIDED_KEYS.has(key)),
-		),
-		...declared,
-	};
+	const merged = { ...withoutRunDecidedKeys(user), ...declared };
 	if (
 		user["permissions"] === undefined ||
 		declared["permissions"] === undefined

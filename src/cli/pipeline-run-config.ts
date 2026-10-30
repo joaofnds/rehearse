@@ -26,6 +26,7 @@ function resolvePipelineRunConfig(
 	const config = asUsageError(() =>
 		parseArgs(request.args, environment, {
 			caseId: benchmarkCase.declaration.id,
+			effort: benchmarkCase.declaration.effort,
 			model: benchmarkCase.declaration.model,
 			pipelinePath: benchmarkCase.pipelinePath,
 			sessionBudgetUsd: benchmarkCase.declaration.sessionBudgetUsd,

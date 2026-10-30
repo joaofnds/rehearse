@@ -37,9 +37,11 @@ another. Pipeline runs accept `--target` / `BENCHMARK_TARGET_DIR` and
 `--pipeline` / `BENCHMARK_PIPELINE` to override the case. Session cases reject
 these flags because they have neither a target repository nor a pipeline.
 
-`run` and `replay` resolve workflow model and per-session budget in this order:
-CLI flag, environment variable, case declaration. Missing model or budget is a
-usage error. Replay consults the recorded run's case declaration as it exists
+`run` and `replay` resolve workflow model, effort and per-session budget in
+this order: CLI flag, environment variable, case declaration. Missing model,
+effort or budget is a usage error. Every session therefore runs at an effort
+Rehearse names and records, and neither your own `effortLevel` nor Claude
+Code's default decides it. Replay consults the recorded run's case declaration as it exists
 today; it can use explicit flags if that declaration no longer exists.
 
 The shared settings are `--model`, `--effort`, `--judge-model`,
@@ -207,9 +209,10 @@ The browser's New run, Replay a step and Replay from here buttons, and the corpu
 offer of a paired rerun after an edit, post to `POST /api/launches`,
 which starts the same CLI command a terminal would, detached from the server so
 the run outlives a server restart. A case launch runs
-`run --case <id> --model <model>` under the case's declared model, and a replay
-launch runs `replay --run <run> --stage <stage> --model <model>` under the model
-the run's manifest recorded. Three, six or twelve attempts add
+`run --case <id> --model <model> --effort <effort>` under the case's declared
+model and effort, and a replay launch runs
+`replay --run <run> --stage <stage> --model <model>` under the model the run's
+manifest recorded, adding `--effort <effort>` when the manifest recorded one. Three, six or twelve attempts add
 `--confirm --reps <N> --yes --approved-in-browser`, so the group's `approval`
 records `method` `browser`. `--approved-in-browser` is refused without `--yes`.
 Compare these attempts posts `{ "kind": "comparison", "armA": <group-id>,
@@ -235,8 +238,10 @@ kind, the launch time and the target the kind names above, with the child's outp
 `<id>.log` beside it. It answers 409 and starts nothing when no ceiling is
 stored, the settings file does not parse, a recorded case's declaration or a
 recorded run's manifest does not parse, or the checkpoint a replayed stage
-starts from is not on disk. A case that declares no model is refused 409,
-because the browser has no terminal to pick one on. It answers 404 for a case
+starts from is not on disk. A case that declares no model or no effort is
+refused 409, because the browser has no terminal to pick one on. A case launch
+passes the case's model and effort, and a replay launch passes the run's
+recorded model and the effort it recorded, when it recorded one. It answers 404 for a case
 with no declaration and for an unknown run or stage, and 400 for a malformed
 body, attempts other than 1, 3, 6 or 12 for a case or replay, or a comparison
 that is not a 64-character hex digest. A pipeline case is refused 409
@@ -302,11 +307,11 @@ without a cost.
 declaration as written and its path, `cases/<id>/case.json`, which it leaves
 uncommitted and formatted as `bun run fmt` would write it. The body must hold `id`, `kind` (`session`),
 `title`, `prompt`, `tools`, `corpusFiles`, at least one of `checks`, and
-`model`, which the case parser leaves optional but the launch dialog needs to
-start the case, and may add only `sessionBudgetUsd`. Only those fields are written, so a default the case parser
+`model` and `effort`, which the case parser leaves optional but the launch
+dialog needs to start the case, and may add only `sessionBudgetUsd`. Only those fields are written, so a default the case parser
 fills in never reaches the file. It answers 400 for any other field, naming a
 field `case.json` does not have apart from one declared by hand, for a
-`pipeline` kind, for a missing `model`, for a prompt that starts with `-`,
+`pipeline` kind, for a missing `model` or `effort`, for a prompt that starts with `-`,
 which the claude CLI would read as an option, for a declaration the case parser
 refuses, and for a corpus file outside the layout, one with a `.` or `..`
 segment, or one whose path climbs out of the linked corpus. Whether each corpus file exists is checked when the case
@@ -510,6 +515,8 @@ A pipeline case declares task, product brief, final rubric, pipeline, stage
 rubric directory, and target path. Input paths are confined to the case; the
 target path may leave it and resolves relative to the case directory. An
 optional `settingsFile` overrides the committed root `stage-settings.json`.
+Either kind of case may declare `model`, `effort` and `sessionBudgetUsd`, which
+stand in for the flags of the same names.
 
 The task is Markdown with a level-one heading and a nonempty description. The
 product brief supplies settled product facts. The final rubric contains unique

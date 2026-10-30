@@ -16,6 +16,7 @@ class DeclareCaseRequestBuilder {
 				},
 			],
 			corpusFiles: ["skills/build/SKILL.md"],
+			effort: "medium",
 			id: "declared",
 			kind: "session",
 			model: "sonnet",

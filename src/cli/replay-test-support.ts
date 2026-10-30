@@ -12,6 +12,8 @@ import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
 const sessionArgs = [
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--judge-model",
 	"opus",
 	"--session-budget-usd",

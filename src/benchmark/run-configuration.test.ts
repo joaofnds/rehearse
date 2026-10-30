@@ -58,6 +58,8 @@ function prioritizesTheCLIJudgeModelOverTheEnvironment(): void {
 			"./target",
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--judge-model",
 			"haiku",
 			"--session-budget-usd",
@@ -72,7 +74,16 @@ function prioritizesTheCLIJudgeModelOverTheEnvironment(): void {
 
 function prioritizesTheEnvironmentJudgeModelOverTheDefault(): void {
 	const config = parseArgs(
-		["--target", "./target", "--model", "opus", "--session-budget-usd", "5"],
+		[
+			"--target",
+			"./target",
+			"--model",
+			"opus",
+			"--effort",
+			"medium",
+			"--session-budget-usd",
+			"5",
+		],
 		{ BENCHMARK_JUDGE_MODEL: "haiku" },
 		CASE_DEFAULTS,
 	);
@@ -86,7 +97,7 @@ function refusesAnEmptyBENCHMARKTARGETDIRRatherThanResolvingItToTheControlReposi
 	).toThrow("Provide --target or BENCHMARK_TARGET_DIR");
 }
 
-function fallsBackToTheModelAndBudgetTheCaseDeclares(): void {
+function fallsBackToTheModelEffortAndBudgetTheCaseDeclares(): void {
 	const expectedSessionBudgetUsd = 3;
 
 	const config = parseArgs(
@@ -96,6 +107,7 @@ function fallsBackToTheModelAndBudgetTheCaseDeclares(): void {
 	);
 
 	expect(config.model).toBe("declared-model");
+	expect(config.effort).toBe("low");
 	expect(config.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 }
 
@@ -143,6 +155,7 @@ function resolvesConfigurationFromEnvironmentVariables(): void {
 	const config = parseArgs(
 		[],
 		{
+			BENCHMARK_EFFORT: "high",
 			BENCHMARK_MODEL: "sonnet",
 			BENCHMARK_SESSION_BUDGET_USD: "5",
 			BENCHMARK_TARGET_DIR: "./target",
@@ -152,6 +165,7 @@ function resolvesConfigurationFromEnvironmentVariables(): void {
 
 	expect(config.sourceDir).toBe(join(process.cwd(), "target"));
 	expect(config.model).toBe("sonnet");
+	expect(config.effort).toBe("high");
 	expect(config.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 }
 
@@ -177,7 +191,14 @@ function rejectsUnsupportedEffortLevels(): void {
 function rejectsMissingSpendLimits(): void {
 	expect(() =>
 		parseArgs(
-			["--target", "./target", "--model", "claude-opus-4-8"],
+			[
+				"--target",
+				"./target",
+				"--model",
+				"claude-opus-4-8",
+				"--effort",
+				"medium",
+			],
 			{},
 			CASE_DEFAULTS,
 		),
@@ -189,7 +210,16 @@ describe("pipeline run Judge selection", () => {
 		"defaults the Judge to $judgeModel when workflow model is $model",
 		({ model, judgeModel }) => {
 			const config = parseArgs(
-				["--target", "./target", "--model", model, "--session-budget-usd", "5"],
+				[
+					"--target",
+					"./target",
+					"--model",
+					model,
+					"--effort",
+					"medium",
+					"--session-budget-usd",
+					"5",
+				],
 				{},
 				CASE_DEFAULTS,
 			);
@@ -214,8 +244,8 @@ describe("pipeline run Judge selection", () => {
 function describeWhenTargetAndSessionSettingsAreUsable(): void {
 	it("resolves explicit configuration", resolvesExplicitConfiguration);
 	it(
-		"falls back to the model and budget the case declares",
-		fallsBackToTheModelAndBudgetTheCaseDeclares,
+		"falls back to the model, effort and budget the case declares",
+		fallsBackToTheModelEffortAndBudgetTheCaseDeclares,
 	);
 	it(
 		"lets --model and --session-budget-usd override the case's declared values",

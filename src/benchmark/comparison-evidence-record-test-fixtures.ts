@@ -156,7 +156,9 @@ function comparisonStageGroup({
 		declaredStages: ["build"],
 		groupId,
 		inputs: {
+			effort: "medium",
 			files,
+			judgeEffort: "medium",
 			judgeModel: "opus",
 			lineage: lineage(caseId),
 			model: "sonnet",

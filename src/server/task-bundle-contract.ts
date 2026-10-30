@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { PipelineCaseDeclaration } from "#benchmark/case";
+import { effortSchema } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
 import {
 	pipelineDefinitionSchema,
@@ -72,6 +73,7 @@ const taskBundleSchema = z
 	.object({
 		/** The case it was exported from, which an import offers as its id. */
 		caseId: z.string().nonempty(),
+		effort: effortSchema.optional(),
 		finalRubric: z.string().nonempty(),
 		format: z.literal(TASK_BUNDLE_FORMAT),
 		model: z.string().nonempty().optional(),
@@ -147,7 +149,7 @@ interface PipelineCaseRequest {
 	readonly targetPath: string;
 	readonly task: string;
 	readonly productBrief: string;
-	/** The pipeline case whose steps, judges, model and budget the new case starts from. */
+	/** The pipeline case whose steps, judges, model, effort and budget the new case starts from. */
 	readonly from: string;
 }
 
@@ -163,6 +165,7 @@ const taskBundleValidationOrder: ValidationFieldOrder = {
 		"title",
 		"target",
 		"model",
+		"effort",
 		"sessionBudgetUsd",
 		"task",
 		"productBrief",

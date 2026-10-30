@@ -49,6 +49,8 @@ describe("POST /api/launches", () => {
 					"pipe-case",
 					"--model",
 					"sonnet",
+					"--effort",
+					"medium",
 					"--confirm",
 					"--reps",
 					String(attempts),
@@ -72,7 +74,7 @@ async function verifyRunsTheCaseUnderItsDeclaredModelAndAnswers(): Promise<void>
 	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_ACCEPTED);
 	expect(launchedSchema.parse(await response.json()).id).toBeString();
 	expect(launcher.launches.map(({ argv }) => argv)).toEqual([
-		["run", "--case", "sess-case", "--model", "haiku"],
+		["run", "--case", "sess-case", "--model", "haiku", "--effort", "low"],
 	]);
 }
 

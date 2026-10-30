@@ -24,6 +24,7 @@
 		}
 	],
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 3,
 	"transcript": {
 		"file": "40878d26-3572-4a08-a668-4e4c275e462e-cut-491.jsonl",

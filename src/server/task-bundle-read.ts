@@ -22,6 +22,7 @@ async function readCaseBundle(
 
 	return {
 		caseId,
+		effort: declaration.effort,
 		finalRubric,
 		format: TASK_BUNDLE_FORMAT,
 		model: declaration.model,

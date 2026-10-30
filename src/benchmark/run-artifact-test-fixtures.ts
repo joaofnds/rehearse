@@ -9,6 +9,7 @@ import {
 
 const DEFAULT_CONFIGURATION: BenchmarkConfig = {
 	caseId: "audit-log",
+	effort: "medium",
 	judgeModel: "sonnet",
 	model: "sonnet",
 	pause: false,

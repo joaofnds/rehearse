@@ -68,24 +68,50 @@ const rejectsIdenticalErrorsWhenConditionCases = [
 		sessionArgs: ["--session-budget-usd", "5"],
 	},
 	{
+		condition: "the workflow effort is missing",
+		error: "Provide --effort or BENCHMARK_EFFORT",
+		sessionArgs: ["--model", "sonnet", "--session-budget-usd", "5"],
+	},
+	{
 		condition: "the session budget is missing",
 		error: "Provide --session-budget-usd or BENCHMARK_SESSION_BUDGET_USD",
-		sessionArgs: ["--model", "sonnet"],
+		sessionArgs: ["--model", "sonnet", "--effort", "medium"],
 	},
 	{
 		condition: "the session budget is non-numeric",
 		error: "Session budget must be a positive number",
-		sessionArgs: ["--model", "sonnet", "--session-budget-usd", "invalid"],
+		sessionArgs: [
+			"--model",
+			"sonnet",
+			"--effort",
+			"medium",
+			"--session-budget-usd",
+			"invalid",
+		],
 	},
 	{
 		condition: "the session budget is zero",
 		error: "Session budget must be a positive number",
-		sessionArgs: ["--model", "sonnet", "--session-budget-usd", "0"],
+		sessionArgs: [
+			"--model",
+			"sonnet",
+			"--effort",
+			"medium",
+			"--session-budget-usd",
+			"0",
+		],
 	},
 	{
 		condition: "the session budget is negative",
 		error: "Session budget must be a positive number",
-		sessionArgs: ["--model", "sonnet", "--session-budget-usd", "-1"],
+		sessionArgs: [
+			"--model",
+			"sonnet",
+			"--effort",
+			"medium",
+			"--session-budget-usd",
+			"-1",
+		],
 	},
 	{
 		condition: "the minimum grade is not a grade letter",
@@ -112,6 +138,8 @@ const rejectsIdenticalErrorsWhenConditionCases = [
 		sessionArgs: [
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--judge-effort",
 			"extreme",
 			"--session-budget-usd",

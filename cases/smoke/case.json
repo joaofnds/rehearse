@@ -11,5 +11,6 @@
 		{ "kind": "tool-calls", "max": 0 }
 	],
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 0.2
 }

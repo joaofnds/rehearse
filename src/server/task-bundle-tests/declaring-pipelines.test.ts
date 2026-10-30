@@ -60,6 +60,7 @@ async function verifyDeclaresAPipelineCaseFromTheOperatorSTask(): Promise<void> 
 	);
 	const bundle = await server.request("/api/cases/new-task/bundle");
 	expect(await bundle.json()).toMatchObject({
+		effort: "high",
 		finalRubric: FINAL_RUBRIC,
 		model: "sonnet",
 		pipeline: { stages: BUNDLE_STAGES },

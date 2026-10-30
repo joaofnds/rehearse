@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Immutable } from "./contracts";
+import effortSchema from "./effort";
 import parseJsonDocument from "./json-document";
 import { jsonObjectSchema } from "./json-value";
 import { checkSchema } from "./session-check";
@@ -64,6 +65,7 @@ const sessionCaseDeclarationSchema = z
 		archived: z.boolean().optional(),
 		checks: z.array(checkSchema).nonempty(),
 		corpusFiles: z.array(z.string().nonempty()),
+		effort: effortSchema.optional(),
 		fixture: caseRelativePathSchema.optional(),
 		id: caseIdSchema,
 		isolated: z.boolean().optional(),
@@ -88,6 +90,7 @@ const caseDeclarationSchema = z.discriminatedUnion("kind", [
 	z
 		.object({
 			archived: z.boolean().optional(),
+			effort: effortSchema.optional(),
 			finalRubric: caseRelativePathSchema,
 			id: caseIdSchema,
 			kind: z.literal("pipeline"),
@@ -156,6 +159,7 @@ const caseDeclarationValidationOrder: ValidationFieldOrder = {
 		"target",
 		"settingsFile",
 		"model",
+		"effort",
 		"sessionBudgetUsd",
 	],
 };

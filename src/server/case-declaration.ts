@@ -11,6 +11,7 @@ import {
 	parseCaseDeclaration,
 	sessionCaseDeclarationSchema,
 } from "#benchmark/case";
+import { effortSchema } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
@@ -38,6 +39,7 @@ const declareCaseRequestSchema = sessionCaseDeclarationSchema
 	.pick({
 		checks: true,
 		corpusFiles: true,
+		effort: true,
 		id: true,
 		kind: true,
 		model: true,
@@ -47,6 +49,7 @@ const declareCaseRequestSchema = sessionCaseDeclarationSchema
 		tools: true,
 	})
 	.extend({
+		effort: effortSchema,
 		kind: z.literal("session", {
 			error: (issue) =>
 				issue.input === "pipeline"
@@ -75,6 +78,7 @@ const DECLARATION_FIELDS: readonly (keyof DeclareCaseRequest)[] = [
 	"corpusFiles",
 	"checks",
 	"model",
+	"effort",
 	"sessionBudgetUsd",
 ];
 

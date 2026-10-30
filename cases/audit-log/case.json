@@ -9,5 +9,6 @@
 	"rubrics": "rubrics",
 	"target": { "path": "../../../nest/template" },
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 10
 }

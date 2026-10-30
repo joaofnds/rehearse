@@ -13,6 +13,8 @@ const parse = (): ReplayCliConfig =>
 			"build",
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--session-budget-usd",
 			"5",
 			"--without-stage-skill",

@@ -1,5 +1,5 @@
-import { z } from "zod";
-
+import effortSchema from "./effort";
+import type { Effort } from "./effort";
 import { STAGE_LETTER_GRADES } from "./stage-letter-grades";
 import type { StageLetterGrade } from "./stage-letter-grades";
 
@@ -11,15 +11,11 @@ const MODEL_FAMILIES = ["opus", "sonnet", "haiku"] as const;
 
 type ModelFamily = (typeof MODEL_FAMILIES)[number];
 
-const effortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
-
-type Effort = z.infer<typeof effortSchema>;
-
 type WorkflowStage = string;
 
 interface SessionKnobs {
 	readonly model: string;
-	readonly effort?: Effort | undefined;
+	readonly effort: Effort;
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
@@ -82,22 +78,61 @@ function parseMinimumStageGrade(text: string | undefined): StageLetterGrade {
 
 interface DeclaredSessionKnobs {
 	readonly model?: string | undefined;
+	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd?: number | undefined;
 }
 
 interface RequiredSessionSettings {
 	readonly model: string;
+	readonly effort: Effort;
 	readonly sessionBudgetUsd: number;
 }
 
+function declaredWhenUnset(
+	text: string | undefined,
+	declared: string | undefined,
+): string | undefined {
+	return text === undefined || text === "" ? declared : text;
+}
+
+function missingSessionSettings(
+	settings: Readonly<{
+		[Key in keyof RequiredSessionSettings]:
+			| RequiredSessionSettings[Key]
+			| undefined;
+	}>,
+): string[] {
+	return [
+		settings.model === undefined ? "--model or BENCHMARK_MODEL" : undefined,
+		settings.effort === undefined ? "--effort or BENCHMARK_EFFORT" : undefined,
+		settings.sessionBudgetUsd === undefined
+			? "--session-budget-usd or BENCHMARK_SESSION_BUDGET_USD"
+			: undefined,
+	].filter((flag) => flag !== undefined);
+}
+
+/**
+ * Model, effort and budget each resolve flag, environment, then the case's
+ * declaration, and a session runs only once all three are set, because an
+ * unset effort would leave the user's own effortLevel or Claude Code's
+ * release default to decide it, and neither reaches the record.
+ */
 function requiredSessionSettings(
 	values: ReadonlyMap<string, string>,
 	env: Readonly<Record<string, string | undefined>>,
 	declared: DeclaredSessionKnobs,
 ): RequiredSessionSettings {
-	const modelText = values.get("--model") ?? env["BENCHMARK_MODEL"];
-	const model =
-		modelText === undefined || modelText === "" ? declared.model : modelText;
+	const model = declaredWhenUnset(
+		values.get("--model") ?? env["BENCHMARK_MODEL"],
+		declared.model,
+	);
+	const effort = parseEffort({
+		role: "workflow",
+		value: declaredWhenUnset(
+			values.get("--effort") ?? env["BENCHMARK_EFFORT"],
+			declared.effort,
+		),
+	});
 	const budgetText =
 		values.get("--session-budget-usd") ?? env["BENCHMARK_SESSION_BUDGET_USD"];
 	const sessionBudgetUsd =
@@ -105,13 +140,12 @@ function requiredSessionSettings(
 			? declared.sessionBudgetUsd
 			: Number(budgetText);
 
-	if (model === undefined || sessionBudgetUsd === undefined) {
-		const missing = [
-			model === undefined ? "--model or BENCHMARK_MODEL" : undefined,
-			sessionBudgetUsd === undefined
-				? "--session-budget-usd or BENCHMARK_SESSION_BUDGET_USD"
-				: undefined,
-		].filter((flag) => flag !== undefined);
+	if (
+		model === undefined ||
+		effort === undefined ||
+		sessionBudgetUsd === undefined
+	) {
+		const missing = missingSessionSettings({ effort, model, sessionBudgetUsd });
 
 		throw new Error(`Provide ${missing.join(" and ")}`);
 	}
@@ -123,7 +157,7 @@ function requiredSessionSettings(
 		throw new Error("Session budget must be a positive number");
 	}
 
-	return { model, sessionBudgetUsd };
+	return { effort, model, sessionBudgetUsd };
 }
 
 function parseSessionKnobs(
@@ -131,7 +165,7 @@ function parseSessionKnobs(
 	env: Readonly<Record<string, string | undefined>>,
 	declared: DeclaredSessionKnobs = {},
 ): SessionKnobs {
-	const { model, sessionBudgetUsd } = requiredSessionSettings(
+	const { effort, model, sessionBudgetUsd } = requiredSessionSettings(
 		values,
 		env,
 		declared,
@@ -140,10 +174,6 @@ function parseSessionKnobs(
 		values.get("--judge-model") ??
 		env["BENCHMARK_JUDGE_MODEL"] ??
 		defaultJudgeModel(model);
-	const effort = parseEffort({
-		role: "workflow",
-		value: values.get("--effort") ?? env["BENCHMARK_EFFORT"],
-	});
 	const judgeEffort = parseEffort({
 		role: "Judge",
 		value:
@@ -185,9 +215,8 @@ function parseEffort({ role, value }: EffortSelection): Effort | undefined {
 
 export {
 	DEFAULT_MINIMUM_STAGE_GRADE,
-	effortSchema,
 	judgeSelfPreferenceWarning,
 	parseSessionKnobs,
 	parseEffort,
 };
-export type { Effort, WorkflowStage, SessionKnobs, DeclaredSessionKnobs };
+export type { WorkflowStage, SessionKnobs, DeclaredSessionKnobs };

@@ -115,10 +115,10 @@ const DIAGNOSTIC_CASES: readonly DiagnosticCase[] = [
 		body: {},
 		expected: {
 			error:
-				'✖ Invalid input: expected string, received undefined\n  → at id\n✖ Invalid input: expected "session"\n  → at kind\n✖ Invalid input: expected string, received undefined\n  → at title\n✖ Invalid input: expected string, received undefined\n  → at prompt\n✖ Invalid input: expected array, received undefined\n  → at tools\n✖ Invalid input: expected array, received undefined\n  → at corpusFiles\n✖ Invalid input: expected array, received undefined\n  → at checks\n✖ Invalid input: expected string, received undefined\n  → at model',
+				'✖ Invalid input: expected string, received undefined\n  → at id\n✖ Invalid input: expected "session"\n  → at kind\n✖ Invalid input: expected string, received undefined\n  → at title\n✖ Invalid input: expected string, received undefined\n  → at prompt\n✖ Invalid input: expected array, received undefined\n  → at tools\n✖ Invalid input: expected array, received undefined\n  → at corpusFiles\n✖ Invalid input: expected array, received undefined\n  → at checks\n✖ Invalid input: expected string, received undefined\n  → at model\n✖ Invalid option: expected one of "low"|"medium"|"high"|"xhigh"|"max"\n  → at effort',
 		},
 		method: "POST",
-		name: "prioritizes the declaration identity and prompt before its model",
+		name: "prioritizes the declaration identity and prompt before its model and effort",
 		path: "/api/cases",
 		status: 400,
 	},

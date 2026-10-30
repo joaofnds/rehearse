@@ -22,5 +22,6 @@
 		}
 	],
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 1.5
 }

@@ -21,6 +21,8 @@ async function recordsTheResolvedJudgeModelInPipelineConfirmationEvidence(): Pro
 			harness.sourceRoot,
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--session-budget-usd",
 			"5",
 		],

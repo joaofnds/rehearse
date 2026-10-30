@@ -33,6 +33,12 @@ const INVALID_DECLARATIONS = [
 		"lowercase letters, digits, or dashes",
 	],
 	["no prompt", { ...DECLARED_CASE, prompt: "" }, "prompt"],
+	["no effort", { ...DECLARED_CASE, effort: undefined }, "effort"],
+	[
+		"an effort the claude CLI has no level for",
+		{ ...DECLARED_CASE, effort: "turbo" },
+		"effort",
+	],
 	[
 		"a corpus file outside the corpus layout",
 		{ ...DECLARED_CASE, corpusFiles: ["notes/plan.md"] },

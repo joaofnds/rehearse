@@ -21,6 +21,8 @@ const args = [
 	"/nonexistent-target",
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--judge-model",
 	"opus",
 	"--session-budget-usd",

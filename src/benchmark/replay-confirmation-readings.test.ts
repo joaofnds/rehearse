@@ -70,6 +70,8 @@ const REPLAY_SETTINGS = [
 	"discuss",
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--session-budget-usd",
 	"5",
 ];

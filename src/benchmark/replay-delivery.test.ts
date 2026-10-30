@@ -23,6 +23,8 @@ const DELIVERY_ARGUMENTS = [
 	"build",
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--session-budget-usd",
 	"5",
 ];

@@ -12,6 +12,7 @@ interface CaseCatalog {
 
 interface LaunchCaseCatalog extends CaseCatalog {
 	readonly unmodelled: SessionDeclarationInput;
+	readonly effortless: SessionDeclarationInput;
 }
 
 const CaseCatalogExamples = {
@@ -44,9 +45,21 @@ const CaseCatalogExamples = {
 	},
 	launches(): LaunchCaseCatalog {
 		return {
-			pipeline: new PipelineDeclarationBuilder({ model: "sonnet" }).build(),
-			session: new SessionDeclarationBuilder({ model: "haiku" }).build(),
+			effortless: new SessionDeclarationBuilder({
+				id: "no-effort",
+				model: "haiku",
+				title: "A case that declares no effort",
+			}).build(),
+			pipeline: new PipelineDeclarationBuilder({
+				effort: "medium",
+				model: "sonnet",
+			}).build(),
+			session: new SessionDeclarationBuilder({
+				effort: "low",
+				model: "haiku",
+			}).build(),
 			unmodelled: new SessionDeclarationBuilder({
+				effort: "low",
 				id: "no-model",
 				title: "A case that declares no model",
 			}).build(),

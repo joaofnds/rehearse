@@ -10,6 +10,7 @@ import {
 } from "#benchmark/settings";
 import {
 	BROKEN_CASE,
+	EFFORTLESS_CASE,
 	LaunchFixture,
 	PIPELINE_CASE,
 	SESSION_CASE,
@@ -123,6 +124,12 @@ async function verifyListsEveryDeclaredCaseWithTheModelItRuns(): Promise<void> {
 
 	expect(casesSchema.parse(await response.json())).toEqual({
 		cases: [
+			{
+				id: "no-effort",
+				kind: "session",
+				model: "haiku",
+				title: EFFORTLESS_CASE.title,
+			},
 			{
 				id: "no-model",
 				kind: "session",

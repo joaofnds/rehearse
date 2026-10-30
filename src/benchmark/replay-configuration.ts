@@ -9,12 +9,9 @@ import type {
 	CorpusSelection,
 	ParsedFlags,
 } from "./configuration-options";
+import type { Effort } from "./effort";
 import { parseEffort, parseSessionKnobs } from "./session-knobs";
-import type {
-	DeclaredSessionKnobs,
-	Effort,
-	SessionKnobs,
-} from "./session-knobs";
+import type { DeclaredSessionKnobs, SessionKnobs } from "./session-knobs";
 
 /** Whether a stage replay installs the stage's own skill in its corpus. */
 type StageSkillPresence = "installed" | "absent";

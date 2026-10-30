@@ -24,5 +24,6 @@
 		"outcomes": ["ledger-amended", "work-committed", "tree-clean"]
 	},
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 1.5
 }

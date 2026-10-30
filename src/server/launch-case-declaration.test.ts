@@ -104,6 +104,7 @@ async function verifyWritesTheFieldsInTheOrderACaseJson(): Promise<void> {
 		"corpusFiles",
 		"checks",
 		"model",
+		"effort",
 	]);
 }
 
@@ -116,7 +117,7 @@ async function verifyKeepsTheExactDeclarationBytesWrittenForExistingCases(): Pro
 		join(casesDirectory, DECLARED_CASE.id, "case.json"),
 	).text();
 	expect(written).toBe(
-		'{\n\t"id": "declared",\n\t"kind": "session",\n\t"title": "A declared case",\n\t"prompt": "Reply OK.",\n\t"tools": [],\n\t"corpusFiles": ["skills/build/SKILL.md"],\n\t"checks": [\n\t\t{\n\t\t\t"kind": "word-band",\n\t\t\t"max": 1\n\t\t}\n\t],\n\t"model": "sonnet"\n}\n',
+		'{\n\t"id": "declared",\n\t"kind": "session",\n\t"title": "A declared case",\n\t"prompt": "Reply OK.",\n\t"tools": [],\n\t"corpusFiles": ["skills/build/SKILL.md"],\n\t"checks": [\n\t\t{\n\t\t\t"kind": "word-band",\n\t\t\t"max": 1\n\t\t}\n\t],\n\t"model": "sonnet",\n\t"effort": "medium"\n}\n',
 	);
 }
 

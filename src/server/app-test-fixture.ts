@@ -117,6 +117,7 @@ async function casesDirectory(): Promise<string> {
 		JSON.stringify({
 			checks: [{ kind: "word-band", max: 1 }],
 			corpusFiles: [],
+			effort: "medium",
 			id: "smoke",
 			kind: "session",
 			model: "sonnet",

@@ -3,7 +3,14 @@ import { describe, expect, it } from "bun:test";
 import { parseArgs, parseReplayArgs, parseSessionArgs } from "./config";
 import { CASE_DEFAULTS, SESSION_ARGS } from "./configuration-test-support";
 
-const knobs = ["--model", "haiku", "--session-budget-usd", "1"];
+const knobs = [
+	"--model",
+	"haiku",
+	"--effort",
+	"medium",
+	"--session-budget-usd",
+	"1",
+];
 
 function carriesCorpusOntoARunConfiguration(): void {
 	const config = parseArgs(
@@ -57,12 +64,14 @@ function fallsBackToTheModelAndBudgetTheSessionCaseDeclares(): void {
 		{},
 		{
 			caseId: "smoke",
+			effort: "low",
 			model: "declared-model",
 			sessionBudgetUsd: 0.2,
 		},
 	);
 
 	expect(config.model).toBe("declared-model");
+	expect(config.effort).toBe("low");
 	expect(config.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 }
 
@@ -97,7 +106,7 @@ describe("corpus and session case configuration", () => {
 		leavesTheCorpusAbsentWhenCorpusIsNotGivenWhichIsTheLiveInstall,
 	);
 	it(
-		"falls back to the model and budget the session case declares",
+		"falls back to the model, effort and budget the session case declares",
 		fallsBackToTheModelAndBudgetTheSessionCaseDeclares,
 	);
 	it(

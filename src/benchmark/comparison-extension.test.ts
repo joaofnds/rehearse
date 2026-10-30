@@ -85,8 +85,8 @@ async function runsEachArmSAddedGroupOnTheCorpusThatArmRanWithArmASInputsLeaving
 	);
 
 	const inputs = {
-		effort: undefined,
-		judgeEffort: undefined,
+		effort: "medium" as const,
+		judgeEffort: "medium" as const,
 		judgeModel: "opus",
 		model: "sonnet",
 		reps: 3,

@@ -89,6 +89,15 @@ function dropsTheUserModelAndEffortSoTheRunDecidesThem(): void {
 	expect(merged).toEqual({ theme: "dark" });
 }
 
+function dropsTheEffortTheUserEnvironmentSetsAndKeepsTheRest(): void {
+	const merged = mergedSettings(
+		{ env: { CLAUDE_CODE_EFFORT_LEVEL: "max", OTEL_LOGS_EXPORTER: "otlp" } },
+		{},
+	);
+
+	expect(merged).toEqual({ env: { OTEL_LOGS_EXPORTER: "otlp" } });
+}
+
 async function writesTheMergedSettingsIntoTheSetupDirectory(): Promise<void> {
 	await seedUserSetup();
 
@@ -186,6 +195,10 @@ describe(mergedSettings.name, () => {
 	it(
 		"drops the user model and effort so the run decides them",
 		dropsTheUserModelAndEffortSoTheRunDecidesThem,
+	);
+	it(
+		"drops the effort the user environment sets and keeps the rest",
+		dropsTheEffortTheUserEnvironmentSetsAndKeepsTheRest,
 	);
 });
 

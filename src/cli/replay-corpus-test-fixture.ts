@@ -12,6 +12,8 @@ import type { ReplayExecution } from "./replay-command-contracts";
 const sessionArgs = [
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--judge-model",
 	"opus",
 	"--session-budget-usd",

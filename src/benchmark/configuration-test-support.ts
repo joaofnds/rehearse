@@ -14,6 +14,7 @@ const CASE_DEFAULTS: CaseDefaults = {
 
 const CASE_DEFAULTS_WITH_SESSION_KNOBS: CaseDefaults = {
 	...CASE_DEFAULTS,
+	effort: "low",
 	model: "declared-model",
 	sessionBudgetUsd: 3,
 };
@@ -41,6 +42,8 @@ function sessionValues(
 const SESSION_ARGS = [
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--session-budget-usd",
 	"5",
 ] as const;

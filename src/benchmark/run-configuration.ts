@@ -10,6 +10,7 @@ import type {
 	ConfirmationConfig,
 	CorpusSelection,
 } from "./configuration-options";
+import type { Effort } from "./effort";
 import { DEFAULT_CASE_ID, controlRelativePath } from "./runtime-configuration";
 import { parseSessionKnobs } from "./session-knobs";
 import type { DeclaredSessionKnobs, SessionKnobs } from "./session-knobs";
@@ -32,6 +33,7 @@ interface CaseDefaults {
 	readonly pipelinePath: string;
 	readonly targetPath: string;
 	readonly model?: string | undefined;
+	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd?: number | undefined;
 }
 

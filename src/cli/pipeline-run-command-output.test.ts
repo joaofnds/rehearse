@@ -110,6 +110,8 @@ const SAME_FAMILY_JUDGE_ARGUMENTS = [
 	"/nonexistent-target",
 	"--model",
 	"sonnet",
+	"--effort",
+	"medium",
 	"--judge-model",
 	"claude-sonnet-4-6",
 	"--session-budget-usd",

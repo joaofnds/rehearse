@@ -55,6 +55,8 @@ async function holdsASessionAttemptSBudgetToTheStored(): Promise<void> {
 				"smoke",
 				"--model",
 				"haiku",
+				"--effort",
+				"medium",
 				"--session-budget-usd",
 				"5",
 			],

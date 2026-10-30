@@ -28,6 +28,7 @@ async function runSessionCase(
 	const parsed = asUsageError(() =>
 		parseSessionArgs(request.args, environment, {
 			caseId: sessionCase.declaration.id,
+			effort: sessionCase.declaration.effort,
 			model: sessionCase.declaration.model,
 			sessionBudgetUsd: sessionCase.declaration.sessionBudgetUsd,
 		}),

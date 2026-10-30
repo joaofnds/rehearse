@@ -20,6 +20,7 @@ function importedDeclaration(
 ): PipelineCaseDeclaration {
 	const { bundle } = request;
 	const text = JSON.stringify({
+		effort: bundle.effort,
 		finalRubric: IMPORTED_FILES.finalRubric,
 		id: request.id,
 		kind: "pipeline",

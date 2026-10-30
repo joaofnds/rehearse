@@ -15,12 +15,14 @@ function fallsBackToTheBenchmarkEnvironmentVariables(): void {
 	const expectedSessionBudgetUsd = 3;
 
 	const config = parseReplayArgs(["--run", "r", "--stage", "build"], {
+		BENCHMARK_EFFORT: "high",
 		BENCHMARK_JUDGE_MODEL: "haiku",
 		BENCHMARK_MODEL: "sonnet",
 		BENCHMARK_SESSION_BUDGET_USD: "3",
 	});
 
 	expect(config.model).toBe("sonnet");
+	expect(config.effort).toBe("high");
 	expect(config.judgeModel).toBe("haiku");
 	expect(config.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 }
@@ -34,6 +36,8 @@ function prioritizesTheCLIJudgeModelOverTheEnvironment(): void {
 			"build",
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--judge-model",
 			"haiku",
 			"--session-budget-usd",
@@ -48,13 +52,31 @@ function prioritizesTheCLIJudgeModelOverTheEnvironment(): void {
 function requiresTheRunAndTheStage(): void {
 	expect(() =>
 		parseReplayArgs(
-			["--stage", "build", "--model", "m", "--session-budget-usd", "5"],
+			[
+				"--stage",
+				"build",
+				"--model",
+				"m",
+				"--effort",
+				"medium",
+				"--session-budget-usd",
+				"5",
+			],
 			{},
 		),
 	).toThrow("Provide --run");
 	expect(() =>
 		parseReplayArgs(
-			["--run", "r", "--model", "m", "--session-budget-usd", "5"],
+			[
+				"--run",
+				"r",
+				"--model",
+				"m",
+				"--effort",
+				"medium",
+				"--session-budget-usd",
+				"5",
+			],
 			{},
 		),
 	).toThrow("Provide --stage");
@@ -67,12 +89,14 @@ function fallsBackToTheModelAndBudgetTheCaseDeclares(): void {
 		["--run", "run-1", "--stage", "build"],
 		{},
 		{
+			effort: "low",
 			model: "declared-model",
 			sessionBudgetUsd: 0.2,
 		},
 	);
 
 	expect(config.model).toBe("declared-model");
+	expect(config.effort).toBe("low");
 	expect(config.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
 }
 
@@ -101,6 +125,8 @@ describe(parseReplayArgs.name, () => {
 					"build",
 					"--model",
 					model,
+					"--effort",
+					"medium",
 					"--session-budget-usd",
 					"5",
 				],
@@ -120,7 +146,7 @@ describe(parseReplayArgs.name, () => {
 	);
 	it("requires the run and the stage", requiresTheRunAndTheStage);
 	it(
-		"falls back to the model and budget the case declares",
+		"falls back to the model, effort and budget the case declares",
 		fallsBackToTheModelAndBudgetTheCaseDeclares,
 	);
 	it(

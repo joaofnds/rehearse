@@ -1,3 +1,4 @@
+import type { Effort } from "#benchmark/effort";
 import type { Check } from "#benchmark/session-check";
 import type { DeclareCaseRequest } from "#server/case-declaration";
 import type { PipelineCaseRequest } from "#server/task-bundle-contract";
@@ -60,12 +61,14 @@ interface Draft {
 	readonly corpusFiles: string;
 	readonly checks: readonly CheckDraft[];
 	readonly model: string;
+	readonly effort: Effort;
 	readonly sessionBudgetUsd: string;
 }
 
 const EMPTY_DRAFT: Draft = {
 	checks: [NEW_CHECK],
 	corpusFiles: "",
+	effort: "medium",
 	from: "",
 	id: "",
 	kind: "session",
@@ -150,6 +153,7 @@ function declarationRequest(draft: Draft): DeclareCaseRequest {
 	return {
 		checks: draft.checks.map(builtCheck),
 		corpusFiles: lineList(draft.corpusFiles),
+		effort: draft.effort,
 		id: draft.id.trim(),
 		kind: "session",
 		model: draft.model.trim(),

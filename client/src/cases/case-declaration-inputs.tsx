@@ -1,5 +1,7 @@
 import { useId } from "react";
 
+import effortSchema from "#benchmark/effort";
+import type { Effort } from "#benchmark/effort";
 import NativeSelect from "#client/system/ui/native-select";
 
 import CheckCollection from "./case-declaration-checks";
@@ -148,6 +150,41 @@ function PipelineSourceChoice({
 	);
 }
 
+interface EffortChoiceProps {
+	readonly effort: Effort;
+	readonly onChange: (effort: Effort) => void;
+}
+
+function EffortChoice({
+	effort,
+	onChange,
+}: EffortChoiceProps): React.JSX.Element {
+	const effortId = useId();
+
+	return (
+		<>
+			<dt className="text-muted-foreground">
+				<label htmlFor={effortId}>Effort</label>
+			</dt>
+			<dd className="sm:col-span-3 flex min-w-0 flex-col gap-1">
+				<NativeSelect
+					id={effortId}
+					value={effort}
+					onChange={(event) => {
+						onChange(effortSchema.parse(event.target.value));
+					}}
+				>
+					{effortSchema.options.map((level) => (
+						<option key={level} value={level}>
+							{level}
+						</option>
+					))}
+				</NativeSelect>
+			</dd>
+		</>
+	);
+}
+
 function SessionExecutionFields({
 	draft,
 	edit,
@@ -159,6 +196,12 @@ function SessionExecutionFields({
 				value={draft.model}
 				onChange={(model) => {
 					edit({ model });
+				}}
+			/>
+			<EffortChoice
+				effort={draft.effort}
+				onChange={(effort) => {
+					edit({ effort });
 				}}
 			/>
 			<Field

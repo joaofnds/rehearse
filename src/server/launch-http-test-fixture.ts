@@ -70,6 +70,7 @@ const launchedSchema = z.object({ id: z.string() });
 const refusalSchema = z.object({ error: z.string() });
 
 const {
+	effortless: EFFORTLESS_CASE,
 	pipeline: PIPELINE_CASE,
 	session: SESSION_CASE,
 	unmodelled: UNMODELLED_CASE,
@@ -131,6 +132,7 @@ class LaunchFixture {
 				PIPELINE_CASE,
 				SESSION_CASE,
 				UNMODELLED_CASE,
+				EFFORTLESS_CASE,
 				BROKEN_CASE,
 			]),
 			liveness,
@@ -185,6 +187,7 @@ export {
 	LaunchFixture,
 	PIPELINE_CASE,
 	UNMODELLED_CASE,
+	EFFORTLESS_CASE,
 	BROKEN_CASE,
 	SESSION_CASE,
 	NOTHING_RUNNING,

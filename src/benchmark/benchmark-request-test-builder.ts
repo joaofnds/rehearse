@@ -8,6 +8,7 @@ class BenchmarkRequestBuilder {
 	public build(): BenchmarkConfig {
 		return {
 			caseId: "audit-log",
+			effort: "medium",
 			judgeModel: "opus",
 			model: "sonnet",
 			pause: false,

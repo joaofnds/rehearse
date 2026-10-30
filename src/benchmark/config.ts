@@ -17,10 +17,11 @@ export {
 
 export {
 	DEFAULT_MINIMUM_STAGE_GRADE,
-	effortSchema,
 	judgeSelfPreferenceWarning,
 } from "./session-knobs";
-export type { Effort, WorkflowStage } from "./session-knobs";
+export { default as effortSchema } from "./effort";
+export type { Effort } from "./effort";
+export type { DeclaredSessionKnobs, WorkflowStage } from "./session-knobs";
 
 export { APPROVAL_METHODS } from "./configuration-options";
 export type {

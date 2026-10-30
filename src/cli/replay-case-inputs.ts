@@ -4,7 +4,7 @@ import {
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { stageCorpusRoots } from "#benchmark/checkpoint";
-import type { ReplayCliConfig } from "#benchmark/config";
+import type { DeclaredSessionKnobs, ReplayCliConfig } from "#benchmark/config";
 import { parseReplayArgs } from "#benchmark/config";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { readCorpusInstructions } from "#benchmark/corpus-file";
@@ -30,21 +30,21 @@ async function replayConfig(
 }
 
 /**
- * The model and budget the replayed run's case declares today, read before
+ * The model, effort and budget the replayed run's case declares today, read before
  * the rest of replay's flags so they can stand in for --model and
  * --session-budget-usd. A case that no longer loads, renamed or deleted
  * since the run, leaves replay to the flags and environment alone rather
  * than refusing a replay those still cover.
  */
-async function declaredSessionKnobs(manifestFile: string): Promise<{
-	readonly model?: string | undefined;
-	readonly sessionBudgetUsd?: number | undefined;
-}> {
+async function declaredSessionKnobs(
+	manifestFile: string,
+): Promise<DeclaredSessionKnobs> {
 	try {
 		const manifest = await loadRunManifest(manifestFile);
 		const declaration = await readCaseDeclaration(manifest.caseId);
 
 		return {
+			effort: declaration.effort,
 			model: declaration.model,
 			sessionBudgetUsd: declaration.sessionBudgetUsd,
 		};

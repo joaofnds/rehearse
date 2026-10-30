@@ -14,6 +14,8 @@ function manifestConfig(
 		"/tmp/target",
 		"--model",
 		"sonnet",
+		"--effort",
+		"medium",
 		"--session-budget-usd",
 		"5",
 	];

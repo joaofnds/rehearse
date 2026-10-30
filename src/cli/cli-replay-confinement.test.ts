@@ -52,6 +52,8 @@ async function cannotSignalAProcessOutsideAReplay(): Promise<void> {
 			"shape",
 			"--model",
 			"sonnet",
+			"--effort",
+			"medium",
 			"--session-budget-usd",
 			"1",
 		],
@@ -151,7 +153,17 @@ async function stopsInALaterCallAProcessAnEarlier(): Promise<void> {
 	);
 
 	await runPipelineCli(
-		["run", "--case", "audit-log", "--model", "sonnet", "--target", target],
+		[
+			"run",
+			"--case",
+			"audit-log",
+			"--model",
+			"sonnet",
+			"--effort",
+			"medium",
+			"--target",
+			target,
+		],
 		control,
 		binDirectory,
 	);

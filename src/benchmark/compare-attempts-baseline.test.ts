@@ -87,8 +87,8 @@ async function runsTheBaselineGroupOnArmAWithoutThatSkillWithArmASInputsOnceTheR
 	expect(arms.baselineRequests).toEqual([
 		{
 			corpusDirectory,
-			effort: undefined,
-			judgeEffort: undefined,
+			effort: "medium",
+			judgeEffort: "medium",
 			judgeModel: "opus",
 			model: "sonnet",
 			reps: 2,

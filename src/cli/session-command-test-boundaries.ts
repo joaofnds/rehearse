@@ -71,6 +71,8 @@ class SessionRequestBuilder {
 				"smoke",
 				"--model",
 				"haiku",
+				"--effort",
+				"medium",
 				"--session-budget-usd",
 				"0.2",
 				...this.flags,

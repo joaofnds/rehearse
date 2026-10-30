@@ -44,6 +44,12 @@ async function caseArguments(
 			HTTP_STATUS_CONFLICT,
 		);
 	}
+	if (declaration.effort === undefined) {
+		throw new LaunchRefusalError(
+			`Case ${caseId} declares no effort, and a launch from the browser has no terminal to pick one on. Declare "effort" in its case.json.`,
+			HTTP_STATUS_CONFLICT,
+		);
+	}
 
 	if (declaration.kind === "pipeline") {
 		await asLaunchRefusal(async () => {
@@ -57,6 +63,8 @@ async function caseArguments(
 		declaration.id,
 		"--model",
 		declaration.model,
+		"--effort",
+		declaration.effort,
 		...confirmationArguments(attempts),
 	];
 }
@@ -136,6 +144,7 @@ async function replayArguments(
 		request.stage,
 		"--model",
 		manifest.model,
+		...(manifest.effort === undefined ? [] : ["--effort", manifest.effort]),
 		...confirmationArguments(request.attempts),
 	];
 }

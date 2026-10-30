@@ -38,6 +38,7 @@ const PIPELINE = {
 };
 
 const PIPELINE_CASE = {
+	effort: "high",
 	finalRubric: "rubric.md",
 	id: "pipe-case",
 	kind: "pipeline",

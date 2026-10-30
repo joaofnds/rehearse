@@ -43,6 +43,7 @@ async function verifyExportsAPipelineCaseWithItsStepsNamingTheir(): Promise<void
 	const bundle = bundleSchema.parse(await response.json());
 	expect(bundle).toMatchObject({
 		caseId: "pipe-case",
+		effort: "high",
 		finalRubric: FINAL_RUBRIC,
 		format: "rehearse-task-bundle",
 		model: "sonnet",

@@ -16,6 +16,7 @@ const EMPTY_COLLECTION_LENGTH = 0;
 const DECLARED = {
 	checks: [{ kind: "word-band", max: 3 }],
 	corpusFiles: ["skills/build/SKILL.md", "CLAUDE.md"],
+	effort: "high",
 	id: "declared",
 	kind: "session",
 	model: "sonnet",
@@ -102,6 +103,7 @@ function fillDeclared(): void {
 	fill("Corpus files", "skills/build/SKILL.md\nCLAUDE.md");
 	fill("Check 1 max", "3");
 	fill("Model", DECLARED.model);
+	fill("Effort", DECLARED.effort);
 	fill("Session budget", "0.5");
 }
 

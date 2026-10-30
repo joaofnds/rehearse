@@ -182,5 +182,6 @@
 		]
 	},
 	"model": "sonnet",
+	"effort": "medium",
 	"sessionBudgetUsd": 8
 }

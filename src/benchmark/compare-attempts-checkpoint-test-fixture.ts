@@ -27,7 +27,10 @@ async function recordConsumedCheckpoint({
 	source,
 }: ConsumedCheckpointRecording): Promise<void> {
 	const settingsFile = await liveStageSettings();
-	const initial = PipelineRecordData.initialCheckpoint(settingsFile);
+	const initial = {
+		...PipelineRecordData.initialCheckpoint(settingsFile),
+		effort: "medium" as const,
+	};
 	const instructions = await Bun.file(
 		resolveCorpusFile(source, "CLAUDE.md"),
 	).text();
@@ -36,6 +39,7 @@ async function recordConsumedCheckpoint({
 		corpusFiles: await captureStageCorpus(CONSUMED_STAGE, instructions, [
 			source,
 		]),
+		effort: "medium" as const,
 		upstream: initial.lineage,
 	};
 	const paths = benchmarkRunPaths(runsDirectory, RUN);

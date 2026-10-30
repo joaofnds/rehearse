@@ -91,6 +91,10 @@ describe("POST /api/launches", () => {
 		verifyRefusesACaseThatDeclaresNoModelSinceThe,
 	);
 	it(
+		"refuses a case that declares no effort, since the child cannot ask for one",
+		verifyRefusesACaseThatDeclaresNoEffort,
+	);
+	it(
 		"refuses while the settings file cannot be read, without the records path",
 		verifyRefusesWhileTheSettingsFileCannotBeReadWithout,
 	);
@@ -158,6 +162,20 @@ async function verifyRefusesACaseThatDeclaresNoModelSinceThe(): Promise<void> {
 
 	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_CONFLICT);
 	expect(refusalSchema.parse(await response.json()).error).toContain("model");
+	expect(launcher.launches).toEqual([]);
+}
+
+async function verifyRefusesACaseThatDeclaresNoEffort(): Promise<void> {
+	const { launcher, post } = await harness();
+
+	const response = await post({
+		attempts: 1,
+		caseId: "no-effort",
+		kind: "case",
+	});
+
+	expect(response.status).toBe(HTTP_STATUS.HTTP_STATUS_CONFLICT);
+	expect(refusalSchema.parse(await response.json()).error).toContain("effort");
 	expect(launcher.launches).toEqual([]);
 }
 

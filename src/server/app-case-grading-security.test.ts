@@ -10,6 +10,7 @@ afterEach(clearAppRoots);
 const declaration = {
 	checks: [{ kind: "word-band", max: 1 }],
 	corpusFiles: [],
+	effort: "medium",
 	id: "declared",
 	kind: "session",
 	model: "sonnet",
