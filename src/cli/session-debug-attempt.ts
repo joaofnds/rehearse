@@ -68,6 +68,7 @@ class SessionAttemptRecorder {
 				contextEvidenceSource: request.contextEvidenceSource,
 				contextRateCatalog: request.contextRateCatalog,
 				corpusSnapshot: corpus.snapshot,
+				environment: request.environment,
 				home: request.home,
 				projectsDirectory: request.projectsDirectory,
 				recordDirectory: this.evidence.attemptPaths.directory,

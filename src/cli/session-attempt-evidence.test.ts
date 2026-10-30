@@ -29,6 +29,7 @@ async function persistsExactToolDiagnosticsInTheParsedAttemptRecord(): Promise<v
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: diagnosticClaude(projects),
@@ -51,6 +52,7 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			now: () => elapsedMs,
 			projectsDirectory: projects,
@@ -97,6 +99,7 @@ async function persistsProviderContextEvidenceThroughTheSavedAttemptBoundary(): 
 		config,
 		contextEvidenceSource,
 		contextRateCatalog,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),

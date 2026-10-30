@@ -149,6 +149,7 @@ class StateComparisonFixture {
 				executeAttempt: async (plan) =>
 					await runSessionAttempt({
 						corpusSnapshot: plan.corpusSnapshot,
+						environment: {},
 						home: ABSENT_HOME,
 						projectsDirectory: this.props.projectsDirectory,
 						recordDirectory: plan.recordDirectory,

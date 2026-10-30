@@ -20,6 +20,8 @@ interface SessionAttemptRequest {
 	readonly projectsDirectory: string;
 	/** The home directory whose Claude Code setup a session runs with. */
 	readonly home: string;
+	/** The environment the session inherits, which can name plugin directories. */
+	readonly environment: Readonly<Record<string, string | undefined>>;
 	readonly recordDirectory: string;
 	readonly runClaude: ClaudeRunner;
 	readonly corpusSnapshot?: SessionCorpusSnapshot | undefined;

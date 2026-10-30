@@ -22,6 +22,7 @@ function defaultSessionRunRequest(
 ): SessionRunRequest {
 	return {
 		config,
+		environment: Bun.env,
 		home: homedir(),
 		projectsDirectory: claudeProjectsDirectory(),
 		runClaude: runClaudeCommand,

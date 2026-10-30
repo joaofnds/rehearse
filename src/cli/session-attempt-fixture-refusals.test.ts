@@ -26,6 +26,7 @@ async function refusesAFixtureTreeHoldingASymlinkBeforeAnyProviderCall(): Promis
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: async () =>
@@ -50,6 +51,7 @@ async function refusesAFixtureWhoseSeededHistoryGitCannotReadExiting3BeforeAnyPr
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: async (_command, cwd) => {
@@ -81,6 +83,7 @@ async function refusesATranscriptPrefixWhoseBytesDoNotMatchTheDeclaredDigestBefo
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: async () =>

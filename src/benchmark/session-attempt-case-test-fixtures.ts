@@ -58,6 +58,7 @@ function request(
 	},
 ): SessionAttemptRequest {
 	return {
+		environment: {},
 		home: ABSENT_HOME,
 		sessionCase: sessionCase(),
 		settings: { budgetUsd: 0.2, effort: "low", model: "haiku" },

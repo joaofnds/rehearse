@@ -56,7 +56,7 @@ interface ActualSetupSource {
 	readonly directory: string;
 	readonly declared: Immutable<JsonObject>;
 	/** The environment the session inherits, which can name plugin directories. */
-	readonly env?: Readonly<Record<string, string | undefined>>;
+	readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
@@ -207,7 +207,7 @@ async function prepareActualSetup({
 	home,
 	directory,
 	declared,
-	env = Bun.env,
+	env,
 }: ActualSetupSource): Promise<ActualSetup> {
 	const user = await readUserSetup(home);
 	const inheritedPlugins = await inheritedPluginNames(env);

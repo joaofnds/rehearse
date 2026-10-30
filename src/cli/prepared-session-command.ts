@@ -18,6 +18,7 @@ async function runPreparedSessionAttempt(
 ): Promise<SessionAttempt> {
 	return await attempted({
 		corpusSnapshot: plan.corpusSnapshot,
+		environment: Bun.env,
 		home: homedir(),
 		projectsDirectory: claudeProjectsDirectory(),
 		recordDirectory: plan.recordDirectory,

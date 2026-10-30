@@ -47,6 +47,7 @@ async function recordsTheLineageTheSmokeCaseCarriedBeforeCorpusExisted(): Promis
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),

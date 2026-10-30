@@ -96,6 +96,13 @@ function carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget(): void {
 	expect(valueAfter(flags, "--output-format")).toBe("json");
 }
 
+function carriesTheRunModelAndEffortWithTheActualSetup(): void {
+	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
+
+	expect(valueAfter(flags, "--model")).toBe("haiku");
+	expect(valueAfter(flags, "--effort")).toBe("low");
+}
+
 function loadsTheProjectAndLocalSettingSources(): void {
 	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
 
@@ -138,6 +145,10 @@ function leavesTheUserToolsAndMCPServersInPlace(): void {
 }
 
 function describeWhenTheSessionRunsWithTheActualSetup(): void {
+	it(
+		"carries the run's model and effort",
+		carriesTheRunModelAndEffortWithTheActualSetup,
+	);
 	it(
 		"loads the project and local setting sources",
 		loadsTheProjectAndLocalSettingSources,

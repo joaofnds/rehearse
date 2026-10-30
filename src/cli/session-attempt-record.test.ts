@@ -20,6 +20,7 @@ async function writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndARes
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
@@ -57,6 +58,7 @@ async function claimsTheAttemptAShortIdInItsCase(): Promise<void> {
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
@@ -84,6 +86,7 @@ async function printsARecordThatParsesWithTheSchemaThatWroteIt(): Promise<void> 
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
@@ -111,6 +114,7 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		now: () => elapsedMs,
 		projectsDirectory: projects,
@@ -132,7 +136,51 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 	expect(written.elapsedMs).toBe(providerDurationMs);
 }
 
+type RecordedSetup = Awaited<
+	ReturnType<typeof runSessionDebugAttempt>
+>["record"]["setup"];
+
+async function recordedSetup(isolated: boolean): Promise<RecordedSetup> {
+	const runs = await files.temporary("rehearse-runs-");
+	const projects = await files.temporary("rehearse-projects-");
+
+	const outcome = await runSessionDebugAttempt({
+		config,
+		environment: {},
+		home: ABSENT_HOME,
+		projectsDirectory: projects,
+		runClaude: fakeClaude(projects, "OK"),
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({ isolated }).build(),
+		spendCeilingUsd: 100,
+	});
+
+	return outcome.record.setup;
+}
+
+async function recordsTheActualSetupTheAttemptRanWith(): Promise<void> {
+	expect(await recordedSetup(false)).toMatchObject({
+		hookEvents: [],
+		kind: "actual",
+		mcpServers: [],
+		plugins: [],
+	});
+}
+
+async function recordsIsolationForACaseThatDeclaresIt(): Promise<void> {
+	expect(await recordedSetup(true)).toEqual({ kind: "isolated" });
+}
+
 describe(runSessionDebugAttempt.name, () => {
+	it(
+		"records the actual setup the attempt ran with",
+		recordsTheActualSetupTheAttemptRanWith,
+	);
+	it(
+		"records isolation for a case that declares it",
+		recordsIsolationForACaseThatDeclaresIt,
+	);
+
 	it(
 		"writes one record carrying the reply, the transcript path, the metrics, and a result per check",
 		writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndAResultPerCheck,

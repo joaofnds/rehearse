@@ -50,6 +50,7 @@ class SessionCorpusFixture {
 
 		return {
 			config: corpus === undefined ? config : { ...config, corpus },
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),

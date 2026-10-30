@@ -25,6 +25,7 @@ async function refusesAnOutOfExtentLiveCorpusFileBeforeAnyProviderCall(): Promis
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			resolveCorpus: async () =>
@@ -63,6 +64,7 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			resolveCorpus: async () =>
@@ -94,6 +96,7 @@ async function reportsInvalidLiveCorpusConfigurationAsARefusedPrecondition(): Pr
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: await files.temporary("rehearse-projects-"),
 			resolveCorpus: async () =>

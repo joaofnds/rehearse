@@ -142,6 +142,7 @@ async function recordsABudgetHaltedRepSStatedErrorAndCostOnItsStageAndAttempt():
 			executeAttempt: async (plan) =>
 				await runSessionAttempt({
 					corpusSnapshot: plan.corpusSnapshot,
+					environment: {},
 					home: ABSENT_HOME,
 					projectsDirectory,
 					recordDirectory: plan.recordDirectory,

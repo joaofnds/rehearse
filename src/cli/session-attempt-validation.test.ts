@@ -18,6 +18,7 @@ async function reportsTheAttemptUnsuccessfulWhenACheckFails(): Promise<void> {
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		environment: {},
 		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK sure thing"),
@@ -39,6 +40,7 @@ async function refusesADeclaredCorpusFileThatDoesNotResolveBeforeAnyProviderCall
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			environment: {},
 			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: async () =>
