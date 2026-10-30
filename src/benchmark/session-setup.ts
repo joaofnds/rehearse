@@ -1,17 +1,22 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { z } from "zod";
+import type { z } from "zod";
 
 import type { Immutable } from "./contracts";
-import { pathExists } from "./file-presence";
 import { jsonArraySchema, jsonObjectSchema } from "./json-value";
 import type { JsonObject, JsonValue } from "./json-value";
 import type {
 	actualSetupRecordSchema,
 	sessionSetupRecordSchema,
 } from "./session-record-context-schema";
+import {
+	inheritedPluginNames,
+	pluginNamesUnder,
+	readJsonObject,
+	subdirectories,
+} from "./session-setup-files";
 
 /**
  * The files that carry the user's own Claude Code setup into a session: their
@@ -50,13 +55,13 @@ interface ActualSetupSource {
 	readonly home: string;
 	readonly directory: string;
 	readonly declared: Immutable<JsonObject>;
+	/** The environment the session inherits, which can name plugin directories. */
+	readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
 
 const RUN_DECIDED_VARIABLES = new Set(["CLAUDE_CODE_EFFORT_LEVEL"]);
-
-const pluginManifestSchema = z.object({ name: z.string().nonempty() });
 
 function sha256(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -147,61 +152,6 @@ function mergedSettings(
 	};
 }
 
-/**
- * The error names the file and never quotes it, since its text can hold a
- * credential and an error message reaches the terminal and the record.
- */
-async function readJsonObject(path: string): Promise<JsonObject> {
-	if (!(await pathExists(path))) {
-		return {};
-	}
-
-	let parsed: unknown = undefined;
-	try {
-		parsed = JSON.parse(await readFile(path, "utf8"));
-	} catch {
-		throw new Error(`${path} is not valid JSON`);
-	}
-
-	const object = jsonObjectSchema.safeParse(parsed);
-	if (!object.success) {
-		throw new Error(`${path} does not hold a JSON object`);
-	}
-
-	return object.data;
-}
-
-async function subdirectories(directory: string): Promise<string[]> {
-	if (!(await pathExists(directory))) {
-		return [];
-	}
-
-	const entries = await readdir(directory, { withFileTypes: true });
-
-	return entries
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => join(directory, entry.name))
-		.toSorted();
-}
-
-async function pluginName(plugin: string): Promise<string[]> {
-	const manifestText = await readJsonObject(
-		join(plugin, ".claude-plugin", "plugin.json"),
-	);
-	const manifest = pluginManifestSchema.safeParse(manifestText);
-
-	return manifest.success ? [manifest.data.name] : [];
-}
-
-async function pluginNamesUnder(directory: string): Promise<string[]> {
-	const plugins = await subdirectories(directory);
-	const names = await Promise.all(
-		plugins.map(async (plugin) => await pluginName(plugin)),
-	);
-
-	return names.flat();
-}
-
 function enabledPluginNames(settings: Immutable<JsonObject>): string[] {
 	return Object.entries(objectAt(settings["enabledPlugins"]))
 		.filter(([, enabled]) => enabled === true)
@@ -220,7 +170,10 @@ async function readUserSetup(home: string): Promise<UserSetup> {
 	const settings = await readJsonObject(join(home, ".claude", "settings.json"));
 	const mcpConfigPath = join(home, ".claude.json");
 	const mcpConfig = await readJsonObject(mcpConfigPath);
-	const hasMcpConfig = await pathExists(mcpConfigPath);
+	// Claude Code refuses an --mcp-config file without an mcpServers object.
+	const declaresServers = jsonObjectSchema.safeParse(
+		mcpConfig["mcpServers"],
+	).success;
 	const pluginDirectories = await subdirectories(
 		join(home, ".claude", "plugins", "synced"),
 	);
@@ -229,7 +182,7 @@ async function readUserSetup(home: string): Promise<UserSetup> {
 	);
 
 	return {
-		mcpConfigFiles: hasMcpConfig ? [mcpConfigPath] : [],
+		mcpConfigFiles: declaresServers ? [mcpConfigPath] : [],
 		mcpServers: objectAt(mcpConfig["mcpServers"]),
 		pluginDirectories,
 		settings,
@@ -241,8 +194,10 @@ async function prepareActualSetup({
 	home,
 	directory,
 	declared,
+	env = Bun.env,
 }: ActualSetupSource): Promise<ActualSetup> {
 	const user = await readUserSetup(home);
+	const inheritedPlugins = await inheritedPluginNames(env);
 	const settings = mergedSettings(user.settings, declared);
 	const settingsText = JSON.stringify(settings);
 	const settingsFile = join(directory, "settings.json");
@@ -264,6 +219,7 @@ async function prepareActualSetup({
 			plugins: [
 				...enabledPluginNames(settings),
 				...user.syncedPlugins,
+				...inheritedPlugins,
 			].toSorted(),
 			settingsKeys: Object.keys(settings).toSorted(),
 			settingsSha256: sha256(settingsText),

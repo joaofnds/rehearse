@@ -104,6 +104,7 @@ async function writesTheMergedSettingsIntoTheSetupDirectory(): Promise<void> {
 	const { files } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
+		env: {},
 		home,
 	});
 
@@ -120,6 +121,7 @@ async function pointsAtTheUserMCPConfigurationAndSyncedPlugins(): Promise<void> 
 	const { files } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
+		env: {},
 		home,
 	});
 
@@ -135,6 +137,7 @@ async function recordsTheSetupAsNamesAndDigests(): Promise<void> {
 	const { record } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
+		env: {},
 		home,
 	});
 	const { mcpConfigSha256, settingsSha256, ...names } = record;
@@ -162,16 +165,47 @@ async function recordsNoSettingValue(): Promise<void> {
 	const { record } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
+		env: {},
 		home,
 	});
 
 	expect(JSON.stringify(record)).not.toContain(SENTINEL);
 }
 
+async function passesNoMCPConfigurationWhenTheUserFileDeclaresNoServers(): Promise<void> {
+	await writeJson(join(home, ".claude.json"), { numStartups: 3 });
+
+	const { files } = await prepareActualSetup({
+		declared: {},
+		directory: setupDirectory,
+		env: {},
+		home,
+	});
+
+	expect(files.mcpConfigFiles).toEqual([]);
+}
+
+async function namesThePluginsTheInheritedPluginVariableLoads(): Promise<void> {
+	const plugin = join(home, "mods", "env-plugin");
+	await writeJson(join(plugin, ".claude-plugin", "plugin.json"), {
+		name: "env-plugin",
+	});
+
+	const { record } = await prepareActualSetup({
+		declared: {},
+		directory: setupDirectory,
+		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
+		home,
+	});
+
+	expect(record.plugins).toEqual(["env-plugin"]);
+}
+
 async function runsWithTheDeclaredKeysAloneWhenTheUserHasNoSetup(): Promise<void> {
 	const { files, record } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
+		env: {},
 		home,
 	});
 
@@ -219,6 +253,14 @@ describe(prepareActualSetup.name, () => {
 		recordsTheSetupAsNamesAndDigests,
 	);
 	it("records no setting value", recordsNoSettingValue);
+	it(
+		"passes no MCP configuration when the user file declares no servers",
+		passesNoMCPConfigurationWhenTheUserFileDeclaresNoServers,
+	);
+	it(
+		"names the plugins the inherited plugin variable loads",
+		namesThePluginsTheInheritedPluginVariableLoads,
+	);
 	describe("when the user has no setup", () => {
 		it(
 			"runs with the declared keys alone",
