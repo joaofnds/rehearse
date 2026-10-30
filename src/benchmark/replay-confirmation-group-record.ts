@@ -34,6 +34,7 @@ function replayGroupInputs(
 		model: request.model,
 		pipelinePath: frozen.manifest.pipelinePath,
 		sessionBudgetUsd: request.sessionBudgetUsd,
+		setup: "actual",
 		spendCeilingUsd: request.spendCeilingUsd,
 	};
 }

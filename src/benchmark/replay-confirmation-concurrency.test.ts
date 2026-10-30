@@ -102,8 +102,15 @@ const consumesTheSameFrozenInputInEveryRep = async (): Promise<void> => {
 		lineage: inputs.initial.lineage,
 		targetSha: inputs.taskSha,
 	});
-	expect(group.inputs.pipelinePath).toBe("pipelines/default.json");
-	expect(group.inputs.sessionBudgetUsd).toBe(expectedSessionBudgetUsd);
+	expect({
+		pipelinePath: group.inputs.pipelinePath,
+		sessionBudgetUsd: group.inputs.sessionBudgetUsd,
+		setup: group.inputs.setup,
+	}).toEqual({
+		pipelinePath: "pipelines/default.json",
+		sessionBudgetUsd: expectedSessionBudgetUsd,
+		setup: "actual",
+	});
 };
 const preservesThePrimaryCheckoutAndRemovesTemporaryWorktrees =
 	async (): Promise<void> => {

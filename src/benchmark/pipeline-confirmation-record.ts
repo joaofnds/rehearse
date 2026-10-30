@@ -34,6 +34,7 @@ async function finalizePipelineConfirmation({
 			model: request.model,
 			pipelinePath: request.pipelinePath,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			setup: "actual",
 			spendCeilingUsd: request.spendCeilingUsd,
 		},
 		makespanMs,

@@ -147,6 +147,7 @@ const sessionConfirmationGroupRecordFields = {
 			model: z.string().nonempty(),
 			pipelinePath: z.never().optional(),
 			sessionBudgetUsd: z.number().positive(),
+			setup: z.never().optional(),
 			spendCeilingUsd: z.number().positive().optional(),
 		})
 		.strict(),

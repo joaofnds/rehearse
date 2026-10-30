@@ -52,6 +52,7 @@ interface ConfirmationGroupInputs {
 	readonly spendCeilingUsd: number;
 	readonly pipelinePath: string;
 	readonly corpusVersion: CorpusMeasurement;
+	readonly setup: "actual";
 }
 
 interface SessionConfirmationGroupInputs {

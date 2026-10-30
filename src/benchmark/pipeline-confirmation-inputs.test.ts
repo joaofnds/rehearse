@@ -72,6 +72,15 @@ async function recordsOnTheGroupTheInstantItsRepsStarted(): Promise<void> {
 	expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
 }
 
+async function recordsOnTheGroupThatItsRepsRanUnderTheActualSetup(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+
+	const outcome = await harness.run({});
+	const group = await readGroup(outcome);
+
+	expect(group.inputs.setup).toBe("actual");
+}
+
 async function namesTheCaseItsGroupAndRepRecordsRan(): Promise<void> {
 	const harness = await PipelineConfirmationHarness.setup(testResources);
 
@@ -114,6 +123,10 @@ describe(runPipelineConfirmation.name, () => {
 		it(
 			"records on the group the instant its reps started",
 			recordsOnTheGroupTheInstantItsRepsStarted,
+		);
+		it(
+			"records on the group that its reps ran under the actual setup",
+			recordsOnTheGroupThatItsRepsRanUnderTheActualSetup,
 		);
 		it(
 			"names the case its group and rep records ran",

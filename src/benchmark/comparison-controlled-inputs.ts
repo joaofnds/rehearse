@@ -81,9 +81,16 @@ function sessionCaseDifference(
 
 /**
  * Every recorded session attempt before the actual setup ran isolated, so an
- * attempt that records no setup reads as isolated.
+ * attempt that records no setup reads as isolated. A stage group recorded
+ * before the actual setup ran with project settings only, so a stage group
+ * that records no setup reads as project.
  */
 function setupKinds(arm: Immutable<ComparisonArmEvidence>): string {
+	const group = arm.group.record;
+	if (group.mode !== "session") {
+		return group.inputs.setup ?? "project";
+	}
+
 	const kinds = arm.reps.map(
 		({ attempt }) => attempt?.record.setup?.kind ?? "isolated",
 	);
@@ -177,7 +184,7 @@ function controlledInputDifference(
 		}
 		return setupDifference(comparison) ?? sessionInputDifference(comparison);
 	}
-	return stageInputDifference(comparison);
+	return setupDifference(comparison) ?? stageInputDifference(comparison);
 }
 
 function assertControlledInputs(

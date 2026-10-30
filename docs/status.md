@@ -147,6 +147,11 @@ links no attempt history, since its attempts record no session.
   `permissions.allow` block in its declared settings; without one those tools
   are denied at runtime even when the operator's own settings would allow them.
   See the [support matrix](reference.md#corpus-sources-and-delivery).
+- **A pipeline group records only its setup kind.** Pipeline and replay
+  confirmation groups record that their stages ran with the operator's actual
+  setup, so a comparison refuses one mixed with a group recorded under project
+  settings alone. They name no settings key, MCP server, plugin or hook, so
+  two actual-setup groups run under different setups compare as alike.
 - **Only signals are confined.** Commands whose sessions can run commands keep
   those sessions from directly signalling a process outside the run with a
   `sandbox-exec` sandbox, which makes them macOS-only, and setuid programs such

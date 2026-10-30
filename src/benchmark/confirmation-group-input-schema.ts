@@ -36,6 +36,7 @@ const frozenInputsSchema = z
 		model: z.string().nonempty(),
 		pipelinePath: z.string().nonempty(),
 		sessionBudgetUsd: z.number().positive(),
+		setup: z.literal("actual").optional(),
 		spendCeilingUsd: z.number().positive().optional(),
 	})
 	.strict();

@@ -46,6 +46,16 @@ describe(assertComparableComparison.name, () => {
 		"rejects a changed corpus snapshot within one arm across cases",
 		rejectsAChangedCorpusSnapshotWithinOneArmAcrossCases,
 	);
+
+	it(
+		"rejects stage arms that ran under different setups",
+		rejectsStageArmsThatRanUnderDifferentSetups,
+	);
+
+	it(
+		"rejects stage cases that ran under different setups",
+		rejectsStageCasesThatRanUnderDifferentSetups,
+	);
 });
 
 function rejectsChangedPipelineCheckpointWorkflowState(): void {
@@ -186,4 +196,50 @@ function rejectsChangedControlledFile(
 			benchmarkCase("case-2", CORPUS_DIGESTS),
 		]),
 	).toThrow(`field inputs.files.${kind}`);
+}
+
+function underActualSetup(
+	evidence: ReturnType<typeof arm>,
+): ReturnType<typeof arm> {
+	const record = legacyRecord(evidence.group.record);
+
+	return arm(evidence.role, {
+		...record,
+		inputs: { ...record.inputs, setup: "actual" as const },
+	});
+}
+
+function rejectsStageArmsThatRanUnderDifferentSetups(): void {
+	const first = benchmarkCase("case-1", CORPUS_DIGESTS);
+	const changedCandidate = underActualSetup(first.arms.candidate);
+
+	expect(() =>
+		assertComparableComparison([
+			{ ...first, arms: { ...first.arms, candidate: changedCandidate } },
+			benchmarkCase("case-2", CORPUS_DIGESTS),
+		]),
+	).toThrow(
+		"case case-1 arm candidate field setup differs from case case-1 arm baseline",
+	);
+}
+
+function rejectsStageCasesThatRanUnderDifferentSetups(): void {
+	const second = benchmarkCase("case-2", CORPUS_DIGESTS);
+	const actualSecond = {
+		...second,
+		arms: {
+			baseline: underActualSetup(second.arms.baseline),
+			candidate: underActualSetup(second.arms.candidate),
+			control: underActualSetup(second.arms.control),
+		},
+	};
+
+	expect(() =>
+		assertComparableComparison([
+			benchmarkCase("case-1", CORPUS_DIGESTS),
+			actualSecond,
+		]),
+	).toThrow(
+		"case case-2 arm baseline field setup differs from case case-1 arm baseline",
+	);
 }
