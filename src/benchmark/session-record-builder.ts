@@ -51,6 +51,7 @@ function sessionRecordBase(
 				? EXECUTION_FAILURE_SESSION_SCHEMA_VERSION
 				: STATE_GRADING_SESSION_SCHEMA_VERSION,
 		sessionBudgetUsd: settings.budgetUsd,
+		setup: attempt.setup,
 		spendCeilingUsd: inputs.spendCeilingUsd,
 		startedAt: inputs.startedAt,
 		transcriptDiagnostics: transcriptDiagnosticsSchema.parse(

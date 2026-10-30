@@ -105,6 +105,7 @@ function loadSessionCase(declaration: SessionCaseDeclaration): SessionCase {
 		declaration,
 		fixturePath:
 			fixture === undefined ? undefined : caseRelative(declaration, fixture),
+		isolated: declaration.isolated === true,
 		kind: "session",
 		projectFiles: declaration.projectFiles,
 		prompt: declaration.prompt,

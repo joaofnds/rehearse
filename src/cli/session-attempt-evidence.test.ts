@@ -9,7 +9,11 @@ import {
 	readAttemptRecord,
 } from "./session-attempt-record-observation";
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import {
+	ABSENT_HOME,
+	SessionCaseBuilder,
+	config,
+} from "./session-case-test-fixture";
 import {
 	loadContextEvidenceSource,
 	syntheticContextCatalog,
@@ -25,6 +29,7 @@ async function persistsExactToolDiagnosticsInTheParsedAttemptRecord(): Promise<v
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: diagnosticClaude(projects),
 		runsDirectory: runs,
@@ -46,6 +51,7 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			home: ABSENT_HOME,
 			now: () => elapsedMs,
 			projectsDirectory: projects,
 			runClaude: async (command, cwd) => {
@@ -91,6 +97,7 @@ async function persistsProviderContextEvidenceThroughTheSavedAttemptBoundary(): 
 		config,
 		contextEvidenceSource,
 		contextRateCatalog,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,

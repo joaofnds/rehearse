@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
+import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
 import type { SessionRunRequest } from "#cli/session-run-command";
 
 import type SessionAttemptTestFiles from "./session-attempt-test-files";
@@ -49,6 +50,7 @@ class SessionCorpusFixture {
 
 		return {
 			config: corpus === undefined ? config : { ...config, corpus },
+			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory,

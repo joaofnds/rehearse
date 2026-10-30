@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+
 import type { SessionCase } from "#benchmark/case";
 import type { SessionRunConfig } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
@@ -20,6 +22,7 @@ function defaultSessionRunRequest(
 ): SessionRunRequest {
 	return {
 		config,
+		home: homedir(),
 		projectsDirectory: claudeProjectsDirectory(),
 		runClaude: runClaudeCommand,
 		runsDirectory,

@@ -25,6 +25,7 @@ import {
 	budgetSessionWorkspace,
 	resources,
 } from "./session-confirmation-workspace-test-fixtures";
+import ABSENT_HOME from "./session-setup-test-fixtures";
 
 resources.registerCleanup();
 
@@ -141,6 +142,7 @@ async function recordsABudgetHaltedRepSStatedErrorAndCostOnItsStageAndAttempt():
 			executeAttempt: async (plan) =>
 				await runSessionAttempt({
 					corpusSnapshot: plan.corpusSnapshot,
+					home: ABSENT_HOME,
 					projectsDirectory,
 					recordDirectory: plan.recordDirectory,
 					runClaude: (command) => {

@@ -19,6 +19,7 @@ import {
 import {
 	FIRST_CONTEXT_MANIFEST_PATH_INDEX,
 	SECOND_CONTEXT_MANIFEST_PATH_INDEX,
+	SHA256_HEX_CHARACTERS,
 	STATE_GRADING_SESSION_RECORD_VERSION,
 	recordInputs,
 	sessionCaseWithContext,
@@ -162,7 +163,31 @@ function rejectsManifestEntriesThatAreBareStringsWhenBuildingASessionAttemptReco
 		),
 	).toThrow(z.ZodError);
 }
+const RAN_SETUP = {
+	hookEvents: ["SessionStart"],
+	kind: "actual",
+	mcpConfigSha256: "c".repeat(SHA256_HEX_CHARACTERS),
+	mcpServers: ["tracker"],
+	plugins: ["kept@market"],
+	settingsKeys: ["hooks", "outputStyle"],
+	settingsSha256: "d".repeat(SHA256_HEX_CHARACTERS),
+} as const;
+
+function recordsTheSetupTheAttemptRanWith(): void {
+	const built = buildSessionAttemptRecord(
+		recordInputs({ attempt: { ...smokeAttempt(), setup: RAN_SETUP } }),
+	);
+
+	expect(parseSessionAttemptRecord(JSON.stringify(built))).toMatchObject({
+		setup: RAN_SETUP,
+	});
+}
+
 describe("sessionAttemptRecordSchema", () => {
+	it(
+		"records the setup the attempt ran with",
+		recordsTheSetupTheAttemptRanWith,
+	);
 	it(
 		"buildSessionAttemptRecord produces a schemaVersion 3 record that roundtrips with half on manifest and divergence entries",
 		buildsessionattemptrecordProducesASchemaVersion3RecordThatRoundtripsWithHalfOnManifestAndDivergenceEntries,

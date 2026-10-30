@@ -46,6 +46,7 @@ interface MutableSessionAttemptRecord {
 	corpusOrigin: CorpusSnapshotOrigin;
 	corpusVersion?: CorpusMeasurement;
 	settingsDigest?: string;
+	setup: SessionAttempt["setup"];
 	contextManifest?: z.infer<typeof contextManifestSchema>;
 	divergences?: ReturnType<typeof reconcileManifest>;
 	readManifest: ReadManifestEntry[];

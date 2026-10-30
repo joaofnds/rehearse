@@ -80,6 +80,7 @@ function smokeCase(): SessionCase {
 			tools: [],
 		},
 		fixturePath: undefined,
+		isolated: false,
 		kind: "session",
 		projectFiles: [],
 		prompt: "Reply with the single word OK.",
@@ -97,6 +98,7 @@ function smokeAttempt(): SessionAttempt {
 		metrics: undefined,
 		outcome: "SUCCESSFUL",
 		reply: "OK",
+		setup: { kind: "isolated" },
 		transcriptDiagnostics: {
 			issues: [],
 			measuredLineCount: 1,

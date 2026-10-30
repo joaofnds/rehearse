@@ -123,6 +123,7 @@ async function outcomeRep(
 		attemptDirectory: join(plan.recordDirectory, "execution"),
 		contextManifest: undefined,
 		metrics: plan.ordinal === FOURTH_REP_ORDINAL ? undefined : metrics,
+		setup: { kind: "isolated" } as const,
 		transcriptDiagnostics: unavailableTranscriptDiagnostics,
 		transcriptFile,
 	};

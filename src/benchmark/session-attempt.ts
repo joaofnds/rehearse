@@ -19,16 +19,20 @@ async function runSessionAttempt(
 	const { sessionCase, settings } = request;
 	const temporaryDirectory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
 	const attemptDirectory = await realpath(temporaryDirectory);
+	const setupDirectory = await mkdtemp(join(tmpdir(), "rehearse-setup-"));
 	try {
 		const execution = await prepareAttempt(request, {
 			attemptDirectory,
 			sessionCase,
 			settings,
+			setupDirectory,
 		});
 		return await executeAttempt(execution);
 	} catch (error) {
 		await rm(attemptDirectory, { force: true, recursive: true });
 		throw error;
+	} finally {
+		await rm(setupDirectory, { force: true, recursive: true });
 	}
 }
 
@@ -53,6 +57,7 @@ async function executeAttempt(
 			contextEvidence,
 			installedCorpus: overlay.installed,
 			output,
+			setup: execution.setup.record,
 			writtenTranscript: transcriptPath,
 		});
 

@@ -5,33 +5,60 @@ import type {
 	PreparedAttempt,
 	SessionNaming,
 } from "./session-attempt-preparation-contract";
+import { declaredSettings } from "./session-attempt-setup";
 import SessionInvocationError from "./session-invocation-error";
+import type { ActualSetupFiles, SessionSetup } from "./session-setup";
 
 function selectedSettings(
 	sessionCase: SessionCase,
 	styleName: string | undefined,
 ): string | undefined {
-	if (styleName === undefined) {
-		return sessionCase.settings === undefined
-			? undefined
-			: JSON.stringify(sessionCase.settings);
-	}
+	const declared = declaredSettings(sessionCase, styleName);
 
-	return JSON.stringify({ ...sessionCase.settings, outputStyle: styleName });
+	return declared === undefined ? undefined : JSON.stringify(declared);
 }
 
 interface SessionCaseOptions {
 	readonly settings: SessionSettings;
 	readonly session: SessionNaming;
 	readonly styleName?: string | undefined;
+	readonly setup: SessionSetup;
+}
+
+function isolatedSetupArgs(
+	sessionCase: SessionCase,
+	styleName: string | undefined,
+): string[] {
+	const settingsJson = selectedSettings(sessionCase, styleName);
+
+	return [
+		"--setting-sources",
+		"project",
+		"--strict-mcp-config",
+		"--tools",
+		sessionCase.tools.join(","),
+		...(settingsJson === undefined ? [] : ["--settings", settingsJson]),
+	];
+}
+
+function actualSetupArgs(setup: ActualSetupFiles): string[] {
+	return [
+		"--setting-sources",
+		"project,local",
+		"--settings",
+		setup.settingsFile,
+		...setup.mcpConfigFiles.flatMap((file) => ["--mcp-config", file]),
+		...setup.pluginDirectories.flatMap((directory) => [
+			"--plugin-dir",
+			directory,
+		]),
+	];
 }
 
 function sessionCaseArgs(
 	sessionCase: SessionCase,
-	{ settings, session, styleName }: SessionCaseOptions,
+	{ settings, session, styleName, setup }: SessionCaseOptions,
 ): string[] {
-	const declaredSettings = selectedSettings(sessionCase, styleName);
-
 	return [
 		"claude",
 		"-p",
@@ -43,12 +70,9 @@ function sessionCaseArgs(
 		String(settings.budgetUsd),
 		"--output-format",
 		"json",
-		"--setting-sources",
-		"project",
-		"--strict-mcp-config",
-		"--tools",
-		sessionCase.tools.join(","),
-		...(declaredSettings === undefined ? [] : ["--settings", declaredSettings]),
+		...(setup.kind === "isolated"
+			? isolatedSetupArgs(sessionCase, styleName)
+			: actualSetupArgs(setup)),
 		...(sessionCase.agents === undefined
 			? []
 			: ["--agents", JSON.stringify(sessionCase.agents)]),
@@ -68,12 +92,14 @@ async function invokeSession({
 	session,
 	transcriptPath,
 	contextEvidence,
+	setup,
 }: PreparedAttempt): Promise<string> {
 	try {
 		return await request.runClaude(
 			sessionCaseArgs(sessionCase, {
 				session,
 				settings,
+				setup: setup.files,
 				styleName: overlay.styleName,
 			}),
 			attemptDirectory,
@@ -85,6 +111,7 @@ async function invokeSession({
 			{
 				attemptDirectory,
 				error: failure,
+				setup: setup.record,
 				writtenTranscript: transcriptPath,
 			},
 			contextEvidence,

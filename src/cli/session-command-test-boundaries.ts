@@ -48,6 +48,7 @@ const recordSuccessfulSessionAttempt: SessionConfirmationDependencies["executeAt
 			metrics: sessionMetrics,
 			outcome: "SUCCESSFUL",
 			reply: "OK",
+			setup: { kind: "isolated" },
 			transcriptDiagnostics: unavailableTranscriptDiagnostics,
 			transcriptFile,
 		};

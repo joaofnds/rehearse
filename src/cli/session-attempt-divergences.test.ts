@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
@@ -41,6 +42,7 @@ async function reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheC
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude,
 		runsDirectory,
@@ -63,6 +65,7 @@ async function reportsAnUnloadedFileDivergenceForADeclaredProjectFileTheSessionN
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory,

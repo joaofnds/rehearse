@@ -29,6 +29,30 @@ const corpusFileSchema = z
 	})
 	.strict();
 
+const namesSchema = z.array(z.string().nonempty());
+
+/**
+ * The setup a session ran with, as names and digests only, since the browser
+ * serves records on loopback without authentication and a setting value can be
+ * a credential.
+ */
+const actualSetupRecordSchema = z
+	.object({
+		hookEvents: namesSchema,
+		kind: z.literal("actual"),
+		mcpConfigSha256: sha256Schema,
+		mcpServers: namesSchema,
+		plugins: namesSchema,
+		settingsKeys: namesSchema,
+		settingsSha256: sha256Schema,
+	})
+	.strict();
+
+const sessionSetupRecordSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("isolated") }).strict(),
+	actualSetupRecordSchema,
+]);
+
 const contextHalfSchema = z.enum(["corpus", "project"]);
 
 type ContextHalf = z.infer<typeof contextHalfSchema>;
@@ -77,6 +101,8 @@ export {
 	corpusSnapshotOriginSchema,
 	sha256Schema,
 	corpusFileSchema,
+	actualSetupRecordSchema,
+	sessionSetupRecordSchema,
 	contextHalfSchema,
 	manifestEntrySchema,
 	contextManifestSchema,

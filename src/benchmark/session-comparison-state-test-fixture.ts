@@ -6,7 +6,9 @@ import type { ComparisonArm } from "./comparison-record";
 import type { Immutable } from "./contracts";
 import { runSessionAttempt } from "./session-attempt";
 import { writeComparisonCorpus } from "./session-comparison-corpus-test-fixture";
-import SessionComparisonRequestBuilder from "./session-comparison-request-test-builder";
+import SessionComparisonRequestBuilder, {
+	ABSENT_HOME,
+} from "./session-comparison-request-test-builder";
 import StateScoringProvider from "./session-comparison-state-provider-fixture";
 import type { StateGroupCase } from "./session-comparison-test-contract";
 import { runSessionConfirmation } from "./session-confirmation";
@@ -147,6 +149,7 @@ class StateComparisonFixture {
 				executeAttempt: async (plan) =>
 					await runSessionAttempt({
 						corpusSnapshot: plan.corpusSnapshot,
+						home: ABSENT_HOME,
 						projectsDirectory: this.props.projectsDirectory,
 						recordDirectory: plan.recordDirectory,
 						runClaude,

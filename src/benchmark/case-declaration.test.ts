@@ -118,6 +118,15 @@ function carriesTheModelAndSessionBudgetASessionCaseDeclares(): void {
 	expect(parsed).toMatchObject({ model: "sonnet", sessionBudgetUsd: 0.2 });
 }
 
+function carriesTheIsolationASessionCaseDeclares(): void {
+	const parsed = parseCaseDeclaration(
+		"smoke",
+		new CaseDeclarationBuilder({ isolated: true }).sessionJson(),
+	);
+
+	expect(parsed).toMatchObject({ isolated: true });
+}
+
 function describeWhenTheDeclarationMatchesItsCaseDirectory(): void {
 	it(
 		"accepts a declaration whose id is its directory name",
@@ -130,6 +139,10 @@ function describeWhenTheDeclarationMatchesItsCaseDirectory(): void {
 	it(
 		"carries the model and session budget a session case declares",
 		carriesTheModelAndSessionBudgetASessionCaseDeclares,
+	);
+	it(
+		"carries the isolation a session case declares",
+		carriesTheIsolationASessionCaseDeclares,
 	);
 }
 function describeWhenTheDeclaredIdentityDisagreesWithItsDirectory(): void {

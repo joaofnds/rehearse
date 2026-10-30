@@ -29,6 +29,7 @@ class SessionLineageCaseBuilder {
 				tools: [],
 			},
 			fixturePath,
+			isolated: false,
 			kind: "session",
 			projectFiles: [],
 			prompt: "Reply with the single word OK.",

@@ -1,4 +1,10 @@
-import { mkdir, readdir, realpath, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readFile,
+	readdir,
+	realpath,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCommand } from "#benchmark/command";
@@ -38,6 +44,19 @@ interface FakeRun {
 	readonly cwd: string;
 	readonly seenFiles: readonly string[];
 	readonly shellOutputs: readonly string[];
+	/** The settings JSON the session reads, from the file --settings names or inline. */
+	readonly settingsText: string | undefined;
+}
+
+async function settingsText(
+	command: readonly string[],
+): Promise<string | undefined> {
+	const value = valueAfter(command, "--settings");
+	if (value === undefined || value.startsWith("{")) {
+		return value;
+	}
+
+	return await readFile(value, "utf8");
 }
 
 function namedSession(command: readonly string[]): string {
@@ -72,6 +91,7 @@ class FakeClaude {
 			command: [...command],
 			cwd,
 			seenFiles: await readdir(cwd, { recursive: true }),
+			settingsText: await settingsText(command),
 			shellOutputs: await this.shell(cwd),
 		});
 		const sessionId = namedSession(command);

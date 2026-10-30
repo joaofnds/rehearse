@@ -51,6 +51,7 @@ class RegradeCaseBuilder {
 				tools: [],
 			},
 			fixturePath: undefined,
+			isolated: false,
 			kind: "session",
 			projectFiles: [],
 			prompt: "write the reply",

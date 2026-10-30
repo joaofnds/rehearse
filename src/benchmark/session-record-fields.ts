@@ -14,6 +14,7 @@ import {
 	corpusFileSchema,
 	corpusSnapshotOriginSchema,
 	manifestDivergenceSchema,
+	sessionSetupRecordSchema,
 	sha256Schema,
 } from "./session-record-context-schema";
 import { stateResultSchema } from "./session-state-check";
@@ -36,6 +37,7 @@ const sessionAttemptRecordFields = {
 	reply: z.string().optional(),
 	sessionBudgetUsd: z.number().positive(),
 	settingsDigest: sha256Schema.optional(),
+	setup: sessionSetupRecordSchema.optional(),
 	spendCeilingUsd: z.number().positive().optional(),
 	transcriptDiagnostics: transcriptDiagnosticsSchema.optional(),
 	transcriptFile: z.string().nonempty(),
@@ -70,6 +72,7 @@ const executionFailedSessionAttemptRecordFields = {
 	schemaVersion: z.literal(EXECUTION_FAILURE_SESSION_SCHEMA_VERSION),
 	sessionBudgetUsd: z.number().positive(),
 	settingsDigest: sha256Schema.optional(),
+	setup: sessionSetupRecordSchema.optional(),
 	spendCeilingUsd: z.number().positive().optional(),
 	transcriptDiagnostics: transcriptDiagnosticsSchema.optional(),
 	transcriptFile: z.string().nonempty(),

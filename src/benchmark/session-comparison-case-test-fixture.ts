@@ -64,6 +64,7 @@ class SessionComparisonCaseBuilder {
 			corpusFiles,
 			declaration,
 			fixturePath: undefined,
+			isolated: false,
 			kind: "session",
 			projectFiles: [],
 			prompt,

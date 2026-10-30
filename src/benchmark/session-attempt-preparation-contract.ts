@@ -7,6 +7,7 @@ import type {
 	ContextRateCatalog,
 } from "./context-evidence";
 import type { SessionCorpusSnapshot } from "./session-corpus";
+import type { PreparedSetup } from "./session-setup";
 
 type ClaudeRunner = (
 	command: readonly string[],
@@ -17,6 +18,8 @@ interface SessionAttemptRequest {
 	readonly sessionCase: SessionCase;
 	readonly settings: SessionSettings;
 	readonly projectsDirectory: string;
+	/** The home directory whose Claude Code setup a session runs with. */
+	readonly home: string;
 	readonly recordDirectory: string;
 	readonly runClaude: ClaudeRunner;
 	readonly corpusSnapshot?: SessionCorpusSnapshot | undefined;
@@ -42,6 +45,7 @@ interface AttemptPreparation {
 	readonly sessionCase: SessionCase;
 	readonly settings: SessionSettings;
 	readonly attemptDirectory: string;
+	readonly setupDirectory: string;
 }
 
 interface PreparedAttempt extends AttemptPreparation {
@@ -52,6 +56,7 @@ interface PreparedAttempt extends AttemptPreparation {
 	readonly session: SessionNaming;
 	readonly transcriptPath: string;
 	readonly contextEvidence: ContextEvidence | undefined;
+	readonly setup: PreparedSetup;
 }
 
 export { SessionInputError as default };

@@ -149,6 +149,7 @@ async function doesNotFinalizeAGroupWhenARepRecordCannotBePersisted(): Promise<v
 					metrics,
 					outcome: "SUCCESSFUL",
 					reply: "OK",
+					setup: { kind: "isolated" },
 					transcriptDiagnostics: unavailableTranscriptDiagnostics,
 					transcriptFile: join(plan.recordDirectory, "transcript.jsonl"),
 				};

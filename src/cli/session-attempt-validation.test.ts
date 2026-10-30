@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
 import { readShortIds } from "#benchmark/short-id";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
@@ -17,6 +18,7 @@ async function reportsTheAttemptUnsuccessfulWhenACheckFails(): Promise<void> {
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK sure thing"),
 		runsDirectory: runs,
@@ -37,6 +39,7 @@ async function refusesADeclaredCorpusFileThatDoesNotResolveBeforeAnyProviderCall
 	const failure = await failureOf(
 		runSessionDebugAttempt({
 			config,
+			home: ABSENT_HOME,
 			projectsDirectory: projects,
 			runClaude: async () =>
 				await Promise.reject(new Error("a provider call must not happen")),

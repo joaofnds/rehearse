@@ -4,6 +4,7 @@ import type { ContextManifest } from "./context-manifest";
 import type { ClaudeCallMetrics, Immutable } from "./contracts";
 import type { SessionAttemptRequest } from "./session-attempt-preparation-contract";
 import type { CheckResult } from "./session-check";
+import type { SessionSetupRecord } from "./session-setup";
 import type { StateResult } from "./session-state-check";
 import type { TranscriptDiagnostics, TranscriptLine } from "./transcript";
 
@@ -19,6 +20,8 @@ interface SessionAttempt {
 		| "EXECUTION_FAILED";
 	readonly checks: readonly CheckResult[];
 	readonly contextManifest: ContextManifest | undefined;
+	/** The user's setup the session ran with, or that it declared isolation. */
+	readonly setup: SessionSetupRecord;
 	/**
 	 * The declared project files the seeded fixture held, hashed before the
 	 * session could write them. A declared file the fixture lacked is absent.
@@ -41,6 +44,7 @@ interface SessionAttempt {
 
 interface AttemptOutput {
 	readonly output: string;
+	readonly setup: SessionSetupRecord;
 	readonly writtenTranscript: string;
 	readonly contextEvidence?: ContextEvidence | undefined;
 	readonly installedCorpus: readonly string[];
@@ -61,12 +65,14 @@ interface TranscriptRecord {
 
 interface FailedInvocationEvidence {
 	readonly attemptDirectory: string;
+	readonly setup: SessionSetupRecord;
 	readonly writtenTranscript: string;
 	readonly error: Readonly<Error>;
 }
 
 interface InvocationFailureEvidence {
 	readonly attemptDirectory: string;
+	readonly setup: SessionSetupRecord;
 	readonly recorded: TranscriptRecord;
 }
 

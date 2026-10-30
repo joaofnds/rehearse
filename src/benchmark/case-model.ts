@@ -36,6 +36,8 @@ interface SessionCase {
 	readonly fixturePath: string | undefined;
 	readonly transcriptPath: string | undefined;
 	readonly prompt: string;
+	/** Whether the case runs apart from the user's setup, with only its declared tools. */
+	readonly isolated: boolean;
 	readonly tools: readonly string[];
 	readonly settings: Immutable<JsonObject> | undefined;
 	readonly agents: Immutable<JsonObject> | undefined;

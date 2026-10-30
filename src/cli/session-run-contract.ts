@@ -16,6 +16,8 @@ interface SessionRunRequest {
 	readonly runsDirectory: string;
 	readonly runClaude: ClaudeRunner;
 	readonly projectsDirectory: string;
+	/** The home directory whose Claude Code setup a session runs with. */
+	readonly home: string;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 	readonly contextEvidenceSource?: ContextEvidenceSource | undefined;
 	readonly contextRateCatalog?: ContextRateCatalog | undefined;

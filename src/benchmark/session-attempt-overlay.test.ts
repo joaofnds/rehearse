@@ -7,8 +7,6 @@ import { request, sessionCase } from "./session-attempt-case-test-fixtures";
 import {
 	FIRST_RECORDED_PROVIDER_RUN_INDEX,
 	FakeClaude,
-	OPTION_VALUE_POSITION_OFFSET,
-	valueAfter,
 } from "./session-attempt-provider-test-fixtures";
 import {
 	projectsRoot,
@@ -58,14 +56,9 @@ async function selectsTheSnapshotSOutputStyleWithSettings(): Promise<void> {
 		}),
 	);
 
-	const command = claude.runs[FIRST_RECORDED_PROVIDER_RUN_INDEX]?.command ?? [];
+	const settings = claude.runs[FIRST_RECORDED_PROVIDER_RUN_INDEX]?.settingsText;
 
-	expect(
-		JSON.parse(
-			command[command.indexOf("--settings") + OPTION_VALUE_POSITION_OFFSET] ??
-				"{}",
-		),
-	).toEqual({ outputStyle: "brief" });
+	expect(JSON.parse(settings ?? "{}")).toEqual({ outputStyle: "brief" });
 }
 
 async function mergesTheStyleSelectionOverTheCaseSDeclaredSettingsRatherThanReplacingThem(): Promise<void> {
@@ -87,14 +80,9 @@ async function mergesTheStyleSelectionOverTheCaseSDeclaredSettingsRatherThanRepl
 		}),
 	);
 
-	const command = claude.runs[FIRST_RECORDED_PROVIDER_RUN_INDEX]?.command ?? [];
+	const settings = claude.runs[FIRST_RECORDED_PROVIDER_RUN_INDEX]?.settingsText;
 
-	expect(
-		JSON.parse(
-			command[command.indexOf("--settings") + OPTION_VALUE_POSITION_OFFSET] ??
-				"{}",
-		),
-	).toEqual({
+	expect(JSON.parse(settings ?? "{}")).toEqual({
 		outputStyle: "brief",
 		permissions: { defaultMode: "plan" },
 	});
@@ -123,11 +111,9 @@ async function selectsAndInstallsOnlyTheStyleTheCaseDeclaredNeverASecondOneTheCo
 
 	const [observedFirstRun] = claude.runs;
 
-	expect(
-		JSON.parse(
-			valueAfter(observedFirstRun?.command ?? [], "--settings") ?? "{}",
-		),
-	).toEqual({ outputStyle: "brief" });
+	expect(JSON.parse(observedFirstRun?.settingsText ?? "{}")).toEqual({
+		outputStyle: "brief",
+	});
 
 	expect(observedFirstRun?.seenFiles).toContain(
 		join(".claude", "output-styles", "brief.md"),
@@ -152,7 +138,7 @@ async function leavesTheAttemptDirectoryBareWhenTheCorpusIsTheLiveInstall(): Pro
 	const [observedFirstRun] = claude.runs;
 
 	expect(observedFirstRun?.seenFiles).toEqual([]);
-	expect(observedFirstRun?.command).not.toContain("--settings");
+	expect(JSON.parse(observedFirstRun?.settingsText ?? "{}")).toEqual({});
 }
 describe("the corpus overlay a session attempt installs", () => {
 	it(

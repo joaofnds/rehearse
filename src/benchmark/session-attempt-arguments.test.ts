@@ -3,6 +3,8 @@ import { describe, expect, it } from "bun:test";
 import { sessionCaseArgs } from "#benchmark/session-attempt";
 
 import {
+	actualSetup,
+	actualSetupOptions,
 	sessionCase,
 	sessionCaseOptions,
 } from "./session-attempt-case-test-fixtures";
@@ -94,7 +96,68 @@ function carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget(): void {
 	expect(valueAfter(flags, "--output-format")).toBe("json");
 }
 
-describe(sessionCaseArgs.name, () => {
+function loadsTheProjectAndLocalSettingSources(): void {
+	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
+
+	expect(valueAfter(flags, "--setting-sources")).toBe("project,local");
+}
+
+function passesTheUserSettingsByPathNeverInline(): void {
+	const flags = sessionCaseArgs(
+		sessionCase({ settings: { outputStyle: "brief" } }),
+		actualSetupOptions(),
+	);
+
+	expect(valueAfter(flags, "--settings")).toBe(actualSetup.settingsFile);
+}
+
+function passesTheUserMCPConfiguration(): void {
+	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
+
+	const [mcpConfigFile] = actualSetup.mcpConfigFiles;
+
+	expect(valueAfter(flags, "--mcp-config")).toBe(mcpConfigFile);
+}
+
+function loadsEachPluginDirectoryTheUserSetupHolds(): void {
+	const flags = sessionCaseArgs(sessionCase(), actualSetupOptions());
+
+	const [pluginDirectory] = actualSetup.pluginDirectories;
+
+	expect(valueAfter(flags, "--plugin-dir")).toBe(pluginDirectory);
+}
+
+function leavesTheUserToolsAndMCPServersInPlace(): void {
+	const flags = sessionCaseArgs(
+		sessionCase({ tools: ["Read"] }),
+		actualSetupOptions(),
+	);
+
+	expect(flags).not.toContain("--tools");
+	expect(flags).not.toContain("--strict-mcp-config");
+}
+
+function describeWhenTheSessionRunsWithTheActualSetup(): void {
+	it(
+		"loads the project and local setting sources",
+		loadsTheProjectAndLocalSettingSources,
+	);
+	it(
+		"passes the user settings by path, never inline",
+		passesTheUserSettingsByPathNeverInline,
+	);
+	it("passes the user MCP configuration", passesTheUserMCPConfiguration);
+	it(
+		"loads each plugin directory the user setup holds",
+		loadsEachPluginDirectoryTheUserSetupHolds,
+	);
+	it(
+		"leaves the user tools and MCP servers in place",
+		leavesTheUserToolsAndMCPServersInPlace,
+	);
+}
+
+function describeWhenTheCaseDeclaresIsolation(): void {
 	it(
 		"disables every tool with an empty --tools for an empty declared list",
 		disablesEveryToolWithAnEmptyToolsForAnEmptyDeclaredList,
@@ -134,5 +197,16 @@ describe(sessionCaseArgs.name, () => {
 	it(
 		"carries the session knobs, the JSON envelope, and the budget",
 		carriesTheSessionKnobsTheJSONEnvelopeAndTheBudget,
+	);
+}
+
+describe(sessionCaseArgs.name, () => {
+	describe(
+		"when the session runs with the actual setup",
+		describeWhenTheSessionRunsWithTheActualSetup,
+	);
+	describe(
+		"when the case declares isolation",
+		describeWhenTheCaseDeclaresIsolation,
 	);
 });

@@ -33,7 +33,7 @@ async function recordAttempt(
 	if (envelope.is_error === true) {
 		throw invocationError(
 			providerFailureMessage(envelope, "Claude session failed"),
-			{ attemptDirectory, recorded },
+			{ attemptDirectory, recorded, setup: attempt.setup },
 			{ contextEvidence: attempt.contextEvidence, metrics },
 		);
 	}
@@ -49,7 +49,12 @@ async function recordAttempt(
 
 	return await completedAttempt({
 		attempt,
-		base: { attemptDirectory, reply: envelope.result, ...recorded },
+		base: {
+			attemptDirectory,
+			reply: envelope.result,
+			setup: attempt.setup,
+			...recorded,
+		},
 		metrics,
 		request,
 		stateEvidenceDirectory,

@@ -83,6 +83,7 @@ function simpleSessionCase(id = "outcomes"): SessionCase {
 			tools: [],
 		},
 		fixturePath: undefined,
+		isolated: false,
 		kind: "session",
 		projectFiles: [],
 		prompt: "Reply.",
@@ -129,6 +130,7 @@ async function recordedAttempt(
 		metrics,
 		outcome: "SUCCESSFUL",
 		reply: "OK",
+		setup: { kind: "isolated" },
 		transcriptDiagnostics: unavailableTranscriptDiagnostics,
 		transcriptFile,
 	};
@@ -175,6 +177,7 @@ function frozenInputCase(
 			},
 		},
 		fixturePath,
+		isolated: false,
 		kind: "session",
 		projectFiles: ["fixture.txt"],
 		prompt: "Reply with OK.",

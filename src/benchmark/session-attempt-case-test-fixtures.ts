@@ -5,6 +5,7 @@ import type { Immutable } from "#benchmark/contracts";
 import type { SessionAttemptRequest } from "#benchmark/session-attempt";
 
 import type { SessionCaseOptions } from "./session-attempt-invocation";
+import ABSENT_HOME from "./session-setup-test-fixtures";
 
 const SHA256_HEX_CHARACTERS = 64;
 
@@ -38,6 +39,7 @@ function sessionCase(
 			tools: [],
 		},
 		fixturePath: undefined,
+		isolated: false,
 		kind: "session",
 		projectFiles: [],
 		prompt: "Reply with the single word OK.",
@@ -56,6 +58,7 @@ function request(
 	},
 ): SessionAttemptRequest {
 	return {
+		home: ABSENT_HOME,
 		sessionCase: sessionCase(),
 		settings: { budgetUsd: 0.2, effort: "low", model: "haiku" },
 		...overrides,
@@ -71,7 +74,19 @@ function sessionCaseOptions(resume?: string): SessionCaseOptions {
 				? { resumed: false, sessionId: WRITTEN_SESSION }
 				: { resumed: true, sessionId: resume },
 		settings,
+		setup: { kind: "isolated" },
 	};
+}
+
+const actualSetup = {
+	kind: "actual",
+	mcpConfigFiles: ["/home/user/.claude.json"],
+	pluginDirectories: ["/home/user/.claude/plugins/synced/bucket"],
+	settingsFile: "/tmp/rehearse-setup/settings.json",
+} as const;
+
+function actualSetupOptions(): SessionCaseOptions {
+	return { ...sessionCaseOptions(), setup: actualSetup };
 }
 
 export {
@@ -83,4 +98,6 @@ export {
 	request,
 	settings,
 	sessionCaseOptions,
+	actualSetup,
+	actualSetupOptions,
 };

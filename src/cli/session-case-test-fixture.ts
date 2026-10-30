@@ -32,6 +32,7 @@ class SessionCaseBuilder {
 				tools: [],
 			},
 			fixturePath: undefined,
+			isolated: false,
 			kind: "session",
 			projectFiles: [],
 			prompt: "Reply with the single word OK.",
@@ -60,3 +61,4 @@ function resumingCase(transcriptPath: string): SessionCase {
 	};
 }
 export { SessionCaseBuilder, config, resumingCase };
+export { default as ABSENT_HOME } from "#benchmark/session-setup-test-fixtures";

@@ -4,6 +4,7 @@ import { basename, dirname } from "node:path";
 import { z } from "zod";
 
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
 import { readShortIds } from "#benchmark/short-id";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
@@ -19,6 +20,7 @@ async function writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndARes
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -55,6 +57,7 @@ async function claimsTheAttemptAShortIdInItsCase(): Promise<void> {
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -81,6 +84,7 @@ async function printsARecordThatParsesWithTheSchemaThatWroteIt(): Promise<void> 
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -107,6 +111,7 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 
 	const outcome = await runSessionDebugAttempt({
 		config,
+		home: ABSENT_HOME,
 		now: () => elapsedMs,
 		projectsDirectory: projects,
 		runClaude: async (command, cwd) => {

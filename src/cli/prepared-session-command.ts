@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionAttempt } from "#benchmark/session-attempt";
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
@@ -16,6 +18,7 @@ async function runPreparedSessionAttempt(
 ): Promise<SessionAttempt> {
 	return await attempted({
 		corpusSnapshot: plan.corpusSnapshot,
+		home: homedir(),
 		projectsDirectory: claudeProjectsDirectory(),
 		recordDirectory: plan.recordDirectory,
 		runClaude: runClaudeCommand,

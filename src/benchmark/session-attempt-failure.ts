@@ -24,7 +24,12 @@ const NO_TRANSCRIPT_PREFIX_ROWS = 0;
 
 async function failedInvocation(
 	request: SessionAttemptRequest,
-	{ attemptDirectory, writtenTranscript, error }: FailedInvocationEvidence,
+	{
+		attemptDirectory,
+		writtenTranscript,
+		error,
+		setup,
+	}: FailedInvocationEvidence,
 	contextEvidence: ContextEvidence | undefined,
 ): Promise<SessionInvocationError> {
 	const cut =
@@ -40,7 +45,7 @@ async function failedInvocation(
 		if (envelope !== undefined) {
 			return invocationError(
 				providerFailureMessage(envelope, error.message, error.stderr),
-				{ attemptDirectory, recorded },
+				{ attemptDirectory, recorded, setup },
 				{ contextEvidence, metrics: readClaudeCallMetrics(envelope) },
 			);
 		}
@@ -48,7 +53,7 @@ async function failedInvocation(
 
 	return invocationError(
 		error.message,
-		{ attemptDirectory, recorded },
+		{ attemptDirectory, recorded, setup },
 		{ contextEvidence, metrics: undefined },
 	);
 }
@@ -74,7 +79,7 @@ function providerFailureMessage(
 
 function invocationError(
 	message: string,
-	{ attemptDirectory, recorded }: InvocationFailureEvidence,
+	{ attemptDirectory, recorded, setup }: InvocationFailureEvidence,
 	{ metrics, contextEvidence }: InvocationFailureUsage = {},
 ): SessionInvocationError {
 	return new SessionInvocationError(
@@ -88,6 +93,7 @@ function invocationError(
 				contextManifest: undefined,
 				metrics,
 				outcome: "EXECUTION_FAILED",
+				setup,
 			},
 			contextEvidence,
 		),
