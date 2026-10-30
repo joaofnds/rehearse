@@ -99,9 +99,10 @@ probe allowance. Calibration rejudges are additional calls.
 
 A session that can run a command runs as you and with your permissions, so a
 `pkill -f` it issues could stop any of your processes whose command line
-matches. `run` of a pipeline, `run` of a session case whose `tools` list is
-non-empty, whose `settings` declare `hooks`, or whose fixture carries a
-`.claude` directory, `replay`, `compare attempts` and `compare extend` therefore
+matches. `run` of a pipeline, `run` of a session case that does not declare
+`isolated`, since it runs with your own hooks, plugins and permission mode,
+`run` of an isolated session case whose `tools` list is non-empty, whose
+`settings` declare `hooks`, or whose fixture carries a `.claude` directory, `replay`, `compare attempts` and `compare extend` therefore
 replace their own process, keeping its pid, with
 `/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))'`
 running the same command. Every process the command starts itself shares that

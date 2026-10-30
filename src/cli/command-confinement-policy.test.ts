@@ -17,6 +17,7 @@ const unloadable = async (): Promise<never> =>
 const PROBE_DECLARATION: SessionCase["declaration"] = {
 	...new SessionCaseBuilder().build().declaration,
 	id: "probe",
+	isolated: true,
 	title: "Probe",
 };
 
@@ -29,9 +30,19 @@ async function emptyFixture(): Promise<string> {
 	return fixture;
 }
 
+async function holdsForACaseThatRunsWithTheUserSetup(): Promise<void> {
+	const withUserSetup = new SessionCaseBuilder({
+		declaration: { ...PROBE_DECLARATION, isolated: false },
+		isolated: false,
+	}).build();
+
+	expect(await sessionCanRunCommands(withUserSetup)).toBe(true);
+}
+
 async function holdsForACaseThatDeclaresATool(): Promise<void> {
 	const withRead = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
+		isolated: true,
 		tools: ["Read"],
 	}).build();
 
@@ -41,6 +52,7 @@ async function holdsForACaseThatDeclaresATool(): Promise<void> {
 async function holdsForACaseWhoseSettingsDeclareHooks(): Promise<void> {
 	const hooked = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
+		isolated: true,
 		settings: { hooks: {} },
 	}).build();
 
@@ -50,6 +62,7 @@ async function holdsForACaseWhoseSettingsDeclareHooks(): Promise<void> {
 async function doesNotHoldForACaseWithNoTool(): Promise<void> {
 	const toolless = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
+		isolated: true,
 		settings: { outputStyle: "brief" },
 	}).build();
 
@@ -63,6 +76,7 @@ async function holdsForACaseWhoseFixtureCarriesProjectSettings(): Promise<void> 
 	const withProjectSettings = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
 		fixturePath: fixture,
+		isolated: true,
 	}).build();
 
 	expect(await sessionCanRunCommands(withProjectSettings)).toBe(true);
@@ -72,6 +86,7 @@ async function doesNotHoldForACaseWhoseFixtureBrings(): Promise<void> {
 	const withoutProjectSettings = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
 		fixturePath: await emptyFixture(),
+		isolated: true,
 	}).build();
 
 	expect(await sessionCanRunCommands(withoutProjectSettings)).toBe(false);
@@ -86,6 +101,7 @@ async function confinesAPipelineCase(): Promise<void> {
 async function confinesASessionCaseThatCanRunCommands(): Promise<void> {
 	const withBash = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
+		isolated: true,
 		tools: ["Bash"],
 	}).build();
 
@@ -100,6 +116,7 @@ async function confinesASessionCaseThatCanRunCommands(): Promise<void> {
 async function leavesASessionCaseThatCannotRunCommandsUnconfined(): Promise<void> {
 	const toolless = new SessionCaseBuilder({
 		declaration: PROBE_DECLARATION,
+		isolated: true,
 	}).build();
 
 	expect(
@@ -118,6 +135,10 @@ describe(sessionCanRunCommands.name, () => {
 			}),
 		);
 	});
+	it(
+		"holds for a case that runs with the user setup, whatever its tools",
+		holdsForACaseThatRunsWithTheUserSetup,
+	);
 	it("holds for a case that declares a tool", holdsForACaseThatDeclaresATool);
 	it(
 		"holds for a case whose settings declare hooks",

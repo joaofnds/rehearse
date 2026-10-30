@@ -17,13 +17,16 @@ const CONFINED_VARIABLE = "REHEARSE_CONFINED";
 /**
  * Which Claude Code tools run commands could not be established, and hooks
  * run commands whatever the tools are, so any tool, any declared hook, or
- * project settings the fixture brings in count.
+ * project settings the fixture brings in count. A case that does not declare
+ * isolation runs with the user's own hooks, plugins and permission mode,
+ * which can run commands whatever the case lists.
  */
 async function sessionCanRunCommands(
 	sessionCase: SessionCase,
 ): Promise<boolean> {
-	const { fixturePath, settings, tools } = sessionCase;
+	const { fixturePath, isolated, settings, tools } = sessionCase;
 	if (
+		!isolated ||
 		tools.length > EMPTY_COLLECTION_LENGTH ||
 		settings?.["hooks"] !== undefined
 	) {

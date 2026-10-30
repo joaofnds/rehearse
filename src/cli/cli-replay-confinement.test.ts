@@ -6,10 +6,11 @@ import {
 	it,
 	setDefaultTimeout,
 } from "bun:test";
-import { rm } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { compareAttempts } from "#benchmark/compare-attempts";
+import { jsonObjectSchema } from "#benchmark/json-value";
 import { CliTestWorkspace } from "#cli/cli-test-support";
 
 import {
@@ -108,11 +109,31 @@ async function cannotSignalAProcessOutsideCompareExtend(): Promise<void> {
 	expect(isRunning(outside.pid)).toBe(true);
 }
 
+/**
+ * A case that runs with the user's own setup is confined whatever its tools,
+ * so the unconfined path needs a case that declares isolation.
+ */
+async function declareIsolation(
+	control: string,
+	caseId: string,
+): Promise<void> {
+	const declarationPath = join(control, "cases", caseId, "case.json");
+	const declaration = jsonObjectSchema.parse(
+		JSON.parse(await readFile(declarationPath, "utf8")),
+	);
+
+	await writeFile(
+		declarationPath,
+		JSON.stringify({ ...declaration, isolated: true }),
+	);
+}
+
 async function signalsFreelyFromASessionAttemptWhoseCaseAllows(): Promise<void> {
 	const { directory, control, binDirectory } = await signallingFixture(
 		workspace,
 		outside,
 	);
+	await declareIsolation(control, "smoke");
 
 	await runPipelineCli(
 		["run", "--case", "smoke", "--model", "sonnet"],
@@ -161,7 +182,7 @@ describe("a run's sessions", () => {
 		cannotSignalAProcessOutsideCompareExtend,
 	);
 	it(
-		"signals freely from a session attempt whose case allows no tool",
+		"signals freely from an isolated session attempt whose case allows no tool",
 		signalsFreelyFromASessionAttemptWhoseCaseAllows,
 	);
 	it(
