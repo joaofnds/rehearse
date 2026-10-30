@@ -141,6 +141,7 @@ export {
 	attemptsText,
 	attributionText,
 	baselineArmText,
+	capitalized,
 	contrastText,
 	overallMeasures,
 	replyLengthText,

@@ -107,6 +107,10 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 			state: "unavailable",
 		},
 		corpusVersions: { "case-1": caseVersions, "case-2": caseVersions },
+		inheritedConfiguration: {
+			"case-1": { findings: [], state: "available" },
+			"case-2": { findings: [], state: "available" },
+		},
 		report: recordedCaseReport(),
 		summary: {
 			"case-1": caseSummary({

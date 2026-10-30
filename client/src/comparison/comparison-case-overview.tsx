@@ -4,10 +4,14 @@ import type { WhatMovedRow } from "#server/comparison-what-moved";
 
 import ArmCardsBand from "./arm-cards-band";
 import type { ComparisonResponse } from "./comparison-response";
+import inheritedConfigurationLines from "./inherited-configuration-text";
+import type { CaseInheritedConfiguration } from "./inherited-configuration-text";
 import { qualityReadingText } from "./reading-text";
 import SessionAssessment from "./session-assessment";
 
 const SINGLE_ITEM_COUNT = 1;
+
+const NO_LINES = 0;
 
 interface AttemptsPerArm {
 	readonly control: number;
@@ -45,18 +49,34 @@ function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
 interface CaseLeadProps {
 	readonly caseId: string;
 	readonly attribution: ComparisonResponse["attribution"][string][string];
+	readonly inheritedConfiguration: CaseInheritedConfiguration;
 }
 
-function CaseLead({ caseId, attribution }: CaseLeadProps): React.JSX.Element {
+function CaseLead({
+	caseId,
+	attribution,
+	inheritedConfiguration,
+}: CaseLeadProps): React.JSX.Element {
 	const change =
 		attribution.claim === "identical"
 			? "Baseline and candidate used identical corpora"
 			: `Changed: ${attribution.differingPaths.join(", ")}`;
+	const inherited = inheritedConfigurationLines(inheritedConfiguration);
 
 	return (
 		<header className="flex flex-col gap-1">
 			<h2 className="text-17 font-semibold">{caseId}</h2>
 			<p className="text-14 text-secondary-foreground">{change}</p>
+			{inherited.length === NO_LINES ? null : (
+				<ul
+					aria-label="Claude Code configuration inherited from the shell"
+					className="flex flex-col gap-1 text-14 text-secondary-foreground"
+				>
+					{inherited.map((line) => (
+						<li key={line}>{line}</li>
+					))}
+				</ul>
+			)}
 		</header>
 	);
 }
@@ -101,6 +121,42 @@ function AssessmentOverview({
 	);
 }
 
+interface CaseOpeningProps {
+	readonly caseId: string;
+	readonly comparison: ComparisonResponse;
+	readonly attribution: ComparisonResponse["attribution"][string][string];
+	readonly attempts: ComparisonResponse["attempts"][string];
+}
+
+/** What a case compares and under what Claude Code configuration, then its outcome. */
+function CaseOpening({
+	caseId,
+	comparison,
+	attribution,
+	attempts,
+}: CaseOpeningProps): React.JSX.Element | null {
+	const inheritedConfiguration = comparison.inheritedConfiguration[caseId];
+	if (inheritedConfiguration === undefined) {
+		return null;
+	}
+
+	return (
+		<>
+			<CaseLead
+				caseId={caseId}
+				attribution={attribution}
+				inheritedConfiguration={inheritedConfiguration}
+			/>
+			<AssessmentOverview
+				mode={comparison.report.mode}
+				attempts={attempts}
+				rows={comparison.whatMoved[caseId] ?? []}
+				sessionAssessment={comparison.sessionAssessments?.[caseId]}
+			/>
+		</>
+	);
+}
+
 interface CasePresentationProps {
 	readonly digest: string;
 	readonly caseId: string;
@@ -131,5 +187,5 @@ function ArmCards({
 	);
 }
 
-export { ArmCards, AssessmentOverview, attemptsPerArm, CaseLead };
+export { ArmCards, attemptsPerArm, CaseOpening };
 export type { CasePresentationProps };

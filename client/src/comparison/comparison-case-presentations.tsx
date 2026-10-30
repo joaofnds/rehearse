@@ -5,8 +5,7 @@ import AttributionCard from "./attribution-card";
 import type { CasePresentationProps } from "./comparison-case-overview";
 import {
 	ArmCards,
-	AssessmentOverview,
-	CaseLead,
+	CaseOpening,
 	attemptsPerArm,
 } from "./comparison-case-overview";
 import type { ComparisonResponse } from "./comparison-response";
@@ -37,12 +36,11 @@ function WhatMovedPresentation({
 			aria-label={`What moved · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
-			<CaseLead caseId={caseId} attribution={attribution} />
-			<AssessmentOverview
-				mode={comparison.report.mode}
+			<CaseOpening
+				caseId={caseId}
+				comparison={comparison}
+				attribution={attribution}
 				attempts={attempts}
-				rows={comparison.whatMoved[caseId] ?? []}
-				sessionAssessment={comparison.sessionAssessments?.[caseId]}
 			/>
 			<WhatMoved
 				caseId={caseId}
@@ -85,12 +83,11 @@ function AttemptPairsPresentation({
 			aria-label={`Attempt pairs · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
-			<CaseLead caseId={caseId} attribution={attribution} />
-			<AssessmentOverview
-				mode={comparison.report.mode}
+			<CaseOpening
+				caseId={caseId}
+				comparison={comparison}
+				attribution={attribution}
 				attempts={attempts}
-				rows={comparison.whatMoved[caseId] ?? []}
-				sessionAssessment={comparison.sessionAssessments?.[caseId]}
 			/>
 			<AttemptPairs
 				digest={digest}
