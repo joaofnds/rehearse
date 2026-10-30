@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Dirent } from "node:fs";
-import { chmod, mkdir, readdir, readlink } from "node:fs/promises";
+import { chmod, mkdir, readdir, readlink, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
@@ -41,8 +41,10 @@ echo "{\\"type\\":\\"result\\",\\"subtype\\":\\"success\\",\\"is_error\\":false,
 `;
 
 const HOME_FILES = {
+	".agents/rulebook/ownership.md": "live rule\n",
 	".claude.json": '{"mcpServers":{}}\n',
-	".claude/CLAUDE.md": "live instructions\n",
+	".claude/CLAUDE.md":
+		"live instructions\nRead ~/.agents/rulebook/ownership.md and $HOME/.claude/rulebook/ownership.md.\n",
 	".claude/agents/reviewer.md": "live agent\n",
 	".claude/output-styles/brief.md": "live brief\n",
 	".claude/settings.json": '{"permissions":{"allow":[]}}\n',
@@ -74,14 +76,21 @@ async function entryContents(
 	return await Bun.file(path).text();
 }
 
-/** Every entry under the home's Claude paths, by path, with its contents. */
+/**
+ * Every entry under the home's Claude and agent paths, by path, with its
+ * contents, since a home-path citation names files under both.
+ */
 async function claudeEntries(home: string): Promise<Record<string, string>> {
-	const entries = await readdir(join(home, ".claude"), {
-		recursive: true,
-		withFileTypes: true,
-	});
+	const entries = await Array.fromAsync(
+		[".claude", ".agents"],
+		async (directory) =>
+			await readdir(join(home, directory), {
+				recursive: true,
+				withFileTypes: true,
+			}),
+	);
 	const contents = await Array.fromAsync(
-		entries,
+		entries.flat(),
 		async (entry): Promise<[string, string]> => {
 			const path = join(entry.parentPath, entry.name);
 
@@ -109,10 +118,14 @@ async function workspace(): Promise<Workspace> {
 	const home = join(root, "home");
 	const bin = join(root, "bin");
 	await writeFiles(home, HOME_FILES);
+	await symlink("../.agents/rulebook", join(home, ".claude/rulebook"));
 	await writeFiles(bin, { claude: SILENT_CLAUDE });
 	await chmod(join(bin, "claude"), EXECUTABLE_FILE_MODE);
 	await writeFiles(root, {
+		"candidate/CLAUDE.md":
+			"candidate instructions\nRead ~/.agents/rulebook/ownership.md.\n",
 		"candidate/output-styles/brief.md": "candidate brief\n",
+		"candidate/rulebook/ownership.md": "candidate rule\n",
 		"candidate/skills/probe/SKILL.md": "candidate skill\n",
 		"control/output-styles/brief.md": "control brief\n",
 	});
@@ -239,10 +252,13 @@ async function installsEachArmsWholeCorpusInItsSessions(): Promise<void> {
 			"./CLAUDE.md\tlive instructions",
 			"./agents/reviewer.md\tlive agent",
 			"./output-styles/brief.md\tlive brief",
+			"./rulebook/ownership.md\tlive rule",
 			"./skills/probe/SKILL.md\tlive skill",
 		],
 		candidate: [
+			"./CLAUDE.md\tcandidate instructions",
 			"./output-styles/brief.md\tcandidate brief",
+			"./rulebook/ownership.md\tcandidate rule",
 			"./skills/probe/SKILL.md\tcandidate skill",
 		],
 		control: ["./output-styles/brief.md\tcontrol brief"],
