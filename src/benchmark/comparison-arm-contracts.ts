@@ -1,4 +1,8 @@
-import { sameValue, sortedFiles } from "./comparison-controlled-inputs";
+import {
+	sameValue,
+	setupKinds,
+	sortedFiles,
+} from "./comparison-controlled-inputs";
 import type {
 	ComparisonArmEvidence,
 	ComparisonCaseEvidence,
@@ -27,8 +31,18 @@ function contractDifference(
 	if (!sameValue(reference.declaredStages, other.declaredStages)) {
 		return "declaredStages";
 	}
+
+	return repDifference(comparison);
+}
+
+function repDifference(
+	comparison: Immutable<ContractComparison>,
+): string | undefined {
 	if (armReps(comparison.referenceArm) !== armReps(comparison.arm)) {
 		return "reps";
+	}
+	if (setupKinds(comparison.referenceArm) !== setupKinds(comparison.arm)) {
+		return "setup";
 	}
 
 	return undefined;

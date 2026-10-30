@@ -197,5 +197,6 @@ export {
 	assertControlledInputs,
 	controlledInputDifference,
 	sameValue,
+	setupKinds,
 	sortedFiles,
 };

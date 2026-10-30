@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import writeComparisonReport from "./comparison-command";
 import { SHA256_HEX_CHARACTERS } from "./comparison-comparability-record-fixtures";
+import { COMPARISON_ARMS } from "./comparison-record-source-schema";
 import {
 	updateAttemptChecks,
 	updateAttemptPrompts,
@@ -156,7 +157,25 @@ async function refusesArmsThatRanUnderDifferentSetups(): Promise<void> {
 	expect(
 		writeComparisonReport({ manifestPath, runsDirectory }),
 	).rejects.toThrow(
-		"case case-one arms baseline and candidate field setup differs",
+		"case case-one arm candidate field setup differs from case case-one arm baseline",
+	);
+}
+
+async function refusesCasesThatRanUnderDifferentSetups(): Promise<void> {
+	const runsDirectory = join(root, "runs");
+	const manifestPath = await writeManifest({ root, runsDirectory });
+
+	await Array.fromAsync(COMPARISON_ARMS, async (role) => {
+		await updateAttempts(
+			sessionGroupFile({ caseId: "case-two", role, runsDirectory }),
+			(attempt) => ({ ...attempt, setup: ACTUAL_SETUP }),
+		);
+	});
+
+	expect(
+		writeComparisonReport({ manifestPath, runsDirectory }),
+	).rejects.toThrow(
+		"case case-two arm baseline field setup differs from case case-one arm baseline",
 	);
 }
 
@@ -175,6 +194,11 @@ async function readsAnAttemptWithNoRecordedSetupAsIsolated(): Promise<void> {
 }
 
 describe("session comparison case inputs", () => {
+	it(
+		"refuses cases that ran under different setups",
+		refusesCasesThatRanUnderDifferentSetups,
+	);
+
 	it(
 		"refuses a changed shared prompt with its case and arms named",
 		testRefusesAChangedSharedPromptWithItsCaseAndArmsNamed,
