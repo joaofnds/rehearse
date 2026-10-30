@@ -463,7 +463,8 @@ See [current state](docs/status.md) for implementation coverage and
   the operator's confirmation (ACT-254, doc-249).
 - **Home-path citation**: a corpus file naming another corpus file by its path
   in the user's live install, such as `~/.agents/rulebook/ownership.md`. An
-  install rewrites each one that names a file it holds to the arm's own copy.
+  install rewrites each one that names a file or directory it holds to the
+  arm's own copy.
 - **Human review** — the verdict, summary, and classified findings a reviewer
   records against a run's Judge result, in `<run>.review.json`. The reviewer is
   a person or the agent standing in for one; the name says whose judgment the

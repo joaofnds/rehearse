@@ -1018,7 +1018,7 @@ corpus layout, such as `~/.agents/backlog-config.yml`, stays as written.
 
 Delivered text therefore differs from the authored text in those citations
 only. Records hash the authored bytes, so the same corpus records the same
-`corpusFiles` digests whatever it cites. Each session attempt and each
+`corpusFiles` digests whatever it cites. Each session attempt and each stage
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
 citations it `redirected`. A session attempt adds `liveReads`, and so does each
 judged stage in a confirmation rep record: each held file that a file-access
@@ -1032,9 +1032,9 @@ measured your live file rather than its own. The rewrite is relative, so a sessi
 reads a cited `.claude/` path misses the copy, and no live read records it.
 
 A group or attempt recorded without `corpusDelivery` ran before delivery, so
-its citations read the live install whatever its corpus held. `compare
-attempts` refuses such a group, and `compare` refuses arms whose delivery
-differs, naming `corpusDelivery`. Run the group again to compare it. Arms
+its citations read the live install whatever its corpus held. `compare` and
+`compare attempts` refuse such an arm, naming `corpusDelivery` when it sits
+beside delivered arms. Run the group again to compare it. Arms
 delivered by the same rule compare whatever their redirect counts, because
 each count is a property of that arm's own text.
 
