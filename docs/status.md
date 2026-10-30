@@ -154,11 +154,14 @@ links no attempt history, since its attempts record no session.
   groups run under different setups compare as alike. A group that records no
   setup cannot say which settings its stages ran with. See
   [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
-- **Comparisons ignore inherited Claude Code configuration.** Attempts and
-  pipeline and replay confirmation groups record the Claude Code variables
-  their sessions inherited from Rehearse's environment, but no comparison reads
-  them, so two arms launched from shells with different variables compare as
-  alike. See [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
+- **Comparisons report a difference in inherited Claude Code configuration
+  without refusing it.** When two arms' records inherited different Claude
+  Code variables from Rehearse's environment, `compare` and the comparison
+  page name the variables beside the contrast and still report it, so the
+  reader decides whether the contrast measured the shell. A name Claude Code
+  starts reading after 2.1.314 is not recorded, so arms that differ only in
+  such a name compare as alike. See
+  [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
 - **Home-path citations reach an arm's copy only of what it installs.** A
   stage citing a skill it does not install, and an isolated case citing a file
   it does not declare, read the live file unrecorded. A session that changes

@@ -1142,8 +1142,14 @@ from the environment its stages' sessions start from, as
 that list, or one the drop removes, so a stage session cannot receive one the
 group does not record. A session confirmation group's reps carry it on their
 own attempt records. An attempt or group recorded without the field inherited
-what it inherited unrecorded. No comparison reads the field yet, so two arms
-that inherited different configuration compare as alike.
+what it inherited unrecorded. `compare`, `compare attempts` and `compare
+extend` print a line on stderr for each pair of arms whose records inherited
+different configuration, naming each variable whose digest differs or that
+only one arm inherited, for each arm whose own records disagree, which reads
+as mixed, and for the arms whose records lack the field, since then whether
+the arms matched is unknown. The comparison page shows the same lines in each
+case's lead. Neither refuses the comparison: the contrast is still reported,
+and the line says it may measure the shell as well as the corpus.
 
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140
