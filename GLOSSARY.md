@@ -8,6 +8,11 @@ See [current state](docs/status.md) for implementation coverage and
   design the brief-reply cases. Their `word-band` checks declare a ceiling
   rather than a minimum. This is case-specific evidence, not a general rule for
   reply length.
+- **Actual setup**: the user's own Claude Code settings, MCP servers, plugins
+  and hooks, which a session case runs with unless it declares isolation, so its
+  outcome is the one the user gets. The case's declared settings replace the
+  user's keys of the same name, deny rules survive, and the run alone decides
+  model and effort. The attempt records the setup as names and digests only.
 - **Artifact** — durable output of a stage: a spec or plan document, a backlog
   card update, or commits.
 - **Assessment** — the record one regrade writes: the attempt it read, the
@@ -403,6 +408,8 @@ See [current state](docs/status.md) for implementation coverage and
   the snapshot its source resolved to rather than by the source string, so two
   directories holding the same bytes are the same variant. It is the corpus half
   of a variant, which also fixes model and effort.
+- **Declared isolation**: a session case's choice to run apart from the actual
+  setup, with project settings only, no MCP server, and only the tools it lists.
 - **Delivery stage** — a stage whose artifact is committed code; its
   evidence is a diff, changed paths, check integrity, and local check results.
   Today, `build`.
