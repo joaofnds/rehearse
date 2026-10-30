@@ -18,7 +18,6 @@ import {
 	benchmarkCase,
 	pipelineBenchmarkCase,
 } from "./comparison-comparability-test-fixtures";
-import { NOTHING_DELIVERED } from "./corpus-delivery";
 
 describe(assertComparableComparison.name, () => {
 	it(
@@ -64,8 +63,8 @@ describe(assertComparableComparison.name, () => {
 	);
 
 	it(
-		"rejects a stage arm whose corpus was delivered beside arms that read the live install",
-		rejectsAStageArmWhoseCorpusWasDeliveredBesideArmsThatReadTheLiveInstall,
+		"rejects a stage arm recorded before delivery beside delivered arms",
+		rejectsAStageArmRecordedBeforeDeliveryBesideDeliveredArms,
 	);
 });
 
@@ -248,20 +247,18 @@ function rejectsAPipelineArmRunUnderTheActualSetupBesideArmsThatRecordNoSetup():
 	);
 }
 
-function rejectsAStageArmWhoseCorpusWasDeliveredBesideArmsThatReadTheLiveInstall(): void {
+function rejectsAStageArmRecordedBeforeDeliveryBesideDeliveredArms(): void {
 	const first = benchmarkCase("case-1", CORPUS_DIGESTS);
 	const record = legacyRecord(first.arms.candidate.group.record);
-	const delivered = arm("candidate", {
+	const { corpusDelivery: _delivery, ...undeliveredInputs } = record.inputs;
+	const undelivered = arm("candidate", {
 		...record,
-		inputs: {
-			...record.inputs,
-			corpusDelivery: { ...NOTHING_DELIVERED, redirected: 2 },
-		},
+		inputs: undeliveredInputs,
 	});
 
 	expect(() =>
 		assertComparableComparison([
-			{ ...first, arms: { ...first.arms, candidate: delivered } },
+			{ ...first, arms: { ...first.arms, candidate: undelivered } },
 			benchmarkCase("case-2", CORPUS_DIGESTS),
 		]),
 	).toThrow(

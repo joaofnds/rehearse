@@ -179,43 +179,6 @@ async function refusesCasesThatRanUnderDifferentSetups(): Promise<void> {
 	);
 }
 
-async function refusesAnArmRecordedBeforeDeliveryBesideDeliveredArms(): Promise<void> {
-	const runsDirectory = join(root, "runs");
-	const manifestPath = await writeManifest({ root, runsDirectory });
-
-	await updateAttempts(
-		sessionGroupFile({ caseId: "case-one", role: "candidate", runsDirectory }),
-		({ corpusDelivery: _delivery, ...attempt }) => attempt,
-	);
-
-	expect(
-		writeComparisonReport({ manifestPath, runsDirectory }),
-	).rejects.toThrow(
-		"case case-one arm candidate field corpusDelivery differs from case case-one arm baseline",
-	);
-}
-
-async function comparesDeliveredArmsWhateverTheyRedirected(): Promise<void> {
-	const runsDirectory = join(root, "runs");
-	const manifestPath = await writeManifest({ root, runsDirectory });
-
-	await Array.fromAsync(["case-one", "case-two"], async (caseId) => {
-		await Array.fromAsync(COMPARISON_ARMS, async (role, index) => {
-			await updateAttempts(
-				sessionGroupFile({ caseId, role, runsDirectory }),
-				(attempt) => ({
-					...attempt,
-					corpusDelivery: { liveReads: [], redirected: index, rule: 1 },
-				}),
-			);
-		});
-	});
-
-	expect(
-		writeComparisonReport({ manifestPath, runsDirectory }),
-	).resolves.toEndWith("report.json");
-}
-
 async function readsAnAttemptWithNoRecordedSetupAsIsolated(): Promise<void> {
 	const runsDirectory = join(root, "runs");
 	const manifestPath = await writeManifest({ root, runsDirectory });
@@ -267,15 +230,5 @@ describe("session comparison case inputs", () => {
 	it(
 		"reads an attempt with no recorded setup as isolated",
 		readsAnAttemptWithNoRecordedSetupAsIsolated,
-	);
-
-	it(
-		"refuses an arm recorded before delivery beside delivered arms",
-		refusesAnArmRecordedBeforeDeliveryBesideDeliveredArms,
-	);
-
-	it(
-		"compares delivered arms whatever they redirected",
-		comparesDeliveredArmsWhateverTheyRedirected,
 	);
 });

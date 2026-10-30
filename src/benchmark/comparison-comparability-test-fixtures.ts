@@ -115,6 +115,7 @@ function pipelineArm(
 	const evidence = arm(role, {
 		...group,
 		inputs: {
+			corpusDelivery: group.inputs.corpusDelivery,
 			effort: group.inputs.effort,
 			files,
 			judgeEffort: group.inputs.judgeEffort,

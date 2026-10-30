@@ -164,7 +164,7 @@ When a corpus file cites another by its path in your install, such as
 `~/.agents/rulebook/ownership.md`, the install rewrites that citation to the
 arm's own copy, so a candidate that edits a cited rulebook file is the file its
 sessions read. The installed text differs from your files in those citations
-only. If `compare` names an arm that read a file under test through the live
+only. If a comparison names an arm that read a file under test through the live
 install, that arm measured your live file; look for the path its prompt or
 corpus built some other way. A group recorded before this delivery is refused
 as a comparison arm; replay or run it again.

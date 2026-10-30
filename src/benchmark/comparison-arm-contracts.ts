@@ -14,6 +14,8 @@ import type { Immutable } from "./contracts";
 
 const EMPTY_COUNT_TOTAL = 0;
 
+const UNDELIVERED = "none";
+
 interface ContractComparison {
 	readonly caseId: string;
 	readonly arm: ComparisonArmEvidence;
@@ -86,6 +88,24 @@ function assertArmRanTheCase(
 	);
 }
 
+/**
+ * An arm recorded before delivery let its home-path citations read the live
+ * install, so it cannot say which bytes its sessions read, even beside arms
+ * just as old.
+ */
+function assertArmDelivered(
+	caseId: string,
+	arm: Immutable<ComparisonArmEvidence>,
+): void {
+	if (!deliveryRules(arm).split(",").includes(UNDELIVERED)) {
+		return;
+	}
+
+	throw new ComparisonEvidenceError(
+		`case ${caseId} arm ${arm.role} records no corpus delivery, so its home-path citations read the live install and it cannot be compared until it is run again`,
+	);
+}
+
 function assertExpectedRepCount(
 	caseId: string,
 	arm: Immutable<ComparisonArmEvidence>,
@@ -132,6 +152,7 @@ function assertArmCorpusSnapshot(
 export {
 	armReps,
 	assertArmCorpusSnapshot,
+	assertArmDelivered,
 	assertArmRanTheCase,
 	assertContract,
 	assertExpectedRepCount,

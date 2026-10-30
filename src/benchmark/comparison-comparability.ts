@@ -1,6 +1,7 @@
 import {
 	armReps,
 	assertArmCorpusSnapshot,
+	assertArmDelivered,
 	assertArmRanTheCase,
 	assertContract,
 	assertExpectedRepCount,
@@ -56,6 +57,7 @@ function assertCaseArms(
 			referenceCaseId: firstCase.caseId,
 		});
 		assertArmRanTheCase(benchmarkCase.caseId, arm);
+		assertArmDelivered(benchmarkCase.caseId, arm);
 		assertExpectedRepCount(benchmarkCase.caseId, arm);
 	}
 	assertControlledInputs({

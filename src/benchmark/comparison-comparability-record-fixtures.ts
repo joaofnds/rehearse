@@ -3,6 +3,7 @@ import type {
 	ParsedConfirmationGroupRecord,
 } from "./confirmation-record";
 import type { Immutable } from "./contracts";
+import { NOTHING_DELIVERED } from "./corpus-delivery";
 
 const FIRST_GENERATED_DIGEST_DIGIT = 4;
 
@@ -50,6 +51,7 @@ function groupRecord(
 		declaredStages: options.stages ?? ["build"],
 		groupId: options.groupId,
 		inputs: {
+			corpusDelivery: NOTHING_DELIVERED,
 			files: controlledGroupFiles(options),
 			judgeModel: "opus",
 			lineage: {
