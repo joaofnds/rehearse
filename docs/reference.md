@@ -1035,17 +1035,17 @@ copies it before setup and installs and hashes that copy, so an edit to the
 directory while the replay runs reaches neither the session nor the record. Each session attempt and each stage
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
 citations it `redirected`. A session attempt adds `liveReads`, and so does each
-stage in a confirmation rep record whose session started, whether its Judge
-graded it, the stage then failed, or the session itself failed, and a stage
-that failed after its Judge graded it carries them on its graded entry only:
-each held file that a file-access
-tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit path, or a Bash
-command) in the session's transcript or a sub-agent's still named by its live
-path, as the layout path and a call count, never the command text. A stage
-reads its transcripts from the provider's projects directory, so a stage whose
-transcripts a run cannot locate, or whose session never started, has no
-`liveReads` field, which says nothing was read rather than that no read was
-live. `compare`, `compare attempts` and `compare
+stage in a confirmation rep record that ran a session, whether the stage was
+graded, failed after its session ended, or failed inside it. A stage that
+failed after its Judge graded it carries them on its graded entry only. Each
+entry is a held file that a file-access tool call (a Read, Edit, Write, Grep,
+Glob or NotebookEdit path, or a Bash command) in the session's transcript or a
+sub-agent's still named by its live path, as the layout path and a call
+count, never the command text. A stage reads its transcripts from the
+provider's projects directory. When a run cannot find them, or the stage
+failed before any session ran, the stage has no `liveReads` field: its reads
+are unknown, which differs from an empty list, and `compare` counts no live
+read for it. `compare`, `compare attempts` and `compare
 extend` print a line on stderr naming each arm with a live read, since that arm
 measured your live file rather than its own. The rewrite is relative, so a session that changes directory and then
 reads a cited `.claude/` path misses the copy, and no live read records it.
