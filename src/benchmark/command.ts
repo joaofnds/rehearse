@@ -1,8 +1,6 @@
 import { stat } from "node:fs/promises";
-import { basename } from "node:path";
 
 import withoutLaunchContext from "./claude-launch-environment";
-import type { Environment } from "./claude-launch-environment";
 import CommandOutputLines from "./command-output-lines";
 import type { OutputReader } from "./command-output-lines";
 import CommandSilenceError from "./command-silence-error";
@@ -132,16 +130,6 @@ async function runCommand(
 
 type SpawnedCommand = Bun.Subprocess<"ignore" | Blob, "pipe", "pipe">;
 
-const CLAUDE_CODE_EXECUTABLE = "claude";
-
-function inheritedEnvironment(command: readonly string[]): Environment {
-	const [executable = ""] = command;
-
-	return basename(executable) === CLAUDE_CODE_EXECUTABLE
-		? withoutLaunchContext(Bun.env)
-		: Bun.env;
-}
-
 /** Bun names the command, not the directory, when the directory is missing. */
 async function spawnIn(
 	command: readonly string[],
@@ -152,7 +140,7 @@ async function spawnIn(
 		return Bun.spawn([...command], {
 			cwd,
 			detached: true,
-			env: { ...inheritedEnvironment(command), ...options.env },
+			env: { ...withoutLaunchContext(Bun.env), ...options.env },
 			stderr: "pipe",
 			stdin: options.input === undefined ? "ignore" : new Blob([options.input]),
 			stdout: "pipe",

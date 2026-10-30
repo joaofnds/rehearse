@@ -1090,10 +1090,11 @@ actual-setup attempt's `setup.loaded` is unobserved: the machine it was built
 on disables them (Claude Code 2.1.312, 2026-10-30). An isolated attempt runs
 with `--strict-mcp-config`, which shuts out every MCP server it never declared.
 
-Every Claude Code session Rehearse starts, from a session case, a pipeline
-stage, a Judge, a culprit analysis, the Product Owner or the model preflight,
-gets Rehearse's own environment without what a parent Claude Code session
-exported. A shell inside a Claude Code session carries that session's
+Every command Rehearse starts gets Rehearse's own environment without what a
+parent Claude Code session exported. That covers every Claude Code session,
+from a session case, a pipeline stage, a Judge, a culprit analysis, the
+Product Owner or the model preflight, and every check, so code a session wrote
+cannot reach the parent session through its messaging socket. A shell inside a Claude Code session carries that session's
 entrypoint, ids, messaging socket and feature flags, and with Claude Code
 2.1.314 the desktop entrypoint alone added about 280 context tokens to the
 same call. Every `CLAUDE*` name is dropped except `CLAUDE_CONFIG_DIR` and the

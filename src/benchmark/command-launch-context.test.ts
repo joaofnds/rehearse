@@ -11,6 +11,7 @@ import { TestResources } from "./test-support";
 const PARENT_SESSION_VARIABLES = {
 	ANTHROPIC_BASE_URL: "https://gateway.example",
 	CLAUDE_CODE_ENTRYPOINT: "claude-desktop",
+	CLAUDE_CODE_MESSAGING_TOKEN: "parent-token",
 };
 
 const testResources = TestResources.forEachTest();
@@ -56,12 +57,16 @@ const startsClaudeCodeWithoutTheParentSessionsVariables =
 		expect(printed).toContain("ANTHROPIC_BASE_URL=https://gateway.example");
 	};
 
-const leavesTheParentSessionsVariablesToOtherCommands =
-	async (): Promise<void> => {
-		const printed = await runCommand(["env"], process.cwd());
+/**
+ * A check can run code a stage session wrote, and the parent session's
+ * messaging socket and token would let that code reach the parent session.
+ */
+const startsEveryOtherCommandWithoutThem = async (): Promise<void> => {
+	const printed = await runCommand(["env"], process.cwd());
 
-		expect(printed).toContain("CLAUDE_CODE_ENTRYPOINT=claude-desktop");
-	};
+	expect(printed).not.toContain("CLAUDE_CODE_MESSAGING_TOKEN=");
+	expect(printed).toContain("ANTHROPIC_BASE_URL=https://gateway.example");
+};
 
 describe(runCommand.name, () => {
 	describe("when started from inside a Claude Code session", () => {
@@ -74,8 +79,8 @@ describe(runCommand.name, () => {
 		);
 
 		it(
-			"leaves the parent session's variables to other commands",
-			leavesTheParentSessionsVariablesToOtherCommands,
+			"starts every other command without them",
+			startsEveryOtherCommandWithoutThem,
 		);
 	});
 });
