@@ -5,6 +5,7 @@ import { confirmationRepRecordSchema } from "./confirmation-record";
 import type { Immutable, ProviderCall, StageScorecard } from "./contracts";
 import type { LiveCorpusRead } from "./live-corpus-reads";
 import type { ReplayConfirmationRequest } from "./replay-confirmation-contract";
+import { liveReadsField } from "./stage-live-reads";
 
 const RECORD_JSON_INDENT_SPACES = 2;
 
@@ -30,7 +31,7 @@ interface ReplayRepIdentity {
 }
 
 interface CompletedReplayResult {
-	readonly liveReads: readonly LiveCorpusRead[];
+	readonly liveReads: readonly LiveCorpusRead[] | undefined;
 	readonly resultSha: string;
 	readonly scorecardFile: string;
 	readonly scorecard: StageScorecard;
@@ -55,7 +56,7 @@ function judgedStage(
 			resultSha: result.resultSha,
 		},
 		grade: result.scorecard.grade.grade,
-		liveReads: result.liveReads,
+		...liveReadsField(result.liveReads),
 		stage: rep.request.stage,
 		status: "JUDGED",
 		verdict: result.scorecard.grade.verdict,
@@ -102,6 +103,7 @@ function completeRepRecord(
 }
 
 interface RejectedReplayResult {
+	readonly liveReads: readonly LiveCorpusRead[] | undefined;
 	readonly resultSha: string;
 	readonly recordFile: string;
 	readonly error: JudgeRejection;
@@ -109,7 +111,7 @@ interface RejectedReplayResult {
 
 function rejectedJudgeRepRecord(
 	rep: ReplayRepIdentity,
-	{ resultSha, recordFile, error }: RejectedReplayResult,
+	{ liveReads, resultSha, recordFile, error }: RejectedReplayResult,
 	{
 		workerCalls,
 		productOwnerCalls,
@@ -145,6 +147,7 @@ function rejectedJudgeRepRecord(
 				elapsedMs: stageElapsedMs,
 				error: error.message,
 				evidence: { recordFile, resultSha },
+				...liveReadsField(liveReads),
 				stage: rep.request.stage,
 				status: "EXECUTION_FAILED",
 			},

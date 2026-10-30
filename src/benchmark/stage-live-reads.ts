@@ -19,13 +19,14 @@ interface StageLiveReadsRequest {
 /**
  * The live reads a stage session and its sub-agents made of files the stage's
  * install held, read from the provider's own transcripts once the stage ends.
- * A stage with no transcript to read records none.
+ * Without a transcript to read nothing is known, which differs from a
+ * session that made no live read, so there is no list.
  */
 async function stageLiveReads(
 	request: StageLiveReadsRequest,
-): Promise<readonly LiveCorpusRead[]> {
+): Promise<readonly LiveCorpusRead[] | undefined> {
 	if (request.transcript === undefined) {
-		return [];
+		return undefined;
 	}
 	const main = stageTranscriptFile(request.targetDir, request.transcript);
 	const subagents = await recordedSubagents(providerSessionDirectory(main));
@@ -39,6 +40,13 @@ async function stageLiveReads(
 	return liveCorpusReads(uses, request.citations, new Set(request.held));
 }
 
-export { stageLiveReads as default };
+/** The stage record field for these reads, none when no transcript was read. */
+function liveReadsField(reads: readonly LiveCorpusRead[] | undefined): {
+	readonly liveReads?: LiveCorpusRead[];
+} {
+	return reads === undefined ? {} : { liveReads: [...reads] };
+}
+
+export { stageLiveReads as default, liveReadsField };
 export type { StageLiveReadsRequest };
 export type { LiveCorpusRead } from "./live-corpus-reads";

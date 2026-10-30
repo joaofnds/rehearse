@@ -36,6 +36,7 @@ interface CompletedReplayStage {
 	readonly readManifest: CompletedReplayStageRecord["readManifest"];
 }
 interface RejectedReplayStage {
+	readonly liveReads: CompletedReplayResult["liveReads"];
 	readonly session: StageSessionResult;
 	readonly productOwner: PreparedReplayStage["productOwner"];
 	readonly stageStart: number;
@@ -84,7 +85,13 @@ class ReplayRepRecording {
 	}
 	public async rejected(
 		failure: Readonly<JudgeOutputValidationError>,
-		{ session, productOwner, stageStart, readManifest }: RejectedReplayStage,
+		{
+			liveReads,
+			session,
+			productOwner,
+			stageStart,
+			readManifest,
+		}: RejectedReplayStage,
 	): Promise<ConfirmationRepResult> {
 		const {
 			request,
@@ -104,6 +111,7 @@ class ReplayRepRecording {
 			this.identity(),
 			{
 				error: failure,
+				liveReads,
 				recordFile: relative(repPaths.directory, scorecardFile),
 				resultSha: session.resultSha,
 			},
@@ -118,7 +126,10 @@ class ReplayRepRecording {
 	}
 	public async diagnostic(
 		error: string,
-		stageEvidence: FailedStageEvidence | undefined,
+		stage: {
+			readonly evidence: FailedStageEvidence | undefined;
+			readonly liveReads: CompletedReplayResult["liveReads"];
+		},
 		worktreeCreated: boolean,
 	): Promise<ConfirmationRepResult> {
 		const {
@@ -131,7 +142,8 @@ class ReplayRepRecording {
 		const record = failedRepRecord(this.identity(), {
 			elapsedMs: now() - repStart,
 			error,
-			stageEvidence,
+			liveReads: stage.liveReads,
+			stageEvidence: stage.evidence,
 		});
 		return await settleDiagnosticConfirmationRep({
 			log: dependencies.log,

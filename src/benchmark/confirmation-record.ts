@@ -83,6 +83,7 @@ export {
 	writableSessionConfirmationGroupRecordSchema,
 } from "./confirmation-group-record-schema";
 export type { ConfirmationMode } from "./confirmation-record-protocol";
+export type { LiveCorpusRead } from "./live-corpus-reads";
 export type {
 	ConfirmationRepRecord,
 	SessionConfirmationRepRecord,

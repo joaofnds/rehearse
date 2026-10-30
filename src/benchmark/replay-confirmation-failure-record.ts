@@ -5,6 +5,8 @@ import type { ProviderCall } from "./contracts";
 import { JudgeExecutionError } from "./judge-attempt";
 import JudgeCeilingStopError from "./judge-ceiling-stop-error";
 import type { ReplayRepIdentity } from "./replay-confirmation-rep-record";
+import type { LiveCorpusRead } from "./stage-live-reads";
+import { liveReadsField } from "./stage-live-reads";
 import type { StageSessionResult } from "./stage-session-contract";
 import StageSessionError from "./stage-session-error";
 import type { ProductOwner } from "./workflow";
@@ -58,11 +60,26 @@ interface ReplayRepFailure {
 	readonly error: string;
 	readonly elapsedMs: number;
 	readonly stageEvidence?: FailedStageEvidence | undefined;
+	readonly liveReads?: readonly LiveCorpusRead[] | undefined;
+}
+function failedStage(
+	rep: ReplayRepIdentity,
+	{ error, elapsedMs, stageEvidence, liveReads }: ReplayRepFailure,
+): ConfirmationRepRecord["stages"][number] {
+	return {
+		elapsedMs: stageEvidence?.elapsedMs ?? elapsedMs,
+		error,
+		...liveReadsField(liveReads),
+		stage: rep.request.stage,
+		status: "EXECUTION_FAILED",
+		worktreePath: rep.worktreePath,
+	};
 }
 function failedRepRecord(
 	rep: ReplayRepIdentity,
-	{ error, elapsedMs, stageEvidence }: ReplayRepFailure,
+	failure: ReplayRepFailure,
 ): ConfirmationRepRecord {
+	const { elapsedMs, stageEvidence } = failure;
 	const evidence =
 		stageEvidence === undefined
 			? {
@@ -96,15 +113,7 @@ function failedRepRecord(
 		outcome: "UNSUCCESSFUL",
 		repId: rep.repId,
 		schemaVersion: 1,
-		stages: [
-			{
-				elapsedMs: stageEvidence?.elapsedMs ?? elapsedMs,
-				error,
-				stage: rep.request.stage,
-				status: "EXECUTION_FAILED",
-				worktreePath: rep.worktreePath,
-			},
-		],
+		stages: [failedStage(rep, failure)],
 		workerTrajectorySteps: evidence.workerTrajectorySteps,
 		worktreePath: rep.worktreePath,
 	});

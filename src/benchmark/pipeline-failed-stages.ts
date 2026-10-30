@@ -3,6 +3,7 @@ import type { Immutable } from "./contracts";
 import type { PipelineJudgeRejection } from "./pipeline-judge-rejection";
 import writeRejectedStage from "./pipeline-rejected-stage";
 import type { PipelineRepFailure } from "./pipeline-rep-failure";
+import { liveReadsField } from "./stage-live-reads";
 
 const NEXT_STAGE_INDEX_STEP = 1;
 async function failedStageOutcomes(
@@ -33,6 +34,7 @@ async function failedStageOutcomes(
 		{
 			elapsedMs: now() - (state.stageClock.read() ?? state.repStart),
 			error: diagnosticError,
+			...liveReadsField(state.currentLiveReads),
 			stage: failedStage.name,
 			status: "EXECUTION_FAILED",
 			...(evidence === undefined

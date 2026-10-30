@@ -3,6 +3,7 @@ import { basename } from "node:path";
 
 import { rewriteInstalledSkill } from "./checkpoint-filesystem-test-fixture";
 import runPipelineConfirmation from "./pipeline-confirmation";
+import { rejectedStageJudgment } from "./pipeline-confirmation-failure-test-fixtures";
 import {
 	readCheckpoints,
 	readGroup,
@@ -123,10 +124,39 @@ async function recordsEachJudgedStagesLiveReadsOnItsRep(): Promise<void> {
 	).toEqual([stageReads, stageReads, stageReads]);
 }
 
+const rejectingJudge: PipelineDependencyOverride = (dependencies) => ({
+	...dependencies,
+	runStageJudge: async () => await Promise.reject(rejectedStageJudgment()),
+});
+
+async function recordsTheLiveReadsOfAStageItsJudgeRejected(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const projects = await testResources.createControlDirectory();
+
+	const reps = await readReps(
+		await harness.run({}, liveReadingStages(projects), rejectingJudge),
+	);
+
+	expect(
+		reps.map(({ stages }) =>
+			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
+		),
+	).toEqual([
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none"],
+	]);
+}
+
 describe(runPipelineConfirmation.name, () => {
 	it(
 		"records each judged stage's live reads on its rep",
 		recordsEachJudgedStagesLiveReadsOnItsRep,
+	);
+
+	it(
+		"records the live reads of a stage its judge rejected",
+		recordsTheLiveReadsOfAStageItsJudgeRejected,
 	);
 
 	it(

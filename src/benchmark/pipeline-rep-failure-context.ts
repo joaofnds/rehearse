@@ -8,9 +8,15 @@ async function failPipelineRep(
 ): Promise<ConfirmationRepResult> {
 	const { context, runtime } = scope;
 	const { cause: error } = errorOptions;
+	const stage = context.frozen.stages[progress.currentStageIndex];
+	const currentLiveReads =
+		progress.currentSession === undefined || stage === undefined
+			? undefined
+			: await evidence.liveReads(stage, progress.currentSession);
 
 	return await failedPipelineRep(
 		{
+			currentLiveReads,
 			currentSession: progress.currentSession,
 			currentStageIndex: progress.currentStageIndex,
 			dependencies: scope.dependencies,

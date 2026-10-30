@@ -1031,12 +1031,15 @@ only. Records hash the authored bytes, so the same corpus records the same
 `corpusFiles` digests whatever it cites. Each session attempt and each stage
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
 citations it `redirected`. A session attempt adds `liveReads`, and so does each
-judged stage in a confirmation rep record: each held file that a file-access
+stage in a confirmation rep record whose session ran, whether its Judge graded
+it or the stage then failed: each held file that a file-access
 tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit path, or a Bash
 command) in the session's transcript or a sub-agent's still named by its live
 path, as the layout path and a call count, never the command text. A stage
-reads its transcripts from the provider's projects directory, so a run that
-cannot locate them records none. `compare`, `compare attempts` and `compare
+reads its transcripts from the provider's projects directory, so a stage whose
+transcripts a run cannot locate, or whose session never started, has no
+`liveReads` field, which says nothing was read rather than that no read was
+live. `compare`, `compare attempts` and `compare
 extend` print a line on stderr naming each arm with a live read, since that arm
 measured your live file rather than its own. The rewrite is relative, so a session that changes directory and then
 reads a cited `.claude/` path misses the copy, and no live read records it.

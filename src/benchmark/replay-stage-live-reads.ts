@@ -7,7 +7,7 @@ import type { StageSessionResult } from "./stage-session-contract";
 async function replayStageLiveReads(
 	{ dependencies, plan, runtime }: ReplayRepContext,
 	session: StageSessionResult,
-): Promise<readonly LiveCorpusRead[]> {
+): Promise<readonly LiveCorpusRead[] | undefined> {
 	const { projectsDirectory } = dependencies;
 
 	return await stageLiveReads({

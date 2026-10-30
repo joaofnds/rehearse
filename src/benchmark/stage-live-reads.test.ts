@@ -65,7 +65,7 @@ async function readsNothingWithoutATranscript(): Promise<void> {
 			targetDir: "/nowhere",
 			transcript: undefined,
 		}),
-	).toEqual([]);
+	).toBeUndefined();
 }
 
 describe(stageLiveReads.name, () => {

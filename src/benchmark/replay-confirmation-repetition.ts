@@ -81,6 +81,10 @@ class ReplayRepetition {
 			progress.operation === undefined
 				? failure.message
 				: `${progress.operation} failed: ${failure.message}`;
+		const liveReads =
+			this.#session === undefined
+				? undefined
+				: await replayStageLiveReads(this.#context, this.#session);
 		if (
 			failure instanceof JudgeOutputValidationError &&
 			progress.worktreeCreated &&
@@ -88,6 +92,7 @@ class ReplayRepetition {
 			progress.productOwner !== undefined
 		) {
 			return await this.#recording.rejected(failure, {
+				liveReads,
 				productOwner: progress.productOwner,
 				readManifest: this.#judgedReads,
 				session: this.#session,
@@ -103,7 +108,7 @@ class ReplayRepetition {
 		});
 		return await this.#recording.diagnostic(
 			diagnosticError,
-			stageEvidence,
+			{ evidence: stageEvidence, liveReads },
 			progress.worktreeCreated,
 		);
 	}

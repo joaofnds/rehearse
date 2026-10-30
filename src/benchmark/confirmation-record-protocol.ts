@@ -44,7 +44,8 @@ const judgedStageSchema = z
 		/**
 		 * Each file the stage's install held that its session or a sub-agent
 		 * still reached through the live install. Absent from stages recorded
-		 * before stages read their transcripts for it.
+		 * before stages read their transcripts for it, and when no session
+		 * transcript was found.
 		 */
 		liveReads: z.array(liveCorpusReadSchema).optional(),
 		stage: z.string().nonempty(),
@@ -58,6 +59,11 @@ const failedStageSchema = z
 		elapsedMs: elapsedSchema.optional(),
 		error: z.string().nonempty(),
 		evidence: resultEvidenceSchema.optional(),
+		/**
+		 * The live reads of a stage whose session ran before it failed, as a
+		 * judged stage records them. Absent when no session transcript was read.
+		 */
+		liveReads: z.array(liveCorpusReadSchema).optional(),
 		stage: z.string().nonempty(),
 		status: z.enum(["EXECUTION_FAILED", "METRICS_MISSING"]),
 		worktreePath: z.string().nonempty().optional(),

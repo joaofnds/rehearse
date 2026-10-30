@@ -1,4 +1,7 @@
-import type { ConfirmationRepRecord } from "./confirmation-record";
+import type {
+	ConfirmationRepRecord,
+	LiveCorpusRead,
+} from "./confirmation-record";
 import type { Immutable, ProviderCall } from "./contracts";
 import type { PipelineConfirmationDependencies } from "./pipeline-confirmation-dependencies";
 import type { PipelineConfirmationRequest } from "./pipeline-confirmation-request";
@@ -24,6 +27,8 @@ interface PipelineRepFailure {
 	readonly productOwner: ProductOwner | undefined;
 	readonly currentStageIndex: number;
 	readonly currentSession: StageSessionResult | undefined;
+	/** What the current stage's session read live, when its transcript was read. */
+	readonly currentLiveReads: readonly LiveCorpusRead[] | undefined;
 	readonly stageClock: StageClock;
 	readonly judgingStage: boolean;
 	readonly judgedReads: readonly ReadManifestEntry[];

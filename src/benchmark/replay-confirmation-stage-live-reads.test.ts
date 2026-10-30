@@ -47,10 +47,10 @@ function liveReadingStage(
 }
 
 /**
- * The first rep's stage is judged and the second's judge rejects it, so only
- * the judged stage carries the reads its transcript shows.
+ * The first rep's stage is judged and the second's judge rejects it, and
+ * both stages ran a session whose transcript shows the read.
  */
-async function recordsAJudgedStagesLiveReadsOnItsRep(): Promise<void> {
+async function recordsEachStagesLiveReadsOnItsRepWhetherJudgedOrRejected(): Promise<void> {
 	const inputs = await new ReplayCheckpointInputsBuilder().fromRepository(
 		testResources,
 	);
@@ -75,12 +75,15 @@ async function recordsAJudgedStagesLiveReadsOnItsRep(): Promise<void> {
 		records.map(({ stages }) =>
 			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
 		),
-	).toEqual([[[{ count: 1, path: "rulebook/ownership.md" }]], ["none"]]);
+	).toEqual([
+		[[{ count: 1, path: "rulebook/ownership.md" }]],
+		[[{ count: 1, path: "rulebook/ownership.md" }]],
+	]);
 }
 
 describe(runReplayConfirmation.name, () => {
 	it(
-		"records a judged stage's live reads on its rep",
-		recordsAJudgedStagesLiveReadsOnItsRep,
+		"records each stage's live reads on its rep, judged or rejected",
+		recordsEachStagesLiveReadsOnItsRepWhetherJudgedOrRejected,
 	);
 });

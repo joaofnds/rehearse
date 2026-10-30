@@ -14,7 +14,7 @@ import type {
 import type { StageClock } from "./pipeline-stage-clock";
 import type { ReadManifestEntry } from "./read-manifest";
 import type { BuildEvidence } from "./run-artifact";
-import stageLiveReads from "./stage-live-reads";
+import stageLiveReads, { liveReadsField } from "./stage-live-reads";
 import type { LiveCorpusRead } from "./stage-live-reads";
 import stageRecordJson from "./stage-record-json";
 import type { StageSessionResult } from "./stage-session-contract";
@@ -94,17 +94,17 @@ class PipelineRepEvidence {
 				resultSha: session.resultSha,
 			},
 			grade: scorecard.grade.grade,
-			liveReads: [...(await this.liveReads(inspection, session))],
+			...liveReadsField(await this.liveReads(inspection, session)),
 			stage: inspection.definition.name,
 			status: "JUDGED",
 			verdict: scorecard.grade.verdict,
 		});
 		this.result = session.resultSha;
 	}
-	private async liveReads(
-		inspection: PipelineStageInspection,
+	public async liveReads(
+		inspection: Pick<PipelineStageInspection, "corpusDelivery">,
 		session: StageSessionResult,
-	): Promise<readonly LiveCorpusRead[]> {
+	): Promise<readonly LiveCorpusRead[] | undefined> {
 		const { dependencies, context } = this.scope;
 		const { projectsDirectory } = dependencies;
 
