@@ -216,6 +216,37 @@ async function recordsTheLiveReadsOfAStageItsJudgeRejected(): Promise<void> {
 	]);
 }
 
+const rejectingCheckpoint: PipelineDependencyOverride = (dependencies) => ({
+	...dependencies,
+	recordCheckpoint: async (worktreePath, checkpointDirectory, inputs) =>
+		basename(checkpointDirectory) === "discuss"
+			? await Promise.reject(new Error("synthetic checkpoint rejection"))
+			: await dependencies.recordCheckpoint(
+					worktreePath,
+					checkpointDirectory,
+					inputs,
+				),
+});
+
+async function recordsAJudgedStagesLiveReadsOnceWhenItsCheckpointFails(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const projects = await testResources.createControlDirectory();
+
+	const reps = await readReps(
+		await harness.run({}, liveReadingStages(projects), rejectingCheckpoint),
+	);
+
+	expect(
+		reps.map(({ stages }) =>
+			stages.map((stage) => ("liveReads" in stage ? stage.liveReads : "none")),
+		),
+	).toEqual([
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
+		[[{ count: 1, path: "skills/discuss/SKILL.md" }], "none", "none"],
+	]);
+}
+
 describe(runPipelineConfirmation.name, () => {
 	it(
 		"records each judged stage's live reads on its rep",
@@ -225,6 +256,11 @@ describe(runPipelineConfirmation.name, () => {
 	it(
 		"records the live reads of a stage its judge rejected",
 		recordsTheLiveReadsOfAStageItsJudgeRejected,
+	);
+
+	it(
+		"records a judged stage's live reads once when its checkpoint fails",
+		recordsAJudgedStagesLiveReadsOnceWhenItsCheckpointFails,
 	);
 
 	it(

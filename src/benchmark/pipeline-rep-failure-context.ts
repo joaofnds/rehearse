@@ -9,8 +9,11 @@ async function failPipelineRep(
 	const { context, runtime } = scope;
 	const { cause: error } = errorOptions;
 	const stage = context.frozen.stages[progress.currentStageIndex];
+	const recorded = evidence.stageOutcomes.some(
+		(outcome) => outcome.stage === stage?.definition.name,
+	);
 	const currentLiveReads =
-		progress.currentSession === undefined || stage === undefined
+		progress.currentSession === undefined || stage === undefined || recorded
 			? undefined
 			: await evidence.liveReads(stage, progress.currentSession);
 
