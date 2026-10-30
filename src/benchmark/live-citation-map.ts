@@ -76,8 +76,9 @@ async function entryRoots(
 
 /**
  * Every absolute path through which the live install's corpus files can be
- * cited, each with the layout path it holds: the live root's layout entries,
- * and the target of every link inside them, since a citation names the file
+ * cited, each with the layout path it holds: the layout entries of the live
+ * root and of the tree it links into, and the target of every link inside
+ * them, since a citation names the file
  * where its author keeps it rather than where the install links it from.
  */
 async function liveCitationMap(
@@ -90,6 +91,7 @@ async function liveCitationMap(
 		async (layoutPath) => {
 			roots.push(
 				...(await entryRoots(join(source.root, layoutPath), layoutPath)),
+				...(await entryRoots(join(source.backingRoot, layoutPath), layoutPath)),
 			);
 		},
 	);

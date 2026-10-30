@@ -64,10 +64,7 @@ async function prepareAttempt(
 		sessionCase.projectFiles,
 		attemptDirectory,
 	);
-	const overlay = await installCorpusOverlay(
-		request.corpusSnapshot,
-		attemptDirectory,
-	);
+	const overlay = await installCorpusOverlay(request, attemptDirectory);
 
 	const setup = await preparedSetup(request, {
 		sessionCase,

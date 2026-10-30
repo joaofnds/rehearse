@@ -5,8 +5,12 @@ import { resolveCorpusSource } from "#benchmark/corpus-source";
 import { TestResources } from "#benchmark/test-support";
 
 import type { LiveCorpusRoot } from "./corpus-file";
+import type { HomePathCitationMap } from "./home-path-citation";
 
 const resources = new TestResources();
+
+/** A map that redirects nothing, for installs whose text cites no home path. */
+const noCitations: HomePathCitationMap = { home: "/no-home", roots: [] };
 
 async function directoryCorpus(
 	files: Readonly<Record<string, string>>,
@@ -70,6 +74,7 @@ async function nestedForeignCorpus(): Promise<NestedForeignCorpus> {
 
 export {
 	resources,
+	noCitations,
 	directoryCorpus,
 	sha256Of,
 	twoStyleCorpus,

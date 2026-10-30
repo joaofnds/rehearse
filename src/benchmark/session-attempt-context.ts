@@ -10,15 +10,8 @@ import type {
 	PreservedTranscript,
 	SessionAttempt,
 } from "./session-attempt-contract";
-import type {
-	CorpusOverlay,
-	SessionAttemptRequest,
-} from "./session-attempt-preparation-contract";
+import type { SessionAttemptRequest } from "./session-attempt-preparation-contract";
 import type { SessionCorpusSnapshot } from "./session-corpus";
-import {
-	installSessionCorpusSnapshot,
-	snapshotStyleName,
-} from "./session-corpus";
 import {
 	corpusSourceDirectories,
 	loadedProjectInstructions,
@@ -40,20 +33,6 @@ async function sessionCorpusRoots(
 			source.kind === "live"
 				? await spellings(corpusSourceDirectories(source))
 				: [],
-	};
-}
-
-async function installCorpusOverlay(
-	snapshot: SessionCorpusSnapshot | undefined,
-	attemptDirectory: string,
-): Promise<CorpusOverlay> {
-	if (snapshot === undefined) {
-		return { installed: [], styleName: undefined };
-	}
-
-	return {
-		installed: await installSessionCorpusSnapshot(snapshot, attemptDirectory),
-		styleName: snapshotStyleName(snapshot),
 	};
 }
 
@@ -122,8 +101,8 @@ async function readAttemptContext({
 }
 
 export {
-	installCorpusOverlay,
 	undeclaredProjectInstructions,
 	seededProjectFiles,
 	readAttemptContext,
 };
+export { default as installCorpusOverlay } from "./attempt-corpus-overlay";

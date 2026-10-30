@@ -7,7 +7,11 @@ import {
 	snapshotSessionCorpus,
 } from "#benchmark/session-corpus";
 
-import { directoryCorpus, resources } from "./session-corpus-test-fixtures";
+import {
+	directoryCorpus,
+	noCitations,
+	resources,
+} from "./session-corpus-test-fixtures";
 
 resources.registerCleanup();
 
@@ -37,7 +41,7 @@ async function overlaysTheSupportingFilesBesideADeclaredSkill(): Promise<void> {
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(
@@ -60,7 +64,7 @@ async function overlaysADeclaredCLAUDEMdAndSkillAndLeavesAnUndeclaredSiblingOut(
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(join(attemptDirectory, ".claude/CLAUDE.md")).text(),
@@ -90,7 +94,7 @@ async function writesTheSnapshotSOutputStylesAndAgentsUnderTheAttemptSClaude(): 
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(
@@ -114,7 +118,7 @@ async function writesTheSnapshotSDeclaredRulebookFileUnderTheAttemptSClaude(): P
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(
@@ -132,7 +136,7 @@ async function installsNothingForALiveSourceWhoseFilesTheSessionAlreadyReads(): 
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(await Bun.file(join(attemptDirectory, ".claude")).exists()).toBe(
 		false,

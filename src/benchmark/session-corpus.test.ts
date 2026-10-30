@@ -11,6 +11,7 @@ import {
 
 import {
 	directoryCorpus,
+	noCitations,
 	resources,
 	sha256Of,
 } from "./session-corpus-test-fixtures";
@@ -130,7 +131,7 @@ async function copiesADeclaredSkillDirectoryAndOverlaysItUnderTheAttempt(): Prom
 		["skills/style/SKILL.md"],
 	);
 	const attemptDirectory = await resources.createControlDirectory();
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(
@@ -158,7 +159,7 @@ async function carriesASkillTheCaseDoesNotDeclareWithoutRefusingAndInstallsNoneO
 		["output-styles/brief.md"],
 	);
 	const attemptDirectory = await resources.createControlDirectory();
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(join(attemptDirectory, ".claude/skills")).exists(),

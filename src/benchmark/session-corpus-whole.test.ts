@@ -9,6 +9,7 @@ import {
 
 import {
 	directoryCorpus,
+	noCitations,
 	resources,
 	twoStyleCorpus,
 } from "./session-corpus-test-fixtures";
@@ -138,9 +139,10 @@ async function installsEveryFileTheSnapshotCarries(): Promise<void> {
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	const installed = await installSessionCorpusSnapshot(
+	const { installed } = await installSessionCorpusSnapshot(
 		snapshot,
 		attemptDirectory,
+		noCitations,
 	);
 
 	expect(installed.toSorted()).toEqual([
@@ -168,7 +170,11 @@ async function refusesToInstallOverAFileTheAttemptAlreadyHolds(): Promise<void> 
 		".claude/agents/rogue.md": "the fixture's agent\n",
 	});
 
-	const installed = installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	const installed = installSessionCorpusSnapshot(
+		snapshot,
+		attemptDirectory,
+		noCitations,
+	);
 
 	expect(installed).rejects.toThrow(
 		"Corpus file agents/rogue.md would overwrite the attempt's own .claude/agents/rogue.md",

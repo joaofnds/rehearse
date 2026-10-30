@@ -1,11 +1,19 @@
 import { cp, exists, mkdir, readdir, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, relative } from "node:path";
 
+import { NOTHING_DELIVERED, deliverInstalledCorpus } from "./corpus-delivery";
+import type { CorpusDelivery } from "./corpus-delivery";
 import { isCorpusLayoutPath } from "./corpus-file";
 import { corpusLayoutEntries } from "./corpus-source";
 import type { ResolvedCorpusSource } from "./corpus-source";
+import type { HomePathCitationMap } from "./home-path-citation";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 import { SessionCorpusError } from "./session-corpus-links";
+
+interface InstalledSessionCorpus {
+	readonly installed: readonly string[];
+	readonly delivery: CorpusDelivery;
+}
 
 /** Whether `layoutPath` is `root` itself or a path inside it. */
 function holds(root: string, layoutPath: string): boolean {
@@ -17,14 +25,16 @@ function holds(root: string, layoutPath: string): boolean {
  * `.claude` shadow the same-named user-level ones, verified on claude 2.1.258.
  * The attempt directory is the harness's own and no live session reads it, so
  * this is how a corpus variant reaches a session without an install. It
- * returns the layout paths it installed.
+ * returns the layout paths it installed and how their home-path citations
+ * were delivered.
  */
 async function installSessionCorpusSnapshot(
 	snapshot: SessionCorpusSnapshot,
 	attemptDirectory: string,
-): Promise<readonly string[]> {
+	citations: HomePathCitationMap,
+): Promise<InstalledSessionCorpus> {
 	if (snapshot.kind === "live") {
-		return [];
+		return { delivery: NOTHING_DELIVERED, installed: [] };
 	}
 
 	const installed: string[] = [];
@@ -37,7 +47,14 @@ async function installSessionCorpusSnapshot(
 		installed.push(...(await filesUnder(source, layoutPath)));
 	});
 
-	return installed;
+	return {
+		delivery: await deliverInstalledCorpus(
+			join(attemptDirectory, ".claude"),
+			installed,
+			citations,
+		),
+		installed,
+	};
 }
 
 /**
@@ -169,3 +186,4 @@ export {
 	deliversCorpusFile,
 	snapshotStyleName,
 };
+export type { InstalledSessionCorpus };

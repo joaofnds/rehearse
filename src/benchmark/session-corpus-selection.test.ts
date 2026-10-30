@@ -10,6 +10,7 @@ import {
 
 import {
 	directoryCorpus,
+	noCitations,
 	resources,
 	twoStyleCorpus,
 } from "./session-corpus-test-fixtures";
@@ -74,7 +75,7 @@ async function installsOnlyTheFilesTheCaseDeclared(): Promise<void> {
 	);
 	const attemptDirectory = await resources.createControlDirectory();
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+	await installSessionCorpusSnapshot(snapshot, attemptDirectory, noCitations);
 
 	expect(
 		await Bun.file(
@@ -113,6 +114,7 @@ async function installsTheDeclaredFileFromASnapshotCarryingAnUndeclaredOne(): Pr
 			scope: "declared",
 		},
 		attemptDirectory,
+		noCitations,
 	);
 
 	expect(

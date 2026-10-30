@@ -6,6 +6,7 @@ import type {
 	ContextEvidenceSource,
 	ContextRateCatalog,
 } from "./context-evidence";
+import type { CorpusDelivery } from "./corpus-delivery";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 import type { PreparedSetup } from "./session-setup";
 
@@ -41,6 +42,7 @@ class SessionInputError extends Error {
 interface CorpusOverlay {
 	readonly styleName: string | undefined;
 	readonly installed: readonly string[];
+	readonly delivery: CorpusDelivery;
 }
 
 interface AttemptPreparation {
