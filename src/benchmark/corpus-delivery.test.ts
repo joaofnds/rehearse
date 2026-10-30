@@ -35,4 +35,25 @@ describe(deliverInstalledCorpus.name, () => {
 			),
 		).toBe(`${BYTE_ORDER_MARK}Read .claude/rulebook/ownership.md`);
 	});
+
+	it("leaves a file that is not UTF-8 as authored, citation and all", async () => {
+		const installRoot = await testResources.createControlDirectory();
+		const file = join(installRoot, "skills/x/icon.bin");
+		const bytes = Buffer.concat([
+			Buffer.from("fffe", "hex"),
+			Buffer.from("~/.agents/rulebook/ownership.md"),
+		]);
+		await Bun.write(file, bytes);
+
+		const delivery = await deliverInstalledCorpus(
+			installRoot,
+			{ files: ["skills/x/icon.bin"], held: ["rulebook", "skills/x"] },
+			citations,
+		);
+
+		expect({ bytes: await Bun.file(file).bytes(), delivery }).toEqual({
+			bytes: new Uint8Array(bytes),
+			delivery: { redirected: 0, rule: 1 },
+		});
+	});
 });
