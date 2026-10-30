@@ -65,12 +65,18 @@ const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
  * environment, which would otherwise compete with the run's own flags.
  */
 const RUN_DECIDED_VARIABLES: ReadonlySet<string> = new Set([
-	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
-	"ANTHROPIC_DEFAULT_OPUS_MODEL",
-	"ANTHROPIC_DEFAULT_SONNET_MODEL",
-	"ANTHROPIC_MODEL",
 	"CLAUDE_CODE_EFFORT_LEVEL",
+	"CLAUDE_CODE_SUBAGENT_MODEL",
+	"CLAUDE_EFFORT",
+	"MAX_THINKING_TOKENS",
 ]);
+
+function isRunDecided(name: string): boolean {
+	return (
+		RUN_DECIDED_VARIABLES.has(name) ||
+		(name.startsWith("ANTHROPIC_") && name.includes("MODEL"))
+	);
+}
 
 function sha256(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -128,7 +134,7 @@ function withoutRunDecidedKeys(
 		...kept,
 		env: Object.fromEntries(
 			Object.entries(objectAt(settings["env"])).filter(
-				([name]) => !RUN_DECIDED_VARIABLES.has(name),
+				([name]) => !isRunDecided(name),
 			),
 		),
 	};

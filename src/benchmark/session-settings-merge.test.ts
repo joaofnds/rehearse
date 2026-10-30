@@ -42,7 +42,11 @@ function dropsTheModelAndEffortTheUserEnvironmentSetsAndKeepsTheRest(): void {
 		{
 			env: {
 				ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-opus-5-5",
+				ANTHROPIC_SMALL_FAST_MODEL: "claude-haiku-5-5",
 				CLAUDE_CODE_EFFORT_LEVEL: "max",
+				CLAUDE_CODE_SUBAGENT_MODEL: "claude-opus-5-5",
+				CLAUDE_EFFORT: "max",
+				MAX_THINKING_TOKENS: "1",
 				OTEL_LOGS_EXPORTER: "otlp",
 			},
 		},
