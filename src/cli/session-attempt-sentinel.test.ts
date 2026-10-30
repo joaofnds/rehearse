@@ -58,7 +58,7 @@ async function everyWrittenText(directory: string): Promise<string> {
 	return texts.join("\n");
 }
 
-async function writesNoValueOfTheUserSetupIntoAnyRecordFile(): Promise<void> {
+async function writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors(): Promise<void> {
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
@@ -83,7 +83,7 @@ async function writesNoValueOfTheUserSetupIntoAnyRecordFile(): Promise<void> {
 
 describe("a value in the user's setup", () => {
 	it(
-		"is written into no record file an attempt leaves",
-		writesNoValueOfTheUserSetupIntoAnyRecordFile,
+		"is written into no record field Rehearse authors, the transcript Claude Code writes aside",
+		writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors,
 	);
 });
