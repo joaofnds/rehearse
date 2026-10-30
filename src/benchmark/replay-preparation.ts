@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { deriveStaleness, stageCorpusRoots } from "./checkpoint";
 import type { Immutable } from "./contracts";
 import type { ReplayExecutionContext } from "./replay-contract";
@@ -63,12 +61,7 @@ class ReplayPreparation {
 				worktreeDir,
 			);
 		}
-		const corpusRoots = stageCorpusRoots(
-			request.corpusSource.kind === "directory"
-				? { kind: "directory", root: join(worktreeDir, ".claude") }
-				: request.corpusSource,
-			worktreeDir,
-		);
+		const corpusRoots = stageCorpusRoots(request.corpusSource, worktreeDir);
 		const baselineSha = await dependencies.currentSha(worktreeDir);
 
 		return { baselineSha, corpusRoots };

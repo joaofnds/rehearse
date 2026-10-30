@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { installStageCorpusSnapshot } from "./checkpoint";
 import { readPriorArtifacts } from "./replay";
 import type { ReplayRepContext } from "./replay-confirmation-runtime";
 import type {
@@ -102,7 +101,10 @@ class ReplayStagePreparation {
 		this.#operation = "base commit reading";
 		const baseSha = await dependencies.currentSha(plan.worktreePath);
 		this.#operation = "corpus installation";
-		await installStageCorpusSnapshot(frozen.corpusDirectory, plan.worktreePath);
+		await dependencies.installStageCorpusSnapshot(
+			frozen.corpusDirectory,
+			plan.worktreePath,
+		);
 
 		return baseSha;
 	}

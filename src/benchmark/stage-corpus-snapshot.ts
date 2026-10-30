@@ -146,3 +146,4 @@ export {
 	captureDirectories,
 	copyCorpusFiles,
 };
+export type { CorpusCopy };

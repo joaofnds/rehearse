@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
 
 import { captureStageCorpusWithoutSkill } from "./checkpoint";
 import { stageRubricSha256 } from "./judge-agreement";
@@ -56,9 +55,7 @@ function replayStageEnvironment(
 		baselineHashes,
 		baselineSha: baseSha,
 		commitSubjectPattern: frozen.manifest.pipeline.commitSubjectPattern,
-		corpusRoots: [
-			{ kind: "directory", root: join(plan.worktreePath, ".claude") },
-		],
+		corpusRoots: [{ kind: "directory", root: frozen.corpusDirectory }],
 		effort: request.effort,
 		instructions: frozen.instructions,
 		model: request.model,

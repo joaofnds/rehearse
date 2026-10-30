@@ -14,7 +14,10 @@ import {
 	corpusSources,
 	installSkill,
 } from "./checkpoint-corpus-test-fixture";
-import { temporaryDirectory } from "./checkpoint-filesystem-test-fixture";
+import {
+	noCitations,
+	temporaryDirectory,
+} from "./checkpoint-filesystem-test-fixture";
 import { runCommand } from "./command";
 import { CorpusFileError } from "./corpus-file";
 import { TestResources, commitAll } from "./test-support";
@@ -89,6 +92,7 @@ async function testLeavesTheTargetSStatusClean(): Promise<void> {
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "discuss skill", skill: "discuss" }),
 		worktree,
+		noCitations,
 	);
 
 	expect(await worktreeStatus(worktree)).toBe("");
@@ -100,6 +104,7 @@ async function testStillReportsAFileAStageWritesBesideTheInstalledCorpus(): Prom
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "discuss skill", skill: "discuss" }),
 		worktree,
+		noCitations,
 	);
 
 	await writeFile(join(worktree, ".claude", "settings.json"), "{}");
@@ -113,6 +118,7 @@ async function testStillReportsASkillAStageWritesIntoTheInstalledLayout(): Promi
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "discuss skill", skill: "discuss" }),
 		worktree,
+		noCitations,
 	);
 
 	await mkdir(join(worktree, ".claude", "skills", "authored"));
@@ -132,6 +138,7 @@ async function testMatchesAnInstalledFileNameLiterally(): Promise<void> {
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "glob skill", skill: "glob[a]*" }),
 		worktree,
+		noCitations,
 	);
 
 	await mkdir(join(worktree, ".claude", "skills", "globa-b"));
@@ -151,11 +158,13 @@ async function testStaysCleanAfterALaterStageInstallsADifferentCorpus(): Promise
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "discuss skill", skill: "discuss" }),
 		worktree,
+		noCitations,
 	);
 
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "shape skill", skill: "shape" }),
 		worktree,
+		noCitations,
 	);
 
 	expect(await worktreeStatus(worktree)).toBe("");
@@ -170,7 +179,7 @@ async function testRefusesACorpusFileWhoseNameTheIgnoreFileCannotHold(): Promise
 	await writeFile(join(snapshot, "skills", "discuss", "two\nlines.md"), "");
 
 	const failure = await failureOf(
-		installStageCorpusSnapshot(snapshot, worktree),
+		installStageCorpusSnapshot(snapshot, worktree, noCitations),
 	);
 
 	expect(failure).toBeInstanceOf(CorpusFileError);
@@ -184,6 +193,7 @@ async function testLeavesTheRepositorySSharedExcludesUntouched(): Promise<void> 
 	await installStageCorpusSnapshot(
 		await snapshotOf({ body: "discuss skill", skill: "discuss" }),
 		worktree,
+		noCitations,
 	);
 
 	expect(await Bun.file(exclude).text()).toBe(before);

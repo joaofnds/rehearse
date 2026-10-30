@@ -9,7 +9,10 @@ import {
 	installStageCorpusSnapshot,
 	snapshotStageCorpus,
 } from "./checkpoint";
-import { writeFixtureFiles } from "./checkpoint-filesystem-test-fixture";
+import {
+	noCitations,
+	writeFixtureFiles,
+} from "./checkpoint-filesystem-test-fixture";
 import {
 	installedCorpus,
 	linkedAgentCorpus,
@@ -69,7 +72,7 @@ async function testInstallsCapturedLinkedInputsAfterTheOriginalTreesDisappear():
 		rm(source.backingRoot, { recursive: true }),
 	]);
 
-	await installStageCorpusSnapshot(snapshot, target);
+	await installStageCorpusSnapshot(snapshot, target, noCitations);
 	const installed = await captureStageCorpus("build", "instructions", [
 		{ kind: "directory", root: join(target, ".claude") },
 	]);

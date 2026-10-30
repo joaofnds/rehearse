@@ -1,7 +1,4 @@
-import type {
-	installStageCorpusSnapshot,
-	materializeCheckpoint,
-} from "./checkpoint";
+import type { StageCorpusInstaller, materializeCheckpoint } from "./checkpoint";
 import type { captureBaselineContext, captureFileHashes } from "./checks";
 import type { TargetCheck } from "./pipeline";
 import type { repositoryHolding } from "./run-repositories";
@@ -45,7 +42,7 @@ interface ReplayDependencies {
 	) => Promise<void>;
 	/** The services one replay, or one attempt of a replay confirmation, starts and stops. */
 	readonly services: (owner: ContainerOwner) => TargetServices;
-	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	readonly installStageCorpusSnapshot: StageCorpusInstaller;
 	/**
 	 * Where the provider writes session transcripts, read for what the stage
 	 * loaded. Without it the read manifest holds only what the stage declared.

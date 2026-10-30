@@ -2,11 +2,8 @@ import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import {
-	installStageCorpusSnapshot,
-	materializeCheckpoint,
-	recordCheckpoint,
-} from "./checkpoint";
+import { materializeCheckpoint, recordCheckpoint } from "./checkpoint";
+import { uncitedStageInstall } from "./checkpoint-filesystem-test-fixture";
 import { captureBaselineContext, captureFileHashes } from "./checks";
 import { runCommand } from "./command";
 import type { PipelineConfirmationDependencies } from "./pipeline-confirmation";
@@ -100,7 +97,7 @@ function workspaceDependencies(
 		captureBuildCandidate,
 		captureFileHashes,
 		createProductOwner,
-		installStageCorpusSnapshot,
+		installStageCorpusSnapshot: uncitedStageInstall,
 		materializeCheckpoint,
 		recordCheckpoint,
 		runChecks: async () => {

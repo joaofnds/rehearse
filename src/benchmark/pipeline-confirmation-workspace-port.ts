@@ -1,5 +1,5 @@
 import type {
-	installStageCorpusSnapshot,
+	StageCorpusInstaller,
 	materializeCheckpoint,
 	recordCheckpoint,
 } from "./checkpoint";
@@ -35,7 +35,7 @@ interface PipelineConfirmationWorkspace {
 		recordStop: (signal: NodeJS.Signals) => Promise<void>,
 	) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
-	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	readonly installStageCorpusSnapshot: StageCorpusInstaller;
 	readonly recordCheckpoint: typeof recordCheckpoint;
 	readonly recordRetentionRef: typeof recordRetentionRef;
 	readonly captureBuildCandidate: typeof captureBuildCandidate;

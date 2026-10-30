@@ -1,6 +1,8 @@
 import { mkdir, readdir, rm, unlink } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { deliverInstalledCorpus } from "./corpus-delivery";
+import type { CorpusDelivery } from "./corpus-delivery";
 import {
 	CORPUS_LAYOUT_DIRECTORIES,
 	CorpusFileError,
@@ -10,9 +12,11 @@ import {
 import type { CorpusRoot } from "./corpus-file";
 import { symlinkedEntry } from "./directory-entry-probe";
 import { lstatIfPresent } from "./file-presence";
+import type { HomePathCitationMap } from "./home-path-citation";
 import type { CorpusDirectory } from "./stage-corpus-directories";
 import { resolveLayoutDirectory } from "./stage-corpus-directories";
 import { captureDirectories, copyCorpusFiles } from "./stage-corpus-snapshot";
+import type { CorpusCopy } from "./stage-corpus-snapshot";
 
 /**
  * `cp` dereferences, so an entry reached through a link installs bytes from
@@ -71,23 +75,43 @@ async function replaceInstalledLayout(destination: string): Promise<void> {
 	);
 }
 
-async function installStageCorpusSnapshot(
+async function readStageSnapshot(
 	snapshotDirectory: string,
-	targetDirectory: string,
-): Promise<void> {
+): Promise<Omit<CorpusCopy, "destination">> {
 	await refuseUncontainedEntries(snapshotDirectory);
 	const source = { kind: "directory", root: snapshotDirectory } as const;
 	const directories = await snapshotDirectories(source);
-	const files = await captureDirectories(directories);
-	const instructions = await readCorpusInstructions(source);
+
+	return {
+		directories,
+		files: await captureDirectories(directories),
+		instructions: await readCorpusInstructions(source),
+	};
+}
+
+/**
+ * Installs the snapshot under the target's `.claude` and redirects the
+ * home-path citations its text makes of what the install holds, so the stage
+ * reads this snapshot's copy of each. The snapshot keeps its authored bytes.
+ */
+async function installStageCorpusSnapshot(
+	snapshotDirectory: string,
+	targetDirectory: string,
+	citations: HomePathCitationMap,
+): Promise<CorpusDelivery> {
+	const snapshot = await readStageSnapshot(snapshotDirectory);
 	const destination = join(targetDirectory, ".claude");
 
 	await replaceInstalledLayout(destination);
 
-	await copyCorpusFiles({ destination, directories, files, instructions });
-	await Bun.write(
-		join(destination, INSTALLED_CORPUS_IGNORE),
-		installedCorpusIgnore(files.map(({ file }) => file.path)),
+	await copyCorpusFiles({ ...snapshot, destination });
+	const paths = snapshot.files.map(({ file }) => file.path);
+	await writeInstalledCorpusIgnore(destination, paths);
+
+	return await deliverInstalledCorpus(
+		destination,
+		["CLAUDE.md", ...paths],
+		citations,
 	);
 }
 
@@ -112,4 +136,14 @@ function installedCorpusIgnore(paths: readonly string[]): string {
 
 	return `${patterns.join("\n")}\n`;
 }
+async function writeInstalledCorpusIgnore(
+	destination: string,
+	paths: readonly string[],
+): Promise<void> {
+	await Bun.write(
+		join(destination, INSTALLED_CORPUS_IGNORE),
+		installedCorpusIgnore(paths),
+	);
+}
+
 export { installStageCorpusSnapshot as default };

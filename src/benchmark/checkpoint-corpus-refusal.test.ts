@@ -10,6 +10,7 @@ import {
 	escapingSnapshotFixture,
 } from "./checkpoint-corpus-test-fixture";
 import {
+	noCitations,
 	temporaryDirectory,
 	writeFixtureFiles,
 } from "./checkpoint-filesystem-test-fixture";
@@ -49,7 +50,7 @@ async function testRefusesToInstallASnapshotEntryThatResolvesOutsideTheSnapshotD
 		await escapingSnapshotFixture(testResources);
 
 	const failure = await failureOf(
-		installStageCorpusSnapshot(snapshotDirectory, worktree),
+		installStageCorpusSnapshot(snapshotDirectory, worktree, noCitations),
 	);
 
 	expect(failure).toBeInstanceOf(SymlinkedEntryError);

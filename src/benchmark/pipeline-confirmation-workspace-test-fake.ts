@@ -78,7 +78,7 @@ class PipelineWorkspaceFake {
 				throw new Error("synthetic build corpus rejection");
 			}
 
-			await dependencies.installStageCorpusSnapshot(
+			return await dependencies.installStageCorpusSnapshot(
 				snapshotDirectory,
 				worktreePath,
 			);

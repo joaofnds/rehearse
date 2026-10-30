@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import { captureStageCorpus, installStageCorpusSnapshot } from "./checkpoint";
+import { captureStageCorpus } from "./checkpoint";
+import { uncitedStageInstall } from "./checkpoint-filesystem-test-fixture";
 import { runReplay } from "./replay";
 import ReplayConfirmationHarness from "./replay-confirmation-test-support";
 import ReplayCorpusVariantBuilder from "./replay-corpus-variant-test-builder";
@@ -86,7 +87,7 @@ const replaysALinkedDirectoryVariantWithTheCapturedPaths =
 		const outcome = await runReplay(
 			{
 				...fake.dependencies,
-				installStageCorpusSnapshot,
+				installStageCorpusSnapshot: uncitedStageInstall,
 				stageSession: { ...fake.dependencies.stageSession, captureStageCorpus },
 			},
 			{
