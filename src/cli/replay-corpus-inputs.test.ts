@@ -25,7 +25,7 @@ async function retainsTheCapturedLiveSourceAlongsideItsInstructions(): Promise<v
 
 		expect(corpus).toEqual({
 			instructions: "captured instructions\n",
-			settingSources: undefined,
+			setup: undefined,
 			source,
 		});
 	} finally {
@@ -33,7 +33,7 @@ async function retainsTheCapturedLiveSourceAlongsideItsInstructions(): Promise<v
 	}
 }
 
-async function tellsTheSessionToPreferTheProjectLevelFor(): Promise<void> {
+async function runsTheSessionWithTheActualSetupFor(): Promise<void> {
 	const root = await mkdtemp(join(tmpdir(), "rehearse-linked-source-"));
 	const source = { kind: "directory", root } as const;
 	await Bun.write(join(root, "CLAUDE.md"), "linked instructions\n");
@@ -44,7 +44,7 @@ async function tellsTheSessionToPreferTheProjectLevelFor(): Promise<void> {
 			async () => await Promise.resolve(source),
 		);
 
-		expect(corpus.settingSources).toBe("project");
+		expect(corpus.setup).toBe("actual");
 	} finally {
 		await rm(root, { force: true, recursive: true });
 	}
@@ -71,8 +71,8 @@ describe(replayCorpus.name, () => {
 		retainsTheCapturedLiveSourceAlongsideItsInstructions,
 	);
 	it(
-		"tells the session to prefer the project level for a linked directory nobody named",
-		tellsTheSessionToPreferTheProjectLevelFor,
+		"runs the session with the actual setup for a linked directory nobody named",
+		runsTheSessionWithTheActualSetupFor,
 	);
 	it(
 		"classifies invalid live corpus configuration as a refused precondition",

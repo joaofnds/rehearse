@@ -10,11 +10,8 @@ import { declaredSettings } from "./session-attempt-setup";
 import SessionInvocationError from "./session-invocation-error";
 import { carriesMessages, readSessionOutput } from "./session-output";
 import type { LoadedSetup } from "./session-output";
-import type {
-	ActualSetupFiles,
-	SessionSetup,
-	SessionSetupRecord,
-} from "./session-setup";
+import { actualSetupArgs } from "./session-setup";
+import type { SessionSetup, SessionSetupRecord } from "./session-setup";
 
 function selectedSettings(
 	sessionCase: SessionCase,
@@ -45,20 +42,6 @@ function isolatedSetupArgs(
 		"--tools",
 		sessionCase.tools.join(","),
 		...(settingsJson === undefined ? [] : ["--settings", settingsJson]),
-	];
-}
-
-function actualSetupArgs(setup: ActualSetupFiles): string[] {
-	return [
-		"--setting-sources",
-		"project,local",
-		"--settings",
-		setup.settingsFile,
-		...setup.mcpConfigFiles.flatMap((file) => ["--mcp-config", file]),
-		...setup.pluginDirectories.flatMap((directory) => [
-			"--plugin-dir",
-			directory,
-		]),
 	];
 }
 

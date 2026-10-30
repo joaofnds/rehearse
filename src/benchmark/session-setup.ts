@@ -240,8 +240,24 @@ async function prepareActualSetup({
 	};
 }
 
+/** The flags that start a session with the user's actual setup. */
+function actualSetupArgs(setup: ActualSetupFiles): string[] {
+	return [
+		"--setting-sources",
+		"project,local",
+		"--settings",
+		setup.settingsFile,
+		...setup.mcpConfigFiles.flatMap((file) => ["--mcp-config", file]),
+		...setup.pluginDirectories.flatMap((directory) => [
+			"--plugin-dir",
+			directory,
+		]),
+	];
+}
+
 export {
 	ISOLATED_SETUP,
+	actualSetupArgs,
 	RUN_DECIDED_VARIABLES,
 	mergedSettings,
 	prepareActualSetup,

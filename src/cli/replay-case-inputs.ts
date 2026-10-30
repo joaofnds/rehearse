@@ -115,9 +115,11 @@ async function replayCorpusRoots(
 
 /**
  * A replay exists to iterate on a corpus, so a corpus directory, named or
- * linked, is both the instructions the stage reads and the reason the session
- * is told to prefer the project level. The live install needs neither, because
- * a session reads it by default.
+ * linked, is the instructions the stage reads, installed at project level. Its
+ * session runs with the user's actual setup, which loads their settings, MCP
+ * servers and plugins but no user-level instruction file, so the directory is
+ * the only corpus it reads. The live install needs neither, because a session
+ * reads it by default.
  */
 async function replayCorpus(
 	corpus: string | undefined,
@@ -125,14 +127,14 @@ async function replayCorpus(
 ): Promise<{
 	readonly instructions: string;
 	readonly source: CorpusRoot;
-	readonly settingSources: "project" | undefined;
+	readonly setup: "actual" | undefined;
 }> {
 	try {
 		const source = await resolveCorpus(corpus);
 
 		return {
 			instructions: await readCorpusInstructions(source),
-			settingSources: source.kind === "live" ? undefined : "project",
+			setup: source.kind === "live" ? undefined : "actual",
 			source,
 		};
 	} catch (error) {

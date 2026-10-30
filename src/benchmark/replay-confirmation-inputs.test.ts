@@ -151,6 +151,27 @@ const passesADeclaredSettingsOverlayToEveryConfirmedStageSession =
 			'{"disableAllHooks":true}',
 		]);
 	};
+const runsEveryConfirmedStageSessionWithTheUserSActualSetup =
+	async (): Promise<void> => {
+		const { harness: fake, run } =
+			await new ReplayConfirmationFixtureBuilder().build(testResources);
+		const corpusRoot = await new ReplayCorpusBuilder({
+			files: [{ content: "discuss\n", path: "skills/discuss/SKILL.md" }],
+		}).build(testResources);
+
+		const { dependencies: replayDependencies, request: replayRequest } =
+			fake.prepareConfirmation(
+				{
+					corpusRoots: [{ kind: "directory", root: corpusRoot }],
+					paths: run.paths,
+				},
+				{ reps: 2 },
+			);
+
+		await runReplayConfirmation(replayDependencies, replayRequest);
+
+		expect(fake.stageSetups).toEqual(["actual", "actual"]);
+	};
 describe(runReplayConfirmation.name, () => {
 	describe("source inputs", () => {
 		it(
@@ -171,6 +192,11 @@ describe(runReplayConfirmation.name, () => {
 		it(
 			"passes a declared settings overlay to every confirmed stage session",
 			passesADeclaredSettingsOverlayToEveryConfirmedStageSession,
+		);
+
+		it(
+			"runs every confirmed stage session with the user's actual setup",
+			runsEveryConfirmedStageSessionWithTheUserSActualSetup,
 		);
 	});
 });

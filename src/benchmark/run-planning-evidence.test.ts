@@ -79,6 +79,14 @@ const chainsCheckpointLineage = async (): Promise<void> => {
 	).toEqual(["backlog/docs/shape.md"]);
 };
 
+const runsADebugPipelineWithEverySettingSource = async (): Promise<void> => {
+	const { dependencies, setups } = fakeStageDependencies();
+
+	await runGradedStages(dependencies, await new StageContextBuilder().build());
+
+	expect(setups).toEqual([undefined, undefined]);
+};
+
 const recordsSharedSettings = async (): Promise<void> => {
 	const { dependencies, settingsOverlays } = fakeStageDependencies();
 	const settings = {
@@ -172,6 +180,11 @@ describe("runGradedStages planning and checkpoints", () => {
 	it(
 		"delivers one settings value to every stage and records its evidence",
 		recordsSharedSettings,
+	);
+
+	it(
+		"runs a debug pipeline's stages with every setting source",
+		runsADebugPipelineWithEverySettingSource,
 	);
 
 	it(

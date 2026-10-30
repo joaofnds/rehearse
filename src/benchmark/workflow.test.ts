@@ -110,29 +110,6 @@ async function streamsTheStageCallUnderASilenceLimitAloneAndReadsTheResultLineIt
 	});
 }
 
-async function restrictsAStageSessionToProjectLevelSettingsWhenAsked(): Promise<void> {
-	const commands: string[][] = [];
-
-	await runWorkflowStage(
-		workflowStageRequest({ settingSources: "project", taskId: "ACT-28" }),
-		async (command) => {
-			commands.push([...command]);
-
-			return await Promise.resolve(
-				JSON.stringify({
-					session_id: "worker-session",
-					structured_output: { message: "Shaped", status: "COMPLETE" },
-					type: "result",
-				}),
-			);
-		},
-	);
-
-	const [observedFirstCommand] = commands;
-
-	expect(observedFirstCommand).toContain("--setting-sources");
-}
-
 async function leavesAStageSessionUnrestrictedByDefault(): Promise<void> {
 	const commands: string[][] = [];
 
@@ -227,10 +204,6 @@ describe("workflow provider metrics", () => {
 	it(
 		"streams the stage call under a silence limit alone and reads the result line its runner returns",
 		streamsTheStageCallUnderASilenceLimitAloneAndReadsTheResultLineItsRunnerReturns,
-	);
-	it(
-		"restricts a stage session to project-level settings when asked",
-		restrictsAStageSessionToProjectLevelSettingsWhenAsked,
 	);
 	it(
 		"leaves a stage session unrestricted by default",

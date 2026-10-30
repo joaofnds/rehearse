@@ -910,7 +910,7 @@ corpus has no version to replay or rehash against. `settings --unlink-corpus` (o
 attempts, `stale`, `show group:<id>`, the corpus commands and the browser's
 corpus and run reads then treat the linked directory as if it were passed with
 `--corpus`, re-checking it on every read. A replay of the linked directory also
-runs with project-level settings preferred, as a replay given `--corpus` does.
+runs with your actual setup, as a replay given `--corpus` does.
 A pipeline `run` refuses before the model probe while a directory is linked,
 naming the command that unlinks it, because a pipeline run measures only the
 live install. For the same reason `calibrate` names the live install's
@@ -974,8 +974,8 @@ between its check and read. Corpus sources remain trusted experimental inputs.
 | Mode                                | Live corpus                                                                              | Directory supplied with `--corpus`                                               |
 | ----------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Pipeline debug `run`                | Supported                                                                                | Refused                                                                          |
-| Pipeline confirmation               | Frozen stage/global inputs installed in rep worktrees                                    | Refused by `run`                                                                 |
-| Stage replay, debug or confirmation | Supported                                                                                | Supported; installed in the worktree with project settings sources               |
+| Pipeline confirmation               | Frozen stage/global inputs installed in rep worktrees, run with your actual setup        | Refused by `run`                                                                 |
+| Stage replay, debug or confirmation | Supported                                                                                | Supported; installed in the worktree and run with your actual setup              |
 | Session debug                       | The whole corpus is copied, then hashed; an isolated case copies only its declared files | The whole corpus is installed; an isolated case installs only its declared files |
 | Session confirmation                | The whole corpus is frozen; an isolated case freezes only its declared files             | The whole corpus is frozen; an isolated case freezes only its declared files     |
 | `stale`                             | Compare against live files                                                               | Compare against the supplied directory                                           |
@@ -1037,6 +1037,20 @@ configuration, so no MCP server reaches the session, the claude.ai account's
 connectors included. Those connectors would otherwise arrive at no fixed point in the
 session and differ between reps of one group, and one that arrives between two
 calls makes the second rewrite the prompt cache.
+
+Pipeline confirmation stages, stage replays against a corpus directory and
+replay confirmations also run with your actual setup, through the same flags a
+session attempt uses: the project and local settings sources, your settings
+merged with the frozen stage settings in a file passed by `--settings`, the MCP
+servers in `~/.claude.json` and each synced plugin directory. The stage's
+corpus comes from its worktree's `.claude/`, since the user source still never
+loads. The merged file sits in a temporary directory that is removed when the
+stage session ends. A pipeline has no isolation to declare, and a stage
+checkpoint does not record the setup the way a session attempt's `setup` field
+does. A pipeline debug `run` and a plain live replay pass no setting source, so
+they keep running with every source, the user's included, as before. Stage
+sessions run with `--dangerously-skip-permissions`, so an MCP server your setup
+loads can act during an unattended stage, and nothing here confines it.
 
 A live session attempt copies the files it must overlay and hashes the copies,
 so `resolvedPath` names the frozen copy rather than the operator's install;

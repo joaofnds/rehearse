@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+
 import {
 	ClaudeSessionError,
 	claudeArgs,
@@ -11,6 +13,8 @@ import { stageTurnSchema } from "./contracts";
 import serialMap from "./serial-map";
 import { remainingBudget, sessionCalls } from "./session-call-accounting";
 import type { SessionCalls } from "./session-call-accounting";
+import type { ActualSetupFiles } from "./session-setup";
+import withStageSetup from "./stage-actual-setup";
 import StageSessionError from "./stage-session-error";
 import WorkflowExecutionError from "./workflow-contract";
 import type { ClaudeCommand, WorkflowStageRequest } from "./workflow-contract";
@@ -21,18 +25,24 @@ const INITIAL_OWNER_TURN_INDEX = 0;
 interface StageConversationConfiguration {
 	readonly request: WorkflowStageRequest;
 	readonly runClaude: ClaudeCommand;
+	readonly setupFiles: ActualSetupFiles | undefined;
 }
 
 class StageConversation {
 	private readonly request: WorkflowStageRequest;
 	private readonly runClaude: ClaudeCommand;
+	private readonly setupFiles: ActualSetupFiles | undefined;
 	private readonly calls: SessionCalls;
 	private readonly elapsedMs: () => number;
 	private readonly exchanges: StageTranscript["exchanges"][number][] = [];
 	private sessionId: string;
 	private prompt: string;
 
-	public constructor({ request, runClaude }: StageConversationConfiguration) {
+	public constructor({
+		request,
+		runClaude,
+		setupFiles,
+	}: StageConversationConfiguration) {
 		const captured: WorkflowStageRequest = {
 			effort: request.effort,
 			elapsedMs: request.elapsedMs,
@@ -42,8 +52,8 @@ class StageConversation {
 			runEvents: request.runEvents,
 			sessionBudgetUsd: request.sessionBudgetUsd,
 			sessionId: request.sessionId,
-			settingSources: request.settingSources,
 			settingsOverlay: request.settingsOverlay,
+			setup: request.setup,
 			skill: request.skill,
 			spendCeiling: request.spendCeiling,
 			stage: request.stage,
@@ -53,6 +63,7 @@ class StageConversation {
 
 		this.request = captured;
 		this.runClaude = runClaude;
+		this.setupFiles = setupFiles;
 		this.calls = sessionCalls(captured.spendCeiling);
 		this.elapsedMs = captured.elapsedMs ?? (() => FALLBACK_CLOCK_MS);
 		this.sessionId = captured.sessionId;
@@ -100,13 +111,13 @@ class StageConversation {
 					id: this.sessionId,
 					resume: turn > INITIAL_OWNER_TURN_INDEX,
 				},
-				settingSources: this.request.settingSources,
 				settings: {
 					budgetUsd,
 					effort: this.request.effort,
 					model: this.request.model,
 				},
 				settingsOverlay: this.request.settingsOverlay,
+				setup: this.setupFiles,
 			}),
 			this.prompt,
 		];
@@ -219,8 +230,14 @@ function continueStagePrompt(
 async function runWorkflowStage(
 	request: WorkflowStageRequest,
 	runClaude: ClaudeCommand = runStreamedSession,
+	home: string = homedir(),
 ): Promise<StageTranscript> {
-	return await new StageConversation({ request, runClaude }).run();
+	return await withStageSetup(
+		request,
+		home,
+		async (setupFiles) =>
+			await new StageConversation({ request, runClaude, setupFiles }).run(),
+	);
 }
 
 export { runWorkflowStage };

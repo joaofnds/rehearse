@@ -32,7 +32,7 @@ interface ReplayRequest {
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
 	readonly spendCeilingUsd: number;
-	readonly settingSources?: "project" | undefined;
+	readonly setup?: "actual" | undefined;
 	readonly loadedSettings?: LoadedStageSettings | undefined;
 }
 interface ReplayOutcome {

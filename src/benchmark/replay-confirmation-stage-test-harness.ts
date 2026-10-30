@@ -22,7 +22,7 @@ class ReplayStageSessionHarness {
 		readonly instructions: string;
 		readonly roots: readonly CorpusRoot[];
 	}[] = [];
-	public readonly settingSources: (string | undefined)[] = [];
+	public readonly stageSetups: (string | undefined)[] = [];
 	public readonly settingsOverlays: (string | undefined)[] = [];
 	public readonly stageSession: ReplayDependencies["stageSession"] = {
 		assertBuildCommitted: async ({ targetDir }, expectedBranch) => {
@@ -107,12 +107,12 @@ class ReplayStageSessionHarness {
 		runWorkflowStage: async ({
 			targetDir,
 			stage,
-			settingSources,
+			setup,
 			settingsOverlay,
 			environment,
 		}) => {
 			this.stageDirs.push(targetDir);
-			this.settingSources.push(settingSources);
+			this.stageSetups.push(setup);
 			this.settingsOverlays.push(settingsOverlay);
 			this.sessionEnvironments.push(environment);
 

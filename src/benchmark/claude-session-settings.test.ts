@@ -4,24 +4,34 @@ import { claudeArgs } from "./claude";
 import { OPTION_VALUE_POSITION_OFFSET } from "./claude-test-fixtures";
 import { stageTurnSchema } from "./contracts";
 
-function restrictsAStageSessionToProjectLevelSettings(): void {
+function passesTheActualSetupSFilesInPlaceOfTheOverlay(): void {
 	const command = claudeArgs({
 		access: "unrestricted",
 		schema: stageTurnSchema,
 		session: { id: "session-1", resume: false },
-		settingSources: "project",
 		settings: { budgetUsd: 5, model: "sonnet" },
+		settingsOverlay: '{"disableAllHooks":true}',
+		setup: {
+			kind: "actual",
+			mcpConfigFiles: ["/home/.claude.json"],
+			pluginDirectories: ["/home/.claude/plugins/synced/bucket"],
+			settingsFile: "/setup/settings.json",
+		},
 	});
 
-	expect(command).toContain("--setting-sources");
-	expect(
-		command[
-			command.indexOf("--setting-sources") + OPTION_VALUE_POSITION_OFFSET
-		],
-	).toBe("project");
+	expect(command.slice(command.indexOf("--setting-sources"))).toEqual([
+		"--setting-sources",
+		"project,local",
+		"--settings",
+		"/setup/settings.json",
+		"--mcp-config",
+		"/home/.claude.json",
+		"--plugin-dir",
+		"/home/.claude/plugins/synced/bucket",
+	]);
 }
 
-function omitsSettingSourcesWhenTheInvocationDoesNotRestrictSources(): void {
+function omitsSettingSourcesWhenTheInvocationCarriesNoActualSetup(): void {
 	const command = claudeArgs({
 		access: "unrestricted",
 		schema: stageTurnSchema,
@@ -60,28 +70,12 @@ function omitsSettingsWhenTheInvocationCarriesNoSettingsOverlay(): void {
 
 describe(claudeArgs.name, () => {
 	it(
-		"restricts a stage session to project-level settings",
-		restrictsAStageSessionToProjectLevelSettings,
+		"passes the actual setup's files in place of the overlay",
+		passesTheActualSetupSFilesInPlaceOfTheOverlay,
 	);
 	it(
-		"omits --setting-sources when the invocation does not restrict sources",
-		omitsSettingSourcesWhenTheInvocationDoesNotRestrictSources,
-	);
-	it(
-		"passes the declared settings JSON through --settings",
-		passesTheDeclaredSettingsJSONThroughSettings,
-	);
-	it(
-		"omits --settings when the invocation carries no settings overlay",
-		omitsSettingsWhenTheInvocationCarriesNoSettingsOverlay,
-	);
-	it(
-		"restricts a stage session to project-level settings",
-		restrictsAStageSessionToProjectLevelSettings,
-	);
-	it(
-		"omits --setting-sources when the invocation does not restrict sources",
-		omitsSettingSourcesWhenTheInvocationDoesNotRestrictSources,
+		"omits --setting-sources when the invocation carries no actual setup",
+		omitsSettingSourcesWhenTheInvocationCarriesNoActualSetup,
 	);
 	it(
 		"passes the declared settings JSON through --settings",

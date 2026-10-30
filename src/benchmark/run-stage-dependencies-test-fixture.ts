@@ -19,6 +19,7 @@ interface StageHarness {
 	readonly executed: string[];
 	readonly rubricsUsed: string[];
 	readonly settingsOverlays: (string | undefined)[];
+	readonly setups: (string | undefined)[];
 }
 
 const SHA256_HEX_DIGITS = 64;
@@ -118,6 +119,7 @@ function fakeStageDependencies(): StageHarness {
 	const executed: string[] = [];
 	const rubricsUsed: string[] = [];
 	const settingsOverlays: (string | undefined)[] = [];
+	const setups: (string | undefined)[] = [];
 
 	return {
 		dependencies: {
@@ -128,9 +130,10 @@ function fakeStageDependencies(): StageHarness {
 
 				return await Promise.resolve(scorecardFor(input, "CONTINUE"));
 			},
-			runWorkflowStage: async ({ stage, skill, settingsOverlay }) => {
+			runWorkflowStage: async ({ stage, skill, settingsOverlay, setup }) => {
 				executed.push(skill);
 				settingsOverlays.push(settingsOverlay);
+				setups.push(setup);
 
 				return await Promise.resolve({
 					costUsd: 0,
@@ -146,6 +149,7 @@ function fakeStageDependencies(): StageHarness {
 		rubricsUsed,
 		scorecardFor,
 		settingsOverlays,
+		setups,
 	};
 }
 

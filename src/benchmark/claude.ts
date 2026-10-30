@@ -6,6 +6,8 @@ import type { CommandOptions } from "./command";
 import type { Effort } from "./config";
 import type { SchemaPropertyOrder } from "./contracts";
 import { claudeJsonSchema } from "./contracts";
+import { actualSetupArgs } from "./session-setup";
+import type { ActualSetupFiles } from "./session-setup";
 
 interface SessionSettings {
 	readonly model: string;
@@ -22,7 +24,12 @@ interface ClaudeInvocation {
 	readonly session?:
 		| { readonly id: string; readonly resume: boolean }
 		| undefined;
-	readonly settingSources?: "project" | undefined;
+	/**
+	 * The user's actual setup, whose merged settings file already carries any
+	 * overlay. Without it the session reads every setting source, with the
+	 * overlay passed on top.
+	 */
+	readonly setup?: ActualSetupFiles | undefined;
 	readonly settingsOverlay?: string | undefined;
 	/**
 	 * `stream` writes each event as a line while the session runs, partial
@@ -46,6 +53,17 @@ function outputFormat(output: ClaudeInvocation["output"]): string[] {
 	return ["json"];
 }
 
+function settingsArgs(
+	setup: ActualSetupFiles | undefined,
+	settingsOverlay: string | undefined,
+): string[] {
+	if (setup !== undefined) {
+		return actualSetupArgs(setup);
+	}
+
+	return settingsOverlay === undefined ? [] : ["--settings", settingsOverlay];
+}
+
 function claudeArgs(invocation: ClaudeInvocation): string[] {
 	const {
 		settings,
@@ -54,7 +72,7 @@ function claudeArgs(invocation: ClaudeInvocation): string[] {
 		access,
 		systemPrompt,
 		session,
-		settingSources,
+		setup,
 		settingsOverlay,
 		output,
 	} = invocation;
@@ -81,10 +99,7 @@ function claudeArgs(invocation: ClaudeInvocation): string[] {
 		...(session
 			? [session.resume ? "--resume" : "--session-id", session.id]
 			: ["--no-session-persistence"]),
-		...(settingSources === undefined
-			? []
-			: ["--setting-sources", settingSources]),
-		...(settingsOverlay === undefined ? [] : ["--settings", settingsOverlay]),
+		...settingsArgs(setup, settingsOverlay),
 	];
 }
 

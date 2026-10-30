@@ -11,18 +11,17 @@ import { TestResources } from "./test-support";
 const SHA256_HEX_DIGITS = 64;
 
 const testResources = TestResources.forEachTest();
-const runsTheStageUnderProjectSettingSourcesWhenGiven =
-	async (): Promise<void> => {
-		const run = await new ReplaySavedRunBuilder().build(testResources);
-		const fake = new ReplayConfirmationHarness();
+const runsTheStageWithTheActualSetupWhenGiven = async (): Promise<void> => {
+	const run = await new ReplaySavedRunBuilder().build(testResources);
+	const fake = new ReplayConfirmationHarness();
 
-		await runReplay(fake.dependencies, {
-			...new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
-			settingSources: "project",
-		});
+	await runReplay(fake.dependencies, {
+		...new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
+		setup: "actual",
+	});
 
-		expect(fake.settingSources).toEqual(["project"]);
-	};
+	expect(fake.stageSetups).toEqual(["actual"]);
+};
 const passesADeclaredSettingsOverlayThroughToTheStage =
 	async (): Promise<void> => {
 		const run = await new ReplaySavedRunBuilder().build(testResources);
@@ -100,23 +99,22 @@ const replaysALinkedDirectoryVariantWithTheCapturedPaths =
 		expect(outcome.record.corpusFiles).toEqual(expected);
 		expect(outcome.record.staleness).toEqual([]);
 	};
-const leavesSettingSourcesUnsetWhenNoCorpusIsGiven =
-	async (): Promise<void> => {
-		const run = await new ReplaySavedRunBuilder().build(testResources);
-		const fake = new ReplayConfirmationHarness();
+const leavesTheSetupUnsetWhenNoCorpusIsGiven = async (): Promise<void> => {
+	const run = await new ReplaySavedRunBuilder().build(testResources);
+	const fake = new ReplayConfirmationHarness();
 
-		await runReplay(
-			fake.dependencies,
-			new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
-		);
+	await runReplay(
+		fake.dependencies,
+		new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
+	);
 
-		expect(fake.settingSources).toEqual([undefined]);
-	};
+	expect(fake.stageSetups).toEqual([undefined]);
+};
 describe(runReplay.name, () => {
 	describe("corpus and settings", () => {
 		it(
-			"runs the stage under project setting sources when given a corpus",
-			runsTheStageUnderProjectSettingSourcesWhenGiven,
+			"runs the stage with the actual setup when given a corpus",
+			runsTheStageWithTheActualSetupWhenGiven,
 		);
 		it(
 			"passes a declared settings overlay through to the stage session",
@@ -135,8 +133,8 @@ describe(runReplay.name, () => {
 			replaysALinkedDirectoryVariantWithTheCapturedPaths,
 		);
 		it(
-			"leaves setting sources unset when no corpus is given",
-			leavesSettingSourcesUnsetWhenNoCorpusIsGiven,
+			"leaves the setup unset when no corpus is given",
+			leavesTheSetupUnsetWhenNoCorpusIsGiven,
 		);
 	});
 });

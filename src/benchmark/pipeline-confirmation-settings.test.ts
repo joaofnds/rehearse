@@ -77,7 +77,37 @@ async function passesADeclaredSettingsOverlayToEveryStageSession(): Promise<void
 	);
 }
 
+async function runsEveryStageSessionWithTheUserSActualSetup(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const setups: (string | undefined)[] = [];
+
+	await harness.run({ reps: CONFIRMATION_REPETITIONS }, (dependencies) => ({
+		...dependencies,
+		stageSession: {
+			...dependencies.stageSession,
+			runWorkflowStage: async (request) => {
+				setups.push(request.setup);
+
+				return await dependencies.stageSession.runWorkflowStage(request);
+			},
+		},
+	}));
+
+	expect(setups).toEqual(
+		Array.from(
+			{
+				length: CONFIRMATION_REPETITIONS * CONFIRMATION_PIPELINE.stages.length,
+			},
+			() => "actual",
+		),
+	);
+}
+
 describe(runPipelineConfirmation.name, () => {
+	it(
+		"runs every stage session with the user's actual setup",
+		runsEveryStageSessionWithTheUserSActualSetup,
+	);
 	describe("when declared settings are supplied", () => {
 		it(
 			"hashes the declared settings file's digest into every checkpoint's own lineage field",

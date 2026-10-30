@@ -45,7 +45,7 @@ async function prepareReplayRequest(
 		model: config.model,
 		paths,
 		sessionBudgetUsd: config.sessionBudgetUsd,
-		settingSources: corpus.settingSources,
+		setup: corpus.setup,
 		spendCeilingUsd,
 		stage: config.stage,
 	};
