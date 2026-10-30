@@ -81,9 +81,57 @@ async function recordsEachStagesLiveReadsOnItsRepWhetherJudgedOrRejected(): Prom
 	]);
 }
 
+/** Each rep's session ran and its Judge then failed to run at all. */
+async function recordsTheLiveReadsOfAStageWhoseJudgeFailed(): Promise<void> {
+	const inputs = await new ReplayCheckpointInputsBuilder().fromRepository(
+		testResources,
+	);
+	const [corpus] = inputs.corpusRoots;
+	await Bun.write(
+		join(corpus.root, "rulebook/ownership.md"),
+		"the arm's rule\n",
+	);
+	const provider = new ReplayDurableOutcomes();
+	const projects = await testResources.createControlDirectory();
+	const { dependencies, request } = provider.prepareConfirmation(
+		inputs,
+		{ reps: 2 },
+		provider.override,
+		liveReadingStage(projects),
+		(base) => ({
+			...base,
+			runStageJudge: async () =>
+				await Promise.reject(new Error("synthetic judge failure")),
+		}),
+	);
+
+	const outcome = await runReplayConfirmation(dependencies, request);
+
+	const records = await readReplayReps(outcome.repRecordFiles);
+	expect(records.map(({ stages }) => stages)).toMatchObject([
+		[
+			{
+				liveReads: [{ count: 1, path: "rulebook/ownership.md" }],
+				status: "EXECUTION_FAILED",
+			},
+		],
+		[
+			{
+				liveReads: [{ count: 1, path: "rulebook/ownership.md" }],
+				status: "EXECUTION_FAILED",
+			},
+		],
+	]);
+}
+
 describe(runReplayConfirmation.name, () => {
 	it(
 		"records each stage's live reads on its rep, judged or rejected",
 		recordsEachStagesLiveReadsOnItsRepWhetherJudgedOrRejected,
+	);
+
+	it(
+		"records the live reads of a stage whose judge failed",
+		recordsTheLiveReadsOfAStageWhoseJudgeFailed,
 	);
 });

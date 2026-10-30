@@ -70,6 +70,7 @@ describe(liveCorpusReads.name, () => {
 describe(`${liveCorpusReads.name} access fields`, () => {
 	it.each([
 		["Edit", "file_path"],
+		["Write", "file_path"],
 		["NotebookEdit", "notebook_path"],
 	])("counts an %s call by its %s field", (name, field) => {
 		const edit = use(name, {
