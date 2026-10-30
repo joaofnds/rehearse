@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm, unlink } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-import { deliverInstalledCorpus } from "./corpus-delivery";
+import { countCorpusDelivery, deliverInstalledCorpus } from "./corpus-delivery";
 import type { CorpusDelivery } from "./corpus-delivery";
 import {
 	CORPUS_LAYOUT_DIRECTORIES,
@@ -146,4 +146,30 @@ async function writeInstalledCorpusIgnore(
 	);
 }
 
-export { installStageCorpusSnapshot as default };
+/**
+ * What a stage install of this snapshot delivers: the files it holds, by
+ * layout path, and what its rewrite redirects, read before any install.
+ */
+interface StageCorpusDelivery {
+	readonly held: readonly string[];
+	readonly delivery: CorpusDelivery;
+}
+
+async function planStageCorpusDelivery(
+	snapshotDirectory: string,
+	citations: HomePathCitationMap,
+): Promise<StageCorpusDelivery> {
+	const snapshot = await readStageSnapshot(snapshotDirectory);
+	const held = [
+		"CLAUDE.md",
+		...snapshot.files.map(({ file }) => file.path),
+	].toSorted();
+
+	return {
+		delivery: await countCorpusDelivery(snapshotDirectory, held, citations),
+		held,
+	};
+}
+
+export { installStageCorpusSnapshot as default, planStageCorpusDelivery };
+export type { StageCorpusDelivery };

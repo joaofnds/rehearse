@@ -1,6 +1,8 @@
 import { cp } from "node:fs/promises";
 import { join } from "node:path";
 
+import { planStageCorpusDelivery } from "./checkpoint";
+import type { HomePathCitationMap, StageCorpusDelivery } from "./checkpoint";
 import type { FrozenFile } from "./confirmation-evidence";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { loadRunManifest } from "./manifest";
@@ -20,6 +22,9 @@ interface FrozenReplayInputs {
 	readonly instructions: string;
 	readonly corpusVersion: CorpusMeasurement;
 	readonly files: readonly FrozenFile[];
+	/** The live install's citation map every rep's install delivers against. */
+	readonly citations: HomePathCitationMap;
+	readonly corpusDelivery: StageCorpusDelivery;
 }
 interface ReplayInputDirectories {
 	readonly groupDirectory: string;
@@ -31,6 +36,7 @@ async function freezeReplayInputs(
 	directories: ReplayInputDirectories,
 ): Promise<FrozenReplayInputs> {
 	const corpusVersion = await dependencies.stageSession.measureCorpus();
+	const citations = await dependencies.liveCitations();
 	const lineage = await loadReplayLineage(
 		dependencies,
 		request,
@@ -51,9 +57,13 @@ async function freezeReplayInputs(
 		rubric,
 	});
 
+	const corpusDirectory = join(corpusRoot, lineage.plan.definition.name);
+
 	return {
 		checkpointDirectory: lineage.checkpointDirectory,
-		corpusDirectory: join(corpusRoot, lineage.plan.definition.name),
+		citations,
+		corpusDelivery: await planStageCorpusDelivery(corpusDirectory, citations),
+		corpusDirectory,
 		corpusVersion,
 		files,
 		instructions: request.instructions,

@@ -29,6 +29,7 @@ async function freezePipelineInputs(
 
 	return {
 		...prepared,
+		citations: corpus.citations,
 		corpusVersion: corpus.corpusVersion,
 		files,
 		stages: corpus.stages,

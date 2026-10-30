@@ -72,10 +72,13 @@ export {
 	snapshotStageCorpus,
 	snapshotStageCorpusWithoutSkill,
 } from "./stage-corpus-snapshot";
-export { default as installStageCorpusSnapshot } from "./stage-corpus-install";
-export { default as liveStageCorpusInstaller } from "./live-stage-corpus-installer";
+export {
+	default as installStageCorpusSnapshot,
+	planStageCorpusDelivery,
+} from "./stage-corpus-install";
+export type { StageCorpusDelivery } from "./stage-corpus-install";
+export type { HomePathCitationMap } from "./home-path-citation";
 export { NOTHING_DELIVERED } from "./corpus-delivery";
-export type { StageCorpusInstaller } from "./live-stage-corpus-installer";
 export {
 	hashedCorpus,
 	refusedCorpus,

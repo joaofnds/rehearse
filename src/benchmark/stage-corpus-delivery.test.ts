@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
-import { installStageCorpusSnapshot } from "./checkpoint";
+import {
+	installStageCorpusSnapshot,
+	planStageCorpusDelivery,
+} from "./checkpoint";
 import { writeFixtureFiles } from "./checkpoint-filesystem-test-fixture";
 import type { HomePathCitationMap } from "./home-path-citation";
 import { TestResources } from "./test-support";
@@ -26,7 +29,7 @@ const AUTHORED_INSTRUCTIONS = [
  * A stage snapshot holds the stage's own skill, so a citation of another
  * skill reaches the user's live one, as the actual setup would.
  */
-async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
+async function citingSnapshot(): Promise<string> {
 	const snapshot = await resources.createControlDirectory();
 	await writeFixtureFiles({
 		files: [
@@ -36,6 +39,12 @@ async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
 		],
 		root: snapshot,
 	});
+
+	return snapshot;
+}
+
+async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
+	const snapshot = await citingSnapshot();
 	const target = await resources.createControlDirectory();
 
 	const delivery = await installStageCorpusSnapshot(
@@ -60,9 +69,28 @@ async function redirectsCitationsOfWhatTheStageInstallHolds(): Promise<void> {
 	);
 }
 
+async function plansWhatAnInstallWouldDeliverWithoutWriting(): Promise<void> {
+	const snapshot = await citingSnapshot();
+
+	const planned = await planStageCorpusDelivery(snapshot, citations);
+
+	expect(planned).toEqual({
+		delivery: { redirected: 3, rule: 1 },
+		held: ["CLAUDE.md", "rulebook/ownership.md", "skills/shape/SKILL.md"],
+	});
+	expect(await Bun.file(join(snapshot, "CLAUDE.md")).text()).toBe(
+		AUTHORED_INSTRUCTIONS,
+	);
+}
+
 describe("installing a stage corpus whose text cites its files by home path", () => {
 	it(
 		"redirects citations of what the stage install holds",
 		redirectsCitationsOfWhatTheStageInstallHolds,
+	);
+
+	it(
+		"plans what an install would deliver without writing",
+		plansWhatAnInstallWouldDeliverWithoutWriting,
 	);
 });

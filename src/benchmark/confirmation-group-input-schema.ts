@@ -7,6 +7,7 @@ import {
 	identitySchema,
 	lineageSchema,
 } from "./confirmation-record-protocol";
+import { corpusDeliverySchema } from "./corpus-delivery";
 import corpusMeasurementSchema from "./corpus-measurement";
 
 const frozenFileSchema = z
@@ -27,6 +28,7 @@ const frozenFileSchema = z
 
 const frozenInputsSchema = z
 	.object({
+		corpusDelivery: corpusDeliverySchema.optional(),
 		corpusVersion: corpusMeasurementSchema.optional(),
 		effort: effortSchema.optional(),
 		files: z.array(frozenFileSchema).nonempty(),

@@ -59,6 +59,7 @@ class ReplayPreparation {
 			await dependencies.installStageCorpusSnapshot(
 				request.corpusSource.root,
 				worktreeDir,
+				await dependencies.liveCitations(),
 			);
 		}
 		const corpusRoots = stageCorpusRoots(request.corpusSource, worktreeDir);

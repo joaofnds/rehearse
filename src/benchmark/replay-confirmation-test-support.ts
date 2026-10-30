@@ -1,5 +1,9 @@
-import { NOTHING_DELIVERED, materializeCheckpoint } from "./checkpoint";
-import { uncitedStageInstall } from "./checkpoint-filesystem-test-fixture";
+import {
+	NOTHING_DELIVERED,
+	installStageCorpusSnapshot,
+	materializeCheckpoint,
+} from "./checkpoint";
+import { noCitations } from "./checkpoint-filesystem-test-fixture";
 import type { TargetCheck } from "./pipeline";
 import type { ReplayDependencies } from "./replay";
 import type { ReplayConfirmationRequest } from "./replay-confirmation";
@@ -74,6 +78,7 @@ class ReplayConfirmationHarness extends ReplayStageSessionHarness {
 
 			return await Promise.resolve(NOTHING_DELIVERED);
 		},
+		liveCitations: async () => await Promise.resolve(noCitations),
 		loadStageRubric: async () =>
 			await Promise.resolve({
 				content: "{}",
@@ -159,7 +164,7 @@ class ReplayConfirmationHarness extends ReplayStageSessionHarness {
 	): ReplayConfirmationInvocation {
 		let dependencies: ReplayDependencies = {
 			...this.dependencies,
-			installStageCorpusSnapshot: uncitedStageInstall,
+			installStageCorpusSnapshot,
 		};
 		for (const override of dependencyOverrides) {
 			dependencies = override(dependencies);

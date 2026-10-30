@@ -1,9 +1,25 @@
 import { finalizeConfirmationGroup } from "./confirmation-evidence";
+import { HOME_PATH_DELIVERY_RULE, NOTHING_DELIVERED } from "./corpus-delivery";
+import type { CorpusDelivery } from "./corpus-delivery";
 import type { PipelineConfirmationExecution } from "./pipeline-confirmation-execution";
 import type { PipelineConfirmationRepResults } from "./pipeline-confirmation-reps";
 import type { PipelineConfirmationOutcome } from "./pipeline-confirmation-request";
 import type { FrozenPipelineInputs } from "./pipeline-frozen-inputs";
 import CONFIRMATION_STAGE_SETUP from "./stage-session-contract";
+
+/**
+ * Each stage installs its own snapshot, so the group's count is the sum of
+ * what one install of each stage redirects.
+ */
+function pipelineCorpusDelivery(frozen: FrozenPipelineInputs): CorpusDelivery {
+	return {
+		redirected: frozen.stages.reduce(
+			(total, { corpusDelivery }) => total + corpusDelivery.delivery.redirected,
+			NOTHING_DELIVERED.redirected,
+		),
+		rule: HOME_PATH_DELIVERY_RULE,
+	};
+}
 
 interface PipelineConfirmationRecordInputs {
 	readonly execution: PipelineConfirmationExecution;
@@ -26,6 +42,7 @@ async function finalizePipelineConfirmation({
 		groupFile: paths.groupFile,
 		groupId: request.groupId,
 		inputs: {
+			corpusDelivery: pipelineCorpusDelivery(frozen),
 			corpusVersion: frozen.corpusVersion,
 			effort: request.effort,
 			files: frozen.files,

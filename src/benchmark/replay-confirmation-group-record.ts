@@ -22,6 +22,7 @@ function replayGroupInputs(
 	frozen: ReplayConfirmationRuntime["frozen"],
 ): ReplayGroupInputs {
 	return {
+		corpusDelivery: frozen.corpusDelivery.delivery,
 		corpusVersion: frozen.corpusVersion,
 		effort: request.effort,
 		files: frozen.files,

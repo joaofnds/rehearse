@@ -23,10 +23,15 @@ const recordedReadsSchema = z
 
 const rewritingInstall: ReplayDependencyOverride = (dependencies) => ({
 	...dependencies,
-	installStageCorpusSnapshot: async (snapshotDirectory, targetDirectory) => {
+	installStageCorpusSnapshot: async (
+		snapshotDirectory,
+		targetDirectory,
+		citations,
+	) => {
 		const delivery = await dependencies.installStageCorpusSnapshot(
 			snapshotDirectory,
 			targetDirectory,
+			citations,
 		);
 		await rewriteInstalledSkill(targetDirectory, "discuss");
 

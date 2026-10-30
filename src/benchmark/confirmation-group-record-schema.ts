@@ -136,6 +136,7 @@ const sessionConfirmationGroupRecordFields = {
 	groupId: identitySchema,
 	inputs: z
 		.object({
+			corpusDelivery: z.never().optional(),
 			corpusVersion: corpusMeasurementSchema.optional(),
 			effort: effortSchema.optional(),
 			files: z.array(sessionFrozenFileSchema).nonempty(),

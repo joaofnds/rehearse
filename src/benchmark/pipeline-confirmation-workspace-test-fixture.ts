@@ -2,8 +2,12 @@ import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { materializeCheckpoint, recordCheckpoint } from "./checkpoint";
-import { uncitedStageInstall } from "./checkpoint-filesystem-test-fixture";
+import {
+	installStageCorpusSnapshot,
+	materializeCheckpoint,
+	recordCheckpoint,
+} from "./checkpoint";
+import { noCitations } from "./checkpoint-filesystem-test-fixture";
 import { captureBaselineContext, captureFileHashes } from "./checks";
 import { runCommand } from "./command";
 import type { PipelineConfirmationDependencies } from "./pipeline-confirmation";
@@ -65,6 +69,7 @@ type WorkspaceDefaults = Pick<
 	| "captureFileHashes"
 	| "createProductOwner"
 	| "installStageCorpusSnapshot"
+	| "liveCitations"
 	| "materializeCheckpoint"
 	| "recordCheckpoint"
 	| "runChecks"
@@ -97,7 +102,8 @@ function workspaceDependencies(
 		captureBuildCandidate,
 		captureFileHashes,
 		createProductOwner,
-		installStageCorpusSnapshot: uncitedStageInstall,
+		installStageCorpusSnapshot,
+		liveCitations: async () => await Promise.resolve(noCitations),
 		materializeCheckpoint,
 		recordCheckpoint,
 		runChecks: async () => {

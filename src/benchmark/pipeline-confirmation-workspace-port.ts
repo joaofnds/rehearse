@@ -1,5 +1,5 @@
 import type {
-	StageCorpusInstaller,
+	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
 } from "./checkpoint";
@@ -8,6 +8,7 @@ import type {
 	captureFileHashes,
 	runChecks,
 } from "./checks";
+import type { HomePathCitationMap } from "./home-path-citation";
 import type { TargetCheck } from "./pipeline";
 import type {
 	addWorktree,
@@ -35,7 +36,9 @@ interface PipelineConfirmationWorkspace {
 		recordStop: (signal: NodeJS.Signals) => Promise<void>,
 	) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
-	readonly installStageCorpusSnapshot: StageCorpusInstaller;
+	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	/** The live install's citation map, read once when a run freezes its inputs. */
+	readonly liveCitations: () => Promise<HomePathCitationMap>;
 	readonly recordCheckpoint: typeof recordCheckpoint;
 	readonly recordRetentionRef: typeof recordRetentionRef;
 	readonly captureBuildCandidate: typeof captureBuildCandidate;

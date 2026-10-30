@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { snapshotStageCorpus } from "./checkpoint";
+import { planStageCorpusDelivery, snapshotStageCorpus } from "./checkpoint";
 import type {
 	FrozenPipelineInputs,
 	PipelineInputExecution,
@@ -8,7 +8,7 @@ import type {
 
 interface FrozenPipelineCorpus extends Pick<
 	FrozenPipelineInputs,
-	"corpusVersion" | "versionFiles" | "stages"
+	"citations" | "corpusVersion" | "versionFiles" | "stages"
 > {
 	readonly corpusRoot: string;
 }
@@ -21,6 +21,7 @@ async function freezePipelineCorpus({
 	const versionFiles =
 		await dependencies.stageSession.corpusVersionFiles(corpusVersion);
 	const corpusRoot = join(directories.inputsDirectory, "corpus");
+	const citations = await dependencies.liveCitations();
 	const stages = await Array.fromAsync(
 		request.pipeline.stages,
 		async (definition) => {
@@ -31,11 +32,17 @@ async function freezePipelineCorpus({
 				directory,
 			);
 
-			return { definition, directory, files };
+			return {
+				corpusDelivery: await planStageCorpusDelivery(directory, citations),
+				definition,
+				directory,
+				files,
+			};
 		},
 	);
 
 	return {
+		citations,
 		corpusRoot,
 		corpusVersion,
 		stages,

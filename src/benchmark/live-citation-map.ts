@@ -1,4 +1,5 @@
 import { readdir, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -11,6 +12,7 @@ import type {
 	HomePathCitationMap,
 	HomePathCitationRoot,
 } from "./home-path-citation";
+import { liveCorpusSource } from "./live-corpus-source";
 
 async function linkedRootsAt(
 	path: string,
@@ -102,4 +104,17 @@ async function liveCitationMap(
 	};
 }
 
-export { liveCitationMap as default };
+/**
+ * The citation map of the user's own install, at `~/.claude` and the backing
+ * root `liveCorpusSource` resolves, which is only read.
+ */
+async function userCitationMap(
+	home: string = homedir(),
+): Promise<HomePathCitationMap> {
+	return await liveCitationMap(
+		liveCorpusSource({ root: join(home, ".claude") }),
+		home,
+	);
+}
+
+export { liveCitationMap as default, userCitationMap };

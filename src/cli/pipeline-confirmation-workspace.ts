@@ -1,5 +1,5 @@
 import {
-	liveStageCorpusInstaller,
+	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
 } from "#benchmark/checkpoint";
@@ -10,6 +10,7 @@ import {
 	runSetup,
 } from "#benchmark/checks";
 import { dockerContainerRuntime } from "#benchmark/docker-container-runtime";
+import { userCitationMap } from "#benchmark/live-citation-map";
 import type { PipelineConfirmationWorkspace } from "#benchmark/pipeline-confirmation-workspace-port";
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
@@ -37,7 +38,8 @@ class PipelineConfirmationWorkspaceRuntime implements PipelineConfirmationWorksp
 	public readonly captureBaselineContext = captureBaselineContext;
 	public readonly captureBuildCandidate = captureBuildCandidate;
 	public readonly captureFileHashes = captureFileHashes;
-	public readonly installStageCorpusSnapshot = liveStageCorpusInstaller();
+	public readonly installStageCorpusSnapshot = installStageCorpusSnapshot;
+	public readonly liveCitations = userCitationMap;
 	public readonly log: PipelineConfirmationWorkspace["log"];
 	public readonly materializeCheckpoint = materializeCheckpoint;
 	public readonly projectsDirectory: string;

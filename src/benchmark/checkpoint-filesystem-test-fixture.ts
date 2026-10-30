@@ -3,8 +3,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { HomePathCitationMap } from "./home-path-citation";
-import type { StageCorpusInstaller } from "./live-stage-corpus-installer";
-import installStageCorpusSnapshot from "./stage-corpus-install";
 import type { TestResources } from "./test-support";
 
 async function temporaryDirectory(
@@ -36,17 +34,6 @@ async function writeFixtureFiles({ root, files }: FixtureFiles): Promise<void> {
 /** A citation map that redirects nothing, for installs whose text cites no home path. */
 const noCitations: HomePathCitationMap = { home: "/no-home", roots: [] };
 
-/** The stage installer for a run whose live install cites nothing. */
-const uncitedStageInstall: StageCorpusInstaller = async (
-	snapshotDirectory,
-	targetDirectory,
-) =>
-	await installStageCorpusSnapshot(
-		snapshotDirectory,
-		targetDirectory,
-		noCitations,
-	);
-
 /**
  * Appends to a skill installed in the target, as a delivery that rewrote its
  * text would, so a record that hashed the install would show it.
@@ -65,6 +52,5 @@ export {
 	noCitations,
 	rewriteInstalledSkill,
 	temporaryDirectory,
-	uncitedStageInstall,
 	writeFixtureFiles,
 };

@@ -3,7 +3,10 @@ import { basename } from "node:path";
 
 import { rewriteInstalledSkill } from "./checkpoint-filesystem-test-fixture";
 import runPipelineConfirmation from "./pipeline-confirmation";
-import { readCheckpoints } from "./pipeline-confirmation-record-test-reader";
+import {
+	readCheckpoints,
+	readGroup,
+} from "./pipeline-confirmation-record-test-reader";
 import { PipelineConfirmationHarness } from "./pipeline-confirmation-test-support";
 import type { PipelineDependencyOverride } from "./pipeline-confirmation-test-support";
 import { TestResources } from "./test-support";
@@ -22,10 +25,15 @@ async function recordedCorpusFiles(
 
 const rewritingInstall: PipelineDependencyOverride = (dependencies) => ({
 	...dependencies,
-	installStageCorpusSnapshot: async (snapshotDirectory, worktreePath) => {
+	installStageCorpusSnapshot: async (
+		snapshotDirectory,
+		worktreePath,
+		citations,
+	) => {
 		const delivery = await dependencies.installStageCorpusSnapshot(
 			snapshotDirectory,
 			worktreePath,
+			citations,
 		);
 		await rewriteInstalledSkill(worktreePath, basename(snapshotDirectory));
 
@@ -45,7 +53,20 @@ async function hashesTheAuthoredSnapshotNotTheDeliveredInstall(): Promise<void> 
 	expect(delivered).toEqual(authored);
 }
 
+async function recordsTheDeliveryRuleAndRedirectCountOnTheGroup(): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+
+	const group = await readGroup(await harness.run({}));
+
+	expect(group.inputs.corpusDelivery).toEqual({ redirected: 0, rule: 1 });
+}
+
 describe(runPipelineConfirmation.name, () => {
+	it(
+		"records the delivery rule and redirect count on the group",
+		recordsTheDeliveryRuleAndRedirectCountOnTheGroup,
+	);
+
 	it(
 		"hashes the authored snapshot, not the delivered install",
 		hashesTheAuthoredSnapshotNotTheDeliveredInstall,

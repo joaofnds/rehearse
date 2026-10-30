@@ -2,6 +2,7 @@ import type { ApprovalMethod, Effort } from "./config";
 import type { ConfirmationCostProjection } from "./confirmation";
 import type { SessionConfirmationGroupRecord } from "./confirmation-record";
 import type { ConfirmationRepResult } from "./confirmation-rep-settlement";
+import type { CorpusDelivery } from "./corpus-delivery";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import type { FrozenFile } from "./frozen-confirmation-files";
 
@@ -52,6 +53,8 @@ interface ConfirmationGroupInputs {
 	readonly spendCeilingUsd: number;
 	readonly pipelinePath: string;
 	readonly corpusVersion: CorpusMeasurement;
+	/** How the stage installs delivered the group's corpus, read at freeze. */
+	readonly corpusDelivery: CorpusDelivery;
 	readonly setup: "actual";
 }
 

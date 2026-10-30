@@ -1,4 +1,8 @@
-import type { StageCorpusInstaller, materializeCheckpoint } from "./checkpoint";
+import type {
+	HomePathCitationMap,
+	installStageCorpusSnapshot,
+	materializeCheckpoint,
+} from "./checkpoint";
 import type { captureBaselineContext, captureFileHashes } from "./checks";
 import type { TargetCheck } from "./pipeline";
 import type { repositoryHolding } from "./run-repositories";
@@ -42,7 +46,9 @@ interface ReplayDependencies {
 	) => Promise<void>;
 	/** The services one replay, or one attempt of a replay confirmation, starts and stops. */
 	readonly services: (owner: ContainerOwner) => TargetServices;
-	readonly installStageCorpusSnapshot: StageCorpusInstaller;
+	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	/** The live install's citation map, read once when a run freezes its inputs. */
+	readonly liveCitations: () => Promise<HomePathCitationMap>;
 	/**
 	 * Where the provider writes session transcripts, read for what the stage
 	 * loaded. Without it the read manifest holds only what the stage declared.
