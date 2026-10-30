@@ -1,3 +1,4 @@
+import { inheritedConfiguration } from "./claude-launch-environment";
 import type { ConfirmationRepResult } from "./confirmation-evidence";
 import { finalizeConfirmationGroup } from "./confirmation-evidence";
 import type { ConfirmationGroupFinalization } from "./confirmation-group-finalization-contract";
@@ -26,6 +27,7 @@ function replayGroupInputs(
 		corpusVersion: frozen.corpusVersion,
 		effort: request.effort,
 		files: frozen.files,
+		inheritedConfiguration: inheritedConfiguration(Bun.env),
 		judgeEffort: request.judgeEffort,
 		judgeModel: request.judgeModel,
 		lineage: {

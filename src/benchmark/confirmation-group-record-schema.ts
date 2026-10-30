@@ -140,6 +140,7 @@ const sessionConfirmationGroupRecordFields = {
 			corpusVersion: corpusMeasurementSchema.optional(),
 			effort: effortSchema.optional(),
 			files: z.array(sessionFrozenFileSchema).nonempty(),
+			inheritedConfiguration: z.never().optional(),
 			judgeEffort: z.never().optional(),
 			judgeModel: z.never().optional(),
 			lineage: z

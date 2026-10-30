@@ -9,6 +9,7 @@ import {
 } from "./confirmation-record-protocol";
 import { corpusDeliverySchema } from "./corpus-delivery";
 import corpusMeasurementSchema from "./corpus-measurement";
+import { inheritedConfigurationSchema } from "./session-record-context-schema";
 
 const frozenFileSchema = z
 	.object({
@@ -32,6 +33,7 @@ const frozenInputsSchema = z
 		corpusVersion: corpusMeasurementSchema.optional(),
 		effort: effortSchema.optional(),
 		files: z.array(frozenFileSchema).nonempty(),
+		inheritedConfiguration: inheritedConfigurationSchema.optional(),
 		judgeEffort: effortSchema.optional(),
 		judgeModel: z.string().nonempty(),
 		lineage: lineageSchema,

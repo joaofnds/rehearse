@@ -1,3 +1,4 @@
+import type { InheritedVariable } from "./claude-launch-environment";
 import type { ApprovalMethod, Effort } from "./config";
 import type { ConfirmationCostProjection } from "./confirmation";
 import type { SessionConfirmationGroupRecord } from "./confirmation-record";
@@ -56,6 +57,8 @@ interface ConfirmationGroupInputs {
 	/** How the stage installs delivered the group's corpus, read at freeze. */
 	readonly corpusDelivery: CorpusDelivery;
 	readonly setup: "actual";
+	/** What the stages' Claude Code children inherited, read where they spawn. */
+	readonly inheritedConfiguration: readonly InheritedVariable[];
 }
 
 interface SessionConfirmationGroupInputs {

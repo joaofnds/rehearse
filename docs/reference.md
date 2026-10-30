@@ -1112,8 +1112,10 @@ Claude Code accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry
 carries a `sha256` of the value, except a name holding `AUTH`, `CERT`,
 `COOKIE`, `CREDENTIAL`, `HEADER`, `KEY`, `PASSPHRASE`, `PASSWORD`, `PROXY`,
 `SECRET` or `TOKEN`, which is recorded by name alone, since its value can be a
-credential. An attempt recorded without the field inherited what it inherited
-unrecorded.
+credential. A pipeline or replay confirmation group records the same list, read where
+its stages' sessions start, as `inputs.inheritedConfiguration`. A session
+confirmation group's reps carry it on their own attempt records. An attempt or
+group recorded without the field inherited what it inherited unrecorded.
 
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140

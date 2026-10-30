@@ -129,6 +129,7 @@ const legacyManifestDivergenceSchema = z
 	.strict();
 
 export {
+	inheritedConfigurationSchema,
 	EMPTY_COLLECTION_LENGTH,
 	EXECUTION_FAILURE_SESSION_SCHEMA_VERSION,
 	LEGACY_SESSION_SCHEMA_VERSION,

@@ -1,3 +1,4 @@
+import { inheritedConfiguration } from "./claude-launch-environment";
 import { finalizeConfirmationGroup } from "./confirmation-evidence";
 import { HOME_PATH_DELIVERY_RULE, NOTHING_DELIVERED } from "./corpus-delivery";
 import type { CorpusDelivery } from "./corpus-delivery";
@@ -46,6 +47,7 @@ async function finalizePipelineConfirmation({
 			corpusVersion: frozen.corpusVersion,
 			effort: request.effort,
 			files: frozen.files,
+			inheritedConfiguration: inheritedConfiguration(Bun.env),
 			judgeEffort: request.judgeEffort,
 			judgeModel: request.judgeModel,
 			lineage: { kind: "SOURCE", sha: request.source.sha },
