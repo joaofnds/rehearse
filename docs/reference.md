@@ -1027,6 +1027,14 @@ actual-setup attempt's `setup.loaded` is unobserved: the machine it was built
 on disables them (Claude Code 2.1.312, 2026-10-30). An isolated attempt runs
 with `--strict-mcp-config`, which shuts out every MCP server it never declared.
 
+The actual setup can cost more. One attempt of the archived `smoke` case at
+sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140
+prompt-cache tokens, and $0.0146 declared isolated, writing 3,615 and reading
+658 (Claude Code 2.1.314, 2026-10-30, no MCP server, five plugins loaded
+under the actual setup and four isolated). How much more depends on what the
+user's settings and plugins add to the context, which these two attempts do
+not separate.
+
 A case that declares `"isolated": true` runs with the project settings source
 alone, so the operator's permission defaults do not reach the session. Such a
 case that edits files or runs a command declares the grant itself, as a
