@@ -150,6 +150,7 @@ async function runExtension(
 	const reportFile = await writeComparisonReport({
 		baselineRecord: { ...record, arms, extends: request.comparison },
 		manifestPath: await writeManifest(runsDirectory, armA.group.caseId, arms),
+		notice: dependencies.notice,
 		runsDirectory,
 	});
 

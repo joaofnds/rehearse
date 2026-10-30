@@ -3,6 +3,7 @@ import { collectConfirmationMetrics } from "./confirmation-evidence";
 import type { ConfirmationRepRecord } from "./confirmation-record";
 import { confirmationRepRecordSchema } from "./confirmation-record";
 import type { Immutable, ProviderCall, StageScorecard } from "./contracts";
+import type { LiveCorpusRead } from "./live-corpus-reads";
 import type { ReplayConfirmationRequest } from "./replay-confirmation-contract";
 
 const RECORD_JSON_INDENT_SPACES = 2;
@@ -29,6 +30,7 @@ interface ReplayRepIdentity {
 }
 
 interface CompletedReplayResult {
+	readonly liveReads: readonly LiveCorpusRead[];
 	readonly resultSha: string;
 	readonly scorecardFile: string;
 	readonly scorecard: StageScorecard;
@@ -39,6 +41,25 @@ interface ReplayRepUsage {
 	readonly productOwnerCalls: readonly ProviderCall[];
 	readonly stageElapsedMs: number;
 	readonly repElapsedMs: number;
+}
+
+function judgedStage(
+	rep: ReplayRepIdentity,
+	result: CompletedReplayResult,
+	usage: ReplayRepUsage,
+): Immutable<ConfirmationRepRecord["stages"][number]> {
+	return {
+		elapsedMs: usage.stageElapsedMs,
+		evidence: {
+			recordFile: result.scorecardFile,
+			resultSha: result.resultSha,
+		},
+		grade: result.scorecard.grade.grade,
+		liveReads: result.liveReads,
+		stage: rep.request.stage,
+		status: "JUDGED",
+		verdict: result.scorecard.grade.verdict,
+	};
 }
 
 function completeRepRecord(
@@ -74,19 +95,7 @@ function completeRepRecord(
 		outcome: successful ? "SUCCESSFUL" : "UNSUCCESSFUL",
 		repId: rep.repId,
 		schemaVersion: 1,
-		stages: [
-			{
-				elapsedMs: usage.stageElapsedMs,
-				evidence: {
-					recordFile: result.scorecardFile,
-					resultSha: result.resultSha,
-				},
-				grade: result.scorecard.grade.grade,
-				stage: rep.request.stage,
-				status: "JUDGED",
-				verdict: result.scorecard.grade.verdict,
-			},
-		],
+		stages: [judgedStage(rep, result, usage)],
 		workerTrajectorySteps: evidence.workerTrajectorySteps,
 		worktreePath: rep.worktreePath,
 	});

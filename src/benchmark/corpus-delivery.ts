@@ -140,6 +140,7 @@ export {
 	corpusDeliverySchema,
 	corpusDeliveryRecordSchema,
 	countCorpusDelivery,
+	liveCorpusReadSchema,
 	deliverInstalledCorpus,
 };
 export type { CorpusDelivery, CorpusDeliveryRecord };

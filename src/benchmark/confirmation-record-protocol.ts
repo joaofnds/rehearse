@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { LEGACY_CASE_ID } from "./config";
 import { claudeCallMetricsSchema, stageLetterGradeSchema } from "./contracts";
+import { liveCorpusReadSchema } from "./corpus-delivery";
 
 const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
@@ -40,6 +41,12 @@ const judgedStageSchema = z
 		elapsedMs: elapsedSchema,
 		evidence: resultEvidenceSchema,
 		grade: stageLetterGradeSchema,
+		/**
+		 * Each file the stage's install held that its session or a sub-agent
+		 * still reached through the live install. Absent from stages recorded
+		 * before stages read their transcripts for it.
+		 */
+		liveReads: z.array(liveCorpusReadSchema).optional(),
 		stage: z.string().nonempty(),
 		status: z.literal("JUDGED"),
 		verdict: z.enum(["CONTINUE", "STOP"]),

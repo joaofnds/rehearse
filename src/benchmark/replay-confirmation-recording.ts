@@ -28,6 +28,7 @@ import type { StageSessionResult } from "./stage-session-contract";
 import { recordRetentionRef } from "./target";
 
 interface CompletedReplayStage {
+	readonly liveReads: CompletedReplayResult["liveReads"];
 	readonly scorecard: CompletedReplayResult["scorecard"];
 	readonly session: StageSessionResult;
 	readonly productOwner: PreparedReplayStage["productOwner"];
@@ -46,6 +47,7 @@ class ReplayRepRecording {
 		this.#context = context;
 	}
 	public async completed({
+		liveReads,
 		scorecard,
 		session,
 		productOwner,
@@ -66,6 +68,7 @@ class ReplayRepRecording {
 		const record = completeRepRecord(
 			this.identity(),
 			{
+				liveReads,
 				resultSha: session.resultSha,
 				scorecard,
 				scorecardFile: relative(repPaths.directory, scorecardFile),

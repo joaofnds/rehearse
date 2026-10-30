@@ -13,6 +13,7 @@ import {
 	captureFrozenReplayReads,
 	executeFrozenReplayStage,
 } from "./replay-confirmation-stage-execution";
+import replayStageLiveReads from "./replay-stage-live-reads";
 import type { StageSessionResult } from "./stage-session-contract";
 
 class ReplayRepetition {
@@ -63,6 +64,7 @@ class ReplayRepetition {
 		);
 		const stageElapsedMs = now() - prepared.stageStart;
 		return await this.#recording.completed({
+			liveReads: await replayStageLiveReads(this.#context, this.#session),
 			productOwner: prepared.productOwner,
 			readManifest: this.#judgedReads,
 			scorecard,

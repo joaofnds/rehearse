@@ -1020,13 +1020,15 @@ Delivered text therefore differs from the authored text in those citations
 only. Records hash the authored bytes, so the same corpus records the same
 `corpusFiles` digests whatever it cites. Each session attempt and each
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
-citations it `redirected`. A session attempt adds `liveReads`: each held file
-that a file-access tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit
-path, or a Bash command) in its transcript or a sub-agent's still named by its
-live path, as the layout path and a call count, never the command text.
-`compare` prints a line on stderr naming each arm with a live read, since that
-arm measured your live file rather than its own. Stage reps do not record live
-reads. The rewrite is relative, so a session that changes directory and then
+citations it `redirected`. A session attempt adds `liveReads`, and so does each
+judged stage in a confirmation rep record: each held file that a file-access
+tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit path, or a Bash
+command) in the session's transcript or a sub-agent's still named by its live
+path, as the layout path and a call count, never the command text. A stage
+reads its transcripts from the provider's projects directory, so a run that
+cannot locate them records none. `compare`, `compare attempts` and `compare
+extend` print a line on stderr naming each arm with a live read, since that arm
+measured your live file rather than its own. The rewrite is relative, so a session that changes directory and then
 reads a cited `.claude/` path misses the copy, and no live read records it.
 
 A group or attempt recorded without `corpusDelivery` ran before delivery, so

@@ -29,6 +29,8 @@ interface CompareAttemptsRequest {
 interface CompareAttemptsDependencies {
 	/** Runs the baseline group and answers with its group id. */
 	readonly runBaselineGroup: (request: ArmGroupRequest) => Promise<string>;
+	/** Receives each line naming an arm that read a file under test live. */
+	readonly notice?: ((line: string) => void) | undefined;
 }
 
 interface ExtendComparisonRequest {
@@ -43,6 +45,8 @@ interface ExtendComparisonDependencies {
 	readonly approve: (cost: ExtensionPlan["cost"]) => Promise<void>;
 	/** Runs one arm's added group and answers with its group id. */
 	readonly runArmGroup: (request: ArmGroupRequest) => Promise<string>;
+	/** Receives each line naming an arm that read a file under test live. */
+	readonly notice?: ((line: string) => void) | undefined;
 }
 
 interface Checkpoint {

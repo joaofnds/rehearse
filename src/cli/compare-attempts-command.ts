@@ -56,6 +56,9 @@ async function runCompareAttemptsCommand(
 	const { reportFile } = await compareAttempts(
 		{ armA, armB, runsDirectory: request.runsDirectory },
 		{
+			notice: (line) => {
+				dependencies.output.stderr(`${line}\n`);
+			},
 			runBaselineGroup: replayArmGroup(
 				{ approval, stdinIsTerminal: request.stdinIsTerminal },
 				dependencies,
@@ -141,6 +144,9 @@ async function runCompareExtendCommand(
 				if (answer !== "y" && answer !== "yes") {
 					throw new Error("Extension declined");
 				}
+			},
+			notice: (line) => {
+				dependencies.output.stderr(`${line}\n`);
 			},
 			runArmGroup: replayArmGroup(
 				{

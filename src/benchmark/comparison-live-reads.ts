@@ -4,18 +4,32 @@ import type {
 } from "./comparison-evidence";
 import { COMPARISON_ARMS } from "./comparison-record-source-schema";
 import type { Immutable } from "./contracts";
+import type { LiveCorpusRead } from "./live-corpus-reads";
 
 const NO_CALLS = 0;
+
+const ONE_CALL = 1;
+
+/** A session rep's reads are its attempt's; a stage rep's are its stages'. */
+function repLiveReads(
+	rep: Immutable<ComparisonArmEvidence["reps"][number]>,
+): Immutable<LiveCorpusRead[]> {
+	const stageReads = rep.record.stages.flatMap((stage) =>
+		"liveReads" in stage ? (stage.liveReads ?? []) : [],
+	);
+
+	return [
+		...stageReads,
+		...(rep.attempt?.record.corpusDelivery?.liveReads ?? []),
+	];
+}
 
 function armLiveReads(
 	arm: Immutable<ComparisonArmEvidence>,
 ): ReadonlyMap<string, number> {
 	const counts = new Map<string, number>();
-	for (const { attempt } of arm.reps) {
-		for (const { path, count } of attempt?.record.corpusDelivery?.liveReads ??
-			[]) {
-			counts.set(path, (counts.get(path) ?? NO_CALLS) + count);
-		}
+	for (const { path, count } of arm.reps.flatMap(repLiveReads)) {
+		counts.set(path, (counts.get(path) ?? NO_CALLS) + count);
 	}
 
 	return counts;
@@ -37,7 +51,10 @@ function liveReadNotices(
 			if (reads.length === NO_CALLS) {
 				return [];
 			}
-			const files = reads.map(([path, count]) => `${path} (${count} calls)`);
+			const files = reads.map(
+				([path, count]) =>
+					`${path} (${count} ${count === ONE_CALL ? "call" : "calls"})`,
+			);
 
 			return [
 				`case ${caseId} arm ${role} read files under test through the live install, so it measured the live copy of: ${files.join(", ")}`,

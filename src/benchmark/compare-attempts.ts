@@ -100,6 +100,7 @@ async function runComparison(
 			skillUnderTest: baseline.skillUnderTest,
 		},
 		manifestPath,
+		notice: dependencies.notice,
 		runsDirectory: request.runsDirectory,
 	});
 

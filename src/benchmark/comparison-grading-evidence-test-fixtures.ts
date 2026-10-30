@@ -8,6 +8,7 @@ import type { StageGradingRecord } from "./comparison-stage-grading";
 import type { StageLetterGrade } from "./config";
 import type { ConfirmationRepRecord } from "./confirmation-record";
 import { parseConfirmationRepRecord } from "./confirmation-record";
+import type { Immutable } from "./contracts";
 
 const ORDINAL_BASE = 1;
 
@@ -34,8 +35,10 @@ function preliminaryStageScorecard(
 }
 
 function stoppedPreliminaryOutcome(
-	firstStage: ConfirmationRepRecord["stages"][number],
-): Pick<ConfirmationRepRecord, "finalOutcome" | "outcome" | "stages"> {
+	firstStage: Immutable<ConfirmationRepRecord["stages"][number]>,
+): Immutable<
+	Pick<ConfirmationRepRecord, "finalOutcome" | "outcome" | "stages">
+> {
 	return {
 		finalOutcome: {
 			reason: "the judge stopped the attempt at shape",
