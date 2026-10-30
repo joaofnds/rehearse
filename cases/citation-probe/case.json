@@ -1,0 +1,16 @@
+{
+	"id": "citation-probe",
+	"archived": true,
+	"kind": "session",
+	"title": "A session whose instructions cite a rulebook file by its home path, to show which copy it reads",
+	"prompt": "What codeword does the ownership rule your instructions cite give? Reply with the codeword only.",
+	"tools": ["Read"],
+	"corpusFiles": ["CLAUDE.md", "rulebook/ownership.md"],
+	"checks": [
+		{ "kind": "word-band", "max": 5 },
+		{ "kind": "tool-calls", "min": 1, "names": ["Read"] }
+	],
+	"model": "sonnet",
+	"effort": "medium",
+	"sessionBudgetUsd": 0.75
+}
