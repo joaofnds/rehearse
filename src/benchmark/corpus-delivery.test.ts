@@ -25,7 +25,7 @@ describe(deliverInstalledCorpus.name, () => {
 
 		await deliverInstalledCorpus(
 			installRoot,
-			["CLAUDE.md", "rulebook/ownership.md"],
+			{ files: ["CLAUDE.md"], held: ["CLAUDE.md", "rulebook/ownership.md"] },
 			citations,
 		);
 

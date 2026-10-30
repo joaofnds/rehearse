@@ -3,7 +3,11 @@ import { basename, dirname, extname, join, relative } from "node:path";
 
 import { NOTHING_DELIVERED, deliverInstalledCorpus } from "./corpus-delivery";
 import type { CorpusDelivery } from "./corpus-delivery";
-import { isCorpusLayoutPath } from "./corpus-file";
+import {
+	CORPUS_INSTRUCTIONS_PATH,
+	CORPUS_LAYOUT_DIRECTORIES,
+	isCorpusLayoutPath,
+} from "./corpus-file";
 import { corpusLayoutEntries } from "./corpus-source";
 import type { ResolvedCorpusSource } from "./corpus-source";
 import type { HomePathCitationMap } from "./home-path-citation";
@@ -12,6 +16,7 @@ import { SessionCorpusError } from "./session-corpus-links";
 
 interface InstalledSessionCorpus {
 	readonly installed: readonly string[];
+	readonly held: readonly string[];
 	readonly delivery: CorpusDelivery;
 }
 
@@ -25,8 +30,8 @@ function holds(root: string, layoutPath: string): boolean {
  * `.claude` shadow the same-named user-level ones, verified on claude 2.1.258.
  * The attempt directory is the harness's own and no live session reads it, so
  * this is how a corpus variant reaches a session without an install. It
- * returns the layout paths it installed and how their home-path citations
- * were delivered.
+ * returns the files it installed and what it holds whole, by layout path, and
+ * how their home-path citations were delivered.
  */
 async function installSessionCorpusSnapshot(
 	snapshot: SessionCorpusSnapshot,
@@ -34,11 +39,12 @@ async function installSessionCorpusSnapshot(
 	citations: HomePathCitationMap,
 ): Promise<InstalledSessionCorpus> {
 	if (snapshot.kind === "live") {
-		return { delivery: NOTHING_DELIVERED, installed: [] };
+		return { delivery: NOTHING_DELIVERED, held: [], installed: [] };
 	}
 
 	const installed: string[] = [];
-	await Array.fromAsync(await installedRoots(snapshot), async (layoutPath) => {
+	const roots = await installedRoots(snapshot);
+	await Array.fromAsync(roots, async (layoutPath) => {
 		const source = join(snapshot.root, layoutPath);
 		const target = join(attemptDirectory, ".claude", layoutPath);
 		await refuseOverwrite(target, layoutPath);
@@ -47,14 +53,33 @@ async function installSessionCorpusSnapshot(
 		installed.push(...(await filesUnder(source, layoutPath)));
 	});
 
+	const held = heldRoots(snapshot, roots);
+
 	return {
 		delivery: await deliverInstalledCorpus(
 			join(attemptDirectory, ".claude"),
-			installed,
+			{ files: installed, held },
 			citations,
 		),
+		held,
 		installed,
 	};
+}
+
+/**
+ * A whole corpus holds every layout directory, including one it lacks, so a
+ * file the arm deletes is missed in the arm's copy. A declared snapshot holds
+ * only the roots it overlays.
+ */
+function heldRoots(
+	snapshot: SessionCorpusSnapshot,
+	roots: readonly string[],
+): readonly string[] {
+	if (snapshot.scope === "declared") {
+		return roots;
+	}
+
+	return [CORPUS_INSTRUCTIONS_PATH, ...CORPUS_LAYOUT_DIRECTORIES];
 }
 
 /**

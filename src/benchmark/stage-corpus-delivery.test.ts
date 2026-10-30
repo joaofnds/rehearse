@@ -26,8 +26,8 @@ const AUTHORED_INSTRUCTIONS = [
 ].join("\n");
 
 /**
- * A stage snapshot holds the stage's own skill, so a citation of another
- * skill reaches the user's live one, as the actual setup would.
+ * A stage snapshot holds the stage's own skill and every rule, so a citation
+ * of another skill reaches the user's live one, as the actual setup would.
  */
 async function citingSnapshot(): Promise<string> {
 	const snapshot = await resources.createControlDirectory();
@@ -76,7 +76,7 @@ async function plansWhatAnInstallWouldDeliverWithoutWriting(): Promise<void> {
 
 	expect(planned).toEqual({
 		delivery: { redirected: 3, rule: 1 },
-		held: ["CLAUDE.md", "rulebook/ownership.md", "skills/shape/SKILL.md"],
+		held: ["CLAUDE.md", "agents", "output-styles", "rulebook", "skills/shape"],
 	});
 	expect(await Bun.file(join(snapshot, "CLAUDE.md")).text()).toBe(
 		AUTHORED_INSTRUCTIONS,

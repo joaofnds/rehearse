@@ -40,10 +40,16 @@ function layoutPathOf(
 		: posix.join(root.layoutPath, absolute.slice(root.path.length));
 }
 
+/**
+ * Whether the install holds what the layout path names: a held file, or
+ * anything inside a directory it holds whole, present or not, so a file an
+ * arm deletes is missed in the arm's copy rather than read live. A directory
+ * the install holds only part of stays live, since its other entries are the
+ * user's.
+ */
 function isHeld(layoutPath: string, held: ReadonlySet<string>): boolean {
-	return (
-		held.has(layoutPath) ||
-		[...held].some((path) => path.startsWith(`${layoutPath}/`))
+	return [...held].some(
+		(path) => layoutPath === path || layoutPath.startsWith(`${path}/`),
 	);
 }
 
@@ -108,7 +114,8 @@ function heldCitations(
 
 /**
  * The text an arm's install delivers: each citation of a file or directory
- * the install holds, written through the user's home directory, names the
+ * the install holds, `held` naming each file and each directory it holds
+ * whole, written through the user's home directory, names the
  * install's own copy instead, relative to the directory the session starts
  * in. A citation of anything the install does not hold is not under test and
  * still reaches the user's live file.

@@ -68,13 +68,22 @@ interface DeliveredFile {
 	readonly redirected: number;
 }
 
+/**
+ * What an install holds: the text files it delivers, and each file and each
+ * directory it holds whole, by layout path, which decides what is redirected.
+ */
+interface CorpusInstall {
+	readonly files: readonly string[];
+	readonly held: readonly string[];
+}
+
 async function deliveredFiles(
 	root: string,
-	layoutPaths: readonly string[],
+	install: CorpusInstall,
 	citations: HomePathCitationMap,
 ): Promise<readonly DeliveredFile[]> {
-	const held = new Set(layoutPaths);
-	const delivered = await Array.fromAsync(layoutPaths, async (layoutPath) => {
+	const held = new Set(install.held);
+	const delivered = await Array.fromAsync(install.files, async (layoutPath) => {
 		const file = join(root, layoutPath);
 		const source = Bun.file(file);
 		const authored = (await source.exists())
@@ -113,10 +122,10 @@ function totalDelivery(files: readonly DeliveredFile[]): CorpusDelivery {
  */
 async function deliverInstalledCorpus(
 	installRoot: string,
-	layoutPaths: readonly string[],
+	install: CorpusInstall,
 	citations: HomePathCitationMap,
 ): Promise<CorpusDelivery> {
-	const files = await deliveredFiles(installRoot, layoutPaths, citations);
+	const files = await deliveredFiles(installRoot, install, citations);
 	await Array.fromAsync(files, async ({ file, authored, delivered }) => {
 		if (delivered !== authored) {
 			await Bun.write(file, delivered);
@@ -132,10 +141,10 @@ async function deliverInstalledCorpus(
  */
 async function countCorpusDelivery(
 	root: string,
-	layoutPaths: readonly string[],
+	install: CorpusInstall,
 	citations: HomePathCitationMap,
 ): Promise<CorpusDelivery> {
-	return totalDelivery(await deliveredFiles(root, layoutPaths, citations));
+	return totalDelivery(await deliveredFiles(root, install, citations));
 }
 
 export {
@@ -147,4 +156,4 @@ export {
 	liveCorpusReadSchema,
 	deliverInstalledCorpus,
 };
-export type { CorpusDelivery, CorpusDeliveryRecord };
+export type { CorpusDelivery, CorpusDeliveryRecord, CorpusInstall };

@@ -1016,6 +1016,16 @@ isolated case installs only its declared files, so its citation of an
 undeclared file reads the live file and nothing records it. A path outside the
 corpus layout, such as `~/.agents/backlog-config.yml`, stays as written.
 
+An install holds a directory only when it holds all of it. A session with the
+actual setup holds every layout directory of its corpus, and a stage holds the
+agents, output styles and rulebook directories and its own skill's directory.
+A citation of anything inside such a directory names the arm's copy even when
+the arm lacks that file, so a file the candidate deletes is missing in the
+candidate's session rather than read from your install. A citation of a
+directory the install holds only part of, such as `~/.agents/skills/` from a
+stage that installs one skill, stays as written, because the rest of that
+directory is your setup.
+
 Delivered text therefore differs from the authored text in those citations
 only. Records hash the authored bytes, so the same corpus records the same
 `corpusFiles` digests whatever it cites. Each session attempt and each stage

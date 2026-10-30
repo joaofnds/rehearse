@@ -194,6 +194,7 @@ async function refuseInstalledSkill(
 	}
 }
 export {
+	LAYOUT_DIRECTORY_KINDS,
 	corpusLayoutRoots,
 	stageCorpusRoots,
 	resolveSkillDirectory,

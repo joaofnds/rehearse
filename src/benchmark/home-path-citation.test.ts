@@ -16,12 +16,7 @@ const map: HomePathCitationMap = {
 	],
 };
 
-const held = new Set([
-	"CLAUDE.md",
-	"rulebook/ownership.md",
-	"rulebook/testing/00-index.md",
-	"skills/x/SKILL.md",
-]);
+const held = new Set(["CLAUDE.md", "rulebook", "skills/x"]);
 
 function delivered(text: string): ReturnType<typeof deliverHomePathCitations> {
 	return deliverHomePathCitations(text, map, held);
@@ -46,6 +41,8 @@ describe(deliverHomePathCitations.name, () => {
 			"~/.agents/skills/../rulebook/ownership.md",
 			".claude/rulebook/ownership.md",
 		],
+		["~/.agents/rulebook/removed.md", ".claude/rulebook/removed.md"],
+		["~/.agents/skills/x/", ".claude/skills/x/"],
 	])("redirects %s to %s", (citation, redirected) => {
 		expect(delivered(`read ${citation} first`)).toEqual({
 			redirected: 1,
@@ -63,6 +60,8 @@ describe(deliverHomePathCitations.name, () => {
 		["a path that climbs out of every root", "~/.agents/rulebook/../../x.md"],
 		["a tilde inside a word", "a~/.agents/rulebook/ownership.md"],
 		["a parent step out of a root", "~/.agents/rulebook/.."],
+		["a directory the install holds only in part", "~/.agents/skills/"],
+		["the same directory without its slash", "~/.agents/skills"],
 	])("leaves %s as written", (_name, citation) => {
 		expect(delivered(`see ${citation} now`)).toEqual({
 			redirected: 0,

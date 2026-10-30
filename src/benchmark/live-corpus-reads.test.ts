@@ -12,7 +12,7 @@ const citations: HomePathCitationMap = {
 	],
 };
 
-const held = new Set(["rulebook/ownership.md", "skills/x/SKILL.md"]);
+const held = new Set(["rulebook", "skills/x"]);
 
 function use(name: string, input: Readonly<Record<string, string>>): ToolUse {
 	return { input: { ...input }, name, type: "tool_use" };

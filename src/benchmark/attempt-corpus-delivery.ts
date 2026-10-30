@@ -12,7 +12,7 @@ import type { TranscriptLine } from "./transcript-line-contract";
  * follows citations as often as the session that started it.
  */
 async function attemptCorpusDelivery(
-	overlay: Pick<CorpusOverlay, "citations" | "delivery" | "installed">,
+	overlay: Pick<CorpusOverlay, "citations" | "delivery" | "held">,
 	turn: Immutable<readonly TranscriptLine[]>,
 	recordDirectory: string,
 ): Promise<CorpusDeliveryRecord> {
@@ -26,11 +26,7 @@ async function attemptCorpusDelivery(
 
 	return {
 		...overlay.delivery,
-		liveReads: liveCorpusReads(
-			uses,
-			overlay.citations,
-			new Set(overlay.installed),
-		),
+		liveReads: liveCorpusReads(uses, overlay.citations, new Set(overlay.held)),
 	};
 }
 

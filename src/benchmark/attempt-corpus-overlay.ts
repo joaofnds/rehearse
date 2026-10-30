@@ -28,6 +28,7 @@ async function installCorpusOverlay(
 		return {
 			citations: { home: request.home, roots: [] },
 			delivery: NOTHING_DELIVERED,
+			held: [],
 			installed: [],
 			styleName: undefined,
 		};

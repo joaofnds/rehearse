@@ -32,7 +32,7 @@ const AUTHORED_INSTRUCTIONS = [
 
 const DELIVERED_INSTRUCTIONS = [
 	"Read .claude/rulebook/ownership.md and list .claude/rulebook/.",
-	"Load .claude/skills/x/SKILL.md, then ~/.agents/skills/y/SKILL.md.",
+	"Load .claude/skills/x/SKILL.md, then .claude/skills/y/SKILL.md.",
 	"Config lives in ~/.agents/backlog-config.yml.",
 	"",
 ].join("\n");
@@ -45,6 +45,10 @@ async function citingCorpus(): Promise<string> {
 	});
 }
 
+/**
+ * A whole corpus holds every layout directory, so a skill the arm lacks is
+ * missed in the arm's copy rather than read from the user's install.
+ */
 async function redirectsCitationsOfHeldFilesAndLeavesTheRestAsWritten(): Promise<void> {
 	const snapshot = await freezeWholeSessionCorpus(
 		await resolveCorpusSource(await citingCorpus()),
@@ -62,15 +66,16 @@ async function redirectsCitationsOfHeldFilesAndLeavesTheRestAsWritten(): Promise
 	expect(
 		await Bun.file(join(attemptDirectory, ".claude/CLAUDE.md")).text(),
 	).toBe(DELIVERED_INSTRUCTIONS);
-	expect(delivery).toEqual({ redirected: 3, rule: 1 });
+	expect(delivery).toEqual({ redirected: 4, rule: 1 });
 	expect(await Bun.file(join(snapshot.root, "CLAUDE.md")).text()).toBe(
 		AUTHORED_INSTRUCTIONS,
 	);
 }
 
 /**
- * A declared rulebook file alone does not hold the skill the instructions
- * cite, so that citation still reaches the user's live skill.
+ * A declared rulebook file alone holds neither the skill the instructions
+ * cite nor the whole rulebook, so those citations still reach the user's
+ * live install.
  */
 async function redirectsOnlyWhatADeclaredSnapshotInstalls(): Promise<void> {
 	const snapshot = await snapshotSessionCorpus(
@@ -89,12 +94,14 @@ async function redirectsOnlyWhatADeclaredSnapshotInstalls(): Promise<void> {
 	expect(
 		await Bun.file(join(attemptDirectory, ".claude/CLAUDE.md")).text(),
 	).toBe(
-		DELIVERED_INSTRUCTIONS.replace(
-			".claude/skills/x/SKILL.md",
-			"$HOME/.claude/skills/x/SKILL.md",
-		),
+		[
+			"Read .claude/rulebook/ownership.md and list ~/.agents/rulebook/.",
+			"Load $HOME/.claude/skills/x/SKILL.md, then ~/.agents/skills/y/SKILL.md.",
+			"Config lives in ~/.agents/backlog-config.yml.",
+			"",
+		].join("\n"),
 	);
-	expect(delivery).toEqual({ redirected: 2, rule: 1 });
+	expect(delivery).toEqual({ redirected: 1, rule: 1 });
 }
 
 async function copiesAFileThatIsNotTextAsItIs(): Promise<void> {

@@ -2,7 +2,7 @@ import { mkdir, readdir, rm, unlink } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { countCorpusDelivery, deliverInstalledCorpus } from "./corpus-delivery";
-import type { CorpusDelivery } from "./corpus-delivery";
+import type { CorpusDelivery, CorpusInstall } from "./corpus-delivery";
 import {
 	CORPUS_LAYOUT_DIRECTORIES,
 	CorpusFileError,
@@ -14,7 +14,10 @@ import { symlinkedEntry } from "./directory-entry-probe";
 import { lstatIfPresent } from "./file-presence";
 import type { HomePathCitationMap } from "./home-path-citation";
 import type { CorpusDirectory } from "./stage-corpus-directories";
-import { resolveLayoutDirectory } from "./stage-corpus-directories";
+import {
+	LAYOUT_DIRECTORY_KINDS,
+	resolveLayoutDirectory,
+} from "./stage-corpus-directories";
 import { captureDirectories, copyCorpusFiles } from "./stage-corpus-snapshot";
 import type { CorpusCopy } from "./stage-corpus-snapshot";
 
@@ -44,6 +47,10 @@ async function refuseUncontainedEntries(
 }
 
 const INSTALLED_CORPUS_IGNORE = ".gitignore";
+
+const SKILL_ROOT_START = 0;
+
+const SKILL_ROOT_END = 2;
 
 async function snapshotDirectories(
 	source: CorpusRoot,
@@ -110,9 +117,30 @@ async function installStageCorpusSnapshot(
 
 	return await deliverInstalledCorpus(
 		destination,
-		["CLAUDE.md", ...paths],
+		stageCorpusInstall(snapshot),
 		citations,
 	);
+}
+
+/**
+ * A stage holds its instructions, every agent, output style and rule whole,
+ * since it freezes those kinds whole, and its own skill.
+ */
+function stageCorpusInstall(
+	snapshot: Pick<CorpusCopy, "files">,
+): CorpusInstall {
+	const files = snapshot.files.map(({ file }) => file.path);
+	const skills = files
+		.filter((path) => path.startsWith("skills/"))
+		.map((path) => path.split("/").slice(SKILL_ROOT_START, SKILL_ROOT_END))
+		.map((steps) => steps.join("/"));
+
+	return {
+		files: ["CLAUDE.md", ...files],
+		held: [
+			...new Set(["CLAUDE.md", ...LAYOUT_DIRECTORY_KINDS, ...skills]),
+		].toSorted(),
+	};
 }
 
 /**
@@ -147,8 +175,9 @@ async function writeInstalledCorpusIgnore(
 }
 
 /**
- * What a stage install of this snapshot delivers: the files it holds, by
- * layout path, and what its rewrite redirects, read before any install.
+ * What a stage install of this snapshot delivers: the files and directories
+ * it holds whole, by layout path, and what its rewrite redirects, read before
+ * any install.
  */
 interface StageCorpusDelivery {
 	readonly held: readonly string[];
@@ -159,15 +188,13 @@ async function planStageCorpusDelivery(
 	snapshotDirectory: string,
 	citations: HomePathCitationMap,
 ): Promise<StageCorpusDelivery> {
-	const snapshot = await readStageSnapshot(snapshotDirectory);
-	const held = [
-		"CLAUDE.md",
-		...snapshot.files.map(({ file }) => file.path),
-	].toSorted();
+	const install = stageCorpusInstall(
+		await readStageSnapshot(snapshotDirectory),
+	);
 
 	return {
-		delivery: await countCorpusDelivery(snapshotDirectory, held, citations),
-		held,
+		delivery: await countCorpusDelivery(snapshotDirectory, install, citations),
+		held: install.held,
 	};
 }
 
