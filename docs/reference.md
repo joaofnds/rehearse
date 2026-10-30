@@ -1017,8 +1017,10 @@ undeclared file reads the live file and nothing records it. A path outside the
 corpus layout, such as `~/.agents/backlog-config.yml`, stays as written.
 
 An install holds a directory only when it holds all of it. A session with the
-actual setup holds every layout directory of its corpus, and a stage holds the
-agents, output styles and rulebook directories and its own skill's directory.
+actual setup holds every layout directory of its corpus, and so does a stage
+replay given a corpus directory. A stage holds the agents, output styles and
+rulebook directories and its own skill's directory, which it holds even in a
+control arm that runs without that skill.
 A citation of anything inside such a directory names the arm's copy even when
 the arm lacks that file, so a file the candidate deletes is missing in the
 candidate's session rather than read from your install. A citation of a
@@ -1033,13 +1035,14 @@ copies it before setup and installs and hashes that copy, so an edit to the
 directory while the replay runs reaches neither the session nor the record. Each session attempt and each stage
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
 citations it `redirected`. A session attempt adds `liveReads`, and so does each
-stage in a confirmation rep record whose session ran, whether its Judge graded
-it or the stage then failed: each held file that a file-access
+stage in a confirmation rep record whose session returned, whether its Judge
+graded it or the stage then failed, and a stage that failed after its Judge
+graded it carries them on its graded entry only: each held file that a file-access
 tool call (a Read, Edit, Write, Grep, Glob or NotebookEdit path, or a Bash
 command) in the session's transcript or a sub-agent's still named by its live
 path, as the layout path and a call count, never the command text. A stage
 reads its transcripts from the provider's projects directory, so a stage whose
-transcripts a run cannot locate, or whose session never started, has no
+transcripts a run cannot locate, or whose session failed or never started, has no
 `liveReads` field, which says nothing was read rather than that no read was
 live. `compare`, `compare attempts` and `compare
 extend` print a line on stderr naming each arm with a live read, since that arm
