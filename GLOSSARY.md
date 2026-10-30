@@ -367,14 +367,16 @@ See [current state](docs/status.md) for implementation coverage and
   resolver maps a layout path onto the selected corpus root. Missing files are
   refused, although a debug command may already have paid for a model probe.
 - **Corpus snapshot** — a recorded set of corpus inputs and their provenance.
-  Session execution copies the corpus files a case declares, and confirmation
-  copies them once for the whole group. A live session debug snapshot keeps a
-  pointer to the installed files only when the case declares no corpus file.
+  Session execution copies the arm's whole corpus, or only the corpus files the
+  case declares when the case declares isolation, and confirmation copies them
+  once for the whole group. A live session debug snapshot keeps a pointer to
+  the installed files only when an isolated case declares no corpus file.
   Stage snapshots capture the instructions and supporting files needed for
   replay. Hashing an input is distinct from delivering it to the provider.
-- **Corpus overlay** — the declared styles, agent definitions, rulebook files,
-  skills, and `CLAUDE.md` written under a session attempt's `.claude/`
-  directory. A declared skill brings its whole directory. Stage replay uses a
+- **Corpus overlay** — the styles, agent definitions, rulebook files, skills,
+  and `CLAUDE.md` written under a session attempt's `.claude/` directory: the
+  arm's whole corpus, or only the declared files for an isolated case. A
+  declared skill brings its whole directory. Stage replay uses a
   separate snapshot installation path. See the reference's corpus support
   matrix.
 - **Corpus refusal** — a named statement that a corpus path selected for reading

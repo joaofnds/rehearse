@@ -1048,8 +1048,9 @@ source does not become the measured style. Lineage and staleness still hash
 only the declared files, so a change to an undeclared corpus file does not
 mark a record stale.
 
-A comparison refuses arms whose attempts ran under different setups, naming
-the field `setup`. An attempt recorded before the setup was recorded reads as
+A comparison refuses arms or cases whose attempts ran under different setup
+kinds, isolated or actual, naming the field `setup`. Two arms both run with
+the actual setup are not compared on their settings or MCP digests. An attempt recorded before the setup was recorded reads as
 isolated.
 
 An attempt record carries `settingsDigest`, the identity of the case's declared
@@ -2462,8 +2463,12 @@ may name one case. Either one-case report estimates uncertainty over that case's
 reps rather than across cases. Each path names a completed stage, pipeline, or
 session confirmation `group.json` and resolves relative to the manifest. Session
 groups must carry one frozen case declaration, their recorded attempt evidence,
-and a corpus inventory matching that declaration, where a declared skill also
-brings the other files of its directory, as the attempt installed them. The
+and a corpus inventory that holds every declared file, where a declared skill
+also brings the other files of its directory, as the attempt installed them.
+An isolated case's inventory holds nothing else. A case run with the actual
+setup carries the arm's whole corpus, so a candidate or control directory
+stands for the whole corpus its sessions see: a candidate holding only the
+edited files runs without the rest of the user's instructions. The
 control corpus may be empty for a session case. The control corpus is supplied
 by the operator. For example:
 

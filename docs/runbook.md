@@ -57,8 +57,10 @@ STYLE
 
 This is an example input you can edit, not the maintainer's personal style.
 Passing its directory with `--corpus` avoids installing it into your live agent
-configuration. Other live settings can still affect the session; this is not a
-sealed environment.
+configuration. Unless a case declares isolation, the directory is the whole
+corpus the session sees, so a candidate meant to differ from your install in
+one file should be a full copy of it with that file edited. Other live
+settings can still affect the session; this is not a sealed environment.
 
 ## Run one attempt
 
