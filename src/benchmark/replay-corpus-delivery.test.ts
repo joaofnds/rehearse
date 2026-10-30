@@ -108,7 +108,42 @@ async function deliversTheSourcesCitationsToTheReplayInstall(): Promise<void> {
 	expect(installed).toEqual(["Follow .claude/rulebook/ownership.md.\n"]);
 }
 
+/**
+ * The source directory stays editable while the replay sets up the target,
+ * so a record hashed from it would describe an edit the session never saw.
+ */
+async function hashesTheSourceAsItWasInstalled(): Promise<void> {
+	const { source, instructions } = await new ReplayCorpusVariantBuilder().build(
+		testResources,
+	);
+	const expected = await captureStageCorpus("build", instructions, [source]);
+	const run = await new ReplaySavedRunBuilder({
+		discussCorpus: await captureStageCorpus("discuss", instructions, [source]),
+	}).build(testResources);
+	const fake = new ReplayConfirmationHarness();
+
+	const outcome = await runReplay(
+		{
+			...fake.dependencies,
+			runSetup: async (targetDir, setup, log) => {
+				await Bun.write(join(source.root, "skills/build/SKILL.md"), "edited");
+				await fake.dependencies.runSetup(targetDir, setup, log);
+			},
+			stageSession: { ...fake.dependencies.stageSession, captureStageCorpus },
+		},
+		{
+			...new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
+			corpusSource: source,
+			instructions,
+		},
+	);
+
+	expect(outcome.record.corpusFiles).toEqual(expected);
+}
+
 describe(runReplay.name, () => {
+	it("hashes the source as it was installed", hashesTheSourceAsItWasInstalled);
+
 	it(
 		"delivers the source's citations to the replay install",
 		deliversTheSourcesCitationsToTheReplayInstall,

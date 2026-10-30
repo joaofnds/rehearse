@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { dirname, join } from "node:path";
 
 import { captureStageCorpus, installStageCorpusSnapshot } from "./checkpoint";
 import { runReplay } from "./replay";
@@ -52,22 +53,25 @@ const leavesTheSettingsOverlayUnsetWhenNoneIsGiven =
 
 		expect(fake.settingsOverlays).toEqual([undefined]);
 	};
-const installsTheCorpusSnapshotIntoTheWorktreeBeforeThe =
+const installsAFrozenCopyOfTheCorpusBeforeTheStageRuns =
 	async (): Promise<void> => {
+		const { source } = await new ReplayCorpusVariantBuilder().build(
+			testResources,
+		);
 		const run = await new ReplaySavedRunBuilder().build(testResources);
 		const fake = new ReplayConfirmationHarness();
 
 		await runReplay(fake.dependencies, {
 			...new ReplayRequestBuilder({ stage: "build" }).build(run.paths),
-			corpusSource: { kind: "directory", root: "/frozen/corpus" },
+			corpusSource: source,
 		});
 
-		const [observedFirstWorktree] = fake.worktrees;
-
+		const [observedWorktree] = fake.worktrees;
+		const worktree = observedWorktree?.path ?? "";
 		expect(fake.corpusInstalls).toEqual([
 			{
-				snapshotDirectory: "/frozen/corpus",
-				targetDirectory: observedFirstWorktree?.path ?? "",
+				snapshotDirectory: join(dirname(worktree), "corpus"),
+				targetDirectory: worktree,
 			},
 		]);
 	};
@@ -125,8 +129,8 @@ describe(runReplay.name, () => {
 			leavesTheSettingsOverlayUnsetWhenNoneIsGiven,
 		);
 		it(
-			"installs the corpus snapshot into the worktree before the stage runs",
-			installsTheCorpusSnapshotIntoTheWorktreeBeforeThe,
+			"installs a frozen copy of the corpus before the stage runs",
+			installsAFrozenCopyOfTheCorpusBeforeTheStageRuns,
 		);
 		it(
 			"replays a linked directory variant with the captured paths and hashes",

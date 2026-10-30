@@ -24,6 +24,9 @@ class ReplayLifetime {
 	public get worktreeDir(): string {
 		return this.#state.worktreeDir;
 	}
+	public get corpusDirectory(): string {
+		return join(this.#state.parent, "corpus");
+	}
 	public get productOwnerDirectory(): string {
 		return this.#state.productOwnerDirectory;
 	}

@@ -1028,7 +1028,9 @@ directory is your setup.
 
 Delivered text therefore differs from the authored text in those citations
 only. Records hash the authored bytes, so the same corpus records the same
-`corpusFiles` digests whatever it cites. Each session attempt and each stage
+`corpusFiles` digests whatever it cites. A replay given a corpus directory
+copies it before setup and installs and hashes that copy, so an edit to the
+directory while the replay runs reaches neither the session nor the record. Each session attempt and each stage
 confirmation group records `corpusDelivery`: the delivery `rule` and how many
 citations it `redirected`. A session attempt adds `liveReads`, and so does each
 stage in a confirmation rep record whose session ran, whether its Judge graded

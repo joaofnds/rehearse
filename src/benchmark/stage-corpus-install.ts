@@ -123,6 +123,19 @@ async function installStageCorpusSnapshot(
 }
 
 /**
+ * Copies the snapshot as the install would read it, so a run can install and
+ * hash a copy that later edits to the snapshot do not reach.
+ */
+async function freezeStageSnapshot(
+	snapshotDirectory: string,
+	destination: string,
+): Promise<void> {
+	const snapshot = await readStageSnapshot(snapshotDirectory);
+
+	await copyCorpusFiles({ ...snapshot, destination });
+}
+
+/**
  * A stage holds its instructions, every agent, output style and rule whole,
  * since it freezes those kinds whole, and its own skill.
  */
@@ -198,5 +211,9 @@ async function planStageCorpusDelivery(
 	};
 }
 
-export { installStageCorpusSnapshot as default, planStageCorpusDelivery };
+export {
+	freezeStageSnapshot,
+	installStageCorpusSnapshot as default,
+	planStageCorpusDelivery,
+};
 export type { StageCorpusDelivery };

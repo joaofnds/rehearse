@@ -1,4 +1,8 @@
-import { deriveStaleness, stageCorpusRoots } from "./checkpoint";
+import {
+	deriveStaleness,
+	freezeStageSnapshot,
+	stageCorpusRoots,
+} from "./checkpoint";
 import type { Immutable } from "./contracts";
 import type { ReplayExecutionContext } from "./replay-contract";
 import { currentChainCorpus, readPriorArtifacts } from "./replay-corpus";
@@ -49,20 +53,24 @@ class ReplayPreparation {
 			dependencies,
 			request,
 			inputs: { plan },
-			lifetime: { worktreeDir },
+			lifetime: { worktreeDir, corpusDirectory },
 		} = this.#context;
 		await dependencies.materializeCheckpoint(
 			request.paths.checkpointDirectory(plan.consumed.stage),
 			worktreeDir,
 		);
-		if (request.corpusSource.kind === "directory") {
+		let source = request.corpusSource;
+		if (source.kind === "directory") {
+			// The source stays editable during setup and the session.
+			await freezeStageSnapshot(source.root, corpusDirectory);
+			source = { kind: "directory", root: corpusDirectory };
 			await dependencies.installStageCorpusSnapshot(
-				request.corpusSource.root,
+				corpusDirectory,
 				worktreeDir,
 				await dependencies.liveCitations(),
 			);
 		}
-		const corpusRoots = stageCorpusRoots(request.corpusSource, worktreeDir);
+		const corpusRoots = stageCorpusRoots(source, worktreeDir);
 		const baselineSha = await dependencies.currentSha(worktreeDir);
 
 		return { baselineSha, corpusRoots };
