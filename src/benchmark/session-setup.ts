@@ -255,13 +255,7 @@ function actualSetupArgs(setup: ActualSetupFiles): string[] {
 	];
 }
 
-export {
-	ISOLATED_SETUP,
-	actualSetupArgs,
-	RUN_DECIDED_VARIABLES,
-	mergedSettings,
-	prepareActualSetup,
-};
+export { ISOLATED_SETUP, actualSetupArgs, mergedSettings, prepareActualSetup };
 export type {
 	ActualSetup,
 	ActualSetupFiles,
