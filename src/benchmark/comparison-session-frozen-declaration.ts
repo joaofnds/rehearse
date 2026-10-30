@@ -7,6 +7,11 @@ import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
 import { deliversCorpusFile } from "./session-corpus";
 
+/**
+ * An isolated case installs only what it declared, so a frozen file beyond that
+ * was never delivered. A case run with the actual setup freezes the whole
+ * corpus, so every frozen file reached its sessions.
+ */
 function assertSessionCorpusFiles(
 	request: Readonly<LoadArmRequest>,
 	sessionCase: Immutable<SessionCaseDeclaration>,
@@ -19,9 +24,11 @@ function assertSessionCorpusFiles(
 	const declaredMissing = sessionCase.corpusFiles.some(
 		(path) => !frozenCorpusPaths.includes(path),
 	);
-	const undelivered = frozenCorpusPaths.some(
-		(path) => !deliversCorpusFile(sessionCase.corpusFiles, path),
-	);
+	const undelivered =
+		sessionCase.isolated === true &&
+		frozenCorpusPaths.some(
+			(path) => !deliversCorpusFile(sessionCase.corpusFiles, path),
+		);
 	const duplicated =
 		new Set(frozenCorpusPaths).size !== frozenCorpusPaths.length;
 	if (declaredMissing || undelivered || duplicated) {

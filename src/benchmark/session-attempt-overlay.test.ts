@@ -102,6 +102,7 @@ async function selectsAndInstallsOnlyTheStyleTheCaseDeclaredNeverASecondOneTheCo
 				kind: "directory",
 				origin: { kind: "directory", source: root },
 				root,
+				scope: "declared",
 			},
 			projectsDirectory: projects,
 			recordDirectory: await recordDirectory(),

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { join } from "node:path";
 
 import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
@@ -47,6 +48,38 @@ async function reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheC
 		projectsDirectory: projects,
 		runClaude,
 		runsDirectory,
+		sessionCase: new SessionCaseBuilder({ isolated: true }).build(),
+		spendCeilingUsd: 100,
+	});
+
+	expect(outcome.record.divergences).toEqual([
+		{
+			half: "corpus",
+			kind: "undeclared-file",
+			path: "skills/verify/SKILL.md",
+		},
+	]);
+}
+
+/**
+ * Under the actual setup the attempt installs the whole corpus, so a skill the
+ * case never declared reaches the session from the attempt's own `.claude`.
+ */
+async function reportsAnUndeclaredFileDivergenceForAnInstalledSkillTheCaseNeverDeclared(): Promise<void> {
+	const projects = await files.temporary("rehearse-projects-");
+	const runsDirectory = await files.temporary("rehearse-runs-");
+	const corpus = await files.temporary("rehearse-corpus-");
+	await Bun.write(join(corpus, "skills/verify/SKILL.md"), "verify skill\n");
+
+	const outcome = await runSessionDebugAttempt({
+		config: { ...config, corpus },
+		environment: {},
+		home: ABSENT_HOME,
+		projectsDirectory: projects,
+		runClaude: undeclaredSkillClaude(projects, (cwd) =>
+			join(cwd, ".claude/skills/verify"),
+		),
+		runsDirectory,
 		sessionCase: new SessionCaseBuilder().build(),
 		spendCeilingUsd: 100,
 	});
@@ -88,6 +121,10 @@ describe("running a session case against a corpus source", () => {
 	it(
 		"reports an undeclared-file divergence for a skill the session loaded but the case never declared",
 		reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheCaseNeverDeclared,
+	);
+	it(
+		"reports an undeclared-file divergence for an installed skill the case never declared",
+		reportsAnUndeclaredFileDivergenceForAnInstalledSkillTheCaseNeverDeclared,
 	);
 	it(
 		"reports an unloaded-file divergence for a declared project file the session never read, tagged project-half",

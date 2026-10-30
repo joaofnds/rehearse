@@ -41,6 +41,7 @@ async function snapshotHolding(
 		kind: "directory",
 		origin: { kind: "directory", source: root },
 		root,
+		scope: "declared",
 	};
 }
 

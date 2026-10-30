@@ -1,8 +1,12 @@
 import { join } from "node:path";
 
+import type { SessionCase } from "./case";
 import { hashCorpusFiles } from "./corpus-file";
 import { resolveCorpusSource } from "./corpus-source";
-import type { CorpusSourceResolver } from "./corpus-source";
+import type {
+	CorpusSourceResolver,
+	ResolvedCorpusSource,
+} from "./corpus-source";
 import { measureCorpusVersion, measuredCorpusFiles } from "./corpus-version";
 import { openGroupDirectory } from "./in-flight-claim";
 import type { SessionConfirmationRequest } from "./session-confirmation-contract";
@@ -11,7 +15,11 @@ import type {
 	FrozenSessionInputs,
 	SessionInputDirectories,
 } from "./session-confirmation-frozen-inputs";
-import { freezeSessionCorpus } from "./session-corpus";
+import {
+	freezeSessionCorpus,
+	freezeWholeSessionCorpus,
+} from "./session-corpus";
+import type { SessionCorpusSnapshot } from "./session-corpus";
 import { sessionLineage } from "./session-lineage";
 
 async function openGroup({
@@ -19,6 +27,26 @@ async function openGroup({
 	inputsDirectory,
 }: SessionInputDirectories): Promise<void> {
 	await openGroupDirectory({ directory: groupDirectory, inputsDirectory });
+}
+
+async function freezeCaseCorpus(
+	sessionCase: SessionCase,
+	source: ResolvedCorpusSource,
+	destination: string,
+): Promise<SessionCorpusSnapshot> {
+	if (sessionCase.isolated) {
+		return await freezeSessionCorpus(
+			source,
+			destination,
+			sessionCase.corpusFiles,
+		);
+	}
+
+	return await freezeWholeSessionCorpus(
+		source,
+		destination,
+		sessionCase.corpusFiles,
+	);
 }
 
 async function freezeInputs(
@@ -33,10 +61,10 @@ async function freezeInputs(
 		source,
 	);
 	const corpusDirectory = join(directories.inputsDirectory, "corpus");
-	const corpusSnapshot = await freezeSessionCorpus(
+	const corpusSnapshot = await freezeCaseCorpus(
+		request.sessionCase,
 		source,
 		corpusDirectory,
-		request.sessionCase.corpusFiles,
 	);
 	const corpusFiles = await hashCorpusFiles(
 		corpusSnapshot,

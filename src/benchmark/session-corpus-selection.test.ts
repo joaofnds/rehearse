@@ -60,6 +60,7 @@ async function selectsTheDeclaredStyleFromASnapshotHoldingOneThatSortsBeforeIt()
 			kind: "directory",
 			origin: { kind: "directory", source: root },
 			root,
+			scope: "declared",
 		}),
 	).toBe("brief");
 }
@@ -109,6 +110,7 @@ async function installsTheDeclaredFileFromASnapshotCarryingAnUndeclaredOne(): Pr
 			kind: "directory",
 			origin: { kind: "directory", source: root },
 			root,
+			scope: "declared",
 		},
 		attemptDirectory,
 	);

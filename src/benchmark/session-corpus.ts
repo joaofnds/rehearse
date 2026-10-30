@@ -19,13 +19,16 @@ class SessionCorpusError extends Error {
  * The one directory a session attempt's corpus bytes are read from, for
  * hashing and for installing alike. Its shape is corpus layout, so a reader
  * cannot tell whether the bytes were copied or already installed.
- * It carries the paths the case declared because a source holds files no case
- * named, and installing or selecting one of those would run the attempt
- * against a corpus it never declared.
+ * It carries the paths the case declared, which select the output style and
+ * are hashed into lineage. Its scope says what an attempt installs from it: the
+ * declared files alone for an isolated case, and the whole corpus for a case
+ * that runs with the user's actual setup, whose session would otherwise see
+ * none of the user's other instruction files.
  */
 interface SessionCorpusSnapshotFields {
 	readonly origin: CorpusSnapshotOrigin;
 	readonly declaredPaths: readonly string[];
+	readonly scope: "declared" | "whole";
 }
 
 type SessionCorpusSnapshot = SessionCorpusSnapshotFields &
@@ -76,6 +79,7 @@ async function snapshotSessionCorpus(
 			kind: "live",
 			origin: originOf(source),
 			root: source.root,
+			scope: "declared",
 		};
 	}
 
@@ -94,13 +98,42 @@ async function freezeSessionCorpus(
 	destination: string,
 	declaredPaths: readonly string[],
 ): Promise<SessionCorpusSnapshot> {
-	await copyDeclared(source, destination, declaredPaths);
+	await copyRoots(source, destination, overlaidRoots(declaredPaths));
 
 	return {
 		declaredPaths: [...declaredPaths],
 		kind: "directory",
 		origin: originOf(source),
 		root: destination,
+		scope: "declared",
+	};
+}
+
+/**
+ * Under the actual setup the session loads no user-level instruction file, so
+ * an arm reaches its session only through what the attempt installs. Copying
+ * the whole corpus, not only the declared files, is what lets the live arm
+ * stand for the user's install and a candidate differ from it only where it
+ * was edited.
+ */
+async function freezeWholeSessionCorpus(
+	source: ResolvedCorpusSource,
+	destination: string,
+	declaredPaths: readonly string[],
+): Promise<SessionCorpusSnapshot> {
+	const entries = await corpusLayoutEntries(source);
+	await copyRoots(
+		source,
+		destination,
+		entries.map(({ layoutPath }) => layoutPath),
+	);
+
+	return {
+		declaredPaths: [...declaredPaths],
+		kind: "directory",
+		origin: originOf(source),
+		root: destination,
+		scope: "whole",
 	};
 }
 
@@ -214,13 +247,12 @@ function symlinkedCorpusEntry(
 	);
 }
 
-async function copyDeclared(
+async function copyRoots(
 	source: ResolvedCorpusSource,
 	destination: string,
-	declaredPaths: readonly string[],
+	roots: readonly string[],
 ): Promise<void> {
 	const entries = await corpusLayoutEntries(source);
-	const roots = overlaidRoots(declaredPaths);
 	await mkdir(destination, { recursive: true });
 
 	await Array.fromAsync(entries, async (entry) => {
@@ -251,6 +283,7 @@ export {
 	stageCorpusRefusal,
 	snapshotSessionCorpus,
 	freezeSessionCorpus,
+	freezeWholeSessionCorpus,
 };
 export type { SessionCorpusSnapshot };
 export {

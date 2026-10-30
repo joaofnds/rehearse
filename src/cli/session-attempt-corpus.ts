@@ -7,7 +7,10 @@ import {
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
 import type { SessionCorpusSnapshot } from "#benchmark/session-corpus";
-import { snapshotSessionCorpus } from "#benchmark/session-corpus";
+import {
+	freezeWholeSessionCorpus,
+	snapshotSessionCorpus,
+} from "#benchmark/session-corpus";
 import { UsageError } from "#cli/command-usage";
 import corpusRefusal from "#cli/corpus-failures";
 
@@ -54,7 +57,10 @@ async function requireCorpus(
 	source: CorpusRoot,
 ): Promise<AttemptCorpus> {
 	try {
-		const snapshot = await snapshotSessionCorpus(
+		const snapshotCorpus = request.sessionCase.isolated
+			? snapshotSessionCorpus
+			: freezeWholeSessionCorpus;
+		const snapshot = await snapshotCorpus(
 			source,
 			request.snapshotDirectory,
 			request.sessionCase.corpusFiles,

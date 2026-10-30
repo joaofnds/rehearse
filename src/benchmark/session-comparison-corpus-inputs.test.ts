@@ -12,22 +12,28 @@ import { writeManifest } from "./session-comparison-group-test-fixture";
 import {
 	digest,
 	sessionGroupFile,
+	updateFrozenCase,
 } from "./session-comparison-record-test-fixture";
 import { PROBE_NOTES, PROBE_SKILL } from "./session-comparison-test-contract";
 import { comparisonSuiteRoot } from "./session-comparison-workspace-fixture";
 
 const root = comparisonSuiteRoot();
 
-async function testRefusesAFrozenCorpusFileTheCaseDoesNotDeclare(): Promise<void> {
+async function testRefusesAFrozenCorpusFileAnIsolatedCaseDoesNotDeclare(): Promise<void> {
 	const runsDirectory = join(root, "runs");
 	const manifestPath = await writeManifest({ root, runsDirectory });
+	const groupFile = sessionGroupFile({
+		caseId: "case-one",
+		role: "candidate",
+		runsDirectory,
+	});
 
+	await updateFrozenCase(groupFile, (declaration) => ({
+		...declaration,
+		isolated: true,
+	}));
 	await addFrozenCorpusFile({
-		groupFile: sessionGroupFile({
-			caseId: "case-one",
-			role: "candidate",
-			runsDirectory,
-		}),
+		groupFile,
 		path: `inputs/corpus/${PROBE_SKILL}`,
 	});
 
@@ -36,6 +42,26 @@ async function testRefusesAFrozenCorpusFileTheCaseDoesNotDeclare(): Promise<void
 	expect(comparison).rejects.toThrow(
 		"case case-one arm candidate field inputs.files.corpus",
 	);
+}
+
+/**
+ * A case run with the actual setup freezes the whole corpus, so its group
+ * holds instruction files the case never declared.
+ */
+async function testAcceptsAFrozenCorpusFileACaseRunWithTheActualSetupDoesNotDeclare(): Promise<void> {
+	const runsDirectory = join(root, "runs");
+	const manifestPath = await writeManifest({ root, runsDirectory });
+
+	await Array.fromAsync(["case-one", "case-two"], async (caseId) => {
+		await addFrozenCorpusFile({
+			groupFile: sessionGroupFile({ caseId, role: "candidate", runsDirectory }),
+			path: `inputs/corpus/${PROBE_SKILL}`,
+		});
+	});
+
+	const comparison = writeComparisonReport({ manifestPath, runsDirectory });
+
+	expect(comparison).resolves.toEndWith("report.json");
 }
 
 async function testRefusesAGroupMissingADeclaredCorpusFile(): Promise<void> {
@@ -126,8 +152,13 @@ async function testRefusesSameRoleCorpusDriftAcrossCases(): Promise<void> {
 
 describe("session comparison corpus inputs", () => {
 	it(
-		"refuses a frozen corpus file the case does not declare",
-		testRefusesAFrozenCorpusFileTheCaseDoesNotDeclare,
+		"refuses a frozen corpus file an isolated case does not declare",
+		testRefusesAFrozenCorpusFileAnIsolatedCaseDoesNotDeclare,
+	);
+
+	it(
+		"accepts a frozen corpus file a case run with the actual setup does not declare",
+		testAcceptsAFrozenCorpusFileACaseRunWithTheActualSetupDoesNotDeclare,
 	);
 
 	it(

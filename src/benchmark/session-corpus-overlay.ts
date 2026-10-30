@@ -2,6 +2,7 @@ import { cp, mkdir, readdir, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, relative } from "node:path";
 
 import { isCorpusLayoutPath } from "./corpus-file";
+import { corpusLayoutEntries } from "./corpus-source";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 
 /** Whether `layoutPath` is `root` itself or a path inside it. */
@@ -25,18 +26,27 @@ async function installSessionCorpusSnapshot(
 	}
 
 	const installed: string[] = [];
-	await Array.fromAsync(
-		overlaidRoots(snapshot.declaredPaths),
-		async (layoutPath) => {
-			const source = join(snapshot.root, layoutPath);
-			const target = join(attemptDirectory, ".claude", layoutPath);
-			await mkdir(dirname(target), { recursive: true });
-			await cp(source, target, { recursive: true });
-			installed.push(...(await filesUnder(source, layoutPath)));
-		},
-	);
+	await Array.fromAsync(await installedRoots(snapshot), async (layoutPath) => {
+		const source = join(snapshot.root, layoutPath);
+		const target = join(attemptDirectory, ".claude", layoutPath);
+		await mkdir(dirname(target), { recursive: true });
+		await cp(source, target, { recursive: true });
+		installed.push(...(await filesUnder(source, layoutPath)));
+	});
 
 	return installed;
+}
+
+async function installedRoots(
+	snapshot: SessionCorpusSnapshot,
+): Promise<readonly string[]> {
+	if (snapshot.scope === "declared") {
+		return overlaidRoots(snapshot.declaredPaths);
+	}
+
+	const entries = await corpusLayoutEntries(snapshot);
+
+	return entries.map(({ layoutPath }) => layoutPath);
 }
 
 /** The layout paths of the files `source` holds, itself when it is a file. */

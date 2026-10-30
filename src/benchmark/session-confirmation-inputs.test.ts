@@ -107,6 +107,54 @@ async function freezesADeclaredSkillAndCLAUDEMdSoASourceEditCannotReachALaterRep
 	]);
 }
 
+async function frozenCorpusPaths(
+	isolated: boolean,
+): Promise<readonly string[]> {
+	const { root, corpusRoot } = await instructionCorpus(
+		"rehearse-session-scope-",
+		{
+			"agents/undeclared.md": "an undeclared agent\n",
+			"skills/verify/SKILL.md": "declared skill\n",
+		},
+	);
+	const declared = declaredCorpusCase("scope-group", [
+		"skills/verify/SKILL.md",
+	]);
+
+	const outcome = await runSessionConfirmation(
+		{ executeAttempt: async (plan) => await recordedAttempt(plan) },
+		confirmationRequest({
+			corpus: corpusRoot,
+			groupId: "scope-group",
+			runsDirectory: join(root, "runs"),
+			sessionCase: { ...declared, isolated },
+		}),
+	);
+
+	const group = parseConfirmationGroupRecord(
+		await Bun.file(outcome.groupRecordFile).text(),
+	);
+
+	return group.inputs.files
+		.filter((file) => file.kind === "corpus")
+		.map((file) => file.path.slice(file.path.indexOf("corpus/")));
+}
+
+async function freezesTheWholeCorpusForACaseRunWithTheActualSetup(): Promise<void> {
+	const frozen = await frozenCorpusPaths(false);
+
+	expect(frozen.toSorted()).toEqual([
+		"corpus/agents/undeclared.md",
+		"corpus/skills/verify/SKILL.md",
+	]);
+}
+
+async function freezesOnlyTheDeclaredFilesForAnIsolatedCase(): Promise<void> {
+	expect(await frozenCorpusPaths(true)).toEqual([
+		"corpus/skills/verify/SKILL.md",
+	]);
+}
+
 async function freezesEveryFileOfAFixtureSCommittedHistoryAsANamedInput(): Promise<void> {
 	const lowerBoundForHistoryCount = 0;
 
@@ -198,6 +246,18 @@ function symlinkedTranscriptCases(): void {
 		},
 	);
 }
+
+describe("freezing the corpus a session case carries", () => {
+	it(
+		"freezes the whole corpus for a case run with the actual setup",
+		freezesTheWholeCorpusForACaseRunWithTheActualSetup,
+	);
+
+	it(
+		"freezes only the declared files for an isolated case",
+		freezesOnlyTheDeclaredFilesForAnIsolatedCase,
+	);
+});
 
 describe(runSessionConfirmation.name, () => {
 	it(

@@ -175,7 +175,9 @@ interface RecordedSkillTranscriptEntry {
 	};
 	readonly type: "assistant" | "user";
 }
-function undeclaredSkillTranscript(): readonly RecordedSkillTranscriptEntry[] {
+function undeclaredSkillTranscript(
+	skillDirectory: string,
+): readonly RecordedSkillTranscriptEntry[] {
 	return [
 		{
 			message: {
@@ -195,7 +197,7 @@ function undeclaredSkillTranscript(): readonly RecordedSkillTranscriptEntry[] {
 			message: {
 				content: [
 					{
-						text: `Base directory for this skill: ${liveCorpusSource().root}/skills/verify`,
+						text: `Base directory for this skill: ${skillDirectory}`,
 						type: "text",
 					},
 				],
@@ -208,16 +210,25 @@ function undeclaredSkillTranscript(): readonly RecordedSkillTranscriptEntry[] {
 		},
 	];
 }
-function undeclaredSkillClaude(projects: string): ClaudeRunner {
+/**
+ * A session that loads the `verify` skill, which no case declares, from the
+ * directory `skillDirectory` names for the attempt's working directory.
+ */
+function undeclaredSkillClaude(
+	projects: string,
+	skillDirectory: (cwd: string) => string = () =>
+		join(liveCorpusSource().root, "skills/verify"),
+): ClaudeRunner {
 	return async (command, cwd) => {
 		const sessionId =
 			command[command.indexOf("--session-id") + OPTION_VALUE_POSITION_OFFSET] ??
 			"";
-		const slug = join(projects, projectSlug(await realpath(cwd)));
+		const workingDirectory = await realpath(cwd);
+		const slug = join(projects, projectSlug(workingDirectory));
 		await mkdir(slug, { recursive: true });
 		await writeFile(
 			join(slug, `${sessionId}.jsonl`),
-			`${undeclaredSkillTranscript()
+			`${undeclaredSkillTranscript(skillDirectory(workingDirectory))
 				.map((record) => JSON.stringify(record))
 				.join("\n")}\n`,
 		);
