@@ -154,6 +154,11 @@ links no attempt history, since its attempts record no session.
   groups run under different setups compare as alike. A group that records no
   setup cannot say which settings its stages ran with. See
   [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
+- **Comparisons ignore inherited Claude Code configuration.** Attempts and
+  pipeline and replay confirmation groups record the Claude Code variables
+  their sessions inherited from Rehearse's environment, but no comparison reads
+  them, so two arms launched from shells with different variables compare as
+  alike. See [corpus sources and delivery](reference.md#corpus-sources-and-delivery).
 - **Home-path citations reach an arm's copy only of what it installs.** A
   stage citing a skill it does not install, and an isolated case citing a file
   it does not declare, read the live file unrecorded. A session that changes

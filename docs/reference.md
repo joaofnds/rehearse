@@ -546,7 +546,7 @@ container, and the variables it exports, each naming the port as `{port}`.
 Variable names, in a service's or a check's `env` and in exports, must be
 environment variable names. An export may not be `HOME` or a name Claude Code
 reads or Rehearse drops for it, such as any `ANTHROPIC_*`, `CLAUDE*`,
-`DISABLE_*`, `MCP_*` or `OTEL_*` name or `HTTPS_PROXY` (the full rule is
+`DISABLE_*`, `MCP_*` or `OTEL_*` name or a proxy name (the full rule is
 under [corpus sources and delivery](#corpus-sources-and-delivery)), since
 exports reach the stage session and would change it without the group's record
 showing it. A pipeline run starts each service with Docker, publishing its port on a loopback port Docker assigns, and runs its readiness
@@ -1066,9 +1066,11 @@ actual setup. Your `~/.claude/settings.json`, merged with the case's declared
 each directory under `~/.claude/plugins/synced` by `--plugin-dir`. A declared
 key replaces yours, except that permission rules are unioned so your deny rules
 survive. Your `model` and `effortLevel`, and the model and effort variables in
-your settings `env`, are dropped from both sides, and the session runner unsets
-those variables from its own environment, since the run passes `--model` and
-`--effort`. Your permission defaults therefore reach the session, and a
+your settings `env` (`MAX_THINKING_TOKENS`, `CLAUDE_EFFORT`,
+`CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_SUBAGENT_MODEL` and every
+`ANTHROPIC_*` name holding `MODEL`), are dropped from both sides, and the same
+variables never reach a session from Rehearse's own environment, since the run
+passes `--model` and `--effort`. Your permission defaults therefore reach the session, and a
 permissive mode such as `bypassPermissions` lets it run commands its `tools`
 list never named, which is why such a session is
 [confined](#signal-confinement). Each attempt record's `setup` field names what
@@ -1092,39 +1094,56 @@ actual-setup attempt's `setup.loaded` is unobserved: the machine it was built
 on disables them (Claude Code 2.1.312, 2026-10-30). An isolated attempt runs
 with `--strict-mcp-config`, which shuts out every MCP server it never declared.
 
-Every command Rehearse starts gets Rehearse's own environment without what a
-parent Claude Code session exported. That covers every Claude Code session,
-from a session case, a pipeline stage, a Judge, a culprit analysis, the
-Product Owner or the model preflight, and every check, so code a session wrote
-cannot reach the parent session through its messaging socket. A shell inside a Claude Code session carries that session's
-entrypoint, ids, messaging socket and feature flags, and with Claude Code
-2.1.314 the desktop entrypoint alone added about 280 context tokens to the
-same call. Every `CLAUDE*` name is dropped except `CLAUDE_CONFIG_DIR` and the
-login, provider and network names (`CLAUDE_CODE_OAUTH_*`, the
-`CLAUDE_CODE_USE_*` provider switches, `CLAUDE_CODE_SKIP_*_AUTH`, the proxy,
-client certificate, gateway and API key descriptor names), and so are
-`MAX_THINKING_TOKENS` and every `ANTHROPIC_*` name holding `MODEL`. Other
-`ANTHROPIC_*` names, such as `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`,
-still reach the session. Your own Claude Code variables still reach an
-actual-setup session through the `env` of your settings file. A session
-attempt's `setup.inheritedConfiguration` lists, sorted by name, every Claude
-Code configuration variable the session still inherited: the kept names above
-and any inherited `ANTHROPIC_*`, `DISABLE_*`, `ENABLE_*`, `MCP_*`, `OTEL_*`,
-`VERTEX_REGION_*` or `*_MAX_OUTPUT_*` name, the proxy names, the AWS and Google
-Cloud names Claude Code's providers read, and the other names Claude Code
-accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry carries a
-`sha256` of the value, except a name with a word such as `KEY`, `TOKEN`,
-`SECRET`, `PASSWORD`, `AUTH`, `CERT`, `CREDENTIALS`, `HEADERS`, `PAT`,
-`ATTRIBUTES` or `PROXY` (other than `NO_PROXY`), which is recorded by name
-alone, since its value can be a credential or an identity. A URL value is
-digested without its user info, query and fragment, so two gateways still
-differ in the record and an embedded credential does not reach it. A pipeline
-or replay confirmation group records the same list, read from the environment
-its stages' sessions start from, as `inputs.inheritedConfiguration`. A target
-service may not export a name on that list, or one the drop removes, so a
-stage session cannot receive one the group does not record. A session
-confirmation group's reps carry it on their own attempt records. An attempt or
-group recorded without the field inherited what it inherited unrecorded.
+Every Claude Code session and every check Rehearse starts gets Rehearse's own
+environment without what a parent Claude Code session exported for its
+children. That covers a session case, a pipeline stage, a Judge, a culprit
+analysis, the Product Owner and the model preflight. A shell inside a Claude
+Code session carries that session's entrypoint, ids, messaging socket and
+feature flags, and with Claude Code 2.1.314 the desktop entrypoint alone added
+about 280 context tokens to the minimal call in the
+[LiveNerf study](livenerf-study.md) (2026-10-30). The drop keeps the parent
+session's messaging socket and token out of the child's environment. It does
+not hide them from a session with a shell, which on macOS can read the
+environment Rehearse itself was started with from the process table, so run
+Rehearse from a plain terminal when a session's code is not trusted.
+
+Every `CLAUDE*` name is dropped except the login, provider and network names:
+`CLAUDE_CONFIG_DIR`, `CLAUDE_API_KEY`, `CLAUDE_CODE_API_BASE_URL`,
+`CLAUDE_CODE_CUSTOM_OAUTH_URL`, every `CLAUDE_CODE_OAUTH_*`,
+`CLAUDE_CODE_SKIP_*_AUTH` and `CLAUDE_CODE_*PROXY*` name, the client
+certificate, gateway token, API key descriptor and helper, and AWS credential
+names, and the provider switches `CLAUDE_CODE_USE_ANTHROPIC_AWS`,
+`CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD`, `CLAUDE_CODE_USE_BEDROCK`,
+`CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_MANTLE`
+and `CLAUDE_CODE_USE_VERTEX`. `MAX_THINKING_TOKENS` and every `ANTHROPIC_*`
+name holding `MODEL` are dropped too. Other `ANTHROPIC_*` names, such as
+`ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`, still reach the session, and so
+do the Claude Code variables in the `env` of your settings file in an
+actual-setup session.
+
+A session attempt's `setup.inheritedConfiguration` lists, sorted by name, the
+Claude Code configuration variables the session still inherited from
+Rehearse's environment: the kept names above and any inherited `ANTHROPIC_*`,
+`DISABLE_*`, `ENABLE_*`, `MCP_*`, `OTEL_*`, `VERTEX_REGION_*` or
+`*_MAX_OUTPUT_*` name, the proxy names in either case, `NODE_EXTRA_CA_CERTS`,
+the AWS and Google Cloud names Claude Code's providers read, and the other
+names Claude Code 2.1.314 accepts in a settings `env`, such as
+`API_TIMEOUT_MS`. The names come from that release, so a name a later release
+starts reading is not recorded until the list is updated. Each entry carries a
+`sha256` of the value, except a name with a word, in either case, such as
+`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `CERT`, `CREDENTIALS`,
+`HEADERS`, `PAT`, `ATTRIBUTES` or `PROXY` (other than `NO_PROXY`), which is
+recorded by name alone, since its value can be a credential. A URL value is
+digested without its user info, query and fragment, so gateways at different
+hosts or paths still differ in the record and an embedded credential does not
+reach it. A pipeline or replay confirmation group records the same list, read
+from the environment its stages' sessions start from, as
+`inputs.inheritedConfiguration`. A target service may not export a name on
+that list, or one the drop removes, so a stage session cannot receive one the
+group does not record. A session confirmation group's reps carry it on their
+own attempt records. An attempt or group recorded without the field inherited
+what it inherited unrecorded. No comparison reads the field yet, so two arms
+that inherited different configuration compare as alike.
 
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140

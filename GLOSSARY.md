@@ -17,9 +17,8 @@ See [current state](docs/status.md) for implementation coverage and
   corpus. The case's declared settings replace the
   user's keys of the same name, deny rules survive, and the run alone decides
   model and effort. The attempt records the setup as names and digests only.
-  Variables in the shell that started Rehearse are not part of it: the user's
-  own Claude Code variables reach an actual-setup session through their
-  settings file.
+  Claude Code configuration inherited from the shell that started Rehearse
+  reaches the session too, and the attempt records it by name.
 - **Artifact** — durable output of a stage: a spec or plan document, a backlog
   card update, or commits.
 - **Assessment** — the record one regrade writes: the attempt it read, the
