@@ -6,7 +6,10 @@ import type {
 import type { StageSessionDependencies } from "./stage-session-dependencies";
 import StageSessionError from "./stage-session-error";
 import { readJudgeReadyEvidence } from "./stage-session-judgment-input";
-import type { JudgeReadyEvidence } from "./stage-session-judgment-input";
+import type {
+	JudgeReadyEvidence,
+	StageJudgeEvidenceInputs,
+} from "./stage-session-judgment-input";
 import type { ServiceEnvironment } from "./target-services";
 import { checksWithServices } from "./target-services";
 
@@ -27,6 +30,28 @@ function stageSessionsWithServices<
 				environment,
 			}),
 	};
+}
+
+/**
+ * A stage's judge-ready evidence, read once its session ended. A failure to
+ * read it fails the stage session, which spent what its transcript says.
+ */
+async function readSessionEvidence(
+	dependencies: StageSessionDependencies,
+	environment: StageSessionEnvironment,
+	inputs: StageJudgeEvidenceInputs,
+): Promise<JudgeReadyEvidence> {
+	const { transcript } = inputs;
+	try {
+		return await readJudgeReadyEvidence(dependencies, environment, inputs);
+	} catch (error) {
+		throw new StageSessionError({
+			cause: error,
+			costUsd: transcript.costUsd,
+			providerCalls: transcript.providerCalls,
+			sessionId: transcript.sessionId,
+		});
+	}
 }
 
 /**
@@ -65,23 +90,11 @@ async function executeStageSession(
 		taskId: environment.taskId,
 	});
 
-	const readSessionEvidence = async (): Promise<JudgeReadyEvidence> => {
-		try {
-			return await readJudgeReadyEvidence(dependencies, environment, {
-				definition,
-				priorArtifacts,
-				transcript,
-			});
-		} catch (error) {
-			throw new StageSessionError({
-				cause: error,
-				costUsd: transcript.costUsd,
-				providerCalls: transcript.providerCalls,
-			});
-		}
-	};
-
-	const evidence = await readSessionEvidence();
+	const evidence = await readSessionEvidence(dependencies, environment, {
+		definition,
+		priorArtifacts,
+		transcript,
+	});
 
 	return { ...evidence, corpusFiles, corpusVersion, transcript, versionFiles };
 }

@@ -201,4 +201,4 @@ async function measureDeliveryChecks(
 
 export { readJudgeReadyEvidence, measureDeliveryChecks };
 
-export type { JudgeReadyEvidence };
+export type { JudgeReadyEvidence, StageJudgeEvidenceInputs };

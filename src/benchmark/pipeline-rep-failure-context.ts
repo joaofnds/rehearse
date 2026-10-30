@@ -1,6 +1,7 @@
 import type { ConfirmationRepResult } from "./confirmation-evidence";
 import failedPipelineRep from "./pipeline-failed-rep";
 import type { PipelineRepExecutionState } from "./pipeline-rep-state";
+import { failedStageSessionId } from "./stage-session-error";
 
 async function failPipelineRep(
 	{ scope, progress, evidence }: PipelineRepExecutionState,
@@ -8,14 +9,16 @@ async function failPipelineRep(
 ): Promise<ConfirmationRepResult> {
 	const { context, runtime } = scope;
 	const { cause: error } = errorOptions;
+	const failure = error instanceof Error ? error : new Error(String(error));
 	const stage = context.frozen.stages[progress.currentStageIndex];
 	const recorded = evidence.stageOutcomes.some(
 		(outcome) => outcome.stage === stage?.definition.name,
 	);
+	const sessionId = failedStageSessionId(progress.currentSession, failure);
 	const currentLiveReads =
-		progress.currentSession === undefined || stage === undefined || recorded
+		sessionId === undefined || stage === undefined || recorded
 			? undefined
-			: await evidence.liveReads(stage, progress.currentSession);
+			: await evidence.liveReads(stage, sessionId);
 
 	return await failedPipelineRep(
 		{
@@ -23,7 +26,7 @@ async function failPipelineRep(
 			currentSession: progress.currentSession,
 			currentStageIndex: progress.currentStageIndex,
 			dependencies: scope.dependencies,
-			failure: error instanceof Error ? error : new Error(String(error)),
+			failure,
 			judgedReads: progress.judgedReads,
 			judgingFinal: progress.judgingFinal,
 			judgingStage: progress.judgingStage,

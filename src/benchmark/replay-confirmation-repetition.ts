@@ -13,7 +13,9 @@ import {
 	captureFrozenReplayReads,
 	executeFrozenReplayStage,
 } from "./replay-confirmation-stage-execution";
-import replayStageLiveReads from "./replay-stage-live-reads";
+import replayStageLiveReads, {
+	failedReplayStageLiveReads,
+} from "./replay-stage-live-reads";
 import type { StageSessionResult } from "./stage-session-contract";
 
 class ReplayRepetition {
@@ -64,7 +66,10 @@ class ReplayRepetition {
 		);
 		const stageElapsedMs = now() - prepared.stageStart;
 		return await this.#recording.completed({
-			liveReads: await replayStageLiveReads(this.#context, this.#session),
+			liveReads: await replayStageLiveReads(
+				this.#context,
+				this.#session.transcript.sessionId,
+			),
 			productOwner: prepared.productOwner,
 			readManifest: this.#judgedReads,
 			scorecard,
@@ -81,10 +86,11 @@ class ReplayRepetition {
 			progress.operation === undefined
 				? failure.message
 				: `${progress.operation} failed: ${failure.message}`;
-		const liveReads =
-			this.#session === undefined
-				? undefined
-				: await replayStageLiveReads(this.#context, this.#session);
+		const liveReads = await failedReplayStageLiveReads(
+			this.#context,
+			this.#session,
+			failure,
+		);
 		if (
 			failure instanceof JudgeOutputValidationError &&
 			progress.worktreeCreated &&

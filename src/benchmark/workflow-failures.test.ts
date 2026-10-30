@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { failureOf } from "#cli/cli-test-support";
 
 import { WorkflowExecutionError, runWorkflowStage } from "./workflow";
+import type { ProductOwner, WorkflowStageRequest } from "./workflow";
 import {
 	queuedResponses,
 	testResources,
@@ -98,6 +99,80 @@ async function carriesTheUnderlyingReasonInTheFailureMessage(): Promise<void> {
 	});
 }
 
+interface SessionFailureExample {
+	readonly moment: string;
+	readonly request: Partial<WorkflowStageRequest>;
+	readonly responses: readonly (string | Readonly<Error>)[];
+	readonly sessionId: string;
+}
+
+async function namesTheSessionWhoseTranscriptHoldsTheFailure({
+	request,
+	responses,
+	sessionId,
+}: SessionFailureExample): Promise<void> {
+	const execution = runWorkflowStage(
+		workflowStageRequest({ taskId: "ACT-22.1", ...request }),
+		queuedResponses(responses),
+	);
+
+	const failure = await failureOf(execution);
+
+	expect(failure).toMatchObject({ sessionId });
+}
+
+const questionTurn = JSON.stringify({
+	session_id: "worker-session",
+	structured_output: { message: "Which scope?", status: "QUESTION" },
+	total_cost_usd: 0.3,
+	type: "result",
+});
+
+const failingProductOwner: ProductOwner = {
+	ask: async () => await Promise.reject(new Error("product owner failed")),
+	snapshot: () => ({ providerCalls: [], sessionId: "po-session", spentUsd: 0 }),
+};
+
+const sessionFailures: SessionFailureExample[] = [
+	{
+		moment: "before its setup is ready",
+		request: { settingsOverlay: "{", setup: "actual" },
+		responses: [],
+		sessionId: "stage-session",
+	},
+	{
+		moment: "before its first turn",
+		request: {},
+		responses: [new Error("claude exited with code 143")],
+		sessionId: "stage-session",
+	},
+	{
+		moment: "after a turn",
+		request: {},
+		responses: [questionTurn, new Error("worker invocation failed")],
+		sessionId: "worker-session",
+	},
+	{
+		moment: "in a turn's structured output",
+		request: {},
+		responses: [
+			JSON.stringify({
+				session_id: "worker-session",
+				structured_output: { status: "COMPLETE" },
+				total_cost_usd: 0.3,
+				type: "result",
+			}),
+		],
+		sessionId: "worker-session",
+	},
+	{
+		moment: "in its Product Owner's answer",
+		request: { productOwner: failingProductOwner },
+		responses: [questionTurn],
+		sessionId: "worker-session",
+	},
+];
+
 describe("workflow provider metrics", () => {
 	it.each([
 		{
@@ -127,5 +202,9 @@ describe("workflow provider metrics", () => {
 	it(
 		"carries the underlying reason in the failure message",
 		carriesTheUnderlyingReasonInTheFailureMessage,
+	);
+	it.each(sessionFailures)(
+		"names the session whose transcript holds a failure $moment",
+		namesTheSessionWhoseTranscriptHoldsTheFailure,
 	);
 });

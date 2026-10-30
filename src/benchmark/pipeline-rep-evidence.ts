@@ -94,7 +94,9 @@ class PipelineRepEvidence {
 				resultSha: session.resultSha,
 			},
 			grade: scorecard.grade.grade,
-			...liveReadsField(await this.liveReads(inspection, session)),
+			...liveReadsField(
+				await this.liveReads(inspection, session.transcript.sessionId),
+			),
 			stage: inspection.definition.name,
 			status: "JUDGED",
 			verdict: scorecard.grade.verdict,
@@ -103,7 +105,7 @@ class PipelineRepEvidence {
 	}
 	public async liveReads(
 		inspection: Pick<PipelineStageInspection, "corpusDelivery">,
-		session: StageSessionResult,
+		sessionId: string,
 	): Promise<readonly LiveCorpusRead[] | undefined> {
 		const { dependencies, context } = this.scope;
 		const { projectsDirectory } = dependencies;
@@ -115,7 +117,7 @@ class PipelineRepEvidence {
 			transcript:
 				projectsDirectory === undefined
 					? undefined
-					: { projectsDirectory, sessionId: session.transcript.sessionId },
+					: { projectsDirectory, sessionId },
 		});
 	}
 	public stopAfter({ definition, index }: PipelineStageInspection): void {

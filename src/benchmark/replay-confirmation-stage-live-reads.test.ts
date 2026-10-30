@@ -6,7 +6,10 @@ import runReplayConfirmation from "./replay-confirmation";
 import ReplayCheckpointInputsBuilder from "./replay-confirmation-checkpoint-test-builder";
 import ReplayDurableOutcomes from "./replay-confirmation-durable-outcome-test-fixture";
 import { readReplayReps } from "./replay-confirmation-worktree-test-fixtures";
-import { readTranscriptLine } from "./stage-live-read-test-fixture";
+import {
+	failingAfterSession,
+	readTranscriptLine,
+} from "./stage-live-read-test-fixture";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
 import { TestResources } from "./test-support";
 
@@ -124,6 +127,45 @@ async function recordsTheLiveReadsOfAStageWhoseJudgeFailed(): Promise<void> {
 	]);
 }
 
+/** Each rep's session read the rule live and then failed before it ended. */
+async function recordsTheLiveReadsOfAStageWhoseSessionFailed(): Promise<void> {
+	const inputs = await new ReplayCheckpointInputsBuilder().fromRepository(
+		testResources,
+	);
+	const [corpus] = inputs.corpusRoots;
+	await Bun.write(
+		join(corpus.root, "rulebook/ownership.md"),
+		"the arm's rule\n",
+	);
+	const provider = new ReplayDurableOutcomes();
+	const projects = await testResources.createControlDirectory();
+	const { dependencies, request } = provider.prepareConfirmation(
+		inputs,
+		{ reps: 2 },
+		provider.override,
+		liveReadingStage(projects),
+		failingAfterSession,
+	);
+
+	const outcome = await runReplayConfirmation(dependencies, request);
+
+	const records = await readReplayReps(outcome.repRecordFiles);
+	expect(records.map(({ stages }) => stages)).toMatchObject([
+		[
+			{
+				liveReads: [{ count: 1, path: "rulebook/ownership.md" }],
+				status: "EXECUTION_FAILED",
+			},
+		],
+		[
+			{
+				liveReads: [{ count: 1, path: "rulebook/ownership.md" }],
+				status: "EXECUTION_FAILED",
+			},
+		],
+	]);
+}
+
 describe(runReplayConfirmation.name, () => {
 	it(
 		"records each stage's live reads on its rep, judged or rejected",
@@ -133,5 +175,10 @@ describe(runReplayConfirmation.name, () => {
 	it(
 		"records the live reads of a stage whose judge failed",
 		recordsTheLiveReadsOfAStageWhoseJudgeFailed,
+	);
+
+	it(
+		"records the live reads of a stage whose session failed",
+		recordsTheLiveReadsOfAStageWhoseSessionFailed,
 	);
 });

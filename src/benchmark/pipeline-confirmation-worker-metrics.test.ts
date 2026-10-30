@@ -188,6 +188,7 @@ async function retainsWorkerCallsCarriedByAStageThatFailedAfterItsFirstCall(): P
 								cause: new Error("Reached maximum budget"),
 								costUsd: CONFIRMATION_METRIC.costUsd,
 								providerCalls: [{ metrics: CONFIRMATION_METRIC }],
+								sessionId: request.sessionId,
 							});
 						}
 

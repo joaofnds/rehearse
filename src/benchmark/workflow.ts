@@ -97,6 +97,7 @@ class StageConversation {
 			throw new StageSessionError({
 				cause: error,
 				...this.calls.reading(),
+				sessionId: this.sessionId,
 			});
 		}
 	}
@@ -151,6 +152,7 @@ class StageConversation {
 			throw new WorkflowExecutionError({
 				cause: error,
 				...this.calls.reading(),
+				sessionId: this.sessionId,
 			});
 		}
 	}
@@ -162,6 +164,7 @@ class StageConversation {
 			throw new WorkflowExecutionError({
 				cause: error,
 				...this.calls.reading(),
+				sessionId: this.sessionId,
 			});
 		}
 	}
@@ -250,6 +253,7 @@ async function runWorkflowStage(
 		throw new StageSessionError({
 			cause: error,
 			...sessionCalls(request.spendCeiling).reading(),
+			sessionId: request.sessionId,
 		});
 	}
 }

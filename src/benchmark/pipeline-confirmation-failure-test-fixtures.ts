@@ -9,6 +9,7 @@ function workerInvocationFailure(): WorkflowExecutionError {
 		cause: new Error("worker invocation failed"),
 		costUsd: undefined,
 		providerCalls: [{ metrics: CONFIRMATION_METRIC }, {}],
+		sessionId: "worker-session",
 	});
 }
 

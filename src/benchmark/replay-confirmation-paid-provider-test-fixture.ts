@@ -109,12 +109,13 @@ class ReplayPaidProvider {
 		...dependencies,
 		stageSession: {
 			...dependencies.stageSession,
-			runWorkflowStage: async () =>
+			runWorkflowStage: async (request) =>
 				await Promise.reject(
 					new StageSessionError({
 						cause: new Error("Product Owner call halted"),
 						costUsd: this.metric.costUsd,
 						providerCalls: [{ metrics: this.metric }],
+						sessionId: request.sessionId,
 					}),
 				),
 		},

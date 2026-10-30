@@ -1,6 +1,8 @@
 import { confirmationRepRecordSchema } from "./confirmation-record";
 import type { ConfirmationRepRecord } from "./confirmation-record";
 import type { LiveCorpusRead } from "./stage-live-reads";
+import type { StageSessionDependencies } from "./stage-session-dependencies";
+import StageSessionError from "./stage-session-error";
 
 const RECORD_JSON_INDENT_SPACES = 2;
 
@@ -36,4 +38,30 @@ function readTranscriptLine(filePath: string): string {
 	return `${JSON.stringify({ message: { content: [read] }, type: "assistant" })}\n`;
 }
 
-export { addStageLiveReads, readTranscriptLine };
+/** The same dependencies, whose stage session runs and then fails. */
+function failingAfterSession<
+	Dependencies extends { readonly stageSession: StageSessionDependencies },
+>(dependencies: Dependencies): Dependencies {
+	const { stageSession } = dependencies;
+
+	return {
+		...dependencies,
+		stageSession: {
+			...stageSession,
+			runWorkflowStage: async (request) => {
+				const transcript = await stageSession.runWorkflowStage(request);
+
+				return await Promise.reject(
+					new StageSessionError({
+						cause: new Error("synthetic session failure"),
+						costUsd: undefined,
+						providerCalls: [],
+						sessionId: transcript.sessionId,
+					}),
+				);
+			},
+		},
+	};
+}
+
+export { addStageLiveReads, failingAfterSession, readTranscriptLine };
