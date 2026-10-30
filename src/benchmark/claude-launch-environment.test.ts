@@ -4,6 +4,9 @@ import withoutLaunchContext, {
 	inheritedConfiguration,
 } from "./claude-launch-environment";
 
+const SHA256_OF_ONE =
+	"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
+
 const LAUNCH_CONTEXT_NAMES = [
 	"CLAUDECODE",
 	"CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS",
@@ -41,7 +44,12 @@ const LOGIN_AND_NETWORK_NAMES = [
 	"CLAUDE_CODE_OAUTH_TOKEN",
 	"CLAUDE_CODE_SKIP_AWS_CRED_CACHE",
 	"CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+	"CLAUDE_CODE_USE_ANTHROPIC_AWS",
+	"CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
 	"CLAUDE_CODE_USE_BEDROCK",
+	"CLAUDE_CODE_USE_FOUNDRY",
+	"CLAUDE_CODE_USE_GATEWAY",
+	"CLAUDE_CODE_USE_MANTLE",
 	"CLAUDE_CODE_USE_VERTEX",
 	"ANTHROPIC_API_KEY",
 	"ANTHROPIC_BASE_URL",
@@ -55,6 +63,7 @@ const SECRET_BEARING_NAMES = [
 	"ANTHROPIC_CUSTOM_HEADERS",
 	"CLAUDE_CODE_CLIENT_CERT",
 	"CLAUDE_CODE_CLIENT_KEY_PASSPHRASE",
+	"CLAUDE_CODE_GATEWAY_TOKEN",
 	"CLAUDE_CODE_HTTPS_PROXY",
 	"CLAUDE_CODE_OAUTH_TOKEN",
 	"AWS_BEARER_TOKEN_BEDROCK",
@@ -65,6 +74,8 @@ const SECRET_BEARING_NAMES = [
 ];
 
 const DIGESTED_NAMES = [
+	"ANTHROPIC_BASE_URL",
+	"CLAUDE_CONFIG_DIR",
 	"MAX_MCP_OUTPUT_TOKENS",
 	"MCP_OAUTH_CALLBACK_PORT",
 	"NO_PROXY",
@@ -101,32 +112,21 @@ describe(inheritedConfiguration.name, () => {
 	it("names each Claude Code variable with a digest of its value", () => {
 		expect(
 			inheritedConfiguration({ DISABLE_PROMPT_CACHING: "1", HOME: "/h" }),
-		).toEqual([
-			{
-				name: "DISABLE_PROMPT_CACHING",
-				sha256:
-					"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
-			},
-		]);
+		).toEqual([{ name: "DISABLE_PROMPT_CACHING", sha256: SHA256_OF_ONE }]);
 	});
 
 	it.each(SECRET_BEARING_NAMES)("names %s without its value", (name) => {
 		expect(inheritedConfiguration({ [name]: "s3cret" })).toEqual([{ name }]);
 	});
 
-	it.each(DIGESTED_NAMES)("digests %s, which names no secret", (name) => {
-		expect(inheritedConfiguration({ [name]: "1" })).toEqual([
-			{
-				name,
-				sha256:
-					"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
-			},
-		]);
-	});
-
-	it.each(READ_OUTSIDE_THE_PREFIXES)("names %s", (name) => {
-		expect(inheritedConfiguration({ [name]: "1" })).toMatchObject([{ name }]);
-	});
+	it.each([...DIGESTED_NAMES, ...READ_OUTSIDE_THE_PREFIXES])(
+		"names %s with a digest of its value",
+		(name) => {
+			expect(inheritedConfiguration({ [name]: "1" })).toEqual([
+				{ name, sha256: SHA256_OF_ONE },
+			]);
+		},
+	);
 
 	it("lists the names in order", () => {
 		const unordered = Object.fromEntries([

@@ -54,8 +54,15 @@ const startsClaudeCodeWithoutTheParentSessionsVariables =
 		const printed = await runCommand([claude], process.cwd());
 
 		expect(printed).not.toContain("CLAUDE_CODE_ENTRYPOINT=");
-		expect(printed).toContain("ANTHROPIC_BASE_URL=https://gateway.example");
 	};
+
+const keepsTheLoginAndNetworkVariables = async (): Promise<void> => {
+	const claude = await environmentPrintingClaude();
+
+	const printed = await runCommand([claude], process.cwd());
+
+	expect(printed).toContain("ANTHROPIC_BASE_URL=https://gateway.example");
+};
 
 /**
  * A check can run code a stage session wrote, and the parent session's
@@ -65,7 +72,6 @@ const startsEveryOtherCommandWithoutThem = async (): Promise<void> => {
 	const printed = await runCommand(["env"], process.cwd());
 
 	expect(printed).not.toContain("CLAUDE_CODE_MESSAGING_TOKEN=");
-	expect(printed).toContain("ANTHROPIC_BASE_URL=https://gateway.example");
 };
 
 describe(runCommand.name, () => {
@@ -76,6 +82,11 @@ describe(runCommand.name, () => {
 		it(
 			"starts Claude Code without the parent session's variables",
 			startsClaudeCodeWithoutTheParentSessionsVariables,
+		);
+
+		it(
+			"keeps the login and network variables",
+			keepsTheLoginAndNetworkVariables,
 		);
 
 		it(
