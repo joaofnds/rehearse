@@ -153,6 +153,28 @@ async function installsEveryFileTheSnapshotCarries(): Promise<void> {
 	).toBe("an undeclared agent\n");
 }
 
+/**
+ * A fixture or target can carry its own `.claude` files, and copying the corpus
+ * over them would leave a session reading bytes neither side wrote.
+ */
+async function refusesToInstallOverAFileTheAttemptAlreadyHolds(): Promise<void> {
+	const prepared = await twoStyleCorpus();
+	const snapshot = await freezeWholeSessionCorpus(
+		prepared.source,
+		prepared.destination,
+		["output-styles/brief.md"],
+	);
+	const attemptDirectory = await directoryCorpus({
+		".claude/agents/rogue.md": "the fixture's agent\n",
+	});
+
+	const installed = installSessionCorpusSnapshot(snapshot, attemptDirectory);
+
+	expect(installed).rejects.toThrow(
+		"Corpus file agents/rogue.md would overwrite the attempt's own .claude/agents/rogue.md",
+	);
+}
+
 describe(freezeWholeSessionCorpus.name, () => {
 	it(
 		"snapshots every corpus file, declared or not",
@@ -177,6 +199,11 @@ describe(freezeWholeSessionCorpus.name, () => {
 	it(
 		"freezes the bytes a link in a corpus directory reaches",
 		freezesTheBytesALinkInACorpusDirectoryReaches,
+	);
+
+	it(
+		"refuses to install over a file the attempt already holds",
+		refusesToInstallOverAFileTheAttemptAlreadyHolds,
 	);
 
 	it(

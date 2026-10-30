@@ -985,7 +985,9 @@ file, skill and `CLAUDE.md` it holds, under the attempt's `.claude/`. A case
 that declares `"isolated": true` gets only its declared files there. The
 user-level source never loads, so an arm that carried only its declared files
 would run without the rest of the user's instructions and would not be the
-setup the user gets. Session attempts run with the project
+setup the user gets. An attempt refuses to install a corpus file over one its
+fixture or target already holds under `.claude/`, naming the path. Session
+attempts run with the project
 settings source, the local one too unless the case declares isolation, and never
 the user source. That flag is what makes the overlay authoritative: a project-level skill
 does not otherwise shadow a same-named user-level one, so without it a declared
