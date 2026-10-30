@@ -96,6 +96,31 @@ async function showsAnArmAsMixedWhenItsGroupsInheritedDifferently(
 	]);
 }
 
+async function showsAnArmAsMixedWhenAnOlderGroupPredatesRecordingIt(
+	stageFixture: ComparisonEvidenceFixture,
+): Promise<void> {
+	await extendEveryComparisonArm(stageFixture);
+	await forgetEveryGroupConfiguration(stageFixture);
+	await recordEveryGroup(stageFixture, {
+		configurationOf: () => GATEWAY_A,
+		suffix: "-more",
+	});
+
+	const { notices } = await compareCollectingNotices(
+		stageFixture.manifestFile,
+		runsDirectory,
+	);
+
+	expect(notices).toEqual(
+		["case-1", "case-2"].flatMap((caseId) =>
+			["baseline", "candidate", "control"].map(
+				(arm) =>
+					`case ${caseId} arm ${arm} is mixed: some of its records predate recording the Claude Code configuration inherited from the shell that started them`,
+			),
+		),
+	);
+}
+
 describe("a stage comparison", () => {
 	it("names the variables two arms inherited differently and still reports the contrast", async () => {
 		await namesTheVariablesTwoArmsInheritedDifferently(fixture);
@@ -111,5 +136,9 @@ describe("a stage comparison", () => {
 
 	it("shows an arm as mixed when its groups inherited different configuration", async () => {
 		await showsAnArmAsMixedWhenItsGroupsInheritedDifferently(fixture);
+	});
+
+	it("shows an arm as mixed when it extends a group that predates recording what it inherited", async () => {
+		await showsAnArmAsMixedWhenAnOlderGroupPredatesRecordingIt(fixture);
 	});
 });
