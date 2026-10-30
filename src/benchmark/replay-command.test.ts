@@ -20,6 +20,7 @@ const runsOneDebugReplay = async (): Promise<void> => {
 		model: "sonnet",
 		paths: benchmarkRunPaths("/runs", "run"),
 		sessionBudgetUsd: 5,
+		setup: undefined,
 		spendCeilingUsd: 100,
 		stage: "build",
 	};

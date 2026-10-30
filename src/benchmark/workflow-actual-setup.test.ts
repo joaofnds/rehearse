@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { exists, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import StageSessionError from "./stage-session-error";
 import { runWorkflowStage } from "./workflow";
 import { testResources, workflowStageRequest } from "./workflow-test-fixtures";
 
@@ -14,6 +15,21 @@ function optionValue(
 	option: string,
 ): string | undefined {
 	return command[command.indexOf(option) + OPTION_VALUE_POSITION_OFFSET];
+}
+
+async function stageFailureOf(
+	running: Promise<unknown>,
+): Promise<StageSessionError | undefined> {
+	try {
+		await running;
+		return undefined;
+	} catch (error) {
+		if (error instanceof StageSessionError) {
+			return error;
+		}
+
+		throw error;
+	}
 }
 
 async function userHome(): Promise<string> {
@@ -84,9 +100,54 @@ async function runsAStageSessionWithTheUserSActualSetup(): Promise<void> {
 	expect(await exists(settingsFile)).toBe(false);
 }
 
+async function reportsAnUnreadableSetupAsAStageFailureThatSpentNothing(): Promise<void> {
+	const home = await userHome();
+	await writeFile(join(home, ".claude", "settings.json"), "{");
+
+	const failure = await stageFailureOf(
+		runWorkflowStage(
+			workflowStageRequest({ setup: "actual" }),
+			async () => await Promise.reject(new Error("claude never runs")),
+			home,
+		),
+	);
+
+	expect(failure).toMatchObject({ costUsd: 0, providerCalls: [] });
+}
+
+async function removesTheMergedSettingsWhenTheSessionFails(): Promise<void> {
+	const home = await userHome();
+	const settingsFiles: string[] = [];
+
+	const failure = await stageFailureOf(
+		runWorkflowStage(
+			workflowStageRequest({ setup: "actual" }),
+			async (command) => {
+				settingsFiles.push(optionValue(command, "--settings") ?? "");
+
+				return await Promise.reject(new Error("session crashed"));
+			},
+			home,
+		),
+	);
+	const [settingsFile = ""] = settingsFiles;
+
+	expect(failure).toBeInstanceOf(StageSessionError);
+	expect(settingsFile).not.toBe("");
+	expect(await exists(settingsFile)).toBe(false);
+}
+
 describe(runWorkflowStage.name, () => {
 	it(
 		"runs a stage session with the user's actual setup",
 		runsAStageSessionWithTheUserSActualSetup,
+	);
+	it(
+		"removes the merged settings when the session fails",
+		removesTheMergedSettingsWhenTheSessionFails,
+	);
+	it(
+		"reports an unreadable setup as a stage failure that spent nothing",
+		reportsAnUnreadableSetupAsAStageFailureThatSpentNothing,
 	);
 });

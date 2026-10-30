@@ -61,6 +61,7 @@ async function beginGradedStage(
 		corpusRoots,
 		sessionId,
 		settingsOverlay: context.loadedSettings.json,
+		setup: undefined,
 		target: context.pipeline.target,
 	};
 

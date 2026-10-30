@@ -11,7 +11,7 @@ import { TestResources } from "./test-support";
 const SHA256_HEX_DIGITS = 64;
 
 const testResources = TestResources.forEachTest();
-const runsTheStageWithTheActualSetupWhenGiven = async (): Promise<void> => {
+const passesTheRequestedSetupToTheStageSession = async (): Promise<void> => {
 	const run = await new ReplaySavedRunBuilder().build(testResources);
 	const fake = new ReplayConfirmationHarness();
 
@@ -99,7 +99,7 @@ const replaysALinkedDirectoryVariantWithTheCapturedPaths =
 		expect(outcome.record.corpusFiles).toEqual(expected);
 		expect(outcome.record.staleness).toEqual([]);
 	};
-const leavesTheSetupUnsetWhenNoCorpusIsGiven = async (): Promise<void> => {
+const passesNoSetupWhenTheRequestNamesNone = async (): Promise<void> => {
 	const run = await new ReplaySavedRunBuilder().build(testResources);
 	const fake = new ReplayConfirmationHarness();
 
@@ -113,8 +113,8 @@ const leavesTheSetupUnsetWhenNoCorpusIsGiven = async (): Promise<void> => {
 describe(runReplay.name, () => {
 	describe("corpus and settings", () => {
 		it(
-			"runs the stage with the actual setup when given a corpus",
-			runsTheStageWithTheActualSetupWhenGiven,
+			"passes the requested setup to the stage session",
+			passesTheRequestedSetupToTheStageSession,
 		);
 		it(
 			"passes a declared settings overlay through to the stage session",
@@ -133,8 +133,8 @@ describe(runReplay.name, () => {
 			replaysALinkedDirectoryVariantWithTheCapturedPaths,
 		);
 		it(
-			"leaves the setup unset when no corpus is given",
-			leavesTheSetupUnsetWhenNoCorpusIsGiven,
+			"passes no setup when the request names none",
+			passesNoSetupWhenTheRequestNamesNone,
 		);
 	});
 });

@@ -32,7 +32,7 @@ interface StageSessionEnvironment {
 	readonly baselineSha: string;
 	readonly commitSubjectPattern?: string | undefined;
 	readonly corpusRoots: readonly CorpusRoot[];
-	readonly setup?: "actual" | undefined;
+	readonly setup: "actual" | undefined;
 	readonly settingsOverlay?: string | undefined;
 	readonly runEvents?: RunEventRecorder | undefined;
 	readonly elapsedMs?: (() => number) | undefined;

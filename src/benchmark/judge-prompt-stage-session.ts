@@ -74,6 +74,7 @@ function promptSessionEnvironment(
 		},
 		sessionBudgetUsd: 5,
 		sessionId: "worker-session",
+		setup: undefined,
 		spendCeiling: createSpendCeiling({ ceilingUsd: 20 }),
 		target: {
 			checks: [{ command: ["true"] }],

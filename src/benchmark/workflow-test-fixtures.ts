@@ -99,6 +99,7 @@ function workflowStageRequest(
 		productOwner: idleProductOwner,
 		sessionBudgetUsd: 5,
 		sessionId: "stage-session",
+		setup: undefined,
 		skill: "shape",
 		spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 		stage: "shape",

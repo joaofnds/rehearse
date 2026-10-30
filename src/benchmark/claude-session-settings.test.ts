@@ -4,6 +4,8 @@ import { claudeArgs } from "./claude";
 import { OPTION_VALUE_POSITION_OFFSET } from "./claude-test-fixtures";
 import { stageTurnSchema } from "./contracts";
 
+const ACTUAL_SETUP_ARGUMENT_COUNT = 8;
+
 function passesTheActualSetupSFilesInPlaceOfTheOverlay(): void {
 	const command = claudeArgs({
 		access: "unrestricted",
@@ -19,7 +21,13 @@ function passesTheActualSetupSFilesInPlaceOfTheOverlay(): void {
 		},
 	});
 
-	expect(command.slice(command.indexOf("--setting-sources"))).toEqual([
+	expect(command).not.toContain('{"disableAllHooks":true}');
+	expect(
+		command.slice(
+			command.indexOf("--setting-sources"),
+			command.indexOf("--setting-sources") + ACTUAL_SETUP_ARGUMENT_COUNT,
+		),
+	).toEqual([
 		"--setting-sources",
 		"project,local",
 		"--settings",

@@ -118,8 +118,8 @@ async function replayCorpusRoots(
  * linked, is the instructions the stage reads, installed at project level. Its
  * session runs with the user's actual setup, which loads their settings, MCP
  * servers and plugins but no user-level instruction file, so the directory is
- * the only corpus it reads. The live install needs neither, because a session
- * reads it by default.
+ * the only corpus it reads. The live install needs no install and no flags,
+ * because a session reads it by default.
  */
 async function replayCorpus(
 	corpus: string | undefined,

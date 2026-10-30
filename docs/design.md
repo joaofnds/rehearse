@@ -109,7 +109,7 @@ Corpus hashing and delivery are distinct responsibilities. A live debug session
 that declares no corpus file keeps a reference to installed files rather than a
 frozen copy; any session that declares one, and every session confirmation,
 copies and delivers each declared file. Replay can install stage corpus
-snapshots using project settings. The complete support matrix is in the
+snapshots and run them with the user's actual setup. The complete support matrix is in the
 [reference](reference.md#corpus-sources-and-delivery).
 
 Do not treat an instruction being declared or hashed as proof the provider

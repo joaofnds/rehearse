@@ -26,7 +26,7 @@ interface WorkflowStageRequest {
 	readonly taskId: string;
 	readonly stage: WorkflowStage;
 	readonly skill: string;
-	readonly setup?: "actual" | undefined;
+	readonly setup: "actual" | undefined;
 	readonly settingsOverlay?: string | undefined;
 	readonly environment?: ServiceEnvironment | undefined;
 	readonly runEvents?: RunEventRecorder | undefined;

@@ -1047,7 +1047,9 @@ corpus comes from its worktree's `.claude/`, since the user source still never
 loads. The merged file sits in a temporary directory that is removed when the
 stage session ends. A pipeline has no isolation to declare, and a stage
 checkpoint does not record the setup the way a session attempt's `setup` field
-does. A pipeline debug `run` and a plain live replay pass no setting source, so
+does, so a comparison cannot yet tell a stage group recorded under project
+settings alone, before this default, from one recorded with your actual setup.
+A pipeline debug `run` and a plain live replay pass no setting source, so
 they keep running with every source, the user's included, as before. Stage
 sessions run with `--dangerously-skip-permissions`, so an MCP server your setup
 loads can act during an unattended stage, and nothing here confines it.
@@ -1079,7 +1081,7 @@ before copying their files, and copies allowed links as ordinary files so the
 snapshot remains usable after the original trees change or disappear. The
 additional global-skills list is currently empty. Explicit-directory replay and
 stage/pipeline confirmation install snapshots under the worktree's `.claude/`,
-preserving its root project instructions, and use project settings sources.
+preserving its root project instructions, and run with your actual setup.
 A `.claude` that is a link is replaced by a directory before the install, so
 the install never deletes or writes files in the directory the link named.
 The install also writes `.claude/.gitignore`, which names each installed file

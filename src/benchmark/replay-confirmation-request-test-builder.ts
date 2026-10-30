@@ -40,6 +40,7 @@ class ReplayConfirmationRequestBuilder {
 			},
 			reps,
 			sessionBudgetUsd: 5,
+			setup: undefined,
 			spendCeilingUsd: 100,
 			stage: "discuss",
 			stageSkill: "installed",

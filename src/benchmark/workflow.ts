@@ -116,7 +116,10 @@ class StageConversation {
 					effort: this.request.effort,
 					model: this.request.model,
 				},
-				settingsOverlay: this.request.settingsOverlay,
+				settingsOverlay:
+					this.setupFiles === undefined
+						? this.request.settingsOverlay
+						: undefined,
 				setup: this.setupFiles,
 			}),
 			this.prompt,
@@ -232,12 +235,23 @@ async function runWorkflowStage(
 	runClaude: ClaudeCommand = runStreamedSession,
 	home: string = homedir(),
 ): Promise<StageTranscript> {
-	return await withStageSetup(
-		request,
-		home,
-		async (setupFiles) =>
-			await new StageConversation({ request, runClaude, setupFiles }).run(),
-	);
+	try {
+		return await withStageSetup(
+			request,
+			home,
+			async (setupFiles) =>
+				await new StageConversation({ request, runClaude, setupFiles }).run(),
+		);
+	} catch (error) {
+		if (error instanceof StageSessionError) {
+			throw error;
+		}
+
+		throw new StageSessionError({
+			cause: error,
+			...sessionCalls(request.spendCeiling).reading(),
+		});
+	}
 }
 
 export { runWorkflowStage };

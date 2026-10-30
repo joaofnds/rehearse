@@ -19,6 +19,7 @@ class ReplayRequestBuilder {
 			model: "sonnet",
 			paths,
 			sessionBudgetUsd: 5,
+			setup: undefined,
 			spendCeilingUsd: 100,
 			stage: "build",
 			...this.#overrides,
