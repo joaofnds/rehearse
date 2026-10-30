@@ -156,6 +156,7 @@ function comparisonStageGroup({
 		declaredStages: ["build"],
 		groupId,
 		inputs: {
+			corpusDelivery: { redirected: 0, rule: 1 },
 			effort: "medium",
 			files,
 			judgeEffort: "medium",

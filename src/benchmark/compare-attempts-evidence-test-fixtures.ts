@@ -96,23 +96,38 @@ async function useUnrecordedCorpusVersion({
 	);
 }
 
-/**
- * Rewrites a recorded arm as a group written before groups recorded the setup
- * their reps ran under.
- */
-async function forgetSetup({
-	runsDirectory,
-	groupId,
-}: RecordedGroupLocation): Promise<void> {
+async function forgetInput(
+	{ runsDirectory, groupId }: RecordedGroupLocation,
+	field: "corpusDelivery" | "setup",
+): Promise<void> {
 	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
 	const { inputs, ...group } = z
 		.looseObject({ inputs: z.looseObject({}) })
 		.parse(JSON.parse(await Bun.file(groupFile).text()));
-	const { setup: _setup, ...unrecorded } = inputs;
+	const { [field]: _forgotten, ...unrecorded } = inputs;
 	await Bun.write(
 		groupFile,
 		`${JSON.stringify({ ...group, inputs: unrecorded }, null, FIXTURE_JSON_INDENT_SPACES)}\n`,
 	);
+}
+
+/**
+ * Rewrites a recorded arm as a group written before groups recorded the setup
+ * their reps ran under.
+ */
+async function forgetSetup(location: RecordedGroupLocation): Promise<void> {
+	await forgetInput(location, "setup");
+}
+
+/**
+ * Rewrites a recorded arm as a group written before groups recorded how their
+ * corpus was delivered, when its home-path citations still read the live
+ * install.
+ */
+async function forgetCorpusDelivery(
+	location: RecordedGroupLocation,
+): Promise<void> {
+	await forgetInput(location, "corpusDelivery");
 }
 
 /**
@@ -157,6 +172,7 @@ async function corruptGroup({
 }
 
 export {
+	forgetCorpusDelivery,
 	corruptGroup,
 	forgetSetup,
 	freezeRubric,

@@ -1,4 +1,5 @@
 import {
+	deliveryRules,
 	sameValue,
 	setupKinds,
 	sortedFiles,
@@ -43,6 +44,11 @@ function repDifference(
 	}
 	if (setupKinds(comparison.referenceArm) !== setupKinds(comparison.arm)) {
 		return "setup";
+	}
+	if (
+		deliveryRules(comparison.referenceArm) !== deliveryRules(comparison.arm)
+	) {
+		return "corpusDelivery";
 	}
 
 	return undefined;

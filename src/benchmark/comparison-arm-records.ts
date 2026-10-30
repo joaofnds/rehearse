@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Checkpoint, RecordedArm } from "./comparison-attempt-contract";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
+import type { Immutable } from "./contracts";
 import { CorpusVersionError, readCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import { confirmationGroupPaths } from "./run-layout";
@@ -129,6 +130,20 @@ async function recordedGroup(
 	}
 }
 
+/**
+ * A group recorded before delivery let its home-path citations read the live
+ * install, so neither arm's copy of a cited file is what its reps read.
+ */
+function refuseUndeliveredCorpus(
+	group: Immutable<ConfirmationGroupRecord>,
+): void {
+	if (group.inputs.corpusDelivery === undefined) {
+		throw new RefusedPreconditionError(
+			`group ${group.groupId} records no corpus delivery, so its home-path citations read the live install and it cannot be compared until it is run again`,
+		);
+	}
+}
+
 async function recordedArm(
 	runsDirectory: string,
 	groupId: string,
@@ -151,6 +166,7 @@ async function recordedArm(
 			`group ${groupId} records no setup, so it ran before groups recorded one, and a group replayed now under the ${CONFIRMATION_STAGE_SETUP} setup cannot be compared with it`,
 		);
 	}
+	refuseUndeliveredCorpus(group);
 
 	return {
 		checkpoint: await replayedCheckpoint(runsDirectory, group.caseId, groupId),

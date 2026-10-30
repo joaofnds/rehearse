@@ -100,12 +100,35 @@ function setupKinds(arm: Immutable<ComparisonArmEvidence>): string {
 	return [...new Set(kinds)].toSorted().join(",");
 }
 
+/**
+ * Which delivery rule placed the arm's corpus. A record made before delivery
+ * has none, and its home-path citations read the live install, so it never
+ * matches an arm whose citations read its own copy. The redirect count is the
+ * arm's own text and differs freely between arms of one rule.
+ */
+function deliveryRules(arm: Immutable<ComparisonArmEvidence>): string {
+	const group = arm.group.record;
+	if (group.mode !== "session") {
+		return String(group.inputs.corpusDelivery?.rule ?? "none");
+	}
+
+	const rules = arm.reps.map(({ attempt }) =>
+		String(attempt?.record.corpusDelivery?.rule ?? "none"),
+	);
+
+	return [...new Set(rules)].toSorted().join(",");
+}
+
 function setupDifference(
 	comparison: Immutable<ControlledInputComparison>,
 ): string | undefined {
-	return setupKinds(comparison.reference) === setupKinds(comparison.other)
+	if (setupKinds(comparison.reference) !== setupKinds(comparison.other)) {
+		return "setup";
+	}
+
+	return deliveryRules(comparison.reference) === deliveryRules(comparison.other)
 		? undefined
-		: "setup";
+		: "corpusDelivery";
 }
 
 function sessionInputDifference(
@@ -205,6 +228,7 @@ function assertControlledInputs(
 export {
 	assertControlledInputs,
 	controlledInputDifference,
+	deliveryRules,
 	sameValue,
 	setupKinds,
 	sortedFiles,
