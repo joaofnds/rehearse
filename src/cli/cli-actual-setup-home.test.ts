@@ -1,8 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { chmod, mkdir, readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { chmod, mkdir, readdir, readlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
+import type { Immutable } from "#benchmark/contracts";
 import { TestResources } from "#benchmark/test-support";
 
 import { environmentWithoutKnobs, runCli } from "./cli-process-test-driver";
@@ -17,7 +19,8 @@ const COMPLETED_EXIT_CODE = 0;
 
 /**
  * Answers the model preflight with one JSON document and a session with an
- * init line and a result line, and writes no file anywhere.
+ * init line and a result line. It writes nothing but a listing of each
+ * session's installed corpus, path and first line, to `$INSTALL_LOG`.
  */
 const SILENT_CLAUDE = `#!/bin/sh
 format=""
@@ -29,6 +32,9 @@ for argument in "$@"; do
 	previous="$argument"
 done
 if [ "$format" = "stream-json" ]; then
+	(cd .claude && find . -type f | sort | while read -r file; do
+		printf '%s\t%s\n' "$file" "$(head -n 1 "$file")"
+	done) >> "$INSTALL_LOG"
 	echo '{"type":"system","subtype":"init","mcp_servers":[],"plugins":[]}'
 fi
 echo "{\\"type\\":\\"result\\",\\"subtype\\":\\"success\\",\\"is_error\\":false,\\"result\\":\\"OK\\",\\"structured_output\\":{},\\"session_id\\":\\"$session\\",\\"total_cost_usd\\":0.0001,\\"num_turns\\":1,\\"duration_ms\\":1,\\"duration_api_ms\\":1,\\"usage\\":{\\"input_tokens\\":1,\\"output_tokens\\":1,\\"cache_creation_input_tokens\\":0,\\"cache_read_input_tokens\\":0}}"
@@ -53,30 +59,45 @@ async function writeFiles(
 	});
 }
 
-/** Every file under the home's Claude paths, by path, with its bytes. */
-async function claudeFiles(home: string): Promise<Record<string, string>> {
+/** The entry at `path` as its kind, with its bytes or its link target. */
+async function entryContents(
+	path: string,
+	entry: Readonly<Dirent>,
+): Promise<string> {
+	if (entry.isSymbolicLink()) {
+		return `link ${await readlink(path)}`;
+	}
+	if (entry.isDirectory()) {
+		return "directory";
+	}
+
+	return await Bun.file(path).text();
+}
+
+/** Every entry under the home's Claude paths, by path, with its contents. */
+async function claudeEntries(home: string): Promise<Record<string, string>> {
 	const entries = await readdir(join(home, ".claude"), {
 		recursive: true,
 		withFileTypes: true,
 	});
-	const paths = [
-		join(home, ".claude.json"),
-		...entries
-			.filter((entry) => entry.isFile())
-			.map((entry) => join(entry.parentPath, entry.name)),
-	];
 	const contents = await Array.fromAsync(
-		paths,
-		async (path): Promise<[string, string]> => [
-			path,
-			await Bun.file(path).text(),
-		],
-	);
+		entries,
+		async (entry): Promise<[string, string]> => {
+			const path = join(entry.parentPath, entry.name);
 
-	return Object.fromEntries(contents);
+			return [path, await entryContents(path, entry)];
+		},
+	);
+	const settings = join(home, ".claude.json");
+
+	return {
+		...Object.fromEntries(contents),
+		[settings]: await Bun.file(settings).text(),
+	};
 }
 
 interface Workspace {
+	readonly root: string;
 	readonly home: string;
 	readonly env: Record<string, string>;
 	readonly candidate: string;
@@ -106,6 +127,7 @@ async function workspace(): Promise<Workspace> {
 			[RECORDS_DIRECTORY_VARIABLE]: join(root, "records"),
 		},
 		home,
+		root,
 	};
 }
 
@@ -140,22 +162,45 @@ async function confirmationGroup(
 	return group;
 }
 
+/** The workspace's environment with the arm's own installed-corpus log. */
+function armEnvironment(
+	{ env, root }: Immutable<Workspace>,
+	arm: string,
+): Workspace["env"] {
+	return { ...env, INSTALL_LOG: join(root, `${arm}.log`) };
+}
+
+/** The distinct corpus files the arm's sessions found installed. */
+async function installedCorpus(log: string): Promise<readonly string[]> {
+	const text = await Bun.file(log).text();
+	const lines = text.split("\n").filter(Boolean);
+
+	return [...new Set(lines)].toSorted();
+}
+
 /**
  * Claude Code itself rewrites ~/.claude.json and writes transcripts under
  * ~/.claude, so a fake that writes nothing is what isolates Rehearse's own
  * writes there.
  */
 async function leavesEveryClaudeFileOfTheHomeByteIdentical(): Promise<void> {
-	const { home, env, candidate, control } = await workspace();
-	const before = await claudeFiles(home);
+	const prepared = await workspace();
+	const { home, env, root, candidate, control } = prepared;
+	const before = await claudeEntries(home);
 	await runCli(["settings", "--spend-ceiling-usd", "1"], "empty", env);
 
 	const arms = {
-		baseline: await confirmationGroup(env, []),
-		candidate: await confirmationGroup(env, ["--corpus", candidate]),
-		control: await confirmationGroup(env, ["--corpus", control]),
+		baseline: await confirmationGroup(armEnvironment(prepared, "baseline"), []),
+		candidate: await confirmationGroup(armEnvironment(prepared, "candidate"), [
+			"--corpus",
+			candidate,
+		]),
+		control: await confirmationGroup(armEnvironment(prepared, "control"), [
+			"--corpus",
+			control,
+		]),
 	};
-	const manifest = join(dirname(home), "manifest.json");
+	const manifest = join(root, "manifest.json");
 	await Bun.write(
 		manifest,
 		JSON.stringify({ cases: [{ arms, caseId: "smoke" }], schemaVersion: 1 }),
@@ -163,13 +208,57 @@ async function leavesEveryClaudeFileOfTheHomeByteIdentical(): Promise<void> {
 	const comparison = await runCli(["compare", manifest], "empty", env);
 
 	expect(comparison.exitCode).toBe(COMPLETED_EXIT_CODE);
-	expect(await claudeFiles(home)).toEqual(before);
+	expect(await claudeEntries(home)).toEqual(before);
+}
+
+/**
+ * The case declares only the output style, so an arm whose sessions find the
+ * rest of its corpus installed ran with the actual setup, and a candidate
+ * whose skill shares a name with the live one finds its own bytes.
+ */
+async function installsEachArmsWholeCorpusInItsSessions(): Promise<void> {
+	const prepared = await workspace();
+	const { env, root, candidate, control } = prepared;
+	await runCli(["settings", "--spend-ceiling-usd", "1"], "empty", env);
+	const arms = {
+		baseline: [],
+		candidate: ["--corpus", candidate],
+		control: ["--corpus", control],
+	};
+
+	await Array.fromAsync(Object.entries(arms), async ([arm, corpus]) => {
+		await confirmationGroup(armEnvironment(prepared, arm), corpus);
+	});
+
+	expect({
+		baseline: await installedCorpus(join(root, "baseline.log")),
+		candidate: await installedCorpus(join(root, "candidate.log")),
+		control: await installedCorpus(join(root, "control.log")),
+	}).toEqual({
+		baseline: [
+			"./CLAUDE.md\tlive instructions",
+			"./agents/reviewer.md\tlive agent",
+			"./output-styles/brief.md\tlive brief",
+			"./skills/probe/SKILL.md\tlive skill",
+		],
+		candidate: [
+			"./output-styles/brief.md\tcandidate brief",
+			"./skills/probe/SKILL.md\tcandidate skill",
+		],
+		control: ["./output-styles/brief.md\tcontrol brief"],
+	});
 }
 
 describe("a comparison run with the actual setup", () => {
 	it(
 		"leaves every Claude file of the home byte-identical",
 		leavesEveryClaudeFileOfTheHomeByteIdentical,
+		COMPARISON_TIMEOUT_MS,
+	);
+
+	it(
+		"installs each arm's whole corpus in its sessions",
+		installsEachArmsWholeCorpusInItsSessions,
 		COMPARISON_TIMEOUT_MS,
 	);
 });
