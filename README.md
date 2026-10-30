@@ -64,7 +64,7 @@ separately using its [quickstart](https://code.claude.com/docs/en/quickstart);
 it is needed only when you run an experiment.
 
 Experiments whose sessions can run commands, such as every pipeline run and
-replay and a session case that declares a tool or hooks, run only on macOS.
+replay and a session case that does not declare isolation, run only on macOS.
 Rehearse keeps those sessions from directly signalling your other processes with
 `/usr/bin/sandbox-exec`, and refuses on a host without it. The
 [reference](docs/reference.md#signal-confinement) says what that does and does

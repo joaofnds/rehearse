@@ -10,7 +10,9 @@ See [current state](docs/status.md) for implementation coverage and
   reply length.
 - **Actual setup**: the user's own Claude Code settings, MCP servers, plugins
   and hooks, which a session case runs with unless it declares isolation, so its
-  outcome is the one the user gets. The case's declared settings replace the
+  outcome is closer to the one the user gets. The skills, agents and `CLAUDE.md`
+  under the user's `~/.claude` still reach it only through the case's declared
+  corpus. The case's declared settings replace the
   user's keys of the same name, deny rules survive, and the run alone decides
   model and effort. The attempt records the setup as names and digests only.
 - **Artifact** — durable output of a stage: a spec or plan document, a backlog

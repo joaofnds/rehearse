@@ -139,9 +139,11 @@ links no attempt history, since its attempts record no session.
 
 - **Session comparison does not isolate new inputs.** It consumes the frozen
   case, fixture, transcript, and corpus rows already written by confirmation.
-- **A session case declares its own execution permissions.** Session attempts
-  run with project settings sources, so the operator's permission defaults do
-  not reach the session. A case that edits files or runs a command carries a
+- **A session case runs with the operator's own setup unless it declares
+  isolation.** Its attempts get the operator's settings, permission defaults,
+  MCP servers and synced plugins, and run confined. An isolated case runs with
+  project settings sources only, so the operator's permission defaults do not
+  reach it. An isolated case that edits files or runs a command carries a
   `permissions.allow` block in its declared settings; without one those tools
   are denied at runtime even when the operator's own settings would allow them.
   See the [support matrix](reference.md#corpus-sources-and-delivery).

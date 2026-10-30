@@ -23,10 +23,11 @@ experiment. Rehearse invokes that installed CLI with your credentials.
 
 A command whose sessions can run commands needs macOS, since it confines those
 sessions with `/usr/bin/sandbox-exec` and refuses with exit code 3 where that
-is missing. That covers `run` of a pipeline, `run` of a session case that
-declares a tool or hooks or whose fixture carries a `.claude` directory,
-`replay`, `compare attempts` and `compare extend`.
-The smoke case declares no tool, so its attempt runs anywhere. See
+is missing. That covers `run` of a pipeline, `run` of a session case that does
+not declare isolation, `run` of an isolated case that declares a tool or hooks
+or whose fixture carries a `.claude` directory, `replay`, `compare attempts`
+and `compare extend`.
+The smoke case runs with your own setup, so it needs macOS too. See
 [signal confinement](reference.md#signal-confinement).
 
 `case list` shows active declarations present in your checkout; `case list --all`
@@ -139,13 +140,17 @@ sample size appropriate to the result's variability.
 
 Session confirmation writes every declared corpus file, skills and `CLAUDE.md`
 included, under the attempt's own `.claude/`, and a declared skill brings its
-whole directory. The session runs with project settings sources, so a declared
+whole directory. The session runs with the project and local settings sources
+and never the user source, so a declared
 skill is the copy it runs, whether the model or a slash command invokes it, even
 when `~/.claude/skills` holds a skill of the same name. A declared `CLAUDE.md`
 is framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
 operator's user-level instructions, and an undeclared `~/.claude/CLAUDE.md` is
-not loaded. The session also runs with `--strict-mcp-config`, so no MCP server
-reaches it, the claude.ai account's connectors included. Claude Code still adds
+not loaded. Unless the case declares isolation, the session still gets your
+settings, MCP servers and synced plugins, as the
+[reference](reference.md#corpus-sources-and-delivery) describes. An isolated
+case runs with `--strict-mcp-config`, so no MCP server reaches it, the claude.ai
+account's connectors included. Claude Code still adds
 context the case does not declare: the environment, the date, the account's
 email, a git status snapshot, and, in a session that can call skills, a listing
 of Claude Code's built-in skills.

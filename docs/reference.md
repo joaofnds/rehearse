@@ -102,7 +102,7 @@ probe allowance. Calibration rejudges are additional calls.
 A session that can run a command runs as you and with your permissions, so a
 `pkill -f` it issues could stop any of your processes whose command line
 matches. `run` of a pipeline, `run` of a session case that does not declare
-`isolated`, since it runs with your own hooks, plugins and permission mode,
+`isolated` (it runs with your own hooks, plugins and permission mode),
 `run` of an isolated session case whose `tools` list is non-empty, whose
 `settings` declare `hooks`, or whose fixture carries a `.claude` directory, `replay`, `compare attempts` and `compare extend` therefore
 replace their own process, keeping its pid, with
@@ -126,8 +126,8 @@ commands unconfined.
 On macOS without `/usr/bin/sandbox-exec` those commands stop with exit code 3
 before any provider call, naming the missing program. On any other operating
 system they stop the same way, naming that system. Every other command, and
-a session case with no tool, no hooks and no fixture `.claude` directory, runs
-unconfined on any host. `serve` stays unconfined, and a run it launches
+an isolated session case with no tool, no hooks and no fixture `.claude`
+directory, runs unconfined on any host. `serve` stays unconfined, and a run it launches
 confines itself.
 
 The sandbox confines signals only. It does not limit files, network, the
@@ -981,23 +981,40 @@ between its check and read. Corpus sources remain trusted experimental inputs.
 | `stale`                             | Compare against live files                            | Compare against the supplied directory                                  |
 
 Session overlays write declared styles, agents, rulebook, skills, and `CLAUDE.md`
-under the attempt's `.claude/`, and session attempts run with project settings
-sources. That flag is what makes the overlay authoritative: a project-level skill
+under the attempt's `.claude/`, and session attempts run with the project and
+local settings sources and never the user source. That flag is what makes the overlay authoritative: a project-level skill
 does not otherwise shadow a same-named user-level one, so without it a declared
 skill would be hashed into lineage and never read. A session attempt does not
 load the operator's `~/.claude/CLAUDE.md`, and a declared `CLAUDE.md` is framed
 the way Claude Code frames a repository's own `CLAUDE.md`, not as user-level
 instructions.
 
-Excluding the operator's settings source also means their permission defaults do
-not reach the session. A case that edits files or runs a command declares the
-grant itself, as a `permissions.allow` block in its `settings`, alongside the
-`tools` list that admits those tools. Both are the case's own declaration, so an
-unrelated machine default cannot decide whether the case can execute.
+Unless the case declares `"isolated": true`, the session still runs with your
+actual setup. Your `~/.claude/settings.json`, merged with the case's declared
+`settings`, is passed as a file by `--settings`. The MCP servers in
+`~/.claude.json` are passed by `--mcp-config` when that file declares any, and
+each directory under `~/.claude/plugins/synced` by `--plugin-dir`. A declared
+key replaces yours, except that permission rules are unioned so your deny rules
+survive. Your `model` and `effortLevel`, and the model and effort variables in
+your settings `env`, are dropped from both sides, and the session runner unsets
+those variables from its own environment, since the run passes `--model` and
+`--effort`. Your permission defaults therefore reach the session, and a
+permissive mode such as `bypassPermissions` lets it run commands its `tools`
+list never named, which is why such a session is
+[confined](#signal-confinement). Each attempt record's `setup` field names what
+the session ran with: settings key names and a digest, MCP server names and a
+digest of their configuration, plugin names, and hook event names. It holds no
+setting value. Claude Code's built-in plugins and claude.ai connectors are not
+named.
 
-Session attempts also run with `--strict-mcp-config` and no MCP configuration,
-so no MCP server reaches the session, the claude.ai account's connectors
-included. Those connectors would otherwise arrive at no fixed point in the
+A case that declares `"isolated": true` runs with the project settings source
+alone, so the operator's permission defaults do not reach the session. Such a
+case that edits files or runs a command declares the grant itself, as a
+`permissions.allow` block in its `settings`, alongside the `tools` list that
+admits those tools, so an unrelated machine default cannot decide whether the
+case can execute. It also runs with `--strict-mcp-config` and no MCP
+configuration, so no MCP server reaches the session, the claude.ai account's
+connectors included. Those connectors would otherwise arrive at no fixed point in the
 session and differ between reps of one group, and one that arrives between two
 calls makes the second rewrite the prompt cache.
 
