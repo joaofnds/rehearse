@@ -1,4 +1,5 @@
 import type { ComparisonEvidence } from "./comparison-evidence";
+import inheritedConfigurationNotices from "./comparison-inherited-configuration-notices";
 import liveReadNotices from "./comparison-live-reads";
 import { loadComparisonEvidence } from "./comparison-loader";
 import type { ComparisonReport } from "./comparison-record";
@@ -41,7 +42,8 @@ interface BuiltComparison {
 
 /**
  * Loads a manifest's evidence and builds its report, telling `notice` of each
- * arm whose sessions read a file under test through the live install.
+ * arm whose sessions read a file under test through the live install, and of
+ * each place its arms inherited different Claude Code configuration.
  */
 async function buildComparison(
 	manifestPath: string,
@@ -54,6 +56,9 @@ async function buildComparison(
 		runsDirectory,
 	);
 	for (const line of liveReadNotices(evidence.cases)) {
+		notice(line);
+	}
+	for (const line of inheritedConfigurationNotices(evidence.cases)) {
 		notice(line);
 	}
 

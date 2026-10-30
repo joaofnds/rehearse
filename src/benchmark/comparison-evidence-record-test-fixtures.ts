@@ -159,6 +159,7 @@ function comparisonStageGroup({
 			corpusDelivery: { redirected: 0, rule: 1 },
 			effort: "medium",
 			files,
+			inheritedConfiguration: [],
 			judgeEffort: "medium",
 			judgeModel: "opus",
 			lineage: lineage(caseId),

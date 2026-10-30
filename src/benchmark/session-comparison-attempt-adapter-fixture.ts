@@ -85,7 +85,7 @@ class SessionComparisonAttemptAdapter implements SessionConfirmationDependencies
 			metrics: attemptMetrics(caseId, plan.ordinal),
 			outcome: pass ? "SUCCESSFUL" : "UNSUCCESSFUL",
 			reply: pass ? "OK" : "too many words",
-			setup: { kind: "isolated" },
+			setup: { inheritedConfiguration: [], kind: "isolated" },
 			stateResults:
 				stateCheck === undefined
 					? undefined
