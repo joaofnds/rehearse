@@ -66,7 +66,6 @@ async function writesTheMergedSettingsIntoTheSetupDirectory(): Promise<void> {
 	const { files } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 
@@ -83,7 +82,6 @@ async function pointsAtTheUserMCPConfigurationAndSyncedPlugins(): Promise<void> 
 	const { files } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 
@@ -99,7 +97,6 @@ async function recordsTheSetupAsNamesAndDigests(): Promise<void> {
 	const { record } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 	const { mcpConfigSha256, settingsSha256, ...names } = record;
@@ -127,7 +124,6 @@ async function recordsNoSettingValue(): Promise<void> {
 	const { record } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 
@@ -140,23 +136,24 @@ async function passesNoMCPConfigurationWhenTheUserFileDeclaresNoServers(): Promi
 	const { files } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 
 	expect(files.mcpConfigFiles).toEqual([]);
 }
 
-async function namesThePluginsTheInheritedPluginVariableLoads(): Promise<void> {
+async function namesThePluginsTheSettingsPluginVariableLoads(): Promise<void> {
 	const plugin = join(home, "mods", "env-plugin");
 	await writeJson(join(plugin, ".claude-plugin", "plugin.json"), {
 		name: "env-plugin",
+	});
+	await writeJson(join(home, ".claude", "settings.json"), {
+		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
 	});
 
 	const { record } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
 		home,
 	});
 
@@ -167,11 +164,13 @@ async function skipsAPluginWhoseManifestIsMalformed(): Promise<void> {
 	const plugin = join(home, "mods", "broken-plugin");
 	await mkdir(join(plugin, ".claude-plugin"), { recursive: true });
 	await writeFile(join(plugin, ".claude-plugin", "plugin.json"), "{");
+	await writeJson(join(home, ".claude", "settings.json"), {
+		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
+	});
 
 	const { record } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
 		home,
 	});
 
@@ -182,7 +181,6 @@ async function runsWithTheDeclaredKeysAloneWhenTheUserHasNoSetup(): Promise<void
 	const { files, record } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 
@@ -216,8 +214,8 @@ describe(prepareActualSetup.name, () => {
 		passesNoMCPConfigurationWhenTheUserFileDeclaresNoServers,
 	);
 	it(
-		"names the plugins the inherited plugin variable loads",
-		namesThePluginsTheInheritedPluginVariableLoads,
+		"names the plugins the settings plugin variable loads",
+		namesThePluginsTheSettingsPluginVariableLoads,
 	);
 	it(
 		"skips a plugin whose manifest is malformed",

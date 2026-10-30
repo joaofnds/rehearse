@@ -3,9 +3,10 @@ import { delimiter, join } from "node:path";
 
 import { z } from "zod";
 
+import type { Immutable } from "./contracts";
 import { pathExists } from "./file-presence";
 import { jsonObjectSchema } from "./json-value";
-import type { JsonObject } from "./json-value";
+import type { JsonObject, JsonValue } from "./json-value";
 
 const PLUGIN_DIRECTORIES_VARIABLE = "CLAUDE_CODE_PLUGIN_DIRS";
 const pluginManifestSchema = z.object({ name: z.string().nonempty() });
@@ -77,12 +78,16 @@ async function pluginNamesUnder(directory: string): Promise<string[]> {
 	return names.flat();
 }
 
-async function inheritedPluginNames(
-	env: Readonly<Record<string, string | undefined>>,
+/** The plugins named by a `CLAUDE_CODE_PLUGIN_DIRS` value, which is a path list. */
+async function pluginNamesInDirectoryList(
+	directoryList: Immutable<JsonValue> | undefined,
 ): Promise<string[]> {
-	const plugins = (env[PLUGIN_DIRECTORIES_VARIABLE] ?? "")
-		.split(delimiter)
-		.filter((plugin) => plugin !== "");
+	const list = z.string().safeParse(directoryList);
+	if (!list.success) {
+		return [];
+	}
+
+	const plugins = list.data.split(delimiter).filter((plugin) => plugin !== "");
 	const names = await Promise.all(
 		plugins.map(async (plugin) => await pluginName(plugin)),
 	);
@@ -91,7 +96,8 @@ async function inheritedPluginNames(
 }
 
 export {
-	inheritedPluginNames,
+	PLUGIN_DIRECTORIES_VARIABLE,
+	pluginNamesInDirectoryList,
 	pluginNamesUnder,
 	readJsonObject,
 	subdirectories,

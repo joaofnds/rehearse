@@ -32,7 +32,6 @@ async function setupFailureMessage(): Promise<string> {
 		await prepareActualSetup({
 			declared: {},
 			directory: setupDirectory,
-			env: {},
 			home,
 		});
 	} catch (error) {
@@ -66,7 +65,6 @@ async function carriesTheSetupByPathSoNoValueReachesTheCommand(): Promise<void> 
 	const { files } = await prepareActualSetup({
 		declared: {},
 		directory: setupDirectory,
-		env: {},
 		home,
 	});
 

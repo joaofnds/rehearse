@@ -29,7 +29,6 @@ async function withStageSetup<Result>(
 				JSON.parse(request.settingsOverlay ?? "{}"),
 			),
 			directory,
-			env: request.environment ?? {},
 			home,
 		});
 

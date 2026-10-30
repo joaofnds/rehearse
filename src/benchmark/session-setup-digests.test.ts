@@ -36,7 +36,6 @@ async function recordFor({
 	const { record } = await prepareActualSetup({
 		declared: {},
 		directory: await temporary("rehearse-digest-files-"),
-		env: {},
 		home,
 	});
 

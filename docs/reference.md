@@ -1071,7 +1071,9 @@ permissive mode such as `bypassPermissions` lets it run commands its `tools`
 list never named, which is why such a session is
 [confined](#signal-confinement). Each attempt record's `setup` field names what
 the session ran with: settings key names and a digest, MCP server names and a
-digest of their configuration, plugin names, and hook event names. Every
+digest of their configuration, plugin names (your enabled and synced plugins
+and those your settings `env` lists in `CLAUDE_CODE_PLUGIN_DIRS`), and hook
+event names. Every
 attempt, an isolated one included, asks Claude Code for its message stream
 (`--output-format stream-json --verbose`), and `setup.loaded` names the MCP
 servers, with the status each reported where it reported one, and the plugins

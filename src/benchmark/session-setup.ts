@@ -12,7 +12,8 @@ import type {
 	sessionSetupRecordSchema,
 } from "./session-record-context-schema";
 import {
-	inheritedPluginNames,
+	PLUGIN_DIRECTORIES_VARIABLE,
+	pluginNamesInDirectoryList,
 	pluginNamesUnder,
 	readJsonObject,
 	subdirectories,
@@ -55,8 +56,6 @@ interface ActualSetupSource {
 	readonly home: string;
 	readonly directory: string;
 	readonly declared: Immutable<JsonObject>;
-	/** The environment the session inherits, which can name plugin directories. */
-	readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
@@ -207,11 +206,12 @@ async function prepareActualSetup({
 	home,
 	directory,
 	declared,
-	env,
 }: ActualSetupSource): Promise<ActualSetup> {
 	const user = await readUserSetup(home);
-	const inheritedPlugins = await inheritedPluginNames(env);
 	const settings = mergedSettings(user.settings, declared);
+	const settingsEnvPlugins = await pluginNamesInDirectoryList(
+		objectAt(settings["env"])[PLUGIN_DIRECTORIES_VARIABLE],
+	);
 	const settingsText = JSON.stringify(settings);
 	const settingsFile = join(directory, "settings.json");
 
@@ -232,7 +232,7 @@ async function prepareActualSetup({
 			plugins: [
 				...enabledPluginNames(settings),
 				...user.syncedPlugins,
-				...inheritedPlugins,
+				...settingsEnvPlugins,
 			].toSorted(),
 			settingsKeys: Object.keys(settings).toSorted(),
 			settingsSha256: sha256(settingsText),

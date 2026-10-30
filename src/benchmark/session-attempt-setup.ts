@@ -34,7 +34,6 @@ async function preparedSetup(
 	return await prepareActualSetup({
 		declared: declaredSettings(sessionCase, styleName) ?? {},
 		directory: setupDirectory,
-		env: request.environment,
 		home: request.home,
 	});
 }
