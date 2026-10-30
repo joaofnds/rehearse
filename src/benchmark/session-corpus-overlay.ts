@@ -3,6 +3,7 @@ import { basename, dirname, extname, join, relative } from "node:path";
 
 import { isCorpusLayoutPath } from "./corpus-file";
 import { corpusLayoutEntries } from "./corpus-source";
+import type { ResolvedCorpusSource } from "./corpus-source";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 import { SessionCorpusError } from "./session-corpus-links";
 
@@ -62,7 +63,14 @@ async function installedRoots(
 		return overlaidRoots(snapshot.declaredPaths);
 	}
 
-	const entries = await corpusLayoutEntries(snapshot);
+	return await wholeCorpusRoots(snapshot);
+}
+
+/** Every root a corpus holds, which is what a whole-corpus snapshot carries. */
+async function wholeCorpusRoots(
+	source: ResolvedCorpusSource,
+): Promise<readonly string[]> {
+	const entries = await corpusLayoutEntries(source);
 
 	return entries.map(({ layoutPath }) => layoutPath);
 }
@@ -96,10 +104,11 @@ const SKILLS_KIND = "skills/";
  * `SKILL.md` refers to the files beside it, so installing the declared file
  * alone delivers a skill whose references do not resolve, and under
  * `--setting-sources project` the user-level copy cannot supply them either.
- * Every other kind is a single file and is installed as itself. Snapshotting
- * copies these same roots and the loader accepts files under them, so what a
- * group freezes, what its attempts install, and what a comparison verifies are
- * one set.
+ * Every other kind is a single file and is installed as itself. For an
+ * isolated case, snapshotting copies these same roots and the loader accepts
+ * files under them, so what a group freezes, what its attempts install, and
+ * what a comparison verifies are one set. A case run with the actual setup
+ * carries `wholeCorpusRoots` instead.
  *
  * Every path a case may declare is overlaid, because `isCorpusLayoutPath` is
  * also what `resolveCorpusFile` requires: a declared path outside corpus layout
@@ -155,6 +164,7 @@ export {
 	holds,
 	installSessionCorpusSnapshot,
 	overlaidRoots,
+	wholeCorpusRoots,
 	deliversCorpusFile,
 	snapshotStyleName,
 };

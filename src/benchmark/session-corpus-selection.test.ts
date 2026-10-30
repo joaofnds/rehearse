@@ -92,9 +92,9 @@ async function installsOnlyTheFilesTheCaseDeclared(): Promise<void> {
 }
 
 /**
- * The overlay's scope has to hold on the snapshot alone: what reaches the
- * session is what the case declared, not everything the snapshot directory
- * happens to carry.
+ * A declared-scope snapshot, which is an isolated case's, has to hold on the
+ * snapshot alone: what reaches the session is what the case declared, not
+ * everything the snapshot directory happens to carry.
  */
 async function installsTheDeclaredFileFromASnapshotCarryingAnUndeclaredOne(): Promise<void> {
 	const root = await directoryCorpus({

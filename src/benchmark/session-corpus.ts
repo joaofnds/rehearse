@@ -6,7 +6,11 @@ import { isCorpusLayoutPath } from "./corpus-file";
 import type { ResolvedCorpusSource } from "./corpus-source";
 import { corpusLayoutEntries } from "./corpus-source";
 import { SessionCorpusError, refuseSymlinks } from "./session-corpus-links";
-import { holds, overlaidRoots } from "./session-corpus-overlay";
+import {
+	holds,
+	overlaidRoots,
+	wholeCorpusRoots,
+} from "./session-corpus-overlay";
 import type { CorpusSnapshotOrigin } from "./session-record";
 
 const EMPTY_COLLECTION_LENGTH = 0;
@@ -24,11 +28,14 @@ const EMPTY_COLLECTION_LENGTH = 0;
 interface SessionCorpusSnapshotFields {
 	readonly origin: CorpusSnapshotOrigin;
 	readonly declaredPaths: readonly string[];
-	readonly scope: "declared" | "whole";
 }
 
+/** A live pointer installs nothing, so it is never the whole corpus. */
 type SessionCorpusSnapshot = SessionCorpusSnapshotFields &
-	(LiveCorpusRoot | DirectoryCorpusRoot);
+	(
+		| (LiveCorpusRoot & { readonly scope: "declared" })
+		| (DirectoryCorpusRoot & { readonly scope: "declared" | "whole" })
+	);
 
 /**
  * A stage's corpus is the skill it invokes, so a stage cannot run against a
@@ -117,12 +124,7 @@ async function freezeWholeSessionCorpus(
 	destination: string,
 	declaredPaths: readonly string[],
 ): Promise<SessionCorpusSnapshot> {
-	const entries = await corpusLayoutEntries(source);
-	await copyRoots(
-		source,
-		destination,
-		entries.map(({ layoutPath }) => layoutPath),
-	);
+	await copyRoots(source, destination, await wholeCorpusRoots(source));
 
 	return {
 		declaredPaths: [...declaredPaths],

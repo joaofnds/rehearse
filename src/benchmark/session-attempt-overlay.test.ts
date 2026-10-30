@@ -155,11 +155,11 @@ describe("the corpus overlay a session attempt installs", () => {
 		mergesTheStyleSelectionOverTheCaseSDeclaredSettingsRatherThanReplacingThem,
 	);
 	it(
-		"selects and installs only the style the case declared, never a second one the corpus holds",
+		"selects and installs only the style an isolated case declared, never a second one the corpus holds",
 		selectsAndInstallsOnlyTheStyleTheCaseDeclaredNeverASecondOneTheCorpusHolds,
 	);
 	it(
-		"leaves the attempt directory bare when the corpus is the live install",
+		"leaves the attempt directory bare when an isolated case uses the live install",
 		leavesTheAttemptDirectoryBareWhenTheCorpusIsTheLiveInstall,
 	);
 });
