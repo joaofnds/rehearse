@@ -1005,7 +1005,7 @@ The spellings `~/`, `$HOME/`, `${HOME}/` and the literal home directory are
 recognized, followed by a path under `~/.claude` or through a link under it,
 so a `~/.claude/rulebook` that links to `~/.agents/rulebook` makes
 `~/.agents/rulebook/...` a citation too. A run maps those paths from the live
-install once, when it freezes its inputs, and reads nothing else there for it.
+install once, before its first install, and reads nothing else there for it.
 Session attempts and all three stage installs (pipeline confirmation stages, a
 stage replay and a replay confirmation) deliver the same way. A citation of a
 file the install does not hold stays as written and reaches your live file,

@@ -41,7 +41,7 @@ function reportSessionChecks(
 	}
 }
 
-export { default as runPreparedSessionAttempt } from "./prepared-session-command";
+export { default as preparedSessionAttempts } from "./prepared-session-command";
 export { default as runClaudeCommand } from "./session-claude-runner";
 export { default as runSessionDebugAttempt } from "./session-debug-attempt";
 export type {

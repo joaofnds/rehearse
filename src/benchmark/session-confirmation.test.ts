@@ -144,6 +144,7 @@ async function recordsABudgetHaltedRepSStatedErrorAndCostOnItsStageAndAttempt():
 					corpusSnapshot: plan.corpusSnapshot,
 					environment: {},
 					home: ABSENT_HOME,
+					liveCitations: { home: ABSENT_HOME, roots: [] },
 					projectsDirectory,
 					recordDirectory: plan.recordDirectory,
 					runClaude: (command) => {

@@ -27,6 +27,11 @@ interface SessionAttemptRequest {
 	readonly recordDirectory: string;
 	readonly runClaude: ClaudeRunner;
 	readonly corpusSnapshot?: SessionCorpusSnapshot | undefined;
+	/**
+	 * Where the live install's corpus files are cited from, read once for the
+	 * run so every attempt of it delivers against the same map.
+	 */
+	readonly liveCitations: HomePathCitationMap;
 	readonly contextEvidenceSource?: ContextEvidenceSource | undefined;
 	readonly contextRateCatalog?: ContextRateCatalog | undefined;
 }

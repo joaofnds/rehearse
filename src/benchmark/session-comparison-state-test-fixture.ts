@@ -151,6 +151,7 @@ class StateComparisonFixture {
 						corpusSnapshot: plan.corpusSnapshot,
 						environment: {},
 						home: ABSENT_HOME,
+						liveCitations: { home: ABSENT_HOME, roots: [] },
 						projectsDirectory: this.props.projectsDirectory,
 						recordDirectory: plan.recordDirectory,
 						runClaude,

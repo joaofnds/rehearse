@@ -1,3 +1,4 @@
+import { sessionCitationMap } from "#benchmark/attempt-corpus-overlay";
 import type { Immutable } from "#benchmark/contracts";
 import { startTime } from "#benchmark/recorded-time";
 import type { SessionAttempt } from "#benchmark/session-attempt";
@@ -70,6 +71,10 @@ class SessionAttemptRecorder {
 				corpusSnapshot: corpus.snapshot,
 				environment: request.environment,
 				home: request.home,
+				liveCitations: await sessionCitationMap(
+					request.home,
+					request.environment,
+				),
 				projectsDirectory: request.projectsDirectory,
 				recordDirectory: this.evidence.attemptPaths.directory,
 				runClaude: request.runClaude,

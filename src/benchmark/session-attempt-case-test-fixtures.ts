@@ -60,6 +60,7 @@ function request(
 	return {
 		environment: {},
 		home: ABSENT_HOME,
+		liveCitations: { home: ABSENT_HOME, roots: [] },
 		sessionCase: sessionCase(),
 		settings: { budgetUsd: 0.2, effort: "low", model: "haiku" },
 		...overrides,

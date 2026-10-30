@@ -2,7 +2,7 @@ import { recordsDirectory } from "#benchmark/config";
 import { runRequestedExecution } from "#benchmark/confirmation";
 import { assertSystemPromptSnapshotSupported } from "#benchmark/model-preflight";
 import { diagnosticWriter } from "#cli/output";
-import runPreparedSessionAttempt from "#cli/prepared-session-command";
+import preparedSessionAttempts from "#cli/prepared-session-command";
 import runSessionDebugAttempt from "#cli/session-debug-attempt";
 
 import type {
@@ -28,7 +28,7 @@ async function executeSessionRun(
 	const runsDirectory = dependencies.runsDirectory ?? recordsDirectory();
 	const runDebug = dependencies.runDebug ?? runSessionDebugAttempt;
 	const executeAttempt =
-		dependencies.executeAttempt ?? runPreparedSessionAttempt;
+		dependencies.executeAttempt ?? preparedSessionAttempts();
 
 	const lifetime = new SessionCommandLifetime({
 		boundary: dependencies,
