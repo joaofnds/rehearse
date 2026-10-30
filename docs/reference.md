@@ -1050,8 +1050,8 @@ mark a record stale.
 
 A comparison refuses arms or cases whose attempts ran under different setup
 kinds, isolated or actual, naming the field `setup`. Two arms both run with
-the actual setup are not compared on their settings or MCP digests. An attempt recorded before the setup was recorded reads as
-isolated.
+the actual setup are not compared on their settings or MCP digests. An
+attempt recorded before the setup was recorded reads as isolated.
 
 An attempt record carries `settingsDigest`, the identity of the case's declared
 behavior settings, beside the per-file corpus digests. Lineage already covers
