@@ -1103,7 +1103,17 @@ client certificate, gateway and API key descriptor names), and so are
 `MAX_THINKING_TOKENS` and every `ANTHROPIC_*` name holding `MODEL`. Other
 `ANTHROPIC_*` names, such as `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`,
 still reach the session. Your own Claude Code variables still reach an
-actual-setup session through the `env` of your settings file.
+actual-setup session through the `env` of your settings file. A session
+attempt's `setup.inheritedConfiguration` lists, sorted by name, every Claude
+Code configuration variable the session still inherited: the kept names above
+and any inherited `ANTHROPIC_*`, `DISABLE_*`, `ENABLE_*`, `MCP_*`, `OTEL_*`,
+`VERTEX_REGION_*` or `*_MAX_OUTPUT_*` name, the proxy names, and the other names
+Claude Code accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry
+carries a `sha256` of the value, except a name holding `AUTH`, `CERT`,
+`COOKIE`, `CREDENTIAL`, `HEADER`, `KEY`, `PASSPHRASE`, `PASSWORD`, `PROXY`,
+`SECRET` or `TOKEN`, which is recorded by name alone, since its value can be a
+credential. An attempt recorded without the field inherited what it inherited
+unrecorded.
 
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140

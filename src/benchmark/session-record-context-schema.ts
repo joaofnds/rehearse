@@ -47,6 +47,18 @@ const loadedSetupSchema = z
 	.strict();
 
 /**
+ * A Claude Code configuration variable the session inherited from the process
+ * that started it, with a digest of its value unless the value can carry a
+ * secret. Absent from a record written before sessions recorded it, which
+ * leaves what that session inherited unknown.
+ */
+const inheritedVariableSchema = z
+	.object({ name: z.string().nonempty(), sha256: sha256Schema.optional() })
+	.strict();
+
+const inheritedConfigurationSchema = z.array(inheritedVariableSchema);
+
+/**
  * The setup a session ran with, as names and digests only, since the browser
  * serves records on loopback without authentication and a setting value can be
  * a credential.
@@ -54,6 +66,7 @@ const loadedSetupSchema = z
 const actualSetupRecordSchema = z
 	.object({
 		hookEvents: namesSchema,
+		inheritedConfiguration: inheritedConfigurationSchema.optional(),
 		kind: z.literal("actual"),
 		loaded: loadedSetupSchema.optional(),
 		mcpConfigSha256: sha256Schema,
@@ -67,6 +80,7 @@ const actualSetupRecordSchema = z
 const sessionSetupRecordSchema = z.discriminatedUnion("kind", [
 	z
 		.object({
+			inheritedConfiguration: inheritedConfigurationSchema.optional(),
 			kind: z.literal("isolated"),
 			loaded: loadedSetupSchema.optional(),
 		})

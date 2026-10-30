@@ -169,6 +169,7 @@ async function recordsTheActualSetupTheAttemptRanWith(): Promise<void> {
 
 async function recordsIsolationForACaseThatDeclaresIt(): Promise<void> {
 	expect(await recordedSetup(true)).toEqual({
+		inheritedConfiguration: [],
 		kind: "isolated",
 		loaded: { mcpServers: [], plugins: [] },
 	});

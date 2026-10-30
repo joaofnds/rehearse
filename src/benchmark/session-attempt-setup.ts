@@ -1,4 +1,5 @@
 import type { SessionCase } from "./case";
+import { inheritedConfiguration } from "./claude-launch-environment";
 import type { Immutable } from "./contracts";
 import type { JsonObject } from "./json-value";
 import type { SessionAttemptRequest } from "./session-attempt-preparation-contract";
@@ -23,7 +24,7 @@ interface SetupDeclaration {
 	readonly setupDirectory: string;
 }
 
-async function preparedSetup(
+async function declaredSetup(
 	request: SessionAttemptRequest,
 	{ sessionCase, styleName, setupDirectory }: SetupDeclaration,
 ): Promise<PreparedSetup> {
@@ -36,6 +37,21 @@ async function preparedSetup(
 		directory: setupDirectory,
 		home: request.home,
 	});
+}
+
+async function preparedSetup(
+	request: SessionAttemptRequest,
+	declaration: SetupDeclaration,
+): Promise<PreparedSetup> {
+	const { files, record } = await declaredSetup(request, declaration);
+
+	return {
+		files,
+		record: {
+			...record,
+			inheritedConfiguration: inheritedConfiguration(request.environment),
+		},
+	};
 }
 
 export { preparedSetup as default, declaredSettings };
