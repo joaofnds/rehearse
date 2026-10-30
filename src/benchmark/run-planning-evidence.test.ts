@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
+import { failureOf } from "#cli/cli-test-support";
+
 import { parseCheckpointRecord } from "./checkpoint";
 import type { CalibrationResult } from "./contracts";
 import { runGradedStages } from "./run";
@@ -139,9 +141,9 @@ const keepsAcceptedCheckpoints = async (): Promise<void> => {
 			),
 	};
 
-	expect(runGradedStages(failing, context)).rejects.toThrow(
-		"minimum grade is B",
-	);
+	const failure = await failureOf(runGradedStages(failing, context));
+
+	expect(failure.message).toContain("minimum grade is B");
 
 	const completedCheckpointExists = await Bun.file(
 		join(context.checkpointDirectory("shape"), "checkpoint.json"),
