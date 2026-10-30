@@ -5,7 +5,9 @@ import { failureOf } from "#cli/cli-test-support";
 import { WorkflowExecutionError, runWorkflowStage } from "./workflow";
 import type { ProductOwner, WorkflowStageRequest } from "./workflow";
 import {
+	budgetHalt,
 	queuedResponses,
+	questionTurn,
 	testResources,
 	workflowStageRequest,
 } from "./workflow-test-fixtures";
@@ -121,25 +123,12 @@ async function namesTheSessionWhoseTranscriptHoldsTheFailure({
 	expect(failure).toMatchObject({ sessionId });
 }
 
-const questionTurn = JSON.stringify({
-	session_id: "worker-session",
-	structured_output: { message: "Which scope?", status: "QUESTION" },
-	total_cost_usd: 0.3,
-	type: "result",
-});
-
 const failingProductOwner: ProductOwner = {
 	ask: async () => await Promise.reject(new Error("product owner failed")),
 	snapshot: () => ({ providerCalls: [], sessionId: "po-session", spentUsd: 0 }),
 };
 
 const sessionFailures: SessionFailureExample[] = [
-	{
-		moment: "before its setup is ready",
-		request: { settingsOverlay: "{", setup: "actual" },
-		responses: [],
-		sessionId: "stage-session",
-	},
 	{
 		moment: "before its first turn",
 		request: {},
@@ -149,7 +138,10 @@ const sessionFailures: SessionFailureExample[] = [
 	{
 		moment: "after a turn",
 		request: {},
-		responses: [questionTurn, new Error("worker invocation failed")],
+		responses: [
+			questionTurn({ totalCostUsd: 0.3 }),
+			new Error("worker invocation failed"),
+		],
 		sessionId: "worker-session",
 	},
 	{
@@ -168,8 +160,14 @@ const sessionFailures: SessionFailureExample[] = [
 	{
 		moment: "in its Product Owner's answer",
 		request: { productOwner: failingProductOwner },
-		responses: [questionTurn],
+		responses: [questionTurn({ totalCostUsd: 0.3 })],
 		sessionId: "worker-session",
+	},
+	{
+		moment: "in a call the provider halted",
+		request: {},
+		responses: [budgetHalt({ costUsd: 0.4 })],
+		sessionId: "halted-session",
 	},
 ];
 
@@ -203,6 +201,9 @@ describe("workflow provider metrics", () => {
 		"carries the underlying reason in the failure message",
 		carriesTheUnderlyingReasonInTheFailureMessage,
 	);
+});
+
+describe(runWorkflowStage.name, () => {
 	it.each(sessionFailures)(
 		"names the session whose transcript holds a failure $moment",
 		namesTheSessionWhoseTranscriptHoldsTheFailure,

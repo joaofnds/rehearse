@@ -144,6 +144,7 @@ class StageConversation {
 			return readClaudeEnvelope(output);
 		} catch (error) {
 			if (error instanceof ClaudeSessionError) {
+				this.sessionId = error.envelope.session_id;
 				this.calls.record(error.envelope);
 			} else {
 				this.calls.recordUnreported();

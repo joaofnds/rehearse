@@ -112,7 +112,11 @@ async function reportsAnUnreadableSetupAsAStageFailureThatSpentNothing(): Promis
 		),
 	);
 
-	expect(failure).toMatchObject({ costUsd: 0, providerCalls: [] });
+	expect(failure).toMatchObject({
+		costUsd: 0,
+		providerCalls: [],
+		sessionId: "stage-session",
+	});
 }
 
 async function removesTheMergedSettingsWhenTheSessionFails(): Promise<void> {
