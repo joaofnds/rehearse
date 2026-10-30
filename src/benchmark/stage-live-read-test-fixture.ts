@@ -3,6 +3,7 @@ import type { ConfirmationRepRecord } from "./confirmation-record";
 import type { LiveCorpusRead } from "./stage-live-reads";
 import type { StageSessionDependencies } from "./stage-session-dependencies";
 import StageSessionError from "./stage-session-error";
+import type { WorkflowStageRequest } from "./workflow";
 
 const RECORD_JSON_INDENT_SPACES = 2;
 
@@ -38,8 +39,8 @@ function readTranscriptLine(filePath: string): string {
 	return `${JSON.stringify({ message: { content: [read] }, type: "assistant" })}\n`;
 }
 
-/** The same dependencies, whose stage session runs and then fails. */
-function failingAfterSession<
+/** The same dependencies, whose stage session runs and fails before it ends. */
+function failingBeforeSessionEnds<
 	Dependencies extends { readonly stageSession: StageSessionDependencies },
 >(dependencies: Dependencies): Dependencies {
 	const { stageSession } = dependencies;
@@ -64,4 +65,45 @@ function failingAfterSession<
 	};
 }
 
-export { addStageLiveReads, failingAfterSession, readTranscriptLine };
+/**
+ * The same dependencies, whose stage fails with `failure` before any session
+ * runs, so no transcript is ever written.
+ */
+function failingBeforeSessionStarts(
+	failure: (request: WorkflowStageRequest) => Error,
+): <Dependencies extends { readonly stageSession: StageSessionDependencies }>(
+	dependencies: Dependencies,
+) => Dependencies {
+	return (dependencies) => ({
+		...dependencies,
+		stageSession: {
+			...dependencies.stageSession,
+			runWorkflowStage: async (request) =>
+				await Promise.reject(failure(request)),
+		},
+	});
+}
+
+/** A failure that names no session. */
+function unnamedFailure(): Error {
+	return new Error("synthetic setup failure");
+}
+
+/** A failure that names the session the stage asked for, which never ran. */
+function namedFailure(request: WorkflowStageRequest): Error {
+	return new StageSessionError({
+		cause: new Error("synthetic setup failure"),
+		costUsd: 0,
+		providerCalls: [],
+		sessionId: request.sessionId,
+	});
+}
+
+export {
+	addStageLiveReads,
+	failingBeforeSessionEnds,
+	failingBeforeSessionStarts,
+	namedFailure,
+	readTranscriptLine,
+	unnamedFailure,
+};

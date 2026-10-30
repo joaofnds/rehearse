@@ -7,8 +7,11 @@ import { readReps } from "./pipeline-confirmation-record-test-reader";
 import { PipelineConfirmationHarness } from "./pipeline-confirmation-test-support";
 import type { PipelineDependencyOverride } from "./pipeline-confirmation-test-support";
 import {
-	failingAfterSession,
+	failingBeforeSessionEnds,
+	failingBeforeSessionStarts,
+	namedFailure,
 	readTranscriptLine,
+	unnamedFailure,
 } from "./stage-live-read-test-fixture";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
 import { TestResources } from "./test-support";
@@ -161,6 +164,31 @@ async function recordsTheLiveReadsOfAStageWhoseSessionFailed({
 	]);
 }
 
+/** Unknown reads stay off the record, since an empty list would claim none. */
+async function recordsNoLiveReadsForAStageWhoseSessionNeverStarted({
+	failure,
+}: {
+	readonly failure: PipelineDependencyOverride;
+}): Promise<void> {
+	const harness = await PipelineConfirmationHarness.setup(testResources);
+	const projects = await testResources.createControlDirectory();
+
+	const reps = await readReps(
+		await harness.run({}, liveReadingStages(projects), failure),
+	);
+
+	expect(reps.map(({ stages }) => stages)).toMatchObject([
+		[{ status: "EXECUTION_FAILED" }, { status: "NOT_REACHED" }],
+		[{ status: "EXECUTION_FAILED" }, { status: "NOT_REACHED" }],
+		[{ status: "EXECUTION_FAILED" }, { status: "NOT_REACHED" }],
+	]);
+	expect(
+		reps
+			.flatMap(({ stages }) => stages)
+			.filter((stage) => "liveReads" in stage),
+	).toEqual([]);
+}
+
 describe(runPipelineConfirmation.name, () => {
 	it(
 		"records each judged stage's live reads on its rep",
@@ -178,10 +206,24 @@ describe(runPipelineConfirmation.name, () => {
 	);
 
 	it.each([
-		{ failure: failingAfterSession, moment: "before it ended" },
+		{ failure: failingBeforeSessionEnds, moment: "before it ended" },
 		{ failure: unreadableTaskState, moment: "after it ended" },
 	])(
 		"records the live reads of a stage whose session failed $moment",
 		recordsTheLiveReadsOfAStageWhoseSessionFailed,
+	);
+
+	it.each([
+		{
+			failure: failingBeforeSessionStarts(unnamedFailure),
+			naming: "no session",
+		},
+		{
+			failure: failingBeforeSessionStarts(namedFailure),
+			naming: "a session with no transcript",
+		},
+	])(
+		"records no live reads for a stage that failed naming $naming",
+		recordsNoLiveReadsForAStageWhoseSessionNeverStarted,
 	);
 });

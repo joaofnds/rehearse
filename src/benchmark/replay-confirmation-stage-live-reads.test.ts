@@ -7,8 +7,11 @@ import ReplayCheckpointInputsBuilder from "./replay-confirmation-checkpoint-test
 import ReplayDurableOutcomes from "./replay-confirmation-durable-outcome-test-fixture";
 import { readReplayReps } from "./replay-confirmation-worktree-test-fixtures";
 import {
-	failingAfterSession,
+	failingBeforeSessionEnds,
+	failingBeforeSessionStarts,
+	namedFailure,
 	readTranscriptLine,
+	unnamedFailure,
 } from "./stage-live-read-test-fixture";
 import { stageTranscriptFile } from "./stage-transcript-evidence";
 import { TestResources } from "./test-support";
@@ -144,7 +147,7 @@ async function recordsTheLiveReadsOfAStageWhoseSessionFailed(): Promise<void> {
 		{ reps: 2 },
 		provider.override,
 		liveReadingStage(projects),
-		failingAfterSession,
+		failingBeforeSessionEnds,
 	);
 
 	const outcome = await runReplayConfirmation(dependencies, request);
@@ -166,6 +169,39 @@ async function recordsTheLiveReadsOfAStageWhoseSessionFailed(): Promise<void> {
 	]);
 }
 
+/** Unknown reads stay off the record, since an empty list would claim none. */
+async function recordsNoLiveReadsForAStageWhoseSessionNeverStarted({
+	failure,
+}: {
+	readonly failure: (base: ReplayDependencies) => ReplayDependencies;
+}): Promise<void> {
+	const inputs = await new ReplayCheckpointInputsBuilder().fromRepository(
+		testResources,
+	);
+	const provider = new ReplayDurableOutcomes();
+	const projects = await testResources.createControlDirectory();
+	const { dependencies, request } = provider.prepareConfirmation(
+		inputs,
+		{ reps: 2 },
+		provider.override,
+		liveReadingStage(projects),
+		failure,
+	);
+
+	const outcome = await runReplayConfirmation(dependencies, request);
+
+	const records = await readReplayReps(outcome.repRecordFiles);
+	expect(records.map(({ stages }) => stages)).toMatchObject([
+		[{ status: "EXECUTION_FAILED" }],
+		[{ status: "EXECUTION_FAILED" }],
+	]);
+	expect(
+		records
+			.flatMap(({ stages }) => stages)
+			.filter((stage) => "liveReads" in stage),
+	).toEqual([]);
+}
+
 describe(runReplayConfirmation.name, () => {
 	it(
 		"records each stage's live reads on its rep, judged or rejected",
@@ -180,5 +216,19 @@ describe(runReplayConfirmation.name, () => {
 	it(
 		"records the live reads of a stage whose session failed",
 		recordsTheLiveReadsOfAStageWhoseSessionFailed,
+	);
+
+	it.each([
+		{
+			failure: failingBeforeSessionStarts(unnamedFailure),
+			naming: "no session",
+		},
+		{
+			failure: failingBeforeSessionStarts(namedFailure),
+			naming: "a session with no transcript",
+		},
+	])(
+		"records no live reads for a stage that failed naming $naming",
+		recordsNoLiveReadsForAStageWhoseSessionNeverStarted,
 	);
 });
