@@ -1088,6 +1088,21 @@ actual-setup attempt's `setup.loaded` is unobserved: the machine it was built
 on disables them (Claude Code 2.1.312, 2026-10-30). An isolated attempt runs
 with `--strict-mcp-config`, which shuts out every MCP server it never declared.
 
+Every Claude Code session Rehearse starts, from a session case, a pipeline
+stage, a Judge, a culprit analysis, the Product Owner or the model preflight,
+gets Rehearse's own environment without what a parent Claude Code session
+exported. A shell inside a Claude Code session carries that session's
+entrypoint, ids, messaging socket and feature flags, and with Claude Code
+2.1.314 the desktop entrypoint alone added about 280 context tokens to the
+same call. Every `CLAUDE*` name is dropped except `CLAUDE_CONFIG_DIR` and the
+login, provider and network names (`CLAUDE_CODE_OAUTH_*`, the
+`CLAUDE_CODE_USE_*` provider switches, `CLAUDE_CODE_SKIP_*_AUTH`, the proxy,
+client certificate, gateway and API key descriptor names), and so are
+`MAX_THINKING_TOKENS` and every `ANTHROPIC_*` name holding `MODEL`. Other
+`ANTHROPIC_*` names, such as `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`,
+still reach the session. Your own Claude Code variables still reach an
+actual-setup session through the `env` of your settings file.
+
 The actual setup can cost more. One attempt of the archived `smoke` case at
 sonnet and medium effort cost $0.0646 under the actual setup, writing 16,140
 prompt-cache tokens, and $0.0146 declared isolated, writing 3,615 and reading
