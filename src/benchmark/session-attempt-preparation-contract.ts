@@ -22,7 +22,10 @@ interface SessionAttemptRequest {
 	readonly projectsDirectory: string;
 	/** The home directory whose Claude Code setup a session runs with. */
 	readonly home: string;
-	/** The environment the session inherits, which can name plugin directories. */
+	/**
+	 * Rehearse's own environment, which the session starts from and whose
+	 * Claude Code configuration the attempt records.
+	 */
 	readonly environment: Readonly<Record<string, string | undefined>>;
 	readonly recordDirectory: string;
 	readonly runClaude: ClaudeRunner;

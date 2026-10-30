@@ -2,6 +2,7 @@ import { normalize } from "node:path";
 
 import { z } from "zod";
 
+import { isClaudeCodeConfiguration } from "./claude-launch-environment";
 import type { Immutable } from "./contracts";
 import type { ValidationFieldOrder } from "./validation-issue-order";
 
@@ -59,9 +60,12 @@ const environmentNameSchema = z
 	.string()
 	.regex(/^[A-Za-z_][A-Za-z0-9_]*$/u, "must be an environment variable name");
 
-/** An export reaches the stage session too, so it leaves alone what the provider reads. */
+/**
+ * An export reaches the stage session too, so it leaves alone what Claude Code
+ * reads, which a group records from Rehearse's own environment.
+ */
 const serviceExportNameSchema = environmentNameSchema.refine(
-	(name) => name !== "HOME" && !/^(?:ANTHROPIC|CLAUDE)_/u.test(name),
+	(name) => name !== "HOME" && !isClaudeCodeConfiguration(name),
 	"must not replace a variable the session's provider reads",
 );
 

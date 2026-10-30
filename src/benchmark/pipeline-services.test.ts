@@ -105,6 +105,25 @@ const invalidPipelineServiceDeclarationsExamples = [
 	{
 		definition: {
 			...target,
+			services: [
+				{
+					...postgres,
+					exports: { OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:{port}" },
+				},
+			],
+		},
+		name: "a service export Claude Code reads outside the provider names",
+	},
+	{
+		definition: {
+			...target,
+			services: [{ ...postgres, exports: { MAX_THINKING_TOKENS: "{port}" } }],
+		},
+		name: "a service export of the thinking budget",
+	},
+	{
+		definition: {
+			...target,
 			services: [{ ...postgres, exports: { HOME: "/tmp/{port}" } }],
 		},
 		name: "a service export of the home directory",

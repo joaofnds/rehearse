@@ -162,6 +162,14 @@ function withoutCredentials(value: string): string {
 	return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
+/**
+ * Whether a variable a Claude Code child receives changes how it runs, as
+ * launch context Rehearse drops or as configuration it records.
+ */
+function isClaudeCodeConfiguration(name: string): boolean {
+	return isLaunchContext(name) || isReadByClaudeCode(name);
+}
+
 function recordedVariable(name: string, value: string): InheritedVariable {
 	if (isSecretBearing(name)) {
 		return { name };
@@ -193,5 +201,9 @@ function inheritedConfiguration(env: Environment): InheritedVariable[] {
 		});
 }
 
-export { withoutLaunchContext as default, inheritedConfiguration };
+export {
+	withoutLaunchContext as default,
+	inheritedConfiguration,
+	isClaudeCodeConfiguration,
+};
 export type { Environment };

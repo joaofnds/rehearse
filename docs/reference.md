@@ -544,10 +544,12 @@ need, such as a database. Each names a container image, the port it listens on
 inside the container, optional environment, a readiness command run inside the
 container, and the variables it exports, each naming the port as `{port}`.
 Variable names, in a service's or a check's `env` and in exports, must be
-environment variable names. An export may not be `HOME` or start with
-`ANTHROPIC_` or `CLAUDE_`, since exports reach the stage session and the
-provider reads those. A pipeline run starts each service with Docker,
-publishing its port on a loopback port Docker assigns, and runs its readiness
+environment variable names. An export may not be `HOME` or a name Claude Code
+reads or Rehearse drops for it, such as any `ANTHROPIC_*`, `CLAUDE*`,
+`DISABLE_*`, `MCP_*` or `OTEL_*` name or `HTTPS_PROXY` (the full rule is
+under [corpus sources and delivery](#corpus-sources-and-delivery)), since
+exports reach the stage session and would change it without the group's record
+showing it. A pipeline run starts each service with Docker, publishing its port on a loopback port Docker assigns, and runs its readiness
 command up to 120 times, half a second apart, so a service gets at least a
 minute plus the time its checks take. Docker first pulls an image the machine
 lacks, which needs the network. It passes the exports, with the assigned port in place of `{port}`, to
@@ -1117,8 +1119,10 @@ accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry carries a
 alone, since its value can be a credential or an identity. A URL value is
 digested without its user info, query and fragment, so two gateways still
 differ in the record and an embedded credential does not reach it. A pipeline
-or replay confirmation group records the same list, read where its stages'
-sessions start, as `inputs.inheritedConfiguration`. A session
+or replay confirmation group records the same list, read from the environment
+its stages' sessions start from, as `inputs.inheritedConfiguration`. A target
+service may not export a name on that list, or one the drop removes, so a
+stage session cannot receive one the group does not record. A session
 confirmation group's reps carry it on their own attempt records. An attempt or
 group recorded without the field inherited what it inherited unrecorded.
 

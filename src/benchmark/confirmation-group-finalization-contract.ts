@@ -57,7 +57,11 @@ interface ConfirmationGroupInputs {
 	/** How the stage installs delivered the group's corpus, read at freeze. */
 	readonly corpusDelivery: CorpusDelivery;
 	readonly setup: "actual";
-	/** What the stages' Claude Code children inherited, read where they spawn. */
+	/**
+	 * What the stages' Claude Code children inherited, read from Rehearse's own
+	 * environment, which every child starts from and a service export cannot
+	 * add Claude Code configuration to.
+	 */
 	readonly inheritedConfiguration: readonly InheritedVariable[];
 }
 
