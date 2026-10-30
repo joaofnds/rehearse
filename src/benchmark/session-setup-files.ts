@@ -47,13 +47,25 @@ async function subdirectories(directory: string): Promise<string[]> {
 		.toSorted();
 }
 
+/**
+ * A plugin whose manifest is missing or malformed is left unnamed rather than
+ * stopping the run, since the name only feeds the record.
+ */
 async function pluginName(plugin: string): Promise<string[]> {
-	const manifestText = await readJsonObject(
-		join(plugin, ".claude-plugin", "plugin.json"),
-	);
-	const manifest = pluginManifestSchema.safeParse(manifestText);
+	const manifestPath = join(plugin, ".claude-plugin", "plugin.json");
+	if (!(await pathExists(manifestPath))) {
+		return [];
+	}
 
-	return manifest.success ? [manifest.data.name] : [];
+	try {
+		const manifest = pluginManifestSchema.safeParse(
+			JSON.parse(await readFile(manifestPath, "utf8")),
+		);
+
+		return manifest.success ? [manifest.data.name] : [];
+	} catch {
+		return [];
+	}
 }
 
 async function pluginNamesUnder(directory: string): Promise<string[]> {

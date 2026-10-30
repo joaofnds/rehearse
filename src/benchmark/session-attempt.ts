@@ -19,18 +19,31 @@ async function runSessionAttempt(
 	const { sessionCase, settings } = request;
 	const temporaryDirectory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
 	const attemptDirectory = await realpath(temporaryDirectory);
-	const setupDirectory = await mkdtemp(join(tmpdir(), "rehearse-setup-"));
 	try {
-		const execution = await prepareAttempt(request, {
-			attemptDirectory,
-			sessionCase,
-			settings,
-			setupDirectory,
-		});
-		return await executeAttempt(execution);
+		return await withSetupDirectory(
+			async (setupDirectory) =>
+				await executeAttempt(
+					await prepareAttempt(request, {
+						attemptDirectory,
+						sessionCase,
+						settings,
+						setupDirectory,
+					}),
+				),
+		);
 	} catch (error) {
 		await rm(attemptDirectory, { force: true, recursive: true });
 		throw error;
+	}
+}
+
+/** The merged settings hold the user's values, so the directory never outlives the attempt. */
+async function withSetupDirectory<Result>(
+	use: (setupDirectory: string) => Promise<Result>,
+): Promise<Result> {
+	const setupDirectory = await mkdtemp(join(tmpdir(), "rehearse-setup-"));
+	try {
+		return await use(setupDirectory);
 	} finally {
 		await rm(setupDirectory, { force: true, recursive: true });
 	}

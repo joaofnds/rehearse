@@ -61,7 +61,17 @@ interface ActualSetupSource {
 
 const RUN_DECIDED_KEYS = new Set(["model", "effortLevel"]);
 
-const RUN_DECIDED_VARIABLES = new Set(["CLAUDE_CODE_EFFORT_LEVEL"]);
+/**
+ * The variables through which Claude Code takes a model or an effort from its
+ * environment, which would otherwise compete with the run's own flags.
+ */
+const RUN_DECIDED_VARIABLES: ReadonlySet<string> = new Set([
+	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	"ANTHROPIC_DEFAULT_OPUS_MODEL",
+	"ANTHROPIC_DEFAULT_SONNET_MODEL",
+	"ANTHROPIC_MODEL",
+	"CLAUDE_CODE_EFFORT_LEVEL",
+]);
 
 function sha256(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -135,7 +145,10 @@ function mergedSettings(
 	user: Immutable<JsonObject>,
 	declared: Immutable<JsonObject>,
 ): Immutable<JsonObject> {
-	const merged = { ...withoutRunDecidedKeys(user), ...declared };
+	const merged = {
+		...withoutRunDecidedKeys(user),
+		...withoutRunDecidedKeys(declared),
+	};
 	if (
 		user["permissions"] === undefined ||
 		declared["permissions"] === undefined
@@ -227,7 +240,12 @@ async function prepareActualSetup({
 	};
 }
 
-export { ISOLATED_SETUP, mergedSettings, prepareActualSetup };
+export {
+	ISOLATED_SETUP,
+	RUN_DECIDED_VARIABLES,
+	mergedSettings,
+	prepareActualSetup,
+};
 export type {
 	ActualSetup,
 	ActualSetupFiles,

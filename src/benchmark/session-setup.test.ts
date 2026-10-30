@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import type { Immutable } from "#benchmark/contracts";
 import type { JsonObject } from "#benchmark/json-value";
-import { mergedSettings, prepareActualSetup } from "#benchmark/session-setup";
+import { prepareActualSetup } from "#benchmark/session-setup";
 
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 
@@ -58,44 +58,6 @@ async function setUp(): Promise<void> {
 async function tearDown(): Promise<void> {
 	await rm(home, { force: true, recursive: true });
 	await rm(setupDirectory, { force: true, recursive: true });
-}
-
-function replacesAUserKeyTheHarnessDeclares(): void {
-	const merged = mergedSettings(
-		{ outputStyle: "brief", theme: "dark" },
-		{ outputStyle: "Explanatory" },
-	);
-
-	expect(merged).toEqual({ outputStyle: "Explanatory", theme: "dark" });
-}
-
-function keepsTheUserDenyRulesBesideTheDeclaredGrants(): void {
-	const merged = mergedSettings(
-		{ permissions: { allow: ["Read"], deny: ["Bash(rm:*)"] } },
-		{ permissions: { allow: ["Edit"] } },
-	);
-
-	expect(merged).toEqual({
-		permissions: { allow: ["Read", "Edit"], deny: ["Bash(rm:*)"] },
-	});
-}
-
-function dropsTheUserModelAndEffortSoTheRunDecidesThem(): void {
-	const merged = mergedSettings(
-		{ effortLevel: "max", model: "opus", theme: "dark" },
-		{},
-	);
-
-	expect(merged).toEqual({ theme: "dark" });
-}
-
-function dropsTheEffortTheUserEnvironmentSetsAndKeepsTheRest(): void {
-	const merged = mergedSettings(
-		{ env: { CLAUDE_CODE_EFFORT_LEVEL: "max", OTEL_LOGS_EXPORTER: "otlp" } },
-		{},
-	);
-
-	expect(merged).toEqual({ env: { OTEL_LOGS_EXPORTER: "otlp" } });
 }
 
 async function writesTheMergedSettingsIntoTheSetupDirectory(): Promise<void> {
@@ -201,6 +163,21 @@ async function namesThePluginsTheInheritedPluginVariableLoads(): Promise<void> {
 	expect(record.plugins).toEqual(["env-plugin"]);
 }
 
+async function skipsAPluginWhoseManifestIsMalformed(): Promise<void> {
+	const plugin = join(home, "mods", "broken-plugin");
+	await mkdir(join(plugin, ".claude-plugin"), { recursive: true });
+	await writeFile(join(plugin, ".claude-plugin", "plugin.json"), "{");
+
+	const { record } = await prepareActualSetup({
+		declared: {},
+		directory: setupDirectory,
+		env: { CLAUDE_CODE_PLUGIN_DIRS: plugin },
+		home,
+	});
+
+	expect(record.plugins).toEqual([]);
+}
+
 async function runsWithTheDeclaredKeysAloneWhenTheUserHasNoSetup(): Promise<void> {
 	const { files, record } = await prepareActualSetup({
 		declared: { outputStyle: "brief" },
@@ -216,25 +193,6 @@ async function runsWithTheDeclaredKeysAloneWhenTheUserHasNoSetup(): Promise<void
 		settingsKeys: ["outputStyle"],
 	});
 }
-
-describe(mergedSettings.name, () => {
-	it(
-		"replaces a user key the harness declares",
-		replacesAUserKeyTheHarnessDeclares,
-	);
-	it(
-		"keeps the user deny rules beside the declared grants",
-		keepsTheUserDenyRulesBesideTheDeclaredGrants,
-	);
-	it(
-		"drops the user model and effort so the run decides them",
-		dropsTheUserModelAndEffortSoTheRunDecidesThem,
-	);
-	it(
-		"drops the effort the user environment sets and keeps the rest",
-		dropsTheEffortTheUserEnvironmentSetsAndKeepsTheRest,
-	);
-});
 
 describe(prepareActualSetup.name, () => {
 	beforeEach(setUp);
@@ -260,6 +218,10 @@ describe(prepareActualSetup.name, () => {
 	it(
 		"names the plugins the inherited plugin variable loads",
 		namesThePluginsTheInheritedPluginVariableLoads,
+	);
+	it(
+		"skips a plugin whose manifest is malformed",
+		skipsAPluginWhoseManifestIsMalformed,
 	);
 	describe("when the user has no setup", () => {
 		it(

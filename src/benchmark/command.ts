@@ -20,7 +20,7 @@ type CommandLimit =
 	| { readonly silenceLimitMs: number; readonly timeoutMs?: undefined };
 
 type CommandOptions = CommandLimit & {
-	readonly env?: Readonly<Record<string, string>> | undefined;
+	readonly env?: Readonly<Record<string, string | undefined>> | undefined;
 	readonly input?: string | undefined;
 	/** Called with each stdout line as it arrives, the last one unterminated. */
 	readonly onLine?: ((line: string) => void) | undefined;
