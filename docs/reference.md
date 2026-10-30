@@ -1108,13 +1108,17 @@ actual-setup session through the `env` of your settings file. A session
 attempt's `setup.inheritedConfiguration` lists, sorted by name, every Claude
 Code configuration variable the session still inherited: the kept names above
 and any inherited `ANTHROPIC_*`, `DISABLE_*`, `ENABLE_*`, `MCP_*`, `OTEL_*`,
-`VERTEX_REGION_*` or `*_MAX_OUTPUT_*` name, the proxy names, and the other names
-Claude Code accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry
-carries a `sha256` of the value, except a name holding `AUTH`, `CERT`,
-`COOKIE`, `CREDENTIAL`, `HEADER`, `KEY`, `PASSPHRASE`, `PASSWORD`, `PROXY`,
-`SECRET` or `TOKEN`, which is recorded by name alone, since its value can be a
-credential. A pipeline or replay confirmation group records the same list, read where
-its stages' sessions start, as `inputs.inheritedConfiguration`. A session
+`VERTEX_REGION_*` or `*_MAX_OUTPUT_*` name, the proxy names, the AWS and Google
+Cloud names Claude Code's providers read, and the other names Claude Code
+accepts in a settings `env`, such as `API_TIMEOUT_MS`. Each entry carries a
+`sha256` of the value, except a name with a word such as `KEY`, `TOKEN`,
+`SECRET`, `PASSWORD`, `AUTH`, `CERT`, `CREDENTIALS`, `HEADERS`, `PAT`,
+`ATTRIBUTES` or `PROXY` (other than `NO_PROXY`), which is recorded by name
+alone, since its value can be a credential or an identity. A URL value is
+digested without its user info, query and fragment, so two gateways still
+differ in the record and an embedded credential does not reach it. A pipeline
+or replay confirmation group records the same list, read where its stages'
+sessions start, as `inputs.inheritedConfiguration`. A session
 confirmation group's reps carry it on their own attempt records. An attempt or
 group recorded without the field inherited what it inherited unrecorded.
 

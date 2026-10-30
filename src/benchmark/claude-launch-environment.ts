@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import type { InheritedVariable } from "./session-record-context-schema";
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 /**
@@ -13,6 +15,7 @@ const LOGIN_PROVIDER_AND_NETWORK_NAMES: ReadonlySet<string> = new Set([
 	"CLAUDE_CODE_API_BASE_URL",
 	"CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR",
 	"CLAUDE_CODE_API_KEY_HELPER_TTL_MS",
+	"CLAUDE_CODE_AWS_CHAIN_RESOLVE_TIMEOUT_MS",
 	"CLAUDE_CODE_CERT_STORE",
 	"CLAUDE_CODE_CLIENT_CERT",
 	"CLAUDE_CODE_CLIENT_KEY",
@@ -20,6 +23,7 @@ const LOGIN_PROVIDER_AND_NETWORK_NAMES: ReadonlySet<string> = new Set([
 	"CLAUDE_CODE_CUSTOM_OAUTH_URL",
 	"CLAUDE_CODE_GATEWAY_TOKEN",
 	"CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR",
+	"CLAUDE_CODE_SKIP_AWS_CRED_CACHE",
 	"CLAUDE_CODE_USE_ANTHROPIC_AWS",
 	"CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
 	"CLAUDE_CODE_USE_BEDROCK",
@@ -61,7 +65,7 @@ function withoutLaunchContext(env: Environment): Environment {
 	);
 }
 
-const CLAUDE_CODE_PREFIXES = [
+const PREFIXES_CLAUDE_CODE_READS = [
 	"ANTHROPIC_",
 	"CLAUDE",
 	"DISABLE_",
@@ -73,18 +77,31 @@ const CLAUDE_CODE_PREFIXES = [
 
 /**
  * Names outside the prefixes that the 2.1.314 binary reads, taken from its
- * list of names a settings file may set and its proxy names.
+ * list of names a settings file may set, its provider names and its proxy
+ * names.
  */
-const CLAUDE_CODE_READ_NAMES: ReadonlySet<string> = new Set([
+const NAMES_CLAUDE_CODE_READS: ReadonlySet<string> = new Set([
 	"ALL_PROXY",
 	"API_TIMEOUT_MS",
+	"AWS_ACCESS_KEY_ID",
+	"AWS_BEARER_TOKEN_BEDROCK",
 	"AWS_DEFAULT_REGION",
 	"AWS_PROFILE",
 	"AWS_REGION",
+	"AWS_ROLE_ARN",
+	"AWS_SECRET_ACCESS_KEY",
+	"AWS_SESSION_TOKEN",
+	"AWS_WEB_IDENTITY_TOKEN_FILE",
 	"BASH_DEFAULT_TIMEOUT_MS",
 	"BASH_MAX_TIMEOUT_MS",
+	"CLOUDSDK_AUTH_ACCESS_TOKEN",
+	"CLOUD_ML_REGION",
 	"FALLBACK_FOR_ALL_PRIMARY_MODELS",
 	"FORCE_PROMPT_CACHING_5M",
+	"GCLOUD_PROJECT",
+	"GOOGLE_APPLICATION_CREDENTIALS",
+	"GOOGLE_CLOUD_PROJECT",
+	"GOOGLE_CLOUD_QUOTA_PROJECT",
 	"HTTPS_PROXY",
 	"HTTP_PROXY",
 	"MAX_MCP_OUTPUT_TOKENS",
@@ -95,39 +112,54 @@ const CLAUDE_CODE_READ_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Parts of a name whose value can be a credential, or hold one as a URL's
- * user info, so the record keeps the name alone: the browser serves records
- * without authentication, and a short secret's digest can be guessed.
+ * Words of a name whose value can be a credential or an identity, so the
+ * record keeps the name alone: the browser serves records without
+ * authentication, and a short secret's digest can be guessed. A proxy URL can
+ * carry user info, and the proxy bypass list cannot.
  */
-const SECRET_NAME_PARTS = [
+const SECRET_NAME_WORDS: ReadonlySet<string> = new Set([
+	"ATTRIBUTES",
 	"AUTH",
 	"CERT",
 	"COOKIE",
-	"CREDENTIAL",
-	"HEADER",
+	"CREDENTIALS",
+	"CREDS",
+	"HEADERS",
 	"KEY",
 	"PASSPHRASE",
 	"PASSWORD",
+	"PAT",
 	"PROXY",
 	"SECRET",
 	"TOKEN",
-];
+]);
 
-interface InheritedVariable {
-	readonly name: string;
-	readonly sha256?: string;
-}
+const PROXY_BYPASS_LIST = "NO_PROXY";
 
 function isReadByClaudeCode(name: string): boolean {
 	return (
-		CLAUDE_CODE_READ_NAMES.has(name) ||
+		NAMES_CLAUDE_CODE_READS.has(name) ||
 		name.includes("_MAX_OUTPUT_") ||
-		CLAUDE_CODE_PREFIXES.some((prefix) => name.startsWith(prefix))
+		PREFIXES_CLAUDE_CODE_READS.some((prefix) => name.startsWith(prefix))
 	);
 }
 
 function isSecretBearing(name: string): boolean {
-	return SECRET_NAME_PARTS.some((part) => name.includes(part));
+	return (
+		name !== PROXY_BYPASS_LIST &&
+		name.split("_").some((word) => SECRET_NAME_WORDS.has(word))
+	);
+}
+
+/** A URL's user info, query and fragment can carry a credential. */
+function withoutCredentials(value: string): string {
+	if (!URL.canParse(value)) {
+		return value;
+	}
+
+	const url = new URL(value);
+
+	return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
 function recordedVariable(name: string, value: string): InheritedVariable {
@@ -135,7 +167,12 @@ function recordedVariable(name: string, value: string): InheritedVariable {
 		return { name };
 	}
 
-	return { name, sha256: createHash("sha256").update(value).digest("hex") };
+	return {
+		name,
+		sha256: createHash("sha256")
+			.update(withoutCredentials(value))
+			.digest("hex"),
+	};
 }
 
 /**
@@ -157,4 +194,4 @@ function inheritedConfiguration(env: Environment): InheritedVariable[] {
 }
 
 export { withoutLaunchContext as default, inheritedConfiguration };
-export type { Environment, InheritedVariable };
+export type { Environment };

@@ -1,4 +1,3 @@
-import type { InheritedVariable } from "./claude-launch-environment";
 import type { ApprovalMethod, Effort } from "./config";
 import type { ConfirmationCostProjection } from "./confirmation";
 import type { SessionConfirmationGroupRecord } from "./confirmation-record";
@@ -6,6 +5,7 @@ import type { ConfirmationRepResult } from "./confirmation-rep-settlement";
 import type { CorpusDelivery } from "./corpus-delivery";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import type { FrozenFile } from "./frozen-confirmation-files";
+import type { InheritedVariable } from "./session-record-context-schema";
 
 class GroupStoppedError extends Error {
 	public override name = "GroupStoppedError";

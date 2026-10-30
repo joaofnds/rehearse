@@ -56,6 +56,8 @@ const inheritedVariableSchema = z
 	.object({ name: z.string().nonempty(), sha256: sha256Schema.optional() })
 	.strict();
 
+type InheritedVariable = Readonly<z.infer<typeof inheritedVariableSchema>>;
+
 const inheritedConfigurationSchema = z.array(inheritedVariableSchema);
 
 /**
@@ -149,4 +151,4 @@ export {
 	legacyManifestDivergenceSchema,
 };
 export { corpusDeliveryRecordSchema } from "./corpus-delivery";
-export type { CorpusSnapshotOrigin, ContextHalf };
+export type { CorpusSnapshotOrigin, ContextHalf, InheritedVariable };
