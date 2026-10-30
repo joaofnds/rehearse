@@ -20,7 +20,8 @@ const COMPLETED_EXIT_CODE = 0;
 /**
  * Answers the model preflight with one JSON document and a session with an
  * init line and a result line. It writes nothing but a listing of each
- * session's installed corpus, path and first line, to `$INSTALL_LOG`.
+ * session's installed corpus, path and text with each newline as `|`, to
+ * `$INSTALL_LOG`.
  */
 const SILENT_CLAUDE = `#!/bin/sh
 format=""
@@ -33,7 +34,7 @@ for argument in "$@"; do
 done
 if [ "$format" = "stream-json" ]; then
 	(cd .claude && find . -type f | sort | while read -r file; do
-		printf '%s\t%s\n' "$file" "$(head -n 1 "$file")"
+		printf '%s\t%s\n' "$file" "$(tr '\\n' '|' < "$file")"
 	done) >> "$INSTALL_LOG"
 	echo '{"type":"system","subtype":"init","mcp_servers":[],"plugins":[]}'
 fi
@@ -249,19 +250,19 @@ async function installsEachArmsWholeCorpusInItsSessions(): Promise<void> {
 		control: await installedCorpus(join(root, "control.log")),
 	}).toEqual({
 		baseline: [
-			"./CLAUDE.md\tlive instructions",
-			"./agents/reviewer.md\tlive agent",
-			"./output-styles/brief.md\tlive brief",
-			"./rulebook/ownership.md\tlive rule",
-			"./skills/probe/SKILL.md\tlive skill",
+			"./CLAUDE.md\tlive instructions|Read .claude/rulebook/ownership.md and .claude/rulebook/ownership.md.|",
+			"./agents/reviewer.md\tlive agent|",
+			"./output-styles/brief.md\tlive brief|",
+			"./rulebook/ownership.md\tlive rule|",
+			"./skills/probe/SKILL.md\tlive skill|",
 		],
 		candidate: [
-			"./CLAUDE.md\tcandidate instructions",
-			"./output-styles/brief.md\tcandidate brief",
-			"./rulebook/ownership.md\tcandidate rule",
-			"./skills/probe/SKILL.md\tcandidate skill",
+			"./CLAUDE.md\tcandidate instructions|Read .claude/rulebook/ownership.md.|",
+			"./output-styles/brief.md\tcandidate brief|",
+			"./rulebook/ownership.md\tcandidate rule|",
+			"./skills/probe/SKILL.md\tcandidate skill|",
 		],
-		control: ["./output-styles/brief.md\tcontrol brief"],
+		control: ["./output-styles/brief.md\tcontrol brief|"],
 	});
 }
 

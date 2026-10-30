@@ -66,3 +66,18 @@ describe(liveCorpusReads.name, () => {
 		expect(liveCorpusReads([call], citations, held)).toEqual([]);
 	});
 });
+
+describe(`${liveCorpusReads.name} access fields`, () => {
+	it.each([
+		["Edit", "file_path"],
+		["NotebookEdit", "notebook_path"],
+	])("counts an %s call by its %s field", (name, field) => {
+		const edit = use(name, {
+			[field]: "/home/user/.agents/rulebook/ownership.md",
+		});
+
+		expect(liveCorpusReads([edit], citations, held)).toEqual([
+			{ count: 1, path: "rulebook/ownership.md" },
+		]);
+	});
+});
