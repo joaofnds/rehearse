@@ -22,6 +22,9 @@ async function runCompare(
 
 	const reportFile = await writeComparisonReport({
 		manifestPath,
+		notice: (line) => {
+			output.stderr(`${line}\n`);
+		},
 		runsDirectory: request.runsDirectory,
 	});
 

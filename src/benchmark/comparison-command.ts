@@ -4,17 +4,9 @@ import { resolve } from "node:path";
 
 import type { ComparisonBaselineRecord } from "./comparison-baseline-record";
 import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
-import { loadComparisonEvidence } from "./comparison-loader";
-import {
-	COMPARISON_ARMS,
-	serializeComparisonReport,
-} from "./comparison-record";
-import buildComparisonReport from "./comparison-report";
+import { serializeComparisonReport } from "./comparison-record";
+import buildComparison from "./comparison-report-build";
 import { RefusedPreconditionError } from "./exit-codes";
-import {
-	filterJudgeAgreementReport,
-	loadJudgeAgreementReport,
-} from "./judge-agreement";
 import { comparisonReportPaths } from "./run-layout";
 
 interface WriteComparisonReportRequest {
@@ -22,6 +14,8 @@ interface WriteComparisonReportRequest {
 	readonly runsDirectory: string;
 	/** How `compare attempts` made the control group, written beside the report. */
 	readonly baselineRecord?: ComparisonBaselineRecord | undefined;
+	/** Receives each line naming an arm that read a file under test live. */
+	readonly notice?: ((line: string) => void) | undefined;
 }
 
 async function canonicalExistingPath(
@@ -63,28 +57,18 @@ async function writeReportAtomically(
 	}
 }
 
+function ignoreNotice(): void {
+	// A caller with nowhere to print a notice still gets the report.
+}
+
 async function writeComparisonReport(
 	request: Readonly<WriteComparisonReportRequest>,
 ): Promise<string> {
-	const evidence = await loadComparisonEvidence(request.manifestPath);
-	const judgeAgreement =
-		evidence.contract.mode === "session"
-			? { baselines: [], skippedCalibrations: 0 }
-			: filterJudgeAgreementReport(
-					await loadJudgeAgreementReport(request.runsDirectory),
-					evidence.cases.flatMap((benchmarkCase) =>
-						COMPARISON_ARMS.flatMap((arm) => {
-							const { group } = benchmarkCase.arms[arm];
-							const { inputs } = group.record;
-							if (!("judgeModel" in inputs)) {
-								return [];
-							}
-							const { judgeModel } = inputs;
-							return judgeModel === undefined ? [] : [judgeModel];
-						}),
-					),
-				);
-	const report = buildComparisonReport(evidence, judgeAgreement);
+	const { evidence, report } = await buildComparison(
+		request.manifestPath,
+		request.runsDirectory,
+		request.notice ?? ignoreNotice,
+	);
 	const paths = comparisonReportPaths(
 		request.runsDirectory,
 		evidence.manifest.sha256,
