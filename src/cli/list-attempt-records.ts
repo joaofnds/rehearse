@@ -7,7 +7,7 @@ import {
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
 import type { SessionAttemptId } from "#benchmark/run-layout";
-import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import readSessionAttemptRecord from "#benchmark/session-attempt-record-read";
 
 import type { RecordListing } from "./record-listing";
 import { collect, numbered } from "./record-listing";
@@ -18,19 +18,14 @@ async function sessionAttemptFields(
 	attempt: SessionAttemptId,
 ): Promise<readonly string[] | undefined> {
 	const paths = sessionAttemptPaths(runsDirectory, attempt);
-	if (await stoppedBeforeAttemptRecord(paths)) {
-		return undefined;
-	}
-
-	if (!(await Bun.file(paths.recordFile).exists())) {
-		throw new Error("incomplete: no attempt.json recorded");
-	}
-
-	const record = parseSessionAttemptRecord(
-		await Bun.file(paths.recordFile).text(),
+	const record = await readSessionAttemptRecord(
+		paths,
+		async () => await stoppedBeforeAttemptRecord(paths),
 	);
 
-	return [record.caseId, record.outcome, record.model];
+	return record === undefined
+		? undefined
+		: [record.caseId, record.outcome, record.model];
 }
 
 /**

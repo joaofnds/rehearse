@@ -7,10 +7,8 @@ import type {
 	SessionAttemptId,
 	SessionAttemptPaths,
 } from "#benchmark/run-layout";
-import {
-	attemptStartedAt,
-	parseSessionAttemptRecord,
-} from "#benchmark/session-record";
+import readSessionAttemptRecord from "#benchmark/session-attempt-record-read";
+import { attemptStartedAt } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
 import type { SessionAttemptRow, Unjudged } from "#server/run-history-contract";
@@ -88,17 +86,14 @@ async function sessionAttemptRow({
 	launchByPid,
 }: SessionAttemptRowRequest): Promise<Unjudged<SessionAttemptRow> | undefined> {
 	const paths = sessionAttemptPaths(runsDirectory, attempt);
-	if (!(await Bun.file(paths.recordFile).exists())) {
-		if (await leftOut(paths, launchByPid)) {
-			return undefined;
-		}
-
-		throw new Error("incomplete: no attempt.json recorded");
+	const record = await readSessionAttemptRecord(
+		paths,
+		async () => await leftOut(paths, launchByPid),
+	);
+	if (record === undefined) {
+		return undefined;
 	}
 
-	const record = parseSessionAttemptRecord(
-		await Bun.file(paths.recordFile).text(),
-	);
 	const recordId = formatRecordId({ kind: "attempt:session", ...attempt });
 
 	return {
