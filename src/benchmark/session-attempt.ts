@@ -16,6 +16,12 @@ import { removeAttemptFiles } from "./session-attempt-transcript";
 async function runSessionAttempt(
 	request: SessionAttemptRequest,
 ): Promise<SessionAttempt> {
+	return await request.inFlight.track(attemptInTemporaryDirectory(request));
+}
+
+async function attemptInTemporaryDirectory(
+	request: SessionAttemptRequest,
+): Promise<SessionAttempt> {
 	const { sessionCase, settings } = request;
 	const temporaryDirectory = await mkdtemp(join(tmpdir(), "rehearse-attempt-"));
 	const attemptDirectory = await realpath(temporaryDirectory);
@@ -99,6 +105,7 @@ export { forkTranscript } from "./session-transcript-prefix";
 export { sessionCaseArgs } from "./session-attempt-invocation";
 export { default as SessionInputError } from "./session-attempt-preparation-contract";
 export type {
+	AttemptsInFlight,
 	ClaudeRunner,
 	SessionAttemptRequest,
 	SessionNaming,

@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import type { SessionCase } from "#benchmark/case";
 import type { SessionRunConfig } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
+import type { AttemptsInFlight } from "#benchmark/session-attempt";
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { CommandOutput } from "#cli/output";
@@ -13,10 +14,11 @@ import type { SessionRunRequest } from "./session-run-contract";
 interface SessionRunInputs {
 	readonly sessionCase: SessionCase;
 	readonly config: SessionRunConfig;
+	readonly inFlight: AttemptsInFlight;
 }
 
 function defaultSessionRunRequest(
-	{ sessionCase, config }: SessionRunInputs,
+	{ sessionCase, config, inFlight }: SessionRunInputs,
 	runsDirectory: string,
 	spendCeilingUsd: number,
 ): SessionRunRequest {
@@ -24,6 +26,7 @@ function defaultSessionRunRequest(
 		config,
 		environment: Bun.env,
 		home: homedir(),
+		inFlight,
 		projectsDirectory: claudeProjectsDirectory(),
 		runClaude: runClaudeCommand,
 		runsDirectory,

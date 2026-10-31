@@ -17,13 +17,14 @@ import {
 	recordSuccessfulSessionAttempt,
 	sessionCommandDependencies,
 	sessionConfirmationState,
+	writtenRepRecords,
 } from "./session-command-test-boundaries";
 
 const testResources = TestResources.forEachTest();
 
-async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void> {
+/** A two-rep confirmation group the operator stops as its first rep starts. */
+async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 	const { output } = recordOutput();
-	const runsDirectory = await testResources.createControlDirectory();
 	const stops: (() => Promise<void>)[] = [];
 
 	const dependencies = sessionCommandDependencies({
@@ -53,7 +54,7 @@ async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void>
 				status: "COMPLETE" as const,
 			}),
 	});
-	const failure = await failureOf(
+	return await failureOf(
 		runRunCommand(
 			new SessionRequestBuilder({}, [
 				"--confirm",
@@ -64,12 +65,26 @@ async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void>
 			dependencies,
 		),
 	);
+}
+
+async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void> {
+	const runsDirectory = await testResources.createControlDirectory();
+
+	const failure = await stoppedConfirmationGroup(runsDirectory);
 
 	expect(failure).toBeInstanceOf(GroupStoppedError);
 	expect(await sessionConfirmationState(runsDirectory)).toEqual({
 		hasSummary: false,
 		operatorStopped: true,
 	});
+}
+
+async function writesNoRepRecordOnceTheOperatorStopIsRecorded(): Promise<void> {
+	const runsDirectory = await testResources.createControlDirectory();
+
+	await stoppedConfirmationGroup(runsDirectory);
+
+	expect(await writtenRepRecords(runsDirectory)).toEqual([]);
 }
 
 async function refusesAnUnsupportedResumedConfirmationBeforeItsModelProbe(): Promise<void> {
@@ -121,6 +136,10 @@ describe("runRunCommand for a session case", () => {
 	it(
 		"records a stopped confirmation group's operator stop and writes no group record",
 		recordsAStoppedConfirmationGroupSOperatorStopAnd,
+	);
+	it(
+		"writes no rep record once the operator stop is recorded",
+		writesNoRepRecordOnceTheOperatorStopIsRecorded,
 	);
 	it(
 		"refuses an unsupported resumed confirmation before its model probe and reps",

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SessionRunConfig } from "#benchmark/config";
 import { operatorStopRecord } from "#benchmark/operator-stop";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
+import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
 import type { CommandOutput } from "#cli/output";
 import { signalDiagnostics } from "#cli/output";
@@ -10,6 +11,8 @@ import type { TerminalQuestioner } from "#cli/questioner";
 import terminalQuestioner from "#cli/questioner";
 
 import type { SessionRunExecutionDependencies } from "./run-command-contracts";
+
+const STOP_SETTLE_BOUND_MS = 30_000;
 
 interface SessionCommandLifetimeRequest {
 	readonly config: Pick<SessionRunConfig, "confirmation">;
@@ -20,6 +23,7 @@ interface SessionCommandLifetimeRequest {
 class SessionCommandLifetime {
 	public readonly questioner: TerminalQuestioner;
 	public readonly groupId: string;
+	public readonly inFlight = new SessionAttemptsInFlight();
 	private readonly release: () => void;
 	public constructor({
 		config,
@@ -29,8 +33,8 @@ class SessionCommandLifetime {
 	}: SessionCommandLifetimeRequest) {
 		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
 		this.groupId = randomUUID();
-		// A session attempt keeps no worktree, so the stop only kills its commands,
-		// and only a group has a directory to record the stop in.
+		// Only a group has a directory to record the stop in. Provider calls close
+		// before the stop kills the commands, so none starts after the kill.
 		this.release = (
 			boundary.stopOnSignal ??
 			((cleanUp, recordStop) =>
@@ -41,9 +45,10 @@ class SessionCommandLifetime {
 				))
 		)(
 			async () => {
-				await Promise.resolve();
+				await this.inFlight.settled(STOP_SETTLE_BOUND_MS);
 			},
 			async (signal) => {
+				this.inFlight.close();
 				if (config.confirmation !== undefined) {
 					await Bun.write(
 						confirmationGroupPaths(runsDirectory, this.groupId)

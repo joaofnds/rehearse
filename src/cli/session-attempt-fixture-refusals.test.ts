@@ -3,7 +3,9 @@ import { symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
-import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
@@ -28,6 +30,7 @@ async function refusesAFixtureTreeHoldingASymlinkBeforeAnyProviderCall(): Promis
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			runClaude: async () =>
 				await Promise.reject(new Error("a provider call must not happen")),
@@ -53,6 +56,7 @@ async function refusesAFixtureWhoseSeededHistoryGitCannotReadExiting3BeforeAnyPr
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			runClaude: async (_command, cwd) => {
 				calls.push(cwd);
@@ -85,6 +89,7 @@ async function refusesATranscriptPrefixWhoseBytesDoNotMatchTheDeclaredDigestBefo
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			runClaude: async () =>
 				await Promise.reject(new Error("a provider call must not happen")),

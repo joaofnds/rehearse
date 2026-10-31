@@ -14,6 +14,7 @@ import {
 	defaultSessionRunRequest,
 	reportSessionChecks,
 } from "#cli/session-run-command";
+import type { SessionRunRequest } from "#cli/session-run-command";
 
 import reportConfirmationOutcome from "./confirmation-command-output";
 import type {
@@ -31,6 +32,7 @@ interface SessionCommandAttemptsRequest {
 	readonly groupId: string;
 	readonly runDebug: typeof runSessionDebugAttempt;
 	readonly executeAttempt: SessionConfirmationDependencies["executeAttempt"];
+	readonly inFlight: SessionRunRequest["inFlight"];
 }
 
 class SessionCommandAttempts {
@@ -113,13 +115,13 @@ class SessionCommandAttempts {
 	}
 	public readonly runDebug = async (): Promise<RunOutcome> => {
 		const { config, output, sessionCase } = this.context.execution;
-		const { dependencies, runsDirectory, runDebug } = this.context;
+		const { dependencies, runsDirectory, runDebug, inFlight } = this.context;
 
 		await dependencies.probeModel(config.model);
 
 		const outcome = await runDebug({
 			...defaultSessionRunRequest(
-				{ config, sessionCase },
+				{ config, inFlight, sessionCase },
 				runsDirectory,
 				dependencies.spendCeilingUsd,
 			),

@@ -3,6 +3,7 @@ import { mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { ClaudeRunner } from "#benchmark/session-attempt";
+import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { projectSlug } from "#benchmark/session-capture";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
@@ -132,6 +133,7 @@ async function attemptUnder(
 		config: { ...config, corpus: run.corpus },
 		environment: {},
 		home: run.home,
+		inFlight: new SessionAttemptsInFlight(),
 		projectsDirectory: run.projects,
 		runClaude: citationFollowingClaude(run.projects, writes),
 		runsDirectory: await files.temporary("rehearse-runs-"),

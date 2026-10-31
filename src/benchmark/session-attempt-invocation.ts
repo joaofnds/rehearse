@@ -120,6 +120,7 @@ async function runSession({
 	contextEvidence,
 	setup,
 }: PreparedAttempt): Promise<string> {
+	request.inFlight.assertOpen();
 	try {
 		return await request.runClaude(
 			sessionCaseArgs(sessionCase, {

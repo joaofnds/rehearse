@@ -4,7 +4,9 @@ import { basename, dirname } from "node:path";
 import { z } from "zod";
 
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
-import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { readShortIds } from "#benchmark/short-id";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
@@ -22,6 +24,7 @@ async function writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndARes
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -60,6 +63,7 @@ async function claimsTheAttemptAShortIdInItsCase(): Promise<void> {
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -88,6 +92,7 @@ async function printsARecordThatParsesWithTheSchemaThatWroteIt(): Promise<void> 
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -116,6 +121,7 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		now: () => elapsedMs,
 		projectsDirectory: projects,
 		runClaude: async (command, cwd) => {
@@ -148,6 +154,7 @@ async function recordedSetup(isolated: boolean): Promise<RecordedSetup> {
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,
@@ -189,6 +196,7 @@ async function writesTheMCPServersAndPluginsTheSessionReportedLoadingToItsRecord
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK", init),
 		runsDirectory: runs,

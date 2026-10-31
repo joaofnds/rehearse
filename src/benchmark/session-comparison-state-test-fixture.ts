@@ -8,6 +8,7 @@ import { runSessionAttempt } from "./session-attempt";
 import { writeComparisonCorpus } from "./session-comparison-corpus-test-fixture";
 import SessionComparisonRequestBuilder, {
 	ABSENT_HOME,
+	attemptsInFlight,
 } from "./session-comparison-request-test-builder";
 import StateScoringProvider from "./session-comparison-state-provider-fixture";
 import type { StateGroupCase } from "./session-comparison-test-contract";
@@ -151,6 +152,7 @@ class StateComparisonFixture {
 						corpusSnapshot: plan.corpusSnapshot,
 						environment: {},
 						home: ABSENT_HOME,
+						inFlight: attemptsInFlight(),
 						liveCitations: { home: ABSENT_HOME, roots: [] },
 						projectsDirectory: this.props.projectsDirectory,
 						recordDirectory: plan.recordDirectory,

@@ -6,7 +6,10 @@ import type {
 } from "#benchmark/context-evidence";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import type { measureCorpusVersion } from "#benchmark/corpus-version";
-import type { ClaudeRunner } from "#benchmark/session-attempt";
+import type {
+	AttemptsInFlight,
+	ClaudeRunner,
+} from "#benchmark/session-attempt";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 
 interface SessionRunRequest {
@@ -15,6 +18,7 @@ interface SessionRunRequest {
 	readonly spendCeilingUsd: number;
 	readonly runsDirectory: string;
 	readonly runClaude: ClaudeRunner;
+	readonly inFlight: AttemptsInFlight;
 	readonly projectsDirectory: string;
 	/** The home directory whose Claude Code setup a session runs with. */
 	readonly home: string;

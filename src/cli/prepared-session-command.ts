@@ -4,6 +4,7 @@ import { sessionCitationMap } from "#benchmark/attempt-corpus-overlay";
 import type { Immutable } from "#benchmark/contracts";
 import type { HomePathCitationMap } from "#benchmark/home-path-citation";
 import type {
+	AttemptsInFlight,
 	SessionAttempt,
 	SessionAttemptRequest,
 } from "#benchmark/session-attempt";
@@ -34,6 +35,7 @@ const userBoundary: PreparedSessionBoundary = {
  * differently when the live install changes while it runs.
  */
 function preparedSessionAttempts(
+	inFlight: AttemptsInFlight,
 	boundary: PreparedSessionBoundary = userBoundary,
 ): (plan: Immutable<SessionConfirmationRepPlan>) => Promise<SessionAttempt> {
 	let liveCitations: Promise<HomePathCitationMap> | undefined = undefined;
@@ -45,6 +47,7 @@ function preparedSessionAttempts(
 			corpusSnapshot: plan.corpusSnapshot,
 			environment: Bun.env,
 			home: homedir(),
+			inFlight,
 			liveCitations: await liveCitations,
 			projectsDirectory: claudeProjectsDirectory(),
 			recordDirectory: plan.recordDirectory,

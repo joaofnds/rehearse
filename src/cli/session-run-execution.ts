@@ -27,9 +27,6 @@ async function executeSessionRun(
 
 	const runsDirectory = dependencies.runsDirectory ?? recordsDirectory();
 	const runDebug = dependencies.runDebug ?? runSessionDebugAttempt;
-	const executeAttempt =
-		dependencies.executeAttempt ?? preparedSessionAttempts();
-
 	const lifetime = new SessionCommandLifetime({
 		boundary: dependencies,
 		config,
@@ -38,9 +35,11 @@ async function executeSessionRun(
 	});
 	const attempts = new SessionCommandAttempts({
 		dependencies,
-		executeAttempt,
+		executeAttempt:
+			dependencies.executeAttempt ?? preparedSessionAttempts(lifetime.inFlight),
 		execution,
 		groupId: lifetime.groupId,
+		inFlight: lifetime.inFlight,
 		runDebug,
 		runsDirectory,
 	});

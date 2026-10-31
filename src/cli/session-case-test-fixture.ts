@@ -61,4 +61,7 @@ function resumingCase(transcriptPath: string): SessionCase {
 	};
 }
 export { SessionCaseBuilder, config, resumingCase };
-export { default as ABSENT_HOME } from "#benchmark/session-setup-test-fixtures";
+export {
+	default as ABSENT_HOME,
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { HomePathCitationMap } from "#benchmark/home-path-citation";
 import type { SessionAttemptRequest } from "#benchmark/session-attempt";
+import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import type { SessionConfirmationRepPlan } from "#benchmark/session-confirmation";
 import {
 	smokeAttempt,
@@ -45,7 +46,7 @@ function citationMaps(
 describe(preparedSessionAttempts.name, () => {
 	it("reads the live citation map once for every attempt of a run", async () => {
 		const requests: SessionAttemptRequest[] = [];
-		const runAttempt = preparedSessionAttempts({
+		const runAttempt = preparedSessionAttempts(new SessionAttemptsInFlight(), {
 			readCitations: citationMaps("/home/first-read", "/home/second-read"),
 			runAttempt: async (request) => {
 				requests.push(request);

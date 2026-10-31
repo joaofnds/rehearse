@@ -5,7 +5,7 @@ import type { Immutable } from "#benchmark/contracts";
 import type { SessionAttemptRequest } from "#benchmark/session-attempt";
 
 import type { SessionCaseOptions } from "./session-attempt-invocation";
-import ABSENT_HOME from "./session-setup-test-fixtures";
+import ABSENT_HOME, { attemptsInFlight } from "./session-setup-test-fixtures";
 
 const SHA256_HEX_CHARACTERS = 64;
 
@@ -60,6 +60,7 @@ function request(
 	return {
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		liveCitations: { home: ABSENT_HOME, roots: [] },
 		sessionCase: sessionCase(),
 		settings: { budgetUsd: 0.2, effort: "low", model: "haiku" },

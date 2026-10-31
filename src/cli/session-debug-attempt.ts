@@ -71,6 +71,7 @@ class SessionAttemptRecorder {
 				corpusSnapshot: corpus.snapshot,
 				environment: request.environment,
 				home: request.home,
+				inFlight: request.inFlight,
 				liveCitations: await sessionCitationMap(
 					request.home,
 					request.environment,

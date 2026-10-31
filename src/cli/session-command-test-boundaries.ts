@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import type { Immutable } from "#benchmark/contracts";
 import type { ModelPreflightEvidence } from "#benchmark/model-preflight";
@@ -126,7 +126,21 @@ async function sessionConfirmationState(
 	};
 }
 
+/** The attempt and rep records written under the group's rep directories. */
+async function writtenRepRecords(
+	runsDirectory: string,
+): Promise<readonly string[]> {
+	const files = await readdir(join(runsDirectory, "confirmations"), {
+		recursive: true,
+	});
+
+	return files.filter((file) =>
+		["attempt.json", "rep.json"].includes(basename(file)),
+	);
+}
+
 export {
+	writtenRepRecords,
 	observedConfirmationDependencies,
 	recordSuccessfulSessionAttempt,
 	sessionCommandDependencies,

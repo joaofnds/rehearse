@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
-import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
@@ -49,6 +51,7 @@ async function recordsTheLineageTheSmokeCaseCarriedBeforeCorpusExisted(): Promis
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: await files.temporary("rehearse-runs-"),

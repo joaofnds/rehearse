@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
-import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
@@ -45,6 +47,7 @@ async function reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheC
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude,
 		runsDirectory,
@@ -75,6 +78,7 @@ async function reportsAnUndeclaredFileDivergenceForAnInstalledSkillTheCaseNeverD
 		config: { ...config, corpus },
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: undeclaredSkillClaude(projects, (cwd) =>
 			join(cwd, ".claude/skills/verify"),
@@ -101,6 +105,7 @@ async function reportsAnUnloadedFileDivergenceForADeclaredProjectFileTheSessionN
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory,

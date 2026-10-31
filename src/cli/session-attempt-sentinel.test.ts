@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
@@ -73,6 +74,7 @@ async function writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors(): Pro
 		config,
 		environment: {},
 		home: await userHomeHoldingTheSentinel(),
+		inFlight: new SessionAttemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK", SENTINEL_INIT),
 		runsDirectory: runs,

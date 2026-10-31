@@ -16,6 +16,12 @@ type ClaudeRunner = (
 	cwd: string,
 ) => Promise<string>;
 
+/** What an attempt needs from the command's record of its attempts under way. */
+interface AttemptsInFlight {
+	readonly track: <Result>(attempt: Promise<Result>) => Promise<Result>;
+	readonly assertOpen: () => void;
+}
+
 interface SessionAttemptRequest {
 	readonly sessionCase: SessionCase;
 	readonly settings: SessionSettings;
@@ -29,6 +35,8 @@ interface SessionAttemptRequest {
 	readonly environment: Readonly<Record<string, string | undefined>>;
 	readonly recordDirectory: string;
 	readonly runClaude: ClaudeRunner;
+	/** The command's attempts under way, which an operator stop closes and awaits. */
+	readonly inFlight: AttemptsInFlight;
 	readonly corpusSnapshot?: SessionCorpusSnapshot | undefined;
 	/**
 	 * Where the live install's corpus files are cited from, read once for the
@@ -77,6 +85,7 @@ interface PreparedAttempt extends AttemptPreparation {
 
 export { SessionInputError as default };
 export type {
+	AttemptsInFlight,
 	ClaudeRunner,
 	SessionAttemptRequest,
 	SessionNaming,

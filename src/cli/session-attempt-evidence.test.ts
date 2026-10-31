@@ -12,6 +12,7 @@ import SessionAttemptTestFiles from "./session-attempt-test-files";
 import {
 	ABSENT_HOME,
 	SessionCaseBuilder,
+	attemptsInFlight,
 	config,
 } from "./session-case-test-fixture";
 import {
@@ -31,6 +32,7 @@ async function persistsExactToolDiagnosticsInTheParsedAttemptRecord(): Promise<v
 		config,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: diagnosticClaude(projects),
 		runsDirectory: runs,
@@ -54,6 +56,7 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			now: () => elapsedMs,
 			projectsDirectory: projects,
 			runClaude: async (command, cwd) => {
@@ -101,6 +104,7 @@ async function persistsProviderContextEvidenceThroughTheSavedAttemptBoundary(): 
 		contextRateCatalog,
 		environment: {},
 		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
 		projectsDirectory: projects,
 		runClaude: fakeClaude(projects, "OK"),
 		runsDirectory: runs,

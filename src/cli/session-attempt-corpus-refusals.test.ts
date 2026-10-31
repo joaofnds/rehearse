@@ -2,7 +2,9 @@ import { describe, expect, it } from "bun:test";
 
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 import type { ResolvedCorpusSource } from "#benchmark/corpus-source";
-import ABSENT_HOME from "#benchmark/session-setup-test-fixtures";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
@@ -27,6 +29,7 @@ async function refusesAnOutOfExtentLiveCorpusFileBeforeAnyProviderCall(): Promis
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			resolveCorpus: async () =>
 				await Promise.resolve<ResolvedCorpusSource>({
@@ -66,6 +69,7 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			resolveCorpus: async () =>
 				await Promise.resolve<ResolvedCorpusSource>({
@@ -98,6 +102,7 @@ async function reportsInvalidLiveCorpusConfigurationAsARefusedPrecondition(): Pr
 			config,
 			environment: {},
 			home: ABSENT_HOME,
+			inFlight: attemptsInFlight(),
 			projectsDirectory: await files.temporary("rehearse-projects-"),
 			resolveCorpus: async () =>
 				await Promise.reject(
