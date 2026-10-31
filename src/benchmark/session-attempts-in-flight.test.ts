@@ -11,7 +11,7 @@ describe(SessionAttemptsInFlight.name, () => {
 	it("never starts an attempt once the operator stop has closed it", async () => {
 		const inFlight = new SessionAttemptsInFlight();
 		let started = false;
-		inFlight.close();
+		inFlight.close("SIGTERM");
 
 		await failureOf(
 			inFlight.track(async () => {

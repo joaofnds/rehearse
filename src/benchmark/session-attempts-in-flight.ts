@@ -14,7 +14,7 @@ const NO_ATTEMPTS = 0;
  */
 class SessionAttemptsInFlight implements AttemptsInFlight {
 	private readonly running = new Set<Promise<unknown>>();
-	private closed = false;
+	private stopSignal: NodeJS.Signals | undefined = undefined;
 
 	public async track<Result>(start: () => Promise<Result>): Promise<Result> {
 		this.assertOpen();
@@ -27,12 +27,16 @@ class SessionAttemptsInFlight implements AttemptsInFlight {
 		}
 	}
 
-	public close(): void {
-		this.closed = true;
+	public close(signal: NodeJS.Signals): void {
+		this.stopSignal = signal;
+	}
+
+	public stoppedBy(): NodeJS.Signals | undefined {
+		return this.stopSignal;
 	}
 
 	public assertOpen(): void {
-		if (this.closed) {
+		if (this.stopSignal !== undefined) {
 			throw new Error(
 				"The operator stopped the run before this attempt started its session.",
 			);

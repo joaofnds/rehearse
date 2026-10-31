@@ -4,10 +4,10 @@ import { startTime } from "#benchmark/recorded-time";
 import type { SessionAttempt } from "#benchmark/session-attempt";
 import SessionInvocationError from "#benchmark/session-invocation-error";
 import { buildSessionAttemptRecord } from "#benchmark/session-record";
-import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
 
 import type { PreparedSessionDebugAttempt } from "./session-attempt-preparation";
 import prepareSessionDebugAttempt from "./session-attempt-preparation";
+import writeAttemptRecord from "./session-attempt-record-file";
 import attempted from "./session-attempt-refusal";
 import type {
 	SessionRunOutcome,
@@ -54,10 +54,11 @@ class SessionAttemptRecorder {
 			versionFiles,
 		});
 
-		await Bun.write(
-			this.evidence.attemptPaths.recordFile,
-			`${JSON.stringify(record, null, RECORD_JSON_INDENT_SPACES)}\n`,
-		);
+		await writeAttemptRecord({
+			inFlight: request.inFlight,
+			paths: this.evidence.attemptPaths,
+			record,
+		});
 
 		return { record, recordFile: this.evidence.attemptPaths.recordFile };
 	}

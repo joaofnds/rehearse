@@ -1,8 +1,12 @@
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
 import type { LaunchRecord } from "#benchmark/launch-record";
+import { stoppedBeforeAttemptRecord } from "#benchmark/operator-stop";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
-import type { SessionAttemptId } from "#benchmark/run-layout";
+import type {
+	SessionAttemptId,
+	SessionAttemptPaths,
+} from "#benchmark/run-layout";
 import {
 	attemptStartedAt,
 	parseSessionAttemptRecord,
@@ -59,8 +63,25 @@ interface SessionAttemptRowRequest {
 }
 
 /**
+ * An attempt with no record is left out while a live launch holds its writer
+ * or once the operator stopped it, and is otherwise incomplete.
+ */
+async function assertLeftOut(
+	paths: SessionAttemptPaths,
+	launchByPid: ReadonlyMap<number, LaunchRecord>,
+): Promise<void> {
+	if (
+		!(await heldInFlight(paths.directory, launchByPid)) &&
+		!(await stoppedBeforeAttemptRecord(paths))
+	) {
+		throw new Error("incomplete: no attempt.json recorded");
+	}
+}
+
+/**
  * Undefined for an attempt with no record whose writer a live launch holds,
- * since the launch's own row stands for it until the record is written.
+ * since the launch's own row stands for it until the record is written, and
+ * for one the operator stopped before its record, which writes none.
  */
 async function sessionAttemptRow({
 	runsDirectory,
@@ -68,16 +89,16 @@ async function sessionAttemptRow({
 	shortId,
 	launchByPid,
 }: SessionAttemptRowRequest): Promise<Unjudged<SessionAttemptRow> | undefined> {
-	const { directory, recordFile } = sessionAttemptPaths(runsDirectory, attempt);
-	if (!(await Bun.file(recordFile).exists())) {
-		if (await heldInFlight(directory, launchByPid)) {
-			return undefined;
-		}
+	const paths = sessionAttemptPaths(runsDirectory, attempt);
+	if (!(await Bun.file(paths.recordFile).exists())) {
+		await assertLeftOut(paths, launchByPid);
 
-		throw new Error("incomplete: no attempt.json recorded");
+		return undefined;
 	}
 
-	const record = parseSessionAttemptRecord(await Bun.file(recordFile).text());
+	const record = parseSessionAttemptRecord(
+		await Bun.file(paths.recordFile).text(),
+	);
 	const recordId = formatRecordId({ kind: "attempt:session", ...attempt });
 
 	return {

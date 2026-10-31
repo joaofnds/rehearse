@@ -39,9 +39,10 @@ class SessionCommandLifetime {
 	}: SessionCommandLifetimeRequest) {
 		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
 		this.groupId = randomUUID();
-		// Only a group has a directory to record the stop in. Attempts and
-		// commands close before the stop kills the commands, so none starts after
-		// the kill.
+		// A group records the stop in its directory here, and a single attempt
+		// in its own as it settles, from the signal it closed with. Attempts
+		// and commands close before the stop kills the commands, so none starts
+		// after the kill.
 		this.release = (
 			boundary.stopOnSignal ??
 			((cleanUp, recordStop) =>
@@ -55,7 +56,7 @@ class SessionCommandLifetime {
 				await this.inFlight.settled(STOP_SETTLE_BOUND_MS);
 			},
 			async (signal) => {
-				this.inFlight.close();
+				this.inFlight.close(signal);
 				(boundary.refuseCommands ?? refuseCommands)();
 				if (config.confirmation !== undefined) {
 					await Bun.write(

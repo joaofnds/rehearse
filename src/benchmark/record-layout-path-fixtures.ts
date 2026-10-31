@@ -97,6 +97,14 @@ const sessionPathsExpected = {
 		"uuid-1",
 		"grades",
 	),
+	operatorStopFile: join(
+		"/control",
+		".benchmark-runs",
+		"sessions",
+		"smoke",
+		"uuid-1",
+		"operator-stop.json",
+	),
 	recordFile: join(
 		"/control",
 		".benchmark-runs",

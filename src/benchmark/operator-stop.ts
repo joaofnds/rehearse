@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import type { BenchmarkRunPaths, ConfirmationGroupPaths } from "./run-layout";
+import type {
+	BenchmarkRunPaths,
+	ConfirmationGroupPaths,
+	SessionAttemptPaths,
+} from "./run-layout";
 import { OPERATOR_STOPPED } from "./stopped-status";
 import orderedValidationIssues from "./validation-issue-order";
 
@@ -46,6 +50,15 @@ async function operatorStopped(
 	return true;
 }
 
+async function stoppedBefore(
+	recordFile: string,
+	paths: Readonly<Pick<BenchmarkRunPaths, "operatorStopFile">>,
+): Promise<boolean> {
+	return (
+		!(await Bun.file(recordFile).exists()) && (await operatorStopped(paths))
+	);
+}
+
 /**
  * Whether a group ended by a signal before writing its group record. Such a
  * group writes none by design, so readers leave it out rather than report it
@@ -56,10 +69,19 @@ async function stoppedBeforeGroupRecord(
 		Pick<ConfirmationGroupPaths, "groupFile" | "operatorStopFile">
 	>,
 ): Promise<boolean> {
-	return (
-		!(await Bun.file(paths.groupFile).exists()) &&
-		(await operatorStopped(paths))
-	);
+	return await stoppedBefore(paths.groupFile, paths);
 }
 
-export { operatorStopRecord, operatorStopped, stoppedBeforeGroupRecord };
+/** The same for a single session attempt and its attempt record. */
+async function stoppedBeforeAttemptRecord(
+	paths: Readonly<Pick<SessionAttemptPaths, "operatorStopFile" | "recordFile">>,
+): Promise<boolean> {
+	return await stoppedBefore(paths.recordFile, paths);
+}
+
+export {
+	operatorStopRecord,
+	operatorStopped,
+	stoppedBeforeAttemptRecord,
+	stoppedBeforeGroupRecord,
+};

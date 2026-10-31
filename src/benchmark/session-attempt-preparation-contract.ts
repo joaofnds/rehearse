@@ -20,6 +20,8 @@ type ClaudeRunner = (
 interface AttemptsInFlight {
 	readonly track: <Result>(start: () => Promise<Result>) => Promise<Result>;
 	readonly assertOpen: () => void;
+	/** The signal of the operator stop that closed it, if one has. */
+	readonly stoppedBy: () => NodeJS.Signals | undefined;
 }
 
 interface SessionAttemptRequest {

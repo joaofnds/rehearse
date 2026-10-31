@@ -459,17 +459,19 @@ transcripts and sub-agent files. A session command's stop first refuses every
 attempt not yet started and every provider call not yet made, then kills the
 running ones and waits up to 5 seconds for each attempt in flight to copy its
 transcript and remove its attempt directory, setup directory and project slug.
-A stopped single session attempt writes its record in that wait, as an
-`EXECUTION_FAILED` attempt. Run history and `rehearse list groups` leave the group
-out rather than list it as unreadable. A stopped replay or
-single session attempt writes no operator stop. A browser launch the operator
+A stopped single session attempt writes `operator-stop.json` in its attempt
+directory in that wait, in place of its `attempt.json`, so it too keeps only
+its transcript and sub-agent files and never reads as a failed attempt. Run
+history and `rehearse list groups` leave the group out rather than list it as
+unreadable, and run history and `rehearse list attempts` leave out the
+attempt the same way. A stopped replay writes no operator stop. A browser launch the operator
 stopped keeps `stopRequestedAt`, and once its process exits its launch row
 stays in run history as `OPERATOR_STOPPED` with no controls. A stopped single
 pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
 the run recorded one, since nothing links the two once the process is gone and
-a case stopped before its run record exists has no other row. A replay or
-group stopped from a terminal has no launch, so nothing in run history shows
-its stop.
+a case stopped before its run record exists has no other row. A replay, group or
+single session attempt stopped from a terminal has no launch, so nothing in
+run history shows its stop.
 
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model

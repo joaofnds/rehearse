@@ -27,6 +27,7 @@ function assignsOneDurablePathToASessionAttemptSRecordAndCorpus(): void {
 		"directory",
 		"gradeFile",
 		"gradesDirectory",
+		"operatorStopFile",
 		"recordFile",
 		"transcriptFile",
 	]);

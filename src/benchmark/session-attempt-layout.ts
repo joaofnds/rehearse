@@ -1,7 +1,11 @@
 import { join } from "node:path";
 
 import { directoryNames } from "./record-directory-entries";
-import { ATTEMPT_FILE, runNameFromTimestamp } from "./record-file-names";
+import {
+	ATTEMPT_FILE,
+	OPERATOR_STOP_FILE,
+	runNameFromTimestamp,
+} from "./record-file-names";
 
 const SESSIONS_DIRECTORY = "sessions";
 
@@ -40,6 +44,7 @@ function sessionAttemptPaths(
 		gradeFile: (timestamp) =>
 			join(gradesDirectory, `${runNameFromTimestamp(timestamp)}.json`),
 		gradesDirectory,
+		operatorStopFile: join(directory, OPERATOR_STOP_FILE),
 		recordFile: join(directory, ATTEMPT_FILE),
 		transcriptFile: join(directory, "transcript.jsonl"),
 	};
@@ -53,6 +58,7 @@ interface SessionAttemptId {
 interface SessionAttemptPaths {
 	readonly directory: string;
 	readonly recordFile: string;
+	readonly operatorStopFile: string;
 	readonly transcriptFile: string;
 	readonly corpusDirectory: string;
 	readonly gradesDirectory: string;
