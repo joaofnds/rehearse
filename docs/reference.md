@@ -1571,13 +1571,17 @@ prints the record's path, or the record itself with `--json`. A stopped
 analysis, and one whose outcome cannot be written, print nothing on stdout. `show` does not
 open analysis records.
 
-The narrative and stage names come from the model and a failed reason quotes
-them, so the record file writes any DEL, C1 control or bidi control as a `\uXXXX`
-escape. The file still parses to the same record, and neither `cat` nor
-`--json` passes such a character to a terminal. The failure line and the
-unwritten outcome on stderr carry every control character, line feeds
-included, in the same escaped form. A record written before this escape keeps
-any such character raw.
+Every text field of a record can hold what the model wrote: the narrative, the
+paired rerun, each stage's note and contribution, and a failed record's reason
+and payload. JSON escapes the C0 control characters, and the record file also
+writes any DEL, C1 control or bidi control as a `\uXXXX` escape, so the file
+parses to the same record and neither `cat` nor `--json` passes a model-chosen
+control character to a terminal. A failed analysis prints `The root-cause analysis
+failed:` and its reason on stderr, with every control character in the reason,
+line feeds included, written as a `\uXXXX` escape, so the reason stays on one
+line. An outcome that cannot be written, described below, prints on stderr as
+JSON with the same escapes as the file. A record written before this escaping
+keeps any such character raw, and nothing in the record says which kind it is.
 
 Before the call the command writes a provisional record with `outcome:
 "failed"`, `durationMs` 0, no `costUsd`, and a `reason` saying no outcome was
