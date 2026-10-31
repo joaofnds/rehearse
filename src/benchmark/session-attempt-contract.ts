@@ -93,11 +93,14 @@ interface StateGrade {
 	readonly stateGradingError?: string | undefined;
 }
 
-interface AttemptCleanupFiles {
-	readonly attemptDirectory: string;
+interface SessionCleanupFiles {
 	readonly slug: string;
 	readonly transcriptPath: string;
 	readonly recordDirectory: string;
+}
+
+interface AttemptCleanupFiles extends SessionCleanupFiles {
+	readonly attemptDirectory: string;
 }
 
 type AttemptRecordBase = Omit<
@@ -132,4 +135,5 @@ export type {
 	StateGrade,
 	CompletedAttemptEvidence,
 	AttemptCleanupFiles,
+	SessionCleanupFiles,
 };

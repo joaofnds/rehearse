@@ -1,8 +1,6 @@
 import { join } from "node:path";
 
 import type { SessionCase } from "./case";
-import { normalizeContextEvidence } from "./context-evidence";
-import type { ContextEvidence } from "./context-evidence";
 import {
 	installCorpusOverlay,
 	seededProjectFiles,
@@ -13,21 +11,10 @@ import type {
 	SessionAttemptRequest,
 } from "./session-attempt-preparation-contract";
 import preparedSetup from "./session-attempt-setup";
+import sessionInSlug from "./session-attempt-slug";
 import { projectSlug } from "./session-capture";
 import seedFixture from "./session-fixture";
 import { scorerFiles } from "./session-state-check";
-import { prepareSession } from "./session-transcript-prefix";
-
-function attemptContextEvidence(
-	request: SessionAttemptRequest,
-): ContextEvidence | undefined {
-	return request.contextEvidenceSource === undefined
-		? undefined
-		: normalizeContextEvidence(
-				request.contextEvidenceSource,
-				request.contextRateCatalog,
-			);
-}
 
 async function seedAttemptFixture(
 	sessionCase: SessionCase,
@@ -73,9 +60,11 @@ async function prepareAttempt(
 	});
 
 	const slug = join(request.projectsDirectory, projectSlug(attemptDirectory));
-	const session = await prepareSession(sessionCase, slug);
-	const transcriptPath = join(slug, `${session.sessionId}.jsonl`);
-	const contextEvidence = attemptContextEvidence(request);
+	const { session, transcriptPath, contextEvidence } = await sessionInSlug(
+		request,
+		sessionCase,
+		slug,
+	);
 
 	return {
 		attemptDirectory,

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { lstat, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -104,16 +103,21 @@ async function carriesSession(
 	return false;
 }
 
+interface SessionPlace {
+	readonly slug: string;
+	readonly sessionId: string;
+}
+
 /**
- * A resumed session is the fork the harness wrote under a fresh uuid; a session
- * with no transcript is named by that uuid through `--session-id`. Either way
- * the attempt owns exactly `<sessionId>.jsonl` under its slug.
+ * A resumed session is the fork the harness wrote under the attempt's fresh
+ * uuid; a session with no transcript is named by that uuid through
+ * `--session-id`. Either way the attempt owns exactly `<sessionId>.jsonl` under
+ * its slug.
  */
 async function prepareSession(
 	sessionCase: SessionCase,
-	slug: string,
+	{ slug, sessionId }: SessionPlace,
 ): Promise<SessionNaming> {
-	const sessionId = randomUUID();
 	const { transcriptPath, declaration } = sessionCase;
 	if (transcriptPath === undefined || declaration.transcript === undefined) {
 		return { resumed: false, sessionId };

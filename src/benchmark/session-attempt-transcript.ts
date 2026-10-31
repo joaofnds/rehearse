@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type {
 	AttemptCleanupFiles,
 	PreservedTranscript,
+	SessionCleanupFiles,
 	TranscriptRecord,
 } from "./session-attempt-contract";
 import {
@@ -63,12 +64,11 @@ function transcriptRecord(
  * since another live session can write into the same slug. Removal errors are
  * tolerated so a cleanup failure never replaces the attempt's recorded result.
  */
-async function removeAttemptFiles({
-	attemptDirectory,
+async function removeSessionFiles({
 	slug,
 	transcriptPath,
 	recordDirectory,
-}: AttemptCleanupFiles): Promise<void> {
+}: SessionCleanupFiles): Promise<void> {
 	await rm(transcriptPath, { force: true });
 	if (await subagentFilesRetained(transcriptPath, recordDirectory)) {
 		await Promise.allSettled([
@@ -80,8 +80,17 @@ async function removeAttemptFiles({
 	}
 	await Promise.allSettled([rmdir(join(slug, MEMORY_DIRECTORY))]);
 	await Promise.allSettled([rmdir(slug)]);
-
-	await rm(attemptDirectory, { force: true, recursive: true });
 }
 
-export { preservedTranscript, transcriptRecord, removeAttemptFiles };
+async function removeAttemptFiles(files: AttemptCleanupFiles): Promise<void> {
+	await removeSessionFiles(files);
+
+	await rm(files.attemptDirectory, { force: true, recursive: true });
+}
+
+export {
+	preservedTranscript,
+	transcriptRecord,
+	removeAttemptFiles,
+	removeSessionFiles,
+};
