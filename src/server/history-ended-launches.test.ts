@@ -45,6 +45,11 @@ describe("history ended launches", () => {
 	);
 
 	it(
+		"redacts private paths from the message it ended by",
+		verifyRedactsPrivatePathsFromTheMessageItEndedBy,
+	);
+
+	it(
 		"keeps a launch RUNNING while its process outlives its ending",
 		verifyKeepsALaunchRUNNINGWhileItsProcessOutlivesItsEnding,
 	);
@@ -106,6 +111,21 @@ async function verifyListsAStoppedLaunchByWhichCameFirst(
 	const { launches } = await historyOf(runsDirectory);
 
 	expect(launches.map((launch) => launch.status)).toEqual([status]);
+}
+
+async function verifyRedactsPrivatePathsFromTheMessageItEndedBy(): Promise<void> {
+	const runsDirectory = await caseLaunchThatEnded({ pid: DEAD_PID });
+	await writeLaunchEnding(runsDirectory, LAUNCH_ID, {
+		endedAt: ENDED_AT,
+		exitCode: 3,
+		message: "Commit /Users/private/control before running the benchmark",
+	});
+
+	const { launches } = await historyOf(runsDirectory);
+
+	expect(launches).toMatchObject([
+		{ ending: { message: "Commit <path> before running the benchmark" } },
+	]);
 }
 
 async function verifyKeepsALaunchRUNNINGWhileItsProcessOutlivesItsEnding(): Promise<void> {
