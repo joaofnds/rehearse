@@ -3,16 +3,14 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-	MESSAGE_LIMIT_BYTES,
-	readLaunchEnding,
-	writeLaunchEnding,
-} from "./launch-ending";
+import { readLaunchEnding, writeLaunchEnding } from "./launch-ending";
 import { TestResources } from "./test-support";
 
 const LAUNCH_ID = "8a1c0000-0000-4000-8000-000000000356";
 
 const ENDED_AT = "2026-09-29T10:00:02.000Z";
+
+const MESSAGE_LIMIT_BYTES = 4096;
 
 /** "é" takes two bytes, so after this many the limit falls inside it. */
 const ONE_BYTE_SHORT_OF_THE_LIMIT = 4095;

@@ -1,9 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, rename, writeFile } from "node:fs/promises";
-
 import { z } from "zod";
 
 import { launchPaths } from "./run-layout";
+import writeWholeJsonFile from "./whole-json-file";
 
 /**
  * A `CommandError` carries the failed command's whole stderr, and the reason
@@ -14,8 +12,6 @@ const MESSAGE_LIMIT_BYTES = 4096;
 const KEPT_START_BYTE = 0;
 
 const CUT_MARK = "\n[cut]";
-
-const RECORD_JSON_INDENT_SPACES = 2;
 
 const launchEndingSchema = z
 	.object({
@@ -33,6 +29,7 @@ function keptMessage(message: string): string {
 	if (bytes.length <= MESSAGE_LIMIT_BYTES) {
 		return message;
 	}
+
 	// A streaming decode holds back a character the cut split, rather than
 	// ending the message on a replacement character.
 	const kept = new TextDecoder().decode(
@@ -43,25 +40,15 @@ function keptMessage(message: string): string {
 	return `${kept}${CUT_MARK}`;
 }
 
-/**
- * Written beside the file and renamed over it, as the launch record is, so a
- * listing never reads half an ending.
- */
 async function writeLaunchEnding(
 	runsDirectory: string,
 	id: string,
 	ending: Readonly<LaunchEnding>,
 ): Promise<void> {
-	const { directory, endingFile } = launchPaths(runsDirectory, id);
-	const temporary = `${endingFile}.${randomUUID()}.tmp`;
-	const kept = { ...ending, message: keptMessage(ending.message) };
-
-	await mkdir(directory, { recursive: true });
-	await writeFile(
-		temporary,
-		`${JSON.stringify(kept, null, RECORD_JSON_INDENT_SPACES)}\n`,
-	);
-	await rename(temporary, endingFile);
+	await writeWholeJsonFile(launchPaths(runsDirectory, id).endingFile, {
+		...ending,
+		message: keptMessage(ending.message),
+	});
 }
 
 /** The launch's ending, or undefined while its command has not ended by an error. */
@@ -77,5 +64,5 @@ async function readLaunchEnding(
 	return launchEndingSchema.parse(await file.json());
 }
 
-export { writeLaunchEnding, readLaunchEnding, MESSAGE_LIMIT_BYTES };
+export { writeLaunchEnding, readLaunchEnding };
 export type { LaunchEnding };

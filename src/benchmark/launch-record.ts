@@ -1,14 +1,10 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, rename, writeFile } from "node:fs/promises";
-
 import { z } from "zod";
 
 import LAUNCH_ATTEMPTS from "./launch-attempts";
 import { launchPaths } from "./run-layout";
+import writeWholeJsonFile from "./whole-json-file";
 
 const MIN_COMPARISON_ATTEMPTS = 2;
-
-const RECORD_JSON_INDENT_SPACES = 2;
 
 const launchAttemptsSchema = z.union(
 	LAUNCH_ATTEMPTS.map((count) => z.literal(count)),
@@ -103,14 +99,10 @@ async function writeLaunchRecord(
 	runsDirectory: string,
 	record: Readonly<LaunchRecord>,
 ): Promise<void> {
-	const { directory, recordFile } = launchPaths(runsDirectory, record.id);
-	const temporary = `${recordFile}.${randomUUID()}.tmp`;
-	await mkdir(directory, { recursive: true });
-	await writeFile(
-		temporary,
-		`${JSON.stringify(record, null, RECORD_JSON_INDENT_SPACES)}\n`,
+	await writeWholeJsonFile(
+		launchPaths(runsDirectory, record.id).recordFile,
+		record,
 	);
-	await rename(temporary, recordFile);
 }
 
 function isLaunchId(value: string): boolean {
