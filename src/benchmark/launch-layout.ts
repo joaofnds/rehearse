@@ -11,6 +11,7 @@ interface LaunchPaths {
 	readonly directory: string;
 	readonly recordFile: string;
 	readonly logFile: string;
+	readonly endingFile: string;
 }
 
 /**
@@ -22,6 +23,7 @@ function launchPaths(runsDirectory: string, id: string): LaunchPaths {
 
 	return {
 		directory,
+		endingFile: join(directory, `${id}.ending`),
 		logFile: join(directory, `${id}.log`),
 		recordFile: join(directory, `${id}${RECORD_SUFFIX}`),
 	};

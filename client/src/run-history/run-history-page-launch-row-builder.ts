@@ -2,10 +2,14 @@ import type { RunHistoryResponse } from "./run-history-query";
 
 type LaunchRow = RunHistoryResponse["launches"][number];
 
-class LaunchRowBuilder {
-	public constructor(private readonly props: Partial<LaunchRow> = {}) {}
+type ProcessLaunchRow = Exclude<LaunchRow, { status: "ENDED" }>;
 
-	public build(): LaunchRow {
+type EndedLaunchRow = Extract<LaunchRow, { status: "ENDED" }>;
+
+class LaunchRowBuilder {
+	public constructor(private readonly props: Partial<ProcessLaunchRow> = {}) {}
+
+	public build(): ProcessLaunchRow {
 		const id = this.props.id ?? "7b0c2d4e-0000-4000-8000-000000000000";
 		return {
 			attempts: 1,
@@ -18,6 +22,14 @@ class LaunchRowBuilder {
 			status: "RUNNING",
 			target: "case",
 			...this.props,
+		};
+	}
+
+	public buildEnded(message: string): EndedLaunchRow {
+		return {
+			...this.build(),
+			ending: { exitCode: 1, message },
+			status: "ENDED",
 		};
 	}
 }

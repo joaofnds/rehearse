@@ -9,7 +9,9 @@ import type { RunHistoryResponse } from "./run-history-query";
 
 type LaunchRow = RunHistoryResponse["launches"][number];
 
-function launch(status: LaunchRow["status"]): LaunchRow {
+type ProcessLaunchRow = Exclude<LaunchRow, { status: "ENDED" }>;
+
+function launch(status: ProcessLaunchRow["status"]): LaunchRow {
 	return {
 		attempts: 1,
 		caseId: "audit-log",

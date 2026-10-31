@@ -1,4 +1,5 @@
 import type { CorpusRoot } from "#benchmark/corpus-file";
+import type { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import type { LaunchRecord } from "#benchmark/launch-record";
 import type { OPERATOR_STOPPED } from "#benchmark/stopped-status";
 import type { RowStaleness } from "#server/row-staleness";
@@ -14,11 +15,12 @@ import type {
  * and which has no RUNNING row of its own yet: a replay and a group never
  * get one, and a pipeline run gets one only once its first stage starts.
  * Once the operator's stop ends the process, it stays listed as
- * OPERATOR_STOPPED. It
+ * OPERATOR_STOPPED, and once its command ends by an error it stays listed as
+ * ENDED with that error's message. It
  * is listed apart from the rows, because it names a process rather than a
  * saved record, so it has no Record ID, short id, staleness or links.
  */
-interface LaunchRow {
+interface LaunchRowFields {
 	readonly kind: "launch";
 	readonly id: string;
 	readonly target: LaunchRecord["kind"];
@@ -27,8 +29,23 @@ interface LaunchRow {
 	readonly stage: string | undefined;
 	readonly attempts: number;
 	readonly launchedAt: string;
+}
+
+interface ProcessLaunchRow extends LaunchRowFields {
 	readonly status: "RUNNING" | typeof OPERATOR_STOPPED;
 }
+
+/**
+ * Its command ended by an error, which a pause or a stop below the minimum
+ * grade also is, so the message says how it ended without calling it a
+ * failure.
+ */
+interface EndedLaunchRow extends LaunchRowFields {
+	readonly status: typeof LAUNCH_ENDED;
+	readonly ending: { readonly exitCode: number; readonly message: string };
+}
+
+type LaunchRow = ProcessLaunchRow | EndedLaunchRow;
 
 /**
  * One run-history row, one per saved record an operator can open. This is
@@ -105,6 +122,8 @@ interface ListingReader<Named> {
 
 export type {
 	LaunchRow,
+	LaunchRowFields,
+	ProcessLaunchRow,
 	RunHistoryRow,
 	Unjudged,
 	RunListingRow,

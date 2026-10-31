@@ -40,11 +40,7 @@ async function listingResult(
 	);
 
 	return {
-		launches: unheldLaunchRows(
-			indexes.live.launches,
-			indexes.live.stopped,
-			rows,
-		),
+		launches: unheldLaunchRows(indexes.live, rows),
 		rows: newestFirst(rows, recordedTime),
 		unreadable: [
 			...indexes.unreadable,

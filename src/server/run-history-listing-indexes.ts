@@ -22,7 +22,7 @@ async function listingIndexes({
 	const live =
 		only === undefined
 			? await liveLaunches(runsDirectory, liveness)
-			: { launches: [], stopped: [], unreadable: [] };
+			: { ended: [], launches: [], stopped: [], unreadable: [] };
 	const launchByPid = new Map(
 		live.launches.map((launch) => [launch.pid, launch] as const),
 	);

@@ -1,13 +1,18 @@
+import { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import type { LaunchRecord } from "#benchmark/launch-record";
 import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
-import type { LaunchRow, RunListingRow } from "#server/run-history-contract";
+import { redactAbsolutePaths } from "#server/redact-path";
+import type {
+	LaunchRow,
+	LaunchRowFields,
+	ProcessLaunchRow,
+	RunListingRow,
+} from "#server/run-history-contract";
+import type { EndedLaunch } from "#server/run-history-live-launches";
 
 const SINGLE_ANALYSIS_ATTEMPT_COUNT = 1;
 
-function launchRow(
-	record: LaunchRecord,
-	status: LaunchRow["status"],
-): LaunchRow {
+function launchFields(record: LaunchRecord): LaunchRowFields {
 	return {
 		attempts:
 			record.kind === "analysis"
@@ -22,18 +27,40 @@ function launchRow(
 			record.kind === "case" || record.kind === "analysis"
 				? undefined
 				: record.stage,
-		status,
 		target: record.kind,
 	};
 }
 
+function processRow(
+	record: LaunchRecord,
+	status: ProcessLaunchRow["status"],
+): LaunchRow {
+	return { ...launchFields(record), status };
+}
+
+function endedRow({ record, ending }: EndedLaunch): LaunchRow {
+	return {
+		...launchFields(record),
+		ending: {
+			exitCode: ending.exitCode,
+			message: redactAbsolutePaths(ending.message),
+		},
+		status: LAUNCH_ENDED,
+	};
+}
+
+interface ListedLaunches {
+	readonly launches: readonly LaunchRecord[];
+	readonly stopped: readonly LaunchRecord[];
+	readonly ended: readonly EndedLaunch[];
+}
+
 /**
  * The live launches no RUNNING run's row already stands for, and the
- * stopped ones, newest first.
+ * stopped and ended ones, newest first.
  */
 function unheldLaunchRows(
-	launches: readonly LaunchRecord[],
-	stopped: readonly LaunchRecord[],
+	{ launches, stopped, ended }: ListedLaunches,
 	rows: readonly RunListingRow[],
 ): readonly LaunchRow[] {
 	const held = new Set(
@@ -45,8 +72,9 @@ function unheldLaunchRows(
 	return [
 		...launches
 			.filter(({ id }) => !held.has(id))
-			.map((record) => launchRow(record, "RUNNING")),
-		...stopped.map((record) => launchRow(record, OPERATOR_STOPPED)),
+			.map((record) => processRow(record, "RUNNING")),
+		...stopped.map((record) => processRow(record, OPERATOR_STOPPED)),
+		...ended.map((launch) => endedRow(launch)),
 	].toSorted((left, right) => right.launchedAt.localeCompare(left.launchedAt));
 }
 
