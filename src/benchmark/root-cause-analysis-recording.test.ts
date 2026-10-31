@@ -5,7 +5,11 @@ import { EXIT_CODES, exitCodeFor } from "./exit-codes";
 import type { ExitCode } from "./exit-codes";
 import type { AnalysisResult } from "./root-cause-analysis";
 import { analyzeRun, readRootCauseAnalyses } from "./root-cause-analysis";
-import { FakeAnalysisProvider } from "./root-cause-analysis-provider-test-fixtures";
+import {
+	ANSWER,
+	FakeAnalysisProvider,
+	answering,
+} from "./root-cause-analysis-provider-test-fixtures";
 import RecordWriterProbe from "./root-cause-analysis-record-writer-probe";
 import {
 	dependencies,
@@ -56,7 +60,9 @@ async function failureOf(analysis: Promise<AnalysisResult>): Promise<Error> {
 	throw new Error("Expected the analysis to fail");
 }
 
-async function analysisWhoseOutcomeCannotBeWritten(): Promise<{
+async function analysisWhoseOutcomeCannotBeWritten(
+	provider = new FakeAnalysisProvider(),
+): Promise<{
 	readonly directory: string;
 	readonly analysis: Promise<AnalysisResult>;
 }> {
@@ -68,7 +74,7 @@ async function analysisWhoseOutcomeCannotBeWritten(): Promise<{
 	return {
 		analysis: analyzeRun(
 			{ capUsd: 1, model: "sonnet", run: RUN, runsDirectory: directory },
-			{ ...dependencies(new FakeAnalysisProvider().invoke), records },
+			{ ...dependencies(provider.invoke), records },
 		),
 		directory,
 	};
@@ -105,6 +111,28 @@ async function reportsTheOutcomeWithItsCostWhenItCannotBeWritten(): Promise<void
 	expect(JSON.parse(printed ?? "")).toMatchObject({
 		costUsd: 0.24,
 		outcome: "recorded",
+	});
+}
+const DEL_CODE_POINT = 127;
+const CSI_CODE_POINT = 155;
+const RIGHT_TO_LEFT_OVERRIDE_CODE_POINT = 8238;
+
+const HOSTILE_NARRATIVE = `the build skill${String.fromCodePoint(DEL_CODE_POINT, CSI_CODE_POINT, RIGHT_TO_LEFT_OVERRIDE_CODE_POINT)}`;
+
+async function reportsTheOutcomesControlCharactersAsVisibleEscapes(): Promise<void> {
+	const provider = new FakeAnalysisProvider();
+	provider.answer(answering({ ...ANSWER, narrative: HOSTILE_NARRATIVE }));
+	const { analysis } = await analysisWhoseOutcomeCannotBeWritten(provider);
+
+	const failure = await failureOf(analysis);
+
+	expect(failure.message).toContain(
+		String.raw`"narrative":"the build skill\u007f\u009b\u202e"`,
+	);
+	expect(failure.message).not.toMatch(/[\p{Cc}\p{Bidi_Control}]/u);
+	const [, printed] = failure.message.split("The outcome: ");
+	expect(JSON.parse(printed ?? "")).toMatchObject({
+		narrative: HOSTILE_NARRATIVE,
 	});
 }
 // Its own millisecond and the ten after it.
@@ -204,6 +232,10 @@ describe(analyzeRun.name, () => {
 		it(
 			"reports the outcome with its cost",
 			reportsTheOutcomeWithItsCostWhenItCannotBeWritten,
+		);
+		it(
+			"reports the outcome's control characters as visible escapes",
+			reportsTheOutcomesControlCharactersAsVisibleEscapes,
 		);
 	});
 });
