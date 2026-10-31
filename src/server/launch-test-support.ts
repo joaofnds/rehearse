@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
+import { takeLaunchOption } from "#cli/launch-option";
 
 import HeldLaunch from "./held-launch-test-support";
 import type { Launcher } from "./launches";
@@ -25,10 +26,14 @@ const FAKE_LAUNCH_STARTED_AT = "Tue Sep 29 10:00:00 2026";
 
 interface Launch {
 	readonly argv: readonly string[];
+	readonly launchId: string | undefined;
 	readonly logFile: string;
 }
 
-/** Captures each launch instead of starting a process. */
+/**
+ * Captures each launch instead of starting a process, its command line read
+ * as the CLI's entry reads it, the launch option apart.
+ */
 class FakeLauncher implements Launcher {
 	public readonly launches: Launch[] = [];
 
@@ -46,7 +51,7 @@ class FakeLauncher implements Launcher {
 			throw new Error(failure);
 		}
 
-		this.launches.push({ argv, logFile });
+		this.launches.push({ ...takeLaunchOption(argv), logFile });
 		const held = this.#held;
 		this.#held = undefined;
 		if (held !== undefined) {

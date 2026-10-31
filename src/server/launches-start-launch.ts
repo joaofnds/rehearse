@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { writeLaunchRecord } from "#benchmark/launch-record";
 import type { LaunchRecord, LaunchTarget } from "#benchmark/launch-record";
 import { launchPaths } from "#benchmark/run-layout";
+import { LAUNCH_OPTION } from "#cli/launch-option";
 import planLaunch from "#server/launch-plan";
 import type {
 	LaunchDependencies,
@@ -29,7 +30,7 @@ async function startLaunch(
 	// the launch is dated no later than the run's claim on its target.
 	const launchedAt = dependencies.now().toISOString();
 	const pid = await dependencies.launcher.launch(
-		launch.argv,
+		[LAUNCH_OPTION, id, ...launch.argv],
 		launchPaths(dependencies.runsDirectory, id).logFile,
 	);
 	try {

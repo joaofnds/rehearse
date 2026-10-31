@@ -28,6 +28,10 @@ describe("POST /api/launches", () => {
 		verifyRecordsTheLaunchItsPidAndWhenThatProcess,
 	);
 	it(
+		"starts the command with its launch id, so the command can record how it ended",
+		verifyStartsTheCommandWithItsLaunchId,
+	);
+	it(
 		"dates the launch before its process starts, so its run claims the target after that date",
 		verifyDatesTheLaunchBeforeItsProcessStartsSoIts,
 	);
@@ -76,6 +80,19 @@ async function verifyRunsTheCaseUnderItsDeclaredModelAndAnswers(): Promise<void>
 	expect(launcher.launches.map(({ argv }) => argv)).toEqual([
 		["run", "--case", "sess-case", "--model", "haiku", "--effort", "low"],
 	]);
+}
+
+async function verifyStartsTheCommandWithItsLaunchId(): Promise<void> {
+	const { launcher, post } = await harness();
+
+	const response = await post({
+		attempts: 1,
+		caseId: "sess-case",
+		kind: "case",
+	});
+
+	const { id } = launchedSchema.parse(await response.json());
+	expect(launcher.launches.map(({ launchId }) => launchId)).toEqual([id]);
 }
 
 async function verifyRecordsTheLaunchItsPidAndWhenThatProcess(): Promise<void> {
