@@ -1,12 +1,12 @@
 import type {
+	AnalysisRecordWriter,
+	ClaimedAnalysis,
+} from "./root-cause-analysis";
+import type {
 	FailedAnalysis,
 	RootCauseAnalysisRecord,
 } from "./root-cause-analysis-protocol";
 import { analysisRecordFiles } from "./root-cause-analysis-storage";
-import type {
-	AnalysisRecordWriter,
-	ClaimedAnalysis,
-} from "./root-cause-analysis-storage";
 
 /**
  * The analysis record files, with a failure the test can set for the claim or
@@ -26,7 +26,7 @@ class RecordWriterProbe implements AnalysisRecordWriter {
 	public readonly claim = async (
 		runsDirectory: string,
 		record: FailedAnalysis,
-	): Promise<ClaimedAnalysis> => {
+	): Promise<ClaimedAnalysis | undefined> => {
 		if (this.claimFailure !== undefined) {
 			throw new Error(this.claimFailure);
 		}

@@ -37,7 +37,7 @@ async function keepsTheStopAsTheRecordOfACallStoppedWhileItRuns(): Promise<void>
 		capUsd: 1,
 		outcome: "failed",
 		reason:
-			"stopped by SIGINT during the paid call; what it spent is unknown, and the call is capped at $1",
+			"stopped by SIGINT before its outcome was recorded; what the call spent is unknown, and it is capped at $1",
 		startedAt: STARTED_AT,
 	});
 }

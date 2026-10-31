@@ -1,9 +1,12 @@
 import { once } from "node:events";
 
 import { refuseCommands } from "./command";
+import { RefusedPreconditionError } from "./exit-codes";
 import type {
+	AnalysisRecordWriter,
 	AnalysisRequest,
 	AnalysisResult,
+	ClaimedAnalysis,
 	SignalStopInstaller,
 } from "./root-cause-analysis";
 import {
@@ -15,10 +18,6 @@ import {
 } from "./root-cause-analysis-answer";
 import type { FailedAnalysis } from "./root-cause-analysis-protocol";
 import type { SessionReading } from "./root-cause-analysis-provider";
-import type {
-	AnalysisRecordWriter,
-	ClaimedAnalysis,
-} from "./root-cause-analysis-storage";
 import type { RootCauseBundle } from "./root-cause-bundle";
 import UnrecordedAnalysisError from "./unrecorded-analysis-error";
 
@@ -75,6 +74,11 @@ class AnalysisCall {
 				analysisRecordBase({ ...call, finished: started, started }),
 			),
 		);
+		if (claimed === undefined) {
+			throw new RefusedPreconditionError(
+				`Other analyses of run ${call.request.run} hold every millisecond its start at ${started.toISOString()} can be moved to, so this one was not started and spent nothing`,
+			);
+		}
 
 		return new AnalysisCall(call, claimed);
 	}

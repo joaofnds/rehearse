@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
+import { EXIT_CODES, exitCodeFor } from "./exit-codes";
+import type { ExitCode } from "./exit-codes";
 import type { AnalysisResult } from "./root-cause-analysis";
 import { analyzeRun, readRootCauseAnalyses } from "./root-cause-analysis";
 import { FakeAnalysisProvider } from "./root-cause-analysis-provider-test-fixtures";
@@ -99,12 +101,19 @@ async function reportsTheOutcomeWithItsCostWhenItCannotBeWritten(): Promise<void
 	expect(failure).toMatchObject({
 		record: { costUsd: 0.24, outcome: "recorded" },
 	});
+	const [, printed] = failure.message.split("The outcome: ");
+	expect(JSON.parse(printed ?? "")).toMatchObject({
+		costUsd: 0.24,
+		outcome: "recorded",
+	});
 }
-const NAMES_ONE_START_CAN_TAKE = 10;
+// Its own millisecond and the ten after it.
+const NAMES_ONE_START_CAN_TAKE = 11;
 
 interface ClaimRefusal {
 	readonly name: string;
 	readonly writer: (directory: string) => Promise<RecordWriterProbe>;
+	readonly exitCode: ExitCode;
 }
 
 async function analysesHoldingEveryNameFromOneStart(
@@ -135,13 +144,19 @@ async function aWriterThatCannotClaim(): Promise<RecordWriterProbe> {
 
 const CLAIM_REFUSALS = [
 	{
+		exitCode: EXIT_CODES.refusedPrecondition,
 		name: "other analyses hold every name its start can take",
 		writer: analysesHoldingEveryNameFromOneStart,
 	},
-	{ name: "its record cannot be written", writer: aWriterThatCannotClaim },
+	{
+		exitCode: EXIT_CODES.executionFailure,
+		name: "its record cannot be written",
+		writer: aWriterThatCannotClaim,
+	},
 ];
 
 async function spendsNothingWhenItsRecordCannotBeClaimed({
+	exitCode,
 	writer,
 }: ClaimRefusal): Promise<void> {
 	const directory = await runsDirectory();
@@ -150,7 +165,7 @@ async function spendsNothingWhenItsRecordCannotBeClaimed({
 	const provider = new FakeAnalysisProvider();
 	const progress: string[] = [];
 
-	await failureOf(
+	const failure = await failureOf(
 		analyzeRun(
 			{ capUsd: 1, model: "sonnet", run: RUN, runsDirectory: directory },
 			{
@@ -164,10 +179,11 @@ async function spendsNothingWhenItsRecordCannotBeClaimed({
 		),
 	);
 
-	expect({ progress, prompts: provider.prompts }).toEqual({
-		progress: [],
-		prompts: [],
-	});
+	expect({
+		exitCode: exitCodeFor(failure),
+		progress,
+		prompts: provider.prompts,
+	}).toEqual({ exitCode, progress: [], prompts: [] });
 }
 describe(analyzeRun.name, () => {
 	it(
@@ -176,7 +192,7 @@ describe(analyzeRun.name, () => {
 	);
 	describe("when its record cannot be claimed", () => {
 		it.each(CLAIM_REFUSALS)(
-			"makes no call and states no spend when $name",
+			"makes no call, states no spend and exits $exitCode when $name",
 			spendsNothingWhenItsRecordCannotBeClaimed,
 		);
 	});

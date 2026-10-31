@@ -5,7 +5,11 @@ import { dirname, join } from "node:path";
 import concurrentMap from "./concurrent-map";
 import { readdirIfPresent } from "./file-presence";
 import orderedJson from "./ordered-json";
-import type { AnalyzedRun } from "./root-cause-analysis";
+import type {
+	AnalysisRecordWriter,
+	AnalyzedRun,
+	ClaimedAnalysis,
+} from "./root-cause-analysis";
 import readStoredAnalysis from "./root-cause-analysis-history";
 import { analysisRecordFieldOrder } from "./root-cause-analysis-protocol";
 import type {
@@ -14,11 +18,11 @@ import type {
 } from "./root-cause-analysis-protocol";
 import { rootCauseAnalysesDirectory, runNameFromTimestamp } from "./run-layout";
 
-const CLAIM_ATTEMPTS = 10;
+const CLAIM_RETRIES = 10;
 
-const LAST_CLAIM_ATTEMPT = 1;
+const NO_RETRIES_LEFT = 0;
 
-const CLAIM_ATTEMPT_STEP = 1;
+const RETRY_STEP = 1;
 
 const CLAIM_STEP_MS = 1;
 
@@ -54,23 +58,6 @@ async function readRootCauseAnalyses({
 	return { records, unreadable };
 }
 
-/** Where an analysis's record lives, and how it is first put there and then replaced. */
-interface AnalysisRecordWriter {
-	readonly claim: (
-		runsDirectory: string,
-		record: FailedAnalysis,
-	) => Promise<ClaimedAnalysis>;
-	readonly replace: (
-		file: string,
-		record: RootCauseAnalysisRecord,
-	) => Promise<void>;
-}
-
-interface ClaimedAnalysis {
-	readonly file: string;
-	readonly record: FailedAnalysis;
-}
-
 /**
  * Links the record into place from a whole temporary file, so a reader listing
  * the run's analyses never sees half a record and another analysis's record is
@@ -81,16 +68,16 @@ interface ClaimedAnalysis {
 async function claimAnalysis(
 	runsDirectory: string,
 	record: FailedAnalysis,
-	attemptsLeft = CLAIM_ATTEMPTS,
-): Promise<ClaimedAnalysis> {
+	retriesLeft = CLAIM_RETRIES,
+): Promise<ClaimedAnalysis | undefined> {
 	const file = analysisFile(runsDirectory, record);
+
 	if (await linkedIntoPlace(file, record)) {
 		return { file, record };
 	}
-	if (attemptsLeft === LAST_CLAIM_ATTEMPT) {
-		throw new Error(
-			`Other analyses of run ${record.run} hold every millisecond up to ${record.startedAt}, so this one was not started and spent nothing`,
-		);
+
+	if (retriesLeft === NO_RETRIES_LEFT) {
+		return undefined;
 	}
 
 	return await claimAnalysis(
@@ -101,7 +88,7 @@ async function claimAnalysis(
 				Date.parse(record.startedAt) + CLAIM_STEP_MS,
 			).toISOString(),
 		},
-		attemptsLeft - CLAIM_ATTEMPT_STEP,
+		retriesLeft - RETRY_STEP,
 	);
 }
 
@@ -193,4 +180,4 @@ async function readAnalysisFile(
 }
 
 export { analysisRecordFiles, readRootCauseAnalyses };
-export type { AnalysisRecordWriter, ClaimedAnalysis, UnreadableAnalysis };
+export type { UnreadableAnalysis };

@@ -130,7 +130,7 @@ function stoppedAnalysis({
 			stopped.getTime() - Date.parse(provisional.startedAt),
 			MINIMUM_ELAPSED_MS,
 		),
-		reason: `stopped by ${signal} during the paid call; what it spent is unknown, and the call is capped at $${provisional.capUsd}`,
+		reason: `stopped by ${signal} before its outcome was recorded; what the call spent is unknown, and it is capped at $${provisional.capUsd}`,
 	};
 }
 

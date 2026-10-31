@@ -4,10 +4,12 @@ import {
 	refuseUnanalyzable,
 } from "./root-cause-analysis-eligibility";
 import { analysisPrompt, promptSafeJson } from "./root-cause-analysis-protocol";
-import type { RootCauseAnalysisRecord } from "./root-cause-analysis-protocol";
+import type {
+	FailedAnalysis,
+	RootCauseAnalysisRecord,
+} from "./root-cause-analysis-protocol";
 import { readSession } from "./root-cause-analysis-provider";
 import { analysisRecordFiles } from "./root-cause-analysis-storage";
-import type { AnalysisRecordWriter } from "./root-cause-analysis-storage";
 import { assembleRootCauseBundle } from "./root-cause-bundle";
 import type { RunLiveness } from "./run-liveness";
 
@@ -30,6 +32,24 @@ type SignalStopInstaller = (
 	cleanUp: () => Promise<void>,
 	recordStop: (signal: NodeJS.Signals) => Promise<void>,
 ) => () => void;
+
+/** Where an analysis's record lives, and how it is first put there and then replaced. A claim
+ * answers undefined when other analyses hold every name its start can take. */
+interface AnalysisRecordWriter {
+	readonly claim: (
+		runsDirectory: string,
+		record: FailedAnalysis,
+	) => Promise<ClaimedAnalysis | undefined>;
+	readonly replace: (
+		file: string,
+		record: RootCauseAnalysisRecord,
+	) => Promise<void>;
+}
+
+interface ClaimedAnalysis {
+	readonly file: string;
+	readonly record: FailedAnalysis;
+}
 
 interface AnalysisDependencies {
 	readonly invoke: AnalysisInvoker;
@@ -91,7 +111,9 @@ export type {
 	AnalyzedRun,
 	AnalysisRequest,
 	AnalysisDependencies,
+	AnalysisRecordWriter,
 	AnalysisResult,
+	ClaimedAnalysis,
 	SignalStopInstaller,
 };
 export {

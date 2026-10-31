@@ -1571,20 +1571,24 @@ its outcome was written, and the call is capped at the stated budget. The
 outcome replaces that record once the call returns, so a process that dies
 during the call, SIGKILL included, still leaves the call recorded. While a call
 runs, the analyses API serves the provisional record as the run's newest. A
-provisional record that cannot be written stops the command before the call, so
-nothing is spent. When the outcome cannot replace the provisional record, the
+provisional record that cannot be written stops the command before the call
+with exit code 1, so nothing is spent. When the outcome cannot replace the provisional record, the
 provisional record stays, and the command prints the outcome on stderr as JSON,
 cost included, and exits 1, so a browser launch keeps it in its log. Two
 analyses of one run that start in the same millisecond each keep a record: the
-second is named one millisecond later, and its `startedAt` says so.
+second is named one millisecond later, and its `startedAt` says so. A start is
+moved at most ten times, and when other analyses hold all eleven milliseconds
+the command is refused with exit code 3 before the call.
 
-A SIGINT, SIGTERM or SIGHUP during the call replaces the provisional record
-with a failed one whose `reason` says the call was stopped by that signal, that
-what it spent is unknown, and what it was capped at, with `durationMs` up to
-the stop. The command then kills the call, refuses any command it has not yet
+A SIGINT, SIGTERM or SIGHUP before the outcome is written replaces the
+provisional record with a failed one whose `reason` says the analysis was
+stopped by that signal before its outcome was recorded, that what the call
+spent is unknown, and what it is capped at, with `durationMs` up to the stop. The command then kills the call, refuses any command it has not yet
 started, and exits 130, 143 or 129. A killed call prints no envelope, so the
-record carries no `costUsd`. A stop that arrives once the call has returned
-leaves its outcome as the record. Because a stop ends the command through its
+record carries no `costUsd`. A stop that arrives
+while the outcome is being written waits for it, so the outcome stays the
+record. One that arrives after the call returned but before its outcome was
+read records the stop, without the cost the call reported. Because a stop ends the command through its
 own signal handling, a browser launch it ends records no ending of its own.
 
 A record with `schemaVersion: 1` was written before the culprit analysis was
