@@ -61,7 +61,7 @@ async function recordsTheTranscriptTheProviderSOwnSessionWroteNotAFilePlantedBes
 	);
 }
 
-async function keepsTheSlugAndThePlantedFilesBesideAnEmptyMemoryDirectory(): Promise<void> {
+async function keepsAnEmptyMemoryDirectoryBesideThePlantedFilesAndTheSlugWithThem(): Promise<void> {
 	const projects = await projectsRoot();
 	const claude = new FakeClaude(projects, "OK");
 	const planting = plantingClaude(projects, claude.run);
@@ -77,7 +77,9 @@ async function keepsTheSlugAndThePlantedFilesBesideAnEmptyMemoryDirectory(): Pro
 	const slug = join(projects, projectSlug(attempt.attemptDirectory));
 	const remaining = await readdir(slug);
 
-	expect(remaining.toSorted()).toEqual([PLANTED_BEFORE, PLANTED_AFTER]);
+	expect(remaining.toSorted()).toEqual(
+		[MEMORY_DIRECTORY, PLANTED_BEFORE, PLANTED_AFTER].toSorted(),
+	);
 }
 
 async function keepsAMemoryDirectoryHoldingAFileAndTheSlugWithIt(): Promise<void> {
@@ -111,8 +113,8 @@ describe(runSessionAttempt.name, () => {
 		recordsTheTranscriptTheProviderSOwnSessionWroteNotAFilePlantedBesideIt,
 	);
 	it(
-		"keeps the slug and the planted files beside an empty memory directory",
-		keepsTheSlugAndThePlantedFilesBesideAnEmptyMemoryDirectory,
+		"keeps an empty memory directory beside the planted files, and the slug with them",
+		keepsAnEmptyMemoryDirectoryBesideThePlantedFilesAndTheSlugWithThem,
 	);
 	it(
 		"keeps a memory directory holding a file, and the slug with it",

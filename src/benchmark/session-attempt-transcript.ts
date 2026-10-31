@@ -1,4 +1,4 @@
-import { mkdir, rm, rmdir } from "node:fs/promises";
+import { mkdir, readdir, rm, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type {
@@ -57,12 +57,19 @@ function transcriptRecord(
 	};
 }
 
+async function holdsOnlyMemory(slug: string): Promise<boolean> {
+	const entries = await readdir(slug).catch(() => []);
+
+	return entries.join("/") === MEMORY_DIRECTORY;
+}
+
 /**
  * Removes what the attempt left in the user's projects directory: its
  * transcript, its session directory once the record holds the sub-agent files
- * in it, and the slug's memory directory and the slug itself only while empty,
- * since another live session can write into the same slug. Removal errors are
- * tolerated so a cleanup failure never replaces the attempt's recorded result.
+ * in it, and the slug's empty memory directory and the slug itself only when
+ * nothing else is in the slug, since another live session can write into the
+ * same slug. A failure to remove the session directory, the memory directory
+ * or the slug is tolerated; one removing the transcript is not.
  */
 async function removeSessionFiles({
 	slug,
@@ -78,7 +85,10 @@ async function removeSessionFiles({
 			}),
 		]);
 	}
-	await Promise.allSettled([rmdir(join(slug, MEMORY_DIRECTORY))]);
+	if (await holdsOnlyMemory(slug)) {
+		await Promise.allSettled([rmdir(join(slug, MEMORY_DIRECTORY))]);
+	}
+
 	await Promise.allSettled([rmdir(slug)]);
 }
 
