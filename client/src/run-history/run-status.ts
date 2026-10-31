@@ -14,7 +14,7 @@ import type { StatusState } from "#client/system/components/status";
  * for a step that fell below the minimum, not `interrupted` or a red glyph.
  * A run the operator stopped is not a failure either, and reads the same, as
  * does an ended launch, whose recorded reason may be a refusal, a failure, a
- * pause or a stop below the minimum.
+ * pause, a ceiling stop or a stop below the minimum.
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
 function runStatusState(status: string): StatusState {

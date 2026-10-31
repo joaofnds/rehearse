@@ -410,9 +410,9 @@ stopped confirmation group writes no group record, so its reps never read as
 failed, a stopped single session attempt writes no attempt record, so it never
 reads as failed, and a replay, group or session attempt stopped from the browser stays
 listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
-row. A browser launch whose command ends by an error, a refusal, a pause or a
-stop below the minimum grade among them, stays listed as `ENDED` with that
-error's message, shown with the stopped glyph and never as a failure, unless
+row. A browser launch whose command ends with a reason, a refusal, a failure,
+a pause, a ceiling stop or a stop below the minimum grade among them, stays
+listed as `ENDED` with that reason's message, shown with the stopped glyph and never as a failure, unless
 the operator stopped it, which keeps it `OPERATOR_STOPPED`. Such a launch
 matches the Ended filter, not Stopped. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
 with a stopped stage; Failed requires a saved quality failure rather than missing

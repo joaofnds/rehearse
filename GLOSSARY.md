@@ -564,8 +564,9 @@ See [current state](docs/status.md) for implementation coverage and
   status `ENDED` marks one whose command recorded the error it ended by, with
   no stop from the operator, and shows that message as how it ended. It is not
   called a failure, since a pause or a stop below the minimum grade ends the
-  same way. Name accepted unattended as unsettled, pending the operator's
-  confirmation (ACT-355, doc-339).
+  same way. On screen, Ended launch history's label counts these launches as
+  ended with a reason, never as ended by an error. Name accepted unattended as
+  unsettled, pending the operator's confirmation (ACT-355, doc-339).
 - **Operator stop**: a run, replay, group or session attempt the operator
   ended, by Stop & restore repo in the browser or a signal from a terminal.
   It kills the commands, cleans up, and records the stop so the
