@@ -41,10 +41,12 @@ if (import.meta.main) {
 	} catch (error) {
 		const failure = error instanceof Error ? error : new Error(String(error));
 		const exitCode = exitCodeFor(failure);
+
 		processOutput.stderr(`${failure.message}\n`);
 		if (launchId !== undefined) {
 			await recordLaunchEnding(launchId, failure, exitCode);
 		}
+
 		process.exitCode = exitCode;
 	}
 }

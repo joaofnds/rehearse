@@ -34,11 +34,7 @@ interface ProcessLaunchRow extends LaunchRowFields {
 	readonly status: "RUNNING" | typeof OPERATOR_STOPPED;
 }
 
-/**
- * Its command ended by an error, which a pause or a stop below the minimum
- * grade also is, so the message says how it ended without calling it a
- * failure.
- */
+/** A launch whose command recorded the error it ended by. */
 interface EndedLaunchRow extends LaunchRowFields {
 	readonly status: typeof LAUNCH_ENDED;
 	readonly ending: { readonly exitCode: number; readonly message: string };
