@@ -8,7 +8,10 @@ import SessionInvocationError from "#benchmark/session-invocation-error";
 import { failureOf } from "#cli/cli-test-support";
 
 import { request } from "./session-attempt-case-test-fixtures";
-import { FakeClaude } from "./session-attempt-provider-test-fixtures";
+import {
+	FakeClaude,
+	rememberingClaude,
+} from "./session-attempt-provider-test-fixtures";
 import {
 	projectsRoot,
 	recordDirectory,
@@ -74,6 +77,23 @@ async function removesTheSlugDirectoryItselfOnceTheAttemptSFilesAreGone(): Promi
 		projectSlug(attempt.attemptDirectory),
 	);
 }
+async function removesTheSlugDirectoryWhenTheSessionLeftOnlyAnEmptyMemoryDirectory(): Promise<void> {
+	const projects = await projectsRoot();
+	const claude = new FakeClaude(projects, "OK");
+
+	const attempt = await runSessionAttempt(
+		request({
+			projectsDirectory: projects,
+			recordDirectory: await recordDirectory(),
+			runClaude: rememberingClaude(projects, claude.run),
+		}),
+	);
+
+	expect(await readdir(projects)).not.toContain(
+		projectSlug(attempt.attemptDirectory),
+	);
+}
+
 describe(runSessionAttempt.name, () => {
 	it(
 		"leaves the projects slug directory holding no file the attempt created",
@@ -86,5 +106,9 @@ describe(runSessionAttempt.name, () => {
 	it(
 		"removes the slug directory itself once the attempt's files are gone",
 		removesTheSlugDirectoryItselfOnceTheAttemptSFilesAreGone,
+	);
+	it(
+		"removes the slug directory when the session left only an empty memory directory",
+		removesTheSlugDirectoryWhenTheSessionLeftOnlyAnEmptyMemoryDirectory,
 	);
 });

@@ -14,6 +14,8 @@ import {
 } from "./subagent-evidence";
 import { parseTranscriptFile, transcriptDiagnostics } from "./transcript";
 
+const MEMORY_DIRECTORY = "memory";
+
 async function preservedTranscript(
 	recordDirectory: string,
 	writtenTranscript: string,
@@ -54,6 +56,13 @@ function transcriptRecord(
 	};
 }
 
+/**
+ * Removes what the attempt left in the user's projects directory: its
+ * transcript, its session directory once the record holds the sub-agent files
+ * in it, and the slug's memory directory and the slug itself only while empty,
+ * since another live session can write into the same slug. Removal errors are
+ * tolerated so a cleanup failure never replaces the attempt's recorded result.
+ */
 async function removeAttemptFiles({
 	attemptDirectory,
 	slug,
@@ -69,6 +78,7 @@ async function removeAttemptFiles({
 			}),
 		]);
 	}
+	await Promise.allSettled([rmdir(join(slug, MEMORY_DIRECTORY))]);
 	await Promise.allSettled([rmdir(slug)]);
 
 	await rm(attemptDirectory, { force: true, recursive: true });

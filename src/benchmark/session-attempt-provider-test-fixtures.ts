@@ -190,6 +190,29 @@ function plantingClaude(
 	};
 }
 
+const MEMORY_DIRECTORY = "memory";
+
+/** Claude Code 2.1.314 creates memory/ in the slug of every session it runs. */
+function rememberingClaude(
+	projects: string,
+	run: SessionAttemptRequest["runClaude"],
+	memoryFiles: readonly string[] = [],
+): SessionAttemptRequest["runClaude"] {
+	return async (command, cwd) => {
+		const memory = join(
+			projects,
+			projectSlug(await realpath(cwd)),
+			MEMORY_DIRECTORY,
+		);
+		await mkdir(memory, { recursive: true });
+		await Array.fromAsync(memoryFiles, async (name) => {
+			await writeFile(join(memory, name), "remembered\n");
+		});
+
+		return await run(command, cwd);
+	};
+}
+
 function budgetErrorEnvelope(sessionId: string): string {
 	return verboseOutput(
 		JSON.stringify({
@@ -225,4 +248,6 @@ export {
 	PLANTED_BEFORE,
 	PLANTED_AFTER,
 	plantingClaude,
+	MEMORY_DIRECTORY,
+	rememberingClaude,
 };
