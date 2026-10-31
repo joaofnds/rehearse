@@ -455,19 +455,26 @@ that settled before the process exited leaves its rep record, which reads
 failed and names a worktree the stop removed, and a rep killed before it
 settled leaves none. A session confirmation group writes no attempt or rep
 record once the stop is recorded, so its stopped reps keep only their
-transcripts and sub-agent files. A session command's stop first refuses every
-attempt not yet started and every provider call not yet made, then kills the
-running ones and waits up to 5 seconds for each attempt in flight to copy its
-transcript and remove its attempt directory, setup directory and project slug.
-A stopped single session attempt writes `operator-stop.json` in its attempt
-directory in that wait, in place of its `attempt.json`, so it too keeps only
-its transcript and sub-agent files and never reads as a failed attempt. Run
-history and `rehearse list groups` leave the group out rather than list it as
-unreadable, and run history and `rehearse list attempts` leave out the
-attempt the same way. A stopped replay writes no operator stop. A browser launch the operator
-stopped keeps `stopRequestedAt`, and once its process exits its launch row
-stays in run history as `OPERATOR_STOPPED` with no controls. A stopped single
-pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
+transcripts and sub-agent files. A session command's stop refuses every command
+started after it, git seeding and state checks included, and every provider call
+not yet made, then kills the running ones and waits up to 5 seconds for each
+attempt in flight to copy its transcript into its record directory,
+`sessions/<case>/<uuid>/`, and remove its attempt directory, setup directory and
+project slug. A stopped single session attempt that fails in that wait, whether
+it was killed in its session or refused before it, writes `operator-stop.json`
+in its record directory in place of its `attempt.json`. So does one whose
+session finished before its record was written, because a check the stop
+refused would grade it wrongly, so its record is discarded and its transcript
+kept. The record directory keeps `in-flight.json`, the corpus snapshot and any
+corpus delivery output, the transcript and sub-agent files and the stop file,
+and never reads as a failed attempt. Run history and `rehearse list groups`
+leave the group out rather than list it as unreadable, and run history and
+`rehearse list attempts` leave out the attempt the same way. An attempt that
+outlives the 5 second wait leaves neither record and lists as a record that
+could not be read. A stopped replay writes no operator stop. A browser launch
+the operator stopped keeps `stopRequestedAt`, and once its process exits its
+launch row stays in run history as `OPERATOR_STOPPED` with no controls. A
+stopped single pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
 the run recorded one, since nothing links the two once the process is gone and
 a case stopped before its run record exists has no other row. A replay, group or
 single session attempt stopped from a terminal has no launch, so nothing in

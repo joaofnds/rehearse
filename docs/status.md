@@ -24,7 +24,7 @@ unchanged. A later summary appears normally. This does not reconstruct lost
 measurements. A group or attempt in flight that a browser launch started lists
 only as that launch's RUNNING row, neither among the records that could not be
 read nor among those with no saved summary. Once its process ends without a
-record it lists there again, unless the operator stopped the group. One started
+record it lists there again, unless the operator stopped it. One started
 from a terminal still lists while it records, a group as having no saved
 summary and an attempt as a record that could not be read, since no launch
 holds its claim. A launch whose process crashed and whose pid a later process
@@ -407,7 +407,8 @@ which cannot be stopped; see
 `PAUSED:<stage>` and cannot be resumed. A run a signal stopped reads
 `OPERATOR_STOPPED`, or `STOPPED:<stage>` when the stage was being judged. A
 stopped confirmation group writes no group record, so its reps never read as
-failed, and a replay, group or session attempt stopped from the browser stays
+failed, a stopped single session attempt writes no attempt record, so it never
+reads as failed, and a replay, group or session attempt stopped from the browser stays
 listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
 row. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
 with a stopped stage; Failed requires a saved quality failure rather than missing

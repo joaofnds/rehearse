@@ -201,7 +201,8 @@ attempt with no record out while a live launch with the claim's pid, launched
 no later than the claim, holds it, and the launch's RUNNING row stands for it.
 Any launch kind can hold one, because case, replay, comparison and extension
 launches all write groups in their own process. A group the operator stopped or
-archived is left out first, as before. The claim stays after the record is
+archived is left out first, and an attempt the operator stopped is left out
+too. The claim stays after the record is
 written, since the record settles the reading. Three misreadings follow from
 the design. A launch is live by its pid alone, so a launch whose process died
 and whose pid a later process has taken still holds its abandoned group or
