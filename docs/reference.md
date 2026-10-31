@@ -453,7 +453,14 @@ writing `operator-stop.json` in its group directory, and then writes no
 `group.json` or report, so no stopped rep reads as a failed outcome. A rep
 that settled before the process exited leaves its rep record, which reads
 failed and names a worktree the stop removed, and a rep killed before it
-settled leaves none. Run history and `rehearse list groups` leave the group
+settled leaves none. A session confirmation group writes no attempt or rep
+record once the stop is recorded, so its stopped reps keep only their
+transcripts and sub-agent files. A session command's stop first refuses every
+attempt not yet started and every provider call not yet made, then kills the
+running ones and waits up to 5 seconds for each attempt in flight to copy its
+transcript and remove its attempt directory, setup directory and project slug.
+A stopped single session attempt writes its record in that wait, as an
+`EXECUTION_FAILED` attempt. Run history and `rehearse list groups` leave the group
 out rather than list it as unreadable. A stopped replay or
 single session attempt writes no operator stop. A browser launch the operator
 stopped keeps `stopRequestedAt`, and once its process exits its launch row
@@ -817,7 +824,12 @@ Cleanup then removes the provider's whole `<sessionId>/` directory with the
 session's file, once the record holds every sub-agent file in it. Where it does
 not, the directory stays, since it holds the only copy. That directory can also
 hold other provider files, such as outputs offloaded to `tool-results/`, which
-the record does not keep and cleanup deletes.
+the record does not keep and cleanup deletes. Cleanup then removes the
+project slug, the provider's directory named for the attempt directory, with
+the empty `memory/` Claude Code creates in it, but only when nothing else is
+in the slug, since another live session can write into the same slug. A
+resumed case whose preparation fails after its transcript was forked into the
+slug removes that transcript and the slug the same way.
 
 `unavailableSubagents` lists each agent that an Agent result, or a Skill result
 that ran the skill in its own context, names at or after the cut and whose
