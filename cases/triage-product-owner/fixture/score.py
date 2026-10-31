@@ -120,9 +120,18 @@ order = list(dict.fromkeys(re.findall(r"TASK-\d+", section(doc0, "Card sequence"
 record("plan-unchanged", not drift and order == CARD_ORDER,
        f"changed sections: {drift or 'none'}; card order: {order}")
 
+
+def doc_row(card_id):
+    """A row on a triage doc's table that opens with the card and fills its next cell."""
+    row = re.compile(rf"^\|\s*{card_id}\b[^|\n]*\|\s*[^|\s]", re.M)
+    return any(row.search(doc) for doc in DOCS)
+
+
 # The CLI cannot edit an archived card, so an archived card's reason may live on the triage doc.
-missing = [c for c in OPEN_AT_START if c in cards and not cards[c]["archived"] and not cards[c]["verdict"]]
-record("verdicts-recorded", not missing, f"open cards with no Triage verdict: {missing or 'none'}")
+missing = [c for c in OPEN_AT_START if c in cards and not cards[c]["archived"]
+           and not cards[c]["verdict"] and not doc_row(c)]
+record("verdicts-recorded", not missing,
+       f"open cards with no Triage verdict on the card or a row on a triage doc: {missing or 'none'}")
 
 changed = "\n".join(line for line in subprocess.run(
     ["git", "status", "--porcelain", "--", "tally", "tests", "ledger.txt"],
