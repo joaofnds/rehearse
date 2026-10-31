@@ -89,7 +89,3 @@ function runRequest(
 }
 
 export { SessionCaseBuilder, config, resumingCase, runRequest };
-export {
-	default as ABSENT_HOME,
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";

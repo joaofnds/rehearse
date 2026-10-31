@@ -64,18 +64,16 @@ interface SessionAttemptRowRequest {
 
 /**
  * An attempt with no record is left out while a live launch holds its writer
- * or once the operator stopped it, and is otherwise incomplete.
+ * or once the operator stopped it.
  */
-async function assertLeftOut(
+async function leftOut(
 	paths: SessionAttemptPaths,
 	launchByPid: ReadonlyMap<number, LaunchRecord>,
-): Promise<void> {
-	if (
-		!(await heldInFlight(paths.directory, launchByPid)) &&
-		!(await stoppedBeforeAttemptRecord(paths))
-	) {
-		throw new Error("incomplete: no attempt.json recorded");
-	}
+): Promise<boolean> {
+	return (
+		(await heldInFlight(paths.directory, launchByPid)) ||
+		(await stoppedBeforeAttemptRecord(paths))
+	);
 }
 
 /**
@@ -91,9 +89,11 @@ async function sessionAttemptRow({
 }: SessionAttemptRowRequest): Promise<Unjudged<SessionAttemptRow> | undefined> {
 	const paths = sessionAttemptPaths(runsDirectory, attempt);
 	if (!(await Bun.file(paths.recordFile).exists())) {
-		await assertLeftOut(paths, launchByPid);
+		if (await leftOut(paths, launchByPid)) {
+			return undefined;
+		}
 
-		return undefined;
+		throw new Error("incomplete: no attempt.json recorded");
 	}
 
 	const record = parseSessionAttemptRecord(

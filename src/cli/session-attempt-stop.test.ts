@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { operatorStopped } from "#benchmark/operator-stop";
+import { operatorStopRecord } from "#benchmark/operator-stop";
 import { sessionAttemptIds, sessionAttemptPaths } from "#benchmark/run-layout";
 import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { failureOf } from "#cli/cli-test-support";
@@ -15,7 +15,7 @@ const files = SessionAttemptTestFiles.forEachTest();
 const corpora = new SessionCorpusFixture(files);
 
 interface StoppedAttemptFiles {
-	readonly stopRecorded: boolean;
+	readonly stopRecord: string | undefined;
 	readonly attemptRecorded: boolean;
 }
 
@@ -71,7 +71,9 @@ async function stoppedAttemptFiles(
 
 			return {
 				attemptRecorded: await Bun.file(paths.recordFile).exists(),
-				stopRecorded: await operatorStopped(paths),
+				stopRecord: (await Bun.file(paths.operatorStopFile).exists())
+					? await Bun.file(paths.operatorStopFile).text()
+					: undefined,
 			};
 		}),
 	);
@@ -83,7 +85,10 @@ describe(runSessionDebugAttempt.name, () => {
 			const attempts = await stoppedAttemptFiles(duringItsSession);
 
 			expect(attempts).toEqual([
-				{ attemptRecorded: false, stopRecorded: true },
+				{
+					attemptRecorded: false,
+					stopRecord: operatorStopRecord("SIGTERM"),
+				},
 			]);
 		});
 	});
@@ -93,7 +98,10 @@ describe(runSessionDebugAttempt.name, () => {
 			const attempts = await stoppedAttemptFiles(beforeItsSession);
 
 			expect(attempts).toEqual([
-				{ attemptRecorded: false, stopRecorded: true },
+				{
+					attemptRecorded: false,
+					stopRecord: operatorStopRecord("SIGTERM"),
+				},
 			]);
 		});
 	});

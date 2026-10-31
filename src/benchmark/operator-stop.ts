@@ -15,7 +15,10 @@ const operatorStopRecordSchema = z.object({
 	status: z.literal(OPERATOR_STOPPED),
 });
 
-/** The record a signal's stop leaves, for a run or a confirmation group. */
+/**
+ * The record a signal's stop leaves, for a run, a confirmation group or a
+ * single session attempt.
+ */
 function operatorStopRecord(signal: NodeJS.Signals): string {
 	const record = Object.fromEntries([
 		["status", OPERATOR_STOPPED],
@@ -25,8 +28,8 @@ function operatorStopRecord(signal: NodeJS.Signals): string {
 }
 
 /**
- * Whether a signal ended the run or group, which `run-abort.ts` and the
- * group executors record on disk.
+ * Whether a signal ended the run, group or session attempt, which
+ * `run-abort.ts`, the session command and the group executors record on disk.
  */
 async function operatorStopped(
 	paths: Readonly<Pick<BenchmarkRunPaths, "operatorStopFile">>,
