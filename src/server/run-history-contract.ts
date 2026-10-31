@@ -1,7 +1,6 @@
 import type { CorpusRoot } from "#benchmark/corpus-file";
-import type { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import type { LaunchRecord } from "#benchmark/launch-record";
-import type { OPERATOR_STOPPED } from "#benchmark/stopped-status";
+import type { LAUNCH_ENDED, OPERATOR_STOPPED } from "#benchmark/stopped-status";
 import type { RowStaleness } from "#server/row-staleness";
 import type { ConfirmationGroupRow } from "#server/run-history-group-contract";
 import type {

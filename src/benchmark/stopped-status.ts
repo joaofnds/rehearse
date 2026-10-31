@@ -40,6 +40,12 @@ function pausedStageOf(status: PausedStatus): string {
 /** A run a signal ended, which the operator's Stop sends. */
 const OPERATOR_STOPPED = "OPERATOR_STOPPED";
 
+/**
+ * A browser launch whose command ended by an error, which a pause or a stop
+ * below the minimum grade also is, so it is never read as a failure.
+ */
+const LAUNCH_ENDED = "ENDED";
+
 export {
 	stoppedStatus,
 	isStopped,
@@ -48,5 +54,6 @@ export {
 	isPaused,
 	pausedStageOf,
 	OPERATOR_STOPPED,
+	LAUNCH_ENDED,
 };
 export type { StoppedStatus, PausedStatus };

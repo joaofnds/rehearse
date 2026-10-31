@@ -1,5 +1,5 @@
-import { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import {
+	LAUNCH_ENDED,
 	OPERATOR_STOPPED,
 	isPaused,
 	isStopped,

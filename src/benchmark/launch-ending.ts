@@ -17,9 +17,6 @@ const CUT_MARK = "\n[cut]";
 
 const RECORD_JSON_INDENT_SPACES = 2;
 
-/** The run-history status of a launch whose command ended by an error. */
-const LAUNCH_ENDED = "ENDED";
-
 const launchEndingSchema = z
 	.object({
 		endedAt: z.iso.datetime(),
@@ -80,10 +77,5 @@ async function readLaunchEnding(
 	return launchEndingSchema.parse(await file.json());
 }
 
-export {
-	writeLaunchEnding,
-	readLaunchEnding,
-	LAUNCH_ENDED,
-	MESSAGE_LIMIT_BYTES,
-};
+export { writeLaunchEnding, readLaunchEnding, MESSAGE_LIMIT_BYTES };
 export type { LaunchEnding };

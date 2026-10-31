@@ -1,6 +1,5 @@
-import { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import type { LaunchRecord } from "#benchmark/launch-record";
-import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
+import { LAUNCH_ENDED, OPERATOR_STOPPED } from "#benchmark/stopped-status";
 import { redactAbsolutePaths } from "#server/redact-path";
 import type {
 	LaunchRow,
