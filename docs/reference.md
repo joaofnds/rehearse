@@ -460,18 +460,20 @@ started after it, git seeding and state checks included, and every provider call
 not yet made, then kills the running ones and waits up to 5 seconds for each
 attempt in flight to copy its transcript into its record directory,
 `sessions/<case>/<uuid>/`, and remove its attempt directory, setup directory and
-project slug. A stopped single session attempt that fails in that wait, whether
-it was killed in its session or refused before it, writes `operator-stop.json`
-in its record directory in place of its `attempt.json`. So does one whose
-session finished before its record was written, because a check the stop
-refused would grade it wrongly, so its record is discarded and its transcript
-kept. The record directory keeps `in-flight.json`, the corpus snapshot and any
+project slug. Before it kills anything, the stop writes `operator-stop.json` in
+the record directory of every single session attempt that has claimed one, and
+an attempt that claims one after the stop writes it at once. A stopped single
+session attempt then writes no `attempt.json`, whether it was killed in its
+session, refused before it, or its session finished before its record was
+written, because a check the stop refused would grade it wrongly, so its record
+is discarded and its transcript kept. The record directory keeps `in-flight.json`, the corpus snapshot and any
 corpus delivery output, the transcript and sub-agent files and the stop file,
 and never reads as a failed attempt. Run history and `rehearse list groups`
 leave the group out rather than list it as unreadable, and run history and
 `rehearse list attempts` leave out the attempt the same way. An attempt that
-outlives the 5 second wait leaves neither record and lists as a record that
-could not be read. A stopped replay writes no operator stop. A browser launch
+outlives the 5 second wait is left out the same way, but its record directory
+may lack its transcript, and its attempt directory, setup directory and project
+slug stay. A stopped replay writes no operator stop. A browser launch
 the operator stopped keeps `stopRequestedAt`, and once its process exits its
 launch row stays in run history as `OPERATOR_STOPPED` with no controls. A
 stopped single pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
