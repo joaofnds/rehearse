@@ -89,7 +89,7 @@ async function escapesThemInTheFailureLine(): Promise<void> {
 	const failureLine = result.stderr
 		.split("\n")
 		.find((line) => line.startsWith(FAILURE_PREFIX));
-	expect(result.exitCode).not.toBe(EXIT_CODES.success);
+	expect(result.exitCode).toBe(EXIT_CODES.executionFailure);
 	expect(failureLine).toContain(
 		String.raw`sh\u001b[31mape\u0007\u009b\u202e\u000a`,
 	);
