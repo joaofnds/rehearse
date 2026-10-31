@@ -36,8 +36,8 @@ class SessionCommandLifetime {
 	}: SessionCommandLifetimeRequest) {
 		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
 		this.groupId = randomUUID();
-		// Closing the attempts records the stop in each single attempt's
-		// directory, and a group records it in its own here. Attempts and
+		// Closing the attempts records the stop in the directory of each
+		// single attempt not yet settled, and a group records it in its own here. Attempts and
 		// commands close before the stop kills the commands, so none starts
 		// after the kill. Commands close after the group's stop is written,
 		// since a rep that settles meanwhile stores its record unless that

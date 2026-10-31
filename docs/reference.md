@@ -461,21 +461,30 @@ not yet made, then kills the running ones and waits up to 5 seconds for each
 attempt in flight to copy its transcript into its record directory,
 `sessions/<case>/<uuid>/`, and remove its attempt directory, setup directory and
 project slug. Before it kills anything, the stop writes `operator-stop.json` in
-the record directory of every single session attempt that has claimed one, and
-an attempt that claims one after the stop writes it at once. A stopped single
-session attempt then writes no `attempt.json`, whether it was killed in its
-session, refused before it, or its session finished before its record was
+the record directory of every single session attempt that has claimed one (an
+attempt claims its record directory once its corpus resolves) and has not yet
+settled, and an attempt that claims one after the stop writes it at once. A stop
+that lands after an attempt settled leaves its record alone. A stopped single
+session attempt writes no `attempt.json`, whether it was killed in its session
+or refused before it. Nor does one whose session finished before its record was
 written, because a check the stop refused would grade it wrongly, so its record
-is discarded and its transcript kept. The record directory keeps `in-flight.json`, the corpus snapshot and any
-corpus delivery output, the transcript and sub-agent files and the stop file,
-and never reads as a failed attempt. Run history and `rehearse list groups`
-leave the group out rather than list it as unreadable, and run history and
-`rehearse list attempts` leave out the attempt the same way. An attempt that
-outlives the 5 second wait is left out the same way, but its record directory
-may lack its transcript, and its attempt directory, setup directory and project
-slug stay. A stopped replay writes no operator stop. A browser launch
-the operator stopped keeps `stopRequestedAt`, and once its process exits its
-launch row stays in run history as `OPERATOR_STOPPED` with no controls. A
+is discarded and its transcript kept. The record directory keeps
+`in-flight.json`, the corpus snapshot and any corpus delivery output, the
+transcript and sub-agent files the attempt had, and the stop file, and never
+reads as a failed attempt. Run history and `rehearse list groups` leave the
+group out rather than list it as unreadable, and run history and `rehearse list
+attempts` leave out the attempt the same way. An attempt that outlives the 5
+second wait is left out the same way, but its record directory may lack its
+transcript and sub-agent files. What it had created then stays for the operator
+to remove: its project slug under `~/.claude/projects`, which holds the
+transcript, its attempt directory `rehearse-attempt-*` in the system temporary
+directory, and its setup directory `rehearse-setup-*` beside it, which holds a
+copy of the user's merged Claude Code settings. If the stop file cannot be
+written, the command logs `Could not record the stop`, still refuses later
+commands, and the attempt lists as a record that could not be read. A stopped
+replay writes no operator stop. A browser launch the operator stopped keeps
+`stopRequestedAt`, and once its process exits its launch row stays in run
+history as `OPERATOR_STOPPED` with no controls. A
 stopped single pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
 the run recorded one, since nothing links the two once the process is gone and
 a case stopped before its run record exists has no other row. A replay, group or

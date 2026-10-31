@@ -23,8 +23,8 @@ interface PreparedSessionDebugAttempt extends AttemptCorpusMeasurement {
 /**
  * The attempt is claimed once its corpus resolves, so a corpus that does not
  * resolve leaves no attempt directory, and before its snapshot is written.
- * An operator stop records itself in every claimed attempt, however late it
- * would settle.
+ * An operator stop records itself in a claimed attempt that has not settled,
+ * however late it would settle.
  */
 async function claimedCorpus(
 	request: SessionRunRequest,

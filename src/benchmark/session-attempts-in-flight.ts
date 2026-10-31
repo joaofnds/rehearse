@@ -12,8 +12,8 @@ const NO_ATTEMPTS = 0;
  * has already passed, and the stop then waits
  * for each attempt to record what its killed session wrote and remove what it
  * left in the user's projects directory before the process exits. The stop
- * records itself in every attempt record claimed, so an attempt that outlives
- * the wait is still read as stopped.
+ * records itself in every claimed attempt record not yet settled, so an
+ * attempt that outlives the wait is still read as stopped.
  */
 class SessionAttemptsInFlight implements AttemptsInFlight {
 	private readonly running = new Set<Promise<unknown>>();
