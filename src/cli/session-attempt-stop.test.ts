@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { operatorStopRecord } from "#benchmark/operator-stop";
 import { sessionAttemptIds, sessionAttemptPaths } from "#benchmark/run-layout";
+import KilledClaude from "#benchmark/session-attempt-killed-claude-test-fixture";
 import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { failureOf } from "#cli/cli-test-support";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
@@ -109,16 +110,9 @@ async function hungAttemptFiles(): Promise<readonly StoppedAttemptFiles[]> {
 		await corpora.corpusDirectory("brief\n"),
 	);
 	const inFlight = new SessionAttemptsInFlight();
-	const sessionStarted = Promise.withResolvers<string>();
-	void runSessionDebugAttempt({
-		...request,
-		inFlight,
-		runClaude: async (_command, cwd) => {
-			sessionStarted.resolve(cwd);
-			return await Promise.withResolvers<never>().promise;
-		},
-	});
-	await sessionStarted.promise;
+	const claude = new KilledClaude(request.projectsDirectory);
+	void runSessionDebugAttempt({ ...request, inFlight, runClaude: claude.run });
+	await claude.running();
 
 	await inFlight.close("SIGTERM");
 
