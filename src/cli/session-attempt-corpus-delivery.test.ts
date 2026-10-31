@@ -7,12 +7,9 @@ import { projectSlug } from "#benchmark/session-capture";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import {
-	SessionCaseBuilder,
-	config,
-	runRequest,
-} from "./session-case-test-fixture";
+import { SessionCaseBuilder, config } from "./session-case-test-fixture";
 import { fakeClaudeEnvelope } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -133,7 +130,7 @@ async function attemptUnder(
 	writes: (cited: string) => SessionWrites,
 ): ReturnType<typeof runSessionDebugAttempt> {
 	return await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			config: { ...config, corpus: run.corpus },
 			home: run.home,
 			projectsDirectory: run.projects,
@@ -151,7 +148,7 @@ async function attemptUnder(
 					tools: [],
 				},
 			}).build(),
-		}),
+		}).build(),
 	);
 }
 

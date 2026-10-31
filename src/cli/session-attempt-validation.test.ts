@@ -6,8 +6,9 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
+import { SessionCaseBuilder } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -16,11 +17,11 @@ async function reportsTheAttemptUnsuccessfulWhenACheckFails(): Promise<void> {
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK sure thing"),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 
 	const [observedFirstCheck] = outcome.record.checks;
@@ -33,7 +34,7 @@ async function refusesADeclaredCorpusFileThatDoesNotResolveBeforeAnyProviderCall
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		runClaude: async () =>
 			await Promise.reject(new Error("a provider call must not happen")),
@@ -41,7 +42,8 @@ async function refusesADeclaredCorpusFileThatDoesNotResolveBeforeAnyProviderCall
 		sessionCase: new SessionCaseBuilder({
 			corpusFiles: ["output-styles/no-such-style.md"],
 		}).build(),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);

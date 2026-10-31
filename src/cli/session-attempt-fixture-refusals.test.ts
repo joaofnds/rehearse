@@ -8,11 +8,8 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import {
-	SessionCaseBuilder,
-	resumingCase,
-	runRequest,
-} from "./session-case-test-fixture";
+import { SessionCaseBuilder, resumingCase } from "./session-case-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -22,13 +19,14 @@ async function refusesAFixtureTreeHoldingASymlinkBeforeAnyProviderCall(): Promis
 	const fixture = await files.temporary("rehearse-fixture-");
 	await symlink("/etc/hosts", join(fixture, "escape.md"));
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		runClaude: async () =>
 			await Promise.reject(new Error("a provider call must not happen")),
 		runsDirectory: runs,
 		sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
@@ -42,7 +40,7 @@ async function refusesAFixtureWhoseSeededHistoryGitCannotReadExiting3BeforeAnyPr
 
 	const calls: string[] = [];
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		runClaude: async (_command, cwd) => {
 			calls.push(cwd);
@@ -51,7 +49,8 @@ async function refusesAFixtureWhoseSeededHistoryGitCannotReadExiting3BeforeAnyPr
 		},
 		runsDirectory: runs,
 		sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
@@ -69,13 +68,14 @@ async function refusesATranscriptPrefixWhoseBytesDoNotMatchTheDeclaredDigestBefo
 	);
 	await writeFile(prefix, "bytes the declaration never hashed\n");
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		runClaude: async () =>
 			await Promise.reject(new Error("a provider call must not happen")),
 		runsDirectory: runs,
 		sessionCase: resumingCase(prefix),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);

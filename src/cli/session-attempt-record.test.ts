@@ -8,8 +8,9 @@ import { readShortIds } from "#benchmark/short-id";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
+import { SessionCaseBuilder } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -18,11 +19,11 @@ async function writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndARes
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 
 	expect(outcome.record).toMatchObject({
@@ -53,11 +54,11 @@ async function claimsTheAttemptAShortIdInItsCase(): Promise<void> {
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 
 	expect(await readShortIds(runs, "smoke")).toEqual([
@@ -78,12 +79,12 @@ async function printsARecordThatParsesWithTheSchemaThatWroteIt(): Promise<void> 
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: runs,
 			spendCeilingUsd,
-		}),
+		}).build(),
 	);
 
 	const written = parseSessionAttemptRecord(
@@ -104,7 +105,7 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 	const claude = fakeClaude(projects, "OK");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			now: () => elapsedMs,
 			projectsDirectory: projects,
 			runClaude: async (command, cwd) => {
@@ -114,7 +115,7 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 			},
 			runsDirectory: runs,
 			wallClock: () => startedAt + elapsedMs,
-		}),
+		}).build(),
 	);
 
 	const written = z
@@ -133,12 +134,12 @@ async function recordedSetup(isolated: boolean): Promise<RecordedSetup> {
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: runs,
 			sessionCase: new SessionCaseBuilder({ isolated }).build(),
-		}),
+		}).build(),
 	);
 
 	return outcome.record.setup;
@@ -172,11 +173,11 @@ async function writesTheMCPServersAndPluginsTheSessionReportedLoadingToItsRecord
 	});
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK", init),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 
 	const written = parseSessionAttemptRecord(

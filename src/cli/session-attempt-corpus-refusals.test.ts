@@ -7,7 +7,8 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
+import { SessionCaseBuilder } from "./session-case-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const PROVIDER_CALL_COUNT_INCREMENT = 1;
 
@@ -21,7 +22,7 @@ async function refusesAnOutOfExtentLiveCorpusFileBeforeAnyProviderCall(): Promis
 	const { root, backingRoot } = await files.outOfExtentCorpus();
 	let providerCalls = 0;
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		resolveCorpus: async () =>
 			await Promise.resolve<ResolvedCorpusSource>({
@@ -37,7 +38,8 @@ async function refusesAnOutOfExtentLiveCorpusFileBeforeAnyProviderCall(): Promis
 		sessionCase: new SessionCaseBuilder({
 			corpusFiles: ["output-styles/foreign.md"],
 		}).build(),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
@@ -53,7 +55,7 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 	const { root, backingRoot } = await files.invalidBackingCorpus();
 	let providerCalls = 0;
 
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: projects,
 		resolveCorpus: async () =>
 			await Promise.resolve<ResolvedCorpusSource>({
@@ -69,7 +71,8 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 		sessionCase: new SessionCaseBuilder({
 			corpusFiles: ["output-styles/foreign.md"],
 		}).build(),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
@@ -78,7 +81,7 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 }
 
 async function reportsInvalidLiveCorpusConfigurationAsARefusedPrecondition(): Promise<void> {
-	const request = runRequest({
+	const request = new SessionRunRequestBuilder({
 		projectsDirectory: await files.temporary("rehearse-projects-"),
 		resolveCorpus: async () =>
 			await Promise.reject(
@@ -87,7 +90,8 @@ async function reportsInvalidLiveCorpusConfigurationAsARefusedPrecondition(): Pr
 		runClaude: async () =>
 			await Promise.reject(new Error("a provider call must not happen")),
 		runsDirectory: await files.temporary("rehearse-runs-"),
-	});
+	}).build();
+
 	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);

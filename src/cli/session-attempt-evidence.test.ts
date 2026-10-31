@@ -9,13 +9,13 @@ import {
 	readAttemptRecord,
 } from "./session-attempt-record-observation";
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { runRequest } from "./session-case-test-fixture";
 import {
 	loadContextEvidenceSource,
 	syntheticContextCatalog,
 } from "./session-context-evidence-test-fixture";
 import expectedTranscriptDiagnostics from "./session-diagnostic-expectation";
 import { diagnosticClaude, fakeClaude } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -24,11 +24,11 @@ async function persistsExactToolDiagnosticsInTheParsedAttemptRecord(): Promise<v
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: diagnosticClaude(projects),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 	const written = await readAttemptRecord(outcome.recordFile);
 
@@ -44,7 +44,7 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 
 	const failure = await failureOf(
 		runSessionDebugAttempt(
-			runRequest({
+			new SessionRunRequestBuilder({
 				now: () => elapsedMs,
 				projectsDirectory: projects,
 				runClaude: async (command, cwd) => {
@@ -53,7 +53,7 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 					throw new Error("provider rejected the session");
 				},
 				runsDirectory: runs,
-			}),
+			}).build(),
 		),
 	);
 	const record = await firstAttemptRecord({
@@ -86,13 +86,13 @@ async function persistsProviderContextEvidenceThroughTheSavedAttemptBoundary(): 
 	const contextRateCatalog = syntheticContextCatalog();
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			contextEvidenceSource,
 			contextRateCatalog,
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: runs,
-		}),
+		}).build(),
 	);
 	const written = await readAttemptRecord(outcome.recordFile);
 

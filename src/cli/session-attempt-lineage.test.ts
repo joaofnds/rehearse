@@ -3,9 +3,9 @@ import { describe, expect, it } from "bun:test";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { runRequest } from "./session-case-test-fixture";
 import SessionCorpusFixture from "./session-corpus-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -45,11 +45,11 @@ async function recordsTheLineageTheSmokeCaseCarriedBeforeCorpusExisted(): Promis
 	const projects = await files.temporary("rehearse-projects-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory: await files.temporary("rehearse-runs-"),
-		}),
+		}).build(),
 	);
 
 	expect(outcome.record.lineage).toBe(

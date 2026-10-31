@@ -4,16 +4,13 @@ import { join } from "node:path";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import {
-	SessionCaseBuilder,
-	config,
-	runRequest,
-} from "./session-case-test-fixture";
+import { SessionCaseBuilder, config } from "./session-case-test-fixture";
 import SessionCorpusFixture from "./session-corpus-test-fixture";
 import {
 	fakeClaude,
 	undeclaredSkillClaude,
 } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 const files = SessionAttemptTestFiles.forEachTest();
 
@@ -45,12 +42,12 @@ async function reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheC
 	const runClaude = undeclaredSkillClaude(projects);
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude,
 			runsDirectory,
 			sessionCase: new SessionCaseBuilder({ isolated: true }).build(),
-		}),
+		}).build(),
 	);
 
 	expect(outcome.record.divergences).toEqual([
@@ -73,14 +70,14 @@ async function reportsAnUndeclaredFileDivergenceForAnInstalledSkillTheCaseNeverD
 	await Bun.write(join(corpus, "skills/verify/SKILL.md"), "verify skill\n");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			config: { ...config, corpus },
 			projectsDirectory: projects,
 			runClaude: undeclaredSkillClaude(projects, (cwd) =>
 				join(cwd, ".claude/skills/verify"),
 			),
 			runsDirectory,
-		}),
+		}).build(),
 	);
 
 	expect(outcome.record.divergences).toEqual([
@@ -97,14 +94,14 @@ async function reportsAnUnloadedFileDivergenceForADeclaredProjectFileTheSessionN
 	const runsDirectory = await files.temporary("rehearse-runs-");
 
 	const outcome = await runSessionDebugAttempt(
-		runRequest({
+		new SessionRunRequestBuilder({
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory,
 			sessionCase: new SessionCaseBuilder({
 				projectFiles: ["NOTES.md"],
 			}).build(),
-		}),
+		}).build(),
 	);
 
 	expect(outcome.record.divergences).toEqual([

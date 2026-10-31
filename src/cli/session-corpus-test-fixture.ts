@@ -7,12 +7,9 @@ import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import type { SessionRunRequest } from "#cli/session-run-command";
 
 import type SessionAttemptTestFiles from "./session-attempt-test-files";
-import {
-	SessionCaseBuilder,
-	config,
-	runRequest,
-} from "./session-case-test-fixture";
+import { SessionCaseBuilder, config } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
+import SessionRunRequestBuilder from "./session-run-request-test-builder";
 
 function styledCase(): SessionCase {
 	return new SessionCaseBuilder({
@@ -51,13 +48,13 @@ class SessionCorpusFixture {
 		const projects = await this.files.temporary("rehearse-projects-");
 		const runsDirectory = await this.files.temporary("rehearse-runs-");
 
-		return runRequest({
+		return new SessionRunRequestBuilder({
 			config: corpus === undefined ? config : { ...config, corpus },
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory,
 			sessionCase: styledCase(),
-		});
+		}).build();
 	}
 }
 export { SessionCorpusFixture as default };
