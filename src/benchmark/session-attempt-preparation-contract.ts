@@ -20,6 +20,8 @@ type ClaudeRunner = (
 interface AttemptsInFlight {
 	readonly track: <Result>(start: () => Promise<Result>) => Promise<Result>;
 	readonly assertOpen: () => void;
+	/** Where an operator stop is to be recorded for an attempt record just claimed. */
+	readonly claimRecord: (operatorStopFile: string) => Promise<void>;
 	/** The signal of the operator stop that closed it, if one has. */
 	readonly stoppedBy: () => NodeJS.Signals | undefined;
 }

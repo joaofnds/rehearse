@@ -1,5 +1,6 @@
 import { once } from "node:events";
 
+import { operatorStopRecord } from "./operator-stop";
 import type { AttemptsInFlight } from "./session-attempt-preparation-contract";
 
 const NO_ATTEMPTS = 0;
@@ -10,10 +11,13 @@ const NO_ATTEMPTS = 0;
  * never begins and one still preparing never starts a paid session the kill
  * has already passed, and the stop then waits
  * for each attempt to record what its killed session wrote and remove what it
- * left in the user's projects directory before the process exits.
+ * left in the user's projects directory before the process exits. The stop
+ * records itself in every attempt record claimed, so an attempt that outlives
+ * the wait is still read as stopped.
  */
 class SessionAttemptsInFlight implements AttemptsInFlight {
 	private readonly running = new Set<Promise<unknown>>();
+	private readonly stopFiles = new Set<string>();
 	private stopSignal: NodeJS.Signals | undefined = undefined;
 
 	public async track<Result>(start: () => Promise<Result>): Promise<Result> {
@@ -27,8 +31,21 @@ class SessionAttemptsInFlight implements AttemptsInFlight {
 		}
 	}
 
-	public close(signal: NodeJS.Signals): void {
+	public async claimRecord(operatorStopFile: string): Promise<void> {
+		this.stopFiles.add(operatorStopFile);
+		if (this.stopSignal !== undefined) {
+			await Bun.write(operatorStopFile, operatorStopRecord(this.stopSignal));
+		}
+	}
+
+	public async close(signal: NodeJS.Signals): Promise<void> {
 		this.stopSignal = signal;
+
+		await Promise.all(
+			[...this.stopFiles].map(
+				async (file) => await Bun.write(file, operatorStopRecord(signal)),
+			),
+		);
 	}
 
 	public stoppedBy(): NodeJS.Signals | undefined {

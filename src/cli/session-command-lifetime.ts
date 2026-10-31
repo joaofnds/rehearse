@@ -56,7 +56,7 @@ class SessionCommandLifetime {
 				await this.inFlight.settled(STOP_SETTLE_BOUND_MS);
 			},
 			async (signal) => {
-				this.inFlight.close(signal);
+				await this.inFlight.close(signal);
 				if (config.confirmation !== undefined) {
 					await Bun.write(
 						confirmationGroupPaths(runsDirectory, this.groupId)

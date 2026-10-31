@@ -59,7 +59,7 @@ async function stoppedAttemptFiles(
 			...request,
 			inFlight,
 			...stopAt(() => {
-				inFlight.close("SIGTERM");
+				void inFlight.close("SIGTERM");
 			}),
 		}),
 	);
