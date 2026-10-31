@@ -26,8 +26,8 @@ IDs, case names, corpus versions and fired blockers. The Runs breadcrumb and sid
 restore the last selection during app navigation; Clear removes it. Sorting supports
 newest, oldest, highest cost and case; missing dates and partial or missing costs stay
 last. Active launches have their own queue, and ended launch records remain in a counted
-history disclosure, whose label also counts launches that ended by an error, each shown
-with the error's message. List counts distinguish saved records from launches. Failed requires
+history disclosure, whose label also counts the launches that ended with a reason, each
+shown with that reason, which may be a refusal, a pause or a stop below the minimum grade. List counts distinguish saved records from launches. Failed requires
 a
 recorded quality failure, while execution errors and missing judgments stay distinct.
 Search in the sidebar, also available with Command/Ctrl-K, finds runs, cases,

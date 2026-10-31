@@ -30,7 +30,7 @@ function respondingWithOneStoppedAndOneEnded(): void {
 async function openEndedLaunchHistory(): Promise<void> {
 	fireEvent.click(
 		await screen.findByRole("button", {
-			name: "Ended launch history (2, 1 ended by an error)",
+			name: "Ended launch history (2, 1 with a reason)",
 		}),
 	);
 }

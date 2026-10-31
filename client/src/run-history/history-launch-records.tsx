@@ -121,14 +121,14 @@ function launchCells(
 }
 
 function endedLaunchesLabel(launches: readonly LaunchRow[]): string {
-	const endedByAnError = launches.filter(
+	const withAReason = launches.filter(
 		({ status }) => status === "ENDED",
 	).length;
 	const count = String(launches.length);
 
-	return endedByAnError === EMPTY_COLLECTION_LENGTH
+	return withAReason === EMPTY_COLLECTION_LENGTH
 		? `Ended launch history (${count})`
-		: `Ended launch history (${count}, ${String(endedByAnError)} ended by an error)`;
+		: `Ended launch history (${count}, ${String(withAReason)} with a reason)`;
 }
 
 function newestLaunches(launches: readonly LaunchRow[]): readonly LaunchRow[] {

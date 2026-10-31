@@ -13,8 +13,8 @@ import type { StatusState } from "#client/system/components/status";
  * it maps to `stopped`, the same neutral state the graph and the ledger use
  * for a step that fell below the minimum, not `interrupted` or a red glyph.
  * A run the operator stopped is not a failure either, and reads the same, as
- * does a launch whose command ended by an error, which may be a pause or a
- * stop below the minimum.
+ * does a launch whose command recorded the reason it ended, which may be a
+ * pause or a stop below the minimum rather than a refusal.
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
 function runStatusState(status: string): StatusState {
