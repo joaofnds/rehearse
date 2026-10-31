@@ -35,6 +35,7 @@ async function keepsTheStopAsTheRecordOfACallStoppedWhileItRuns(): Promise<void>
 	expect(stopped).toBe(true);
 	expect(await Bun.file(file).json()).toMatchObject({
 		capUsd: 1,
+		durationMs: 4000,
 		outcome: "failed",
 		reason:
 			"stopped by SIGINT before its outcome was recorded; what the call spent is unknown, and it is capped at $1",
@@ -124,7 +125,55 @@ async function refusesTheCommandsOfACallWhoseStopBeganBeforeItSpawned(): Promise
 
 	expect(outcomes).toEqual(["refused"]);
 }
+async function refusesTheCommandsOfACallWhoseStopCouldNotBeRecorded(): Promise<void> {
+	const directory = await runsDirectory();
+	await runStoppedAtBuild(directory);
+	const call = new StoppableAnalysisCall();
+	const records = new RecordWriterProbe();
+	records.failReplace("The disk is full");
+	const outcomes: CommandOutcome[] = [];
+	const invoke: AnalysisInvoker = async () => {
+		await call
+			.installed()
+			.recordStop("SIGINT")
+			.catch(() => "the stop's record failed");
+		outcomes.push(await commandOutcome());
+
+		return await Promise.reject(new Error("The call was refused"));
+	};
+
+	await liftingRefusal(
+		async () =>
+			await analyzeRun(
+				{ capUsd: 1, model: "sonnet", run: RUN, runsDirectory: directory },
+				{ ...dependencies(invoke), records, stopOnSignal: call.stopOnSignal },
+			),
+	);
+
+	expect(outcomes).toEqual(["refused"]);
+}
+async function releasesItsSignalHandlingOnceSettled(): Promise<void> {
+	const directory = await runsDirectory();
+	await runStoppedAtBuild(directory);
+	const call = new StoppableAnalysisCall();
+
+	await analyzeRun(
+		{ capUsd: 1, model: "sonnet", run: RUN, runsDirectory: directory },
+		{
+			...dependencies(new FakeAnalysisProvider().invoke),
+			stopOnSignal: call.stopOnSignal,
+		},
+	);
+
+	expect(() => call.installed()).toThrow(
+		"The analysis has no signal handling installed",
+	);
+}
 describe(analyzeRun.name, () => {
+	it(
+		"releases its signal handling once the call settles",
+		releasesItsSignalHandlingOnceSettled,
+	);
 	describe("when a stop arrives during the call", () => {
 		it(
 			"keeps the stop as the call's record",
@@ -135,6 +184,10 @@ describe(analyzeRun.name, () => {
 		it(
 			"refuses the call's commands",
 			refusesTheCommandsOfACallWhoseStopBeganBeforeItSpawned,
+		);
+		it(
+			"refuses the call's commands when the stop cannot be recorded",
+			refusesTheCommandsOfACallWhoseStopCouldNotBeRecorded,
 		);
 	});
 	describe("when a stop arrives after the call settled", () => {
