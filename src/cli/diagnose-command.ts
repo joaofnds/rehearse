@@ -8,6 +8,7 @@ import {
 	analyzeRun,
 } from "#benchmark/root-cause-analysis";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import visibleControlCharacters from "#benchmark/visible-control-characters";
 import { UsageError } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeRecord } from "#cli/output";
@@ -62,7 +63,9 @@ async function runDiagnose(
 
 	await writeRecord(dependencies.output, file, request.json);
 	if (record.outcome === "failed") {
-		throw new Error(`The root-cause analysis failed: ${record.reason}`);
+		throw new Error(
+			`The root-cause analysis failed: ${visibleControlCharacters(record.reason)}`,
+		);
 	}
 }
 
