@@ -8,7 +8,7 @@ import {
 	analyzeRun,
 } from "#benchmark/root-cause-analysis";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import visibleControlCharacters from "#benchmark/visible-control-characters";
+import { visibleControlCharacters } from "#benchmark/visible-control-characters";
 import { UsageError } from "#cli/command-usage";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeRecord } from "#cli/output";

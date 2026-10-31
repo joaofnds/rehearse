@@ -2,9 +2,11 @@ import { z } from "zod";
 
 import type { Immutable, SchemaPropertyOrder } from "./contracts";
 import type { JsonFieldOrder } from "./ordered-json";
+import orderedJson from "./ordered-json";
 import type { RootCauseBundle } from "./root-cause-bundle";
 import serializeRootCauseBundle from "./root-cause-bundle-format";
 import type { ValidationFieldOrder } from "./validation-issue-order";
+import { visibleControlCharactersInJson } from "./visible-control-characters";
 
 const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
@@ -163,6 +165,15 @@ function promptSafeJson(bundle: RootCauseBundle): string {
 		.replaceAll("\u2029", String.raw`\u2029`);
 }
 
+function analysisRecordJson(record: RootCauseAnalysisRecord): string {
+	return visibleControlCharactersInJson(
+		orderedJson({
+			json: JSON.stringify(record),
+			order: analysisRecordFieldOrder,
+		}),
+	);
+}
+
 function analysisPrompt(bundleText: string): string {
 	return [
 		"Say which corpus file, if any, the outcome of the run below most plausibly traces to. Give a null `rootCause` when the records do not point at one file. On a run that passed, a root cause is a file that cost the run a requirement or a grade dimension it would otherwise have met.",
@@ -188,7 +199,7 @@ export {
 	analysisStageOrder,
 	analysisValidationOrder,
 	analysisRecordBaseFields,
-	analysisRecordFieldOrder,
+	analysisRecordJson,
 	rootCauseAnalysisRecordSchema,
 	promptSafeJson,
 	analysisPrompt,

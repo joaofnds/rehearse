@@ -135,6 +135,54 @@ async function reportsTheOutcomesControlCharactersAsVisibleEscapes(): Promise<vo
 		narrative: HOSTILE_NARRATIVE,
 	});
 }
+const RAW_DEL_C1_OR_BIDI_CONTROL = /[\u007F-\u009F\p{Bidi_Control}]/u;
+
+const VISIBLE_ESCAPES = String.raw`\u007f\u009b\u202e`;
+
+async function analysisAnswering(
+	answer: ReturnType<typeof answering>["structured_output"],
+): Promise<AnalysisResult> {
+	const directory = await runsDirectory();
+	await runStoppedAtBuild(directory);
+	const provider = new FakeAnalysisProvider();
+	provider.answer(answering(answer));
+
+	return await analyzeRun(
+		{ capUsd: 1, model: "sonnet", run: RUN, runsDirectory: directory },
+		dependencies(provider.invoke),
+	);
+}
+
+async function writesARecordedOutcomesControlCharactersAsVisibleEscapes(): Promise<void> {
+	const { file, record } = await analysisAnswering({
+		...ANSWER,
+		narrative: HOSTILE_NARRATIVE,
+		pairedRerun: HOSTILE_NARRATIVE,
+	});
+
+	const text = await Bun.file(file).text();
+
+	expect(record.outcome).toBe("recorded");
+	expect(text).toContain(`"narrative": "the build skill${VISIBLE_ESCAPES}"`);
+	expect(text).toContain(`"pairedRerun": "the build skill${VISIBLE_ESCAPES}"`);
+	expect(text).not.toMatch(RAW_DEL_C1_OR_BIDI_CONTROL);
+	expect(JSON.parse(text)).toEqual(record);
+}
+
+async function writesAFailedOutcomesControlCharactersAsVisibleEscapes(): Promise<void> {
+	const [notAFactor, rootCause] = ANSWER.stages;
+	const { file, record } = await analysisAnswering({
+		...ANSWER,
+		stages: [{ ...notAFactor, stage: HOSTILE_NARRATIVE }, rootCause],
+	});
+
+	const text = await Bun.file(file).text();
+
+	expect(record.outcome).toBe("failed");
+	expect(text).toContain(VISIBLE_ESCAPES);
+	expect(text).not.toMatch(RAW_DEL_C1_OR_BIDI_CONTROL);
+	expect(JSON.parse(text)).toEqual(record);
+}
 // Its own millisecond and the ten after it.
 const NAMES_ONE_START_CAN_TAKE = 11;
 
@@ -236,6 +284,16 @@ describe(analyzeRun.name, () => {
 		it(
 			"reports the outcome's control characters as visible escapes",
 			reportsTheOutcomesControlCharactersAsVisibleEscapes,
+		);
+	});
+	describe("when the answer holds DEL, C1 or bidi controls", () => {
+		it(
+			"writes a recorded outcome's as visible escapes",
+			writesARecordedOutcomesControlCharactersAsVisibleEscapes,
+		);
+		it(
+			"writes a failed outcome's as visible escapes",
+			writesAFailedOutcomesControlCharactersAsVisibleEscapes,
 		);
 	});
 });

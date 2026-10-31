@@ -4,14 +4,13 @@ import { dirname, join } from "node:path";
 
 import concurrentMap from "./concurrent-map";
 import { readdirIfPresent } from "./file-presence";
-import orderedJson from "./ordered-json";
 import type {
 	AnalysisRecordWriter,
 	AnalyzedRun,
 	ClaimedAnalysis,
 } from "./root-cause-analysis";
 import readStoredAnalysis from "./root-cause-analysis-history";
-import { analysisRecordFieldOrder } from "./root-cause-analysis-protocol";
+import { analysisRecordJson } from "./root-cause-analysis-protocol";
 import type {
 	FailedAnalysis,
 	RootCauseAnalysisRecord,
@@ -154,11 +153,7 @@ async function writeRecord(
 	file: string,
 	record: RootCauseAnalysisRecord,
 ): Promise<void> {
-	const json = orderedJson({
-		json: JSON.stringify(record),
-		order: analysisRecordFieldOrder,
-	});
-	await writeFile(file, `${json}\n`);
+	await writeFile(file, `${analysisRecordJson(record)}\n`);
 }
 
 async function readAnalysisFile(

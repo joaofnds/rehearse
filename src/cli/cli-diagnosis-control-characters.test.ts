@@ -96,6 +96,13 @@ async function escapesThemInTheFailureLine(): Promise<void> {
 	expect(failureLine).not.toMatch(RAW_CONTROL);
 }
 
+async function printsThemEscapedInTheRecordItWrote(): Promise<void> {
+	const result = await diagnose("--json");
+
+	expect(result.stdout).toContain(String.raw`\u009b\u202e`);
+	expect(result.stdout).not.toMatch(/[\u007F-\u009F\p{Bidi_Control}]/u);
+}
+
 describe("diagnose", () => {
 	beforeEach(async () => {
 		await mkdir(records, { recursive: true });
@@ -111,5 +118,9 @@ describe("diagnose", () => {
 	});
 	describe("when the model's answer holds control characters", () => {
 		it("escapes them in the failure line", escapesThemInTheFailureLine);
+		it(
+			"prints them escaped in the record it wrote",
+			printsThemEscapedInTheRecordItWrote,
+		);
 	});
 });

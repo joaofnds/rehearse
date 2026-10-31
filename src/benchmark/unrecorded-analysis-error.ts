@@ -1,5 +1,5 @@
 import type { RootCauseAnalysisRecord } from "./root-cause-analysis-protocol";
-import visibleControlCharacters from "./visible-control-characters";
+import { visibleControlCharacters } from "./visible-control-characters";
 
 /**
  * An analysis whose outcome could not replace its provisional record. The
