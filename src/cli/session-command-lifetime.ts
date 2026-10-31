@@ -12,7 +12,9 @@ import terminalQuestioner from "#cli/questioner";
 
 import type { SessionRunExecutionDependencies } from "./run-command-contracts";
 
-const STOP_SETTLE_BOUND_MS = 30_000;
+// Three SIGTERM stops of a real smoke attempt each exited 18 ms after the
+// signal with the record written. The bound only binds a hung attempt.
+const STOP_SETTLE_BOUND_MS = 5000;
 
 interface SessionCommandLifetimeRequest {
 	readonly config: Pick<SessionRunConfig, "confirmation">;
