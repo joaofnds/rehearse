@@ -20,6 +20,7 @@ import type {
 	ClaimedAnalysis,
 } from "./root-cause-analysis-storage";
 import type { RootCauseBundle } from "./root-cause-bundle";
+import UnrecordedAnalysisError from "./unrecorded-analysis-error";
 
 // The stop waits this long for the call it killed to settle and remove its
 // temporary directory, so a hung settle cannot hold the exit.
@@ -87,11 +88,23 @@ class AnalysisCall {
 			}
 
 			const record = this.outcome(reading);
-			await this.call.records.replace(file, record);
+			await this.replaceWithOutcome(record);
 
 			return { file, record, stopped: false };
 		} finally {
 			this.release();
+		}
+	}
+
+	private async replaceWithOutcome(
+		record: AnalysisResult["record"],
+	): Promise<void> {
+		try {
+			await this.call.records.replace(this.claimed.file, record);
+		} catch (error) {
+			throw new UnrecordedAnalysisError(this.claimed.file, record, {
+				cause: error,
+			});
 		}
 	}
 

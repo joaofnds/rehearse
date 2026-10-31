@@ -9,10 +9,12 @@ import type {
 } from "./root-cause-analysis-storage";
 
 /**
- * The analysis record files, with a failure the test can set for each record
- * that replaces the claimed one, or a step to run once one has, such as a stop.
+ * The analysis record files, with a failure the test can set for the claim or
+ * for each record that replaces the claimed one, or a step to run once one
+ * has, such as a stop.
  */
 class RecordWriterProbe implements AnalysisRecordWriter {
+	private claimFailure: string | undefined = undefined;
 	private replaceFailure: string | undefined = undefined;
 	private afterReplace: (() => Promise<void>) | undefined = undefined;
 
@@ -23,7 +25,13 @@ class RecordWriterProbe implements AnalysisRecordWriter {
 	public readonly claim = async (
 		runsDirectory: string,
 		record: FailedAnalysis,
-	): Promise<ClaimedAnalysis> => await this.files.claim(runsDirectory, record);
+	): Promise<ClaimedAnalysis> => {
+		if (this.claimFailure !== undefined) {
+			throw new Error(this.claimFailure);
+		}
+
+		return await this.files.claim(runsDirectory, record);
+	};
 
 	public readonly replace = async (
 		file: string,
@@ -41,6 +49,10 @@ class RecordWriterProbe implements AnalysisRecordWriter {
 
 	public runOnceAfterReplace(step: () => Promise<void>): void {
 		this.afterReplace = step;
+	}
+
+	public failClaim(message: string): void {
+		this.claimFailure = message;
 	}
 
 	public failReplace(message: string): void {

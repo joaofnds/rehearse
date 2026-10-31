@@ -1572,9 +1572,11 @@ outcome replaces that record once the call returns, so a process that dies
 during the call, SIGKILL included, still leaves the call recorded. While a call
 runs, the analyses API serves the provisional record as the run's newest. A
 provisional record that cannot be written stops the command before the call, so
-nothing is spent. Two analyses of one run that start in the same millisecond
-each keep a record: the second is named one millisecond later, and its
-`startedAt` says so.
+nothing is spent. When the outcome cannot replace the provisional record, the
+provisional record stays, and the command prints the outcome on stderr as JSON,
+cost included, and exits 1, so a browser launch keeps it in its log. Two
+analyses of one run that start in the same millisecond each keep a record: the
+second is named one millisecond later, and its `startedAt` says so.
 
 A SIGINT, SIGTERM or SIGHUP during the call replaces the provisional record
 with a failed one whose `reason` says the call was stopped by that signal, that
