@@ -36,11 +36,14 @@ function keptMessage(message: string): string {
 	if (bytes.length <= MESSAGE_LIMIT_BYTES) {
 		return message;
 	}
+	// A streaming decode holds back a character the cut split, rather than
+	// ending the message on a replacement character.
 	const kept = new TextDecoder().decode(
 		bytes.subarray(KEPT_START_BYTE, MESSAGE_LIMIT_BYTES),
+		{ stream: true },
 	);
 
-	return `${kept.replace(/�$/u, "")}${CUT_MARK}`;
+	return `${kept}${CUT_MARK}`;
 }
 
 /**

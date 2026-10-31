@@ -3,15 +3,15 @@ import { assertPinnedBunVersion } from "./src/benchmark/bun-pin";
 import { EXIT_CODES, exitCodeFor } from "./src/benchmark/exit-codes";
 import { topLevelHelp } from "./src/cli/commands";
 import executeCommand from "./src/cli/entry";
+import { recordLaunchEnding, takeLaunchOption } from "./src/cli/launch-option";
 import { processOutput } from "./src/cli/output";
 
 const CLI_USER_ARGUMENTS_START_INDEX = 2;
 const COMMAND_NAME_INDEX = 0;
 
-async function main(): Promise<number> {
+async function main(argv: readonly string[]): Promise<number> {
 	assertPinnedBunVersion();
 
-	const argv = Bun.argv.slice(CLI_USER_ARGUMENTS_START_INDEX);
 	if (argv[COMMAND_NAME_INDEX] === "--help") {
 		processOutput.stdout(topLevelHelp());
 
@@ -33,11 +33,18 @@ async function main(): Promise<number> {
  * write has drained.
  */
 if (import.meta.main) {
+	const { argv, launchId } = takeLaunchOption(
+		Bun.argv.slice(CLI_USER_ARGUMENTS_START_INDEX),
+	);
 	try {
-		process.exitCode = await main();
+		process.exitCode = await main(argv);
 	} catch (error) {
 		const failure = error instanceof Error ? error : new Error(String(error));
+		const exitCode = exitCodeFor(failure);
 		processOutput.stderr(`${failure.message}\n`);
-		process.exitCode = exitCodeFor(failure);
+		if (launchId !== undefined) {
+			await recordLaunchEnding(launchId, failure, exitCode);
+		}
+		process.exitCode = exitCode;
 	}
 }
