@@ -414,7 +414,8 @@ is alive, and leaves it out while a pipeline run shows as running and carries
 that launch's id. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits. A root-cause analysis launch is
-listed while its process is alive, under its run, and is never stopped. A launch the operator stopped,
+listed while its process is alive, under its run, and is never stopped from the
+browser. A launch the operator stopped,
 and one whose command ended by an error, stays listed after its process exits,
 as described below.
 
@@ -443,7 +444,9 @@ started it, and a running pipeline run's row also offers Pause after this step.
 A launch row for a replay, group or session attempt offers Stop only. A
 root-cause analysis launch row reads "one call" and offers no Stop, and the stop
 route refuses one with 409: an analysis is one call capped at the cost it
-stated, and stopping it from the browser is not offered. The call ends on its
+stated, and stopping it from the browser is not offered. A signal sent to its
+process stops it as described under [Root-cause analysis](#root-cause-analysis), but the browser
+sends none. Unstopped, the call ends on its
 own, and like any session budget its cap can be overrun by the call that
 crosses it.
 Stop posts
@@ -537,6 +540,9 @@ steer a click onto Start.
 | 1    | Execution failure                                                     |
 | 2    | Invalid command, flag, or value                                       |
 | 3    | Refused precondition, such as missing evidence or a required terminal |
+
+A command that a SIGINT, SIGTERM or SIGHUP stops through its own signal
+handling exits 130, 143 or 129.
 
 A command that writes a record puts that record's path on stdout, or its bytes
 with `--json`, and nothing else. Progress lines, grades, diagnostics, and
@@ -1561,7 +1567,8 @@ the `narrative`, the `pairedRerun` that would confirm the reading, and `stages`,
 each stage's role with a `note` and a `contribution`. An answer that breaks a rule, or
 a session that returns none, is kept with `outcome: "failed"`, its `reason` and
 whatever the session returned, and the command exits 1. Either way the command
-prints the record's path, or the record itself with `--json`. `show` does not
+prints the record's path, or the record itself with `--json`. A stopped
+analysis, and one whose outcome cannot be written, print nothing on stdout. `show` does not
 open analysis records.
 
 Before the call the command writes a provisional record with `outcome:
@@ -1569,7 +1576,9 @@ Before the call the command writes a provisional record with `outcome:
 recorded: its call may not have started, may still be running, or ended before
 its outcome was written, and the call is capped at the stated budget. The
 outcome replaces that record once the call returns, so a process that dies
-during the call, SIGKILL included, still leaves the call recorded. While a call
+during the call, SIGKILL included, still leaves the call recorded. A SIGKILL
+does not end the call itself, which runs on to its own end, so its record keeps
+saying the call may still be running. While a call
 runs, the analyses API serves the provisional record as the run's newest. A
 provisional record that cannot be written stops the command before the call
 with exit code 1, so nothing is spent. When the outcome cannot replace the provisional record, the
@@ -1583,7 +1592,8 @@ the command is refused with exit code 3 before the call.
 A SIGINT, SIGTERM or SIGHUP before the outcome is written replaces the
 provisional record with a failed one whose `reason` says the analysis was
 stopped by that signal before its outcome was recorded, that what the call
-spent is unknown, and what it is capped at, with `durationMs` up to the stop. The command then kills the call, refuses any command it has not yet
+spent is unknown, and what it is capped at, with `durationMs` up to the stop. If the stop's record cannot be written, the command prints why on stderr
+and the provisional record stays. The command then kills the call, refuses any command it has not yet
 started, and exits 130, 143 or 129. A killed call prints no envelope, so the
 record carries no `costUsd`. A stop that arrives
 while the outcome is being written waits for it, so the outcome stays the

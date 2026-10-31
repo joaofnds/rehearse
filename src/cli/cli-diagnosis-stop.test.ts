@@ -6,15 +6,15 @@ import {
 	it,
 	setDefaultTimeout,
 } from "bun:test";
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
+import { readRootCauseAnalyses } from "#benchmark/root-cause-analysis";
 import {
 	RUN as DIAGNOSED_RUN,
 	runStoppedAtBuild,
 } from "#benchmark/root-cause-analysis-test-support";
 import { signalExitCode } from "#benchmark/run-abort";
-import { rootCauseAnalysesDirectory } from "#benchmark/run-layout";
 
 import { eventually, isRunning } from "./cli-confinement-test-fixture";
 import { CLI_TEST_TIMEOUT_MS, runCli } from "./cli-process-test-driver";
@@ -26,15 +26,6 @@ setDefaultTimeout(CLI_TEST_TIMEOUT_MS);
 const { records, environment: inRecords } = settingsRecords();
 
 const callPidFile = join(records, "call.pid");
-
-async function recordsOfTheRun(): Promise<readonly unknown[]> {
-	const directory = join(rootCauseAnalysesDirectory(records), DIAGNOSED_RUN);
-	const names = await readdir(directory);
-
-	return await Promise.all(
-		names.map(async (name) => await Bun.file(join(directory, name)).json()),
-	);
-}
 
 async function stopsTheCallAndRecordsTheStop(
 	signal: NodeJS.Signals,
@@ -66,7 +57,11 @@ async function stopsTheCallAndRecordsTheStop(
 
 	expect(await diagnose.exited).toBe(signalExitCode(signal));
 	expect(isRunning(pid)).toBe(false);
-	expect(await recordsOfTheRun()).toEqual([
+	const { records: analyses } = await readRootCauseAnalyses({
+		run: DIAGNOSED_RUN,
+		runsDirectory: records,
+	});
+	expect(analyses).toEqual([
 		expect.objectContaining({
 			outcome: "failed",
 			reason: `stopped by ${signal} before its outcome was recorded; what the call spent is unknown, and it is capped at $1`,

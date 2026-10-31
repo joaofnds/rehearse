@@ -402,8 +402,12 @@ confirmation runs written before they recorded one follow, marked time not
 recorded, as does a run whose directory name names no time. The count of
 readable entries includes saved records and browser launches, with a separate count for each. Active launches appear in a compact queue above saved records; ended launches remain in the collapsed Ended launch history below them, whose label also counts the launches that ended with a reason, each listed as `ENDED` as described below. All filters include matching launches in their counts, and Running includes active ones. A stopped single pipeline case has its launch history and its saved run. A running pipeline run's row offers Pause after this step, and a row a
 browser launch started offers Stop & restore repo, except a root-cause analysis,
-which cannot be stopped; see
-[browser launches](reference.md#browser-launches). A paused run reads
+which cannot be stopped from the browser, though a signal sent to its process
+stops it and records the stop; see
+[browser launches](reference.md#browser-launches). While an analysis runs, its
+provisional record is the run's newest analysis, so `/runs/<run>` says the
+newest analysis failed, with the provisional reason, and shows no step roles
+from an earlier analysis until the call ends. A paused run reads
 `PAUSED:<stage>` and cannot be resumed. A run a signal stopped reads
 `OPERATOR_STOPPED`, or `STOPPED:<stage>` when the stage was being judged. A
 stopped confirmation group writes no group record, so its reps never read as
