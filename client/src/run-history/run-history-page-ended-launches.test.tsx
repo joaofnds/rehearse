@@ -29,13 +29,11 @@ function respondingWithOneStoppedAndOneEnded(): void {
 
 async function openEndedLaunchHistory(): Promise<void> {
 	fireEvent.click(
-		await screen.findByRole("button", {
-			name: "Ended launch history (2, 1 with a reason)",
-		}),
+		await screen.findByRole("button", { name: /^Ended launch history/u }),
 	);
 }
 
-async function testShowsHowALaunchThatEndedByAnErrorEnded(): Promise<void> {
+async function testShowsHowALaunchThatEndedWithAReasonEnded(): Promise<void> {
 	respondingWithOneStoppedAndOneEnded();
 	renderPage();
 
@@ -44,6 +42,19 @@ async function testShowsHowALaunchThatEndedByAnErrorEnded(): Promise<void> {
 	const outcome = cellOf({ column: "Execution", run: "launch 7b0c2d4e" });
 	expect(outcome).toHaveTextContent(REFUSAL);
 	expect(outcome).not.toHaveTextContent("stopped by the operator");
+}
+
+async function testCountsItAsEndedWithAReasonNeverAsAnError(): Promise<void> {
+	respondingWithOneStoppedAndOneEnded();
+	renderPage();
+
+	const disclosure = await screen.findByRole("button", {
+		name: /^Ended launch history/u,
+	});
+
+	expect(disclosure).toHaveAccessibleName(
+		"Ended launch history (2, 1 with a reason)",
+	);
 }
 
 async function testMarksItEndedAsAStoppedRunIsNeverAsAFailure(): Promise<void> {
@@ -71,10 +82,15 @@ async function testKeepsAStoppedLaunchStoppedByTheOperator(): Promise<void> {
 registerRunHistoryTestCleanup();
 
 describe(RunHistoryPage.name, () => {
-	describe("when a browser launch ended by an error", () => {
+	describe("when a browser launch ended with a reason", () => {
 		it(
 			"shows how it ended in ended launch history",
-			testShowsHowALaunchThatEndedByAnErrorEnded,
+			testShowsHowALaunchThatEndedWithAReasonEnded,
+		);
+
+		it(
+			"counts it as ended with a reason, never as an error, in the history's label",
+			testCountsItAsEndedWithAReasonNeverAsAnError,
 		);
 
 		it(
