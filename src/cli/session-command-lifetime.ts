@@ -21,10 +21,7 @@ interface SessionCommandLifetimeRequest {
 	readonly config: Pick<SessionRunConfig, "confirmation">;
 	readonly output: CommandOutput;
 	readonly runsDirectory: string;
-	readonly boundary: Pick<
-		SessionRunExecutionDependencies,
-		"refuseCommands" | "stopOnSignal"
-	>;
+	readonly boundary: Pick<SessionRunExecutionDependencies, "stopOnSignal">;
 }
 class SessionCommandLifetime {
 	public readonly questioner: TerminalQuestioner;
@@ -42,7 +39,10 @@ class SessionCommandLifetime {
 		// A group records the stop in its directory here, and a single attempt
 		// in its own as it settles, from the signal it closed with. Attempts
 		// and commands close before the stop kills the commands, so none starts
-		// after the kill.
+		// after the kill. Commands close after the group's stop is written,
+		// since a rep that settles meanwhile stores its record unless that
+		// file is there, and a command refused before it would be recorded as
+		// the rep's failure.
 		this.release = (
 			boundary.stopOnSignal ??
 			((cleanUp, recordStop) =>
@@ -57,7 +57,6 @@ class SessionCommandLifetime {
 			},
 			async (signal) => {
 				this.inFlight.close(signal);
-				(boundary.refuseCommands ?? refuseCommands)();
 				if (config.confirmation !== undefined) {
 					await Bun.write(
 						confirmationGroupPaths(runsDirectory, this.groupId)
@@ -65,6 +64,7 @@ class SessionCommandLifetime {
 						operatorStopRecord(signal),
 					);
 				}
+				refuseCommands();
 			},
 		);
 	}

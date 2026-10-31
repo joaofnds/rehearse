@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import CommandRefusalProbe from "#benchmark/command-refusal-test-probe";
+import { liftingRefusal } from "#benchmark/command-refusal-test-probe";
 import { GroupStoppedError } from "#benchmark/confirmation-evidence";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { TestResources } from "#benchmark/test-support";
@@ -28,7 +28,6 @@ const testResources = TestResources.forEachTest();
 async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 	const { output } = recordOutput();
 	const stops: (() => Promise<void>)[] = [];
-	const commands = new CommandRefusalProbe();
 
 	const dependencies = sessionCommandDependencies({
 		executeSession: async (execution, boundary) =>
@@ -38,7 +37,6 @@ async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 					await stops[FIRST_STOP_REQUEST_INDEX]?.();
 					return await recordSuccessfulSessionAttempt(plan);
 				},
-				refuseCommands: commands.refuse,
 				runsDirectory,
 				stopOnSignal: (cleanUp, recordStop) => {
 					stops.push(async () => {
@@ -58,20 +56,20 @@ async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 				status: "COMPLETE" as const,
 			}),
 	});
-	const failure = await failureOf(
-		runRunCommand(
-			new SessionRequestBuilder({}, [
-				"--confirm",
-				"--reps",
-				"2",
-				"--yes",
-			]).build(),
-			dependencies,
-		),
+	return await liftingRefusal(
+		async () =>
+			await failureOf(
+				runRunCommand(
+					new SessionRequestBuilder({}, [
+						"--confirm",
+						"--reps",
+						"2",
+						"--yes",
+					]).build(),
+					dependencies,
+				),
+			),
 	);
-	commands.lift();
-
-	return failure;
 }
 
 async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void> {
@@ -102,7 +100,6 @@ async function writesNoRepRecordOnceTheOperatorStopIsRecorded(): Promise<void> {
 async function sessionsOfAGroupStoppedBeforeItsReps(
 	runsDirectory: string,
 ): Promise<readonly string[]> {
-	const commands = new CommandRefusalProbe();
 	const citations = new CitationStop();
 
 	const dependencies = sessionCommandDependencies({
@@ -110,7 +107,6 @@ async function sessionsOfAGroupStoppedBeforeItsReps(
 			await executeSessionRun(execution, {
 				...boundary,
 				preparedSession: citations.boundary,
-				refuseCommands: commands.refuse,
 				runsDirectory,
 				stopOnSignal: (cleanUp, recordStop) => {
 					citations.stops.push(async () => {
@@ -125,18 +121,20 @@ async function sessionsOfAGroupStoppedBeforeItsReps(
 			}),
 		output: recordOutput().output,
 	});
-	await failureOf(
-		runRunCommand(
-			new SessionRequestBuilder({}, [
-				"--confirm",
-				"--reps",
-				"2",
-				"--yes",
-			]).build(),
-			dependencies,
-		),
+	await liftingRefusal(
+		async () =>
+			await failureOf(
+				runRunCommand(
+					new SessionRequestBuilder({}, [
+						"--confirm",
+						"--reps",
+						"2",
+						"--yes",
+					]).build(),
+					dependencies,
+				),
+			),
 	);
-	commands.lift();
 
 	return citations.sessions;
 }

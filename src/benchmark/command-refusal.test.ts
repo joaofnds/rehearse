@@ -1,13 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
 import { refuseCommands, runCommand } from "./command";
-import CommandRefusalProbe from "./command-refusal-test-probe";
+import { commandOutcome } from "./command-refusal-test-probe";
 
 describe(refuseCommands.name, () => {
 	it("refuses a command started while commands are refused", async () => {
 		const release = refuseCommands();
 
-		const outcome = await CommandRefusalProbe.outcome();
+		const outcome = await commandOutcome();
 		release();
 
 		expect(outcome).toBe("refused");
