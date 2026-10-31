@@ -15,7 +15,6 @@ import {
 	corpusDirectory,
 	writtenFixture,
 } from "#server/history-workspace-test-fixture";
-import type { LaunchRow } from "#server/run-history-contract";
 
 import { runHistoryReport } from "./run-history";
 
@@ -27,10 +26,10 @@ const REFUSAL = "backlog contains a link, so it is not workflow state";
 
 const ENDED_AT = "2026-09-29T10:00:02.000Z";
 
-const STOP_ORDERS = [
-	["its ending", "OPERATOR_STOPPED", ENDED_AT],
-	["before its ending", "OPERATOR_STOPPED", "2026-09-29T10:00:01.000Z"],
-	["after its ending", "ENDED", "2026-09-29T10:00:03.000Z"],
+const STOP_TIMES = [
+	["its ending", ENDED_AT],
+	["before its ending", "2026-09-29T10:00:01.000Z"],
+	["after its ending", "2026-09-29T10:00:03.000Z"],
 ] as const;
 
 describe("history ended launches", () => {
@@ -60,9 +59,14 @@ describe("history ended launches", () => {
 	);
 
 	describe("when the operator also stopped it", () => {
-		it.each(STOP_ORDERS)(
-			"lists a launch stopped at %s as %s",
-			verifyListsAStoppedLaunchByWhichCameFirst,
+		it.each(STOP_TIMES)(
+			"lists a launch stopped at %s as OPERATOR_STOPPED",
+			verifyListsAStoppedLaunchAsStoppedWhenItsStopCame,
+		);
+
+		it(
+			"lists it as OPERATOR_STOPPED though its ending does not read",
+			verifyListsAStoppedLaunchAsStoppedThoughItsEndingDoesNotRead,
 		);
 	});
 });
@@ -98,9 +102,8 @@ async function historyOf(
 	);
 }
 
-async function verifyListsAStoppedLaunchByWhichCameFirst(
+async function verifyListsAStoppedLaunchAsStoppedWhenItsStopCame(
 	_stop: string,
-	status: LaunchRow["status"],
 	stopRequestedAt: string,
 ): Promise<void> {
 	const runsDirectory = await caseLaunchThatEnded({
@@ -110,7 +113,22 @@ async function verifyListsAStoppedLaunchByWhichCameFirst(
 
 	const { launches } = await historyOf(runsDirectory);
 
-	expect(launches.map((launch) => launch.status)).toEqual([status]);
+	expect(launches.map((launch) => launch.status)).toEqual(["OPERATOR_STOPPED"]);
+}
+
+async function verifyListsAStoppedLaunchAsStoppedThoughItsEndingDoesNotRead(): Promise<void> {
+	const runsDirectory = await caseLaunchThatEnded({
+		pid: DEAD_PID,
+		stopRequestedAt: ENDED_AT,
+	});
+	await Bun.write(launchPaths(runsDirectory, LAUNCH_ID).endingFile, "{");
+
+	const { launches, unreadable } = await historyOf(runsDirectory);
+
+	expect({
+		statuses: launches.map((launch) => launch.status),
+		unreadable,
+	}).toEqual({ statuses: ["OPERATOR_STOPPED"], unreadable: [] });
 }
 
 async function verifyRedactsPrivatePathsFromTheMessageItEndedBy(): Promise<void> {

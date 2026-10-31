@@ -18,10 +18,17 @@ interface EndedLaunch {
  * single pipeline case can also have a run row that reads OPERATOR_STOPPED,
  * but nothing links the two once the process is gone, and one stopped before
  * its run record exists has no other row, so every stopped launch is listed.
- * A launch that ended by an error before the operator's stop ended it is
- * listed as ended. A record that does not read is reported beside the rows,
- * like any other.
+ * A stop wins over an ending: the server records a stop only while the
+ * process is alive, so the ending it caused is the stop's, and comparing the
+ * server's clock with the command's would decide it by clock skew. A record
+ * that does not read is reported beside the rows, like any other.
  */
+type ListedLaunch =
+	| { readonly kind: "alive" | "stopped"; readonly record: LaunchRecord }
+	| { readonly kind: "ended"; readonly launch: EndedLaunch }
+	| { readonly kind: "unreadable"; readonly unreadable: UnreadableRecord }
+	| { readonly kind: "gone" };
+
 async function liveLaunches(
 	runsDirectory: string,
 	liveness: RunLiveness,
@@ -31,46 +38,60 @@ async function liveLaunches(
 	readonly ended: readonly EndedLaunch[];
 	readonly unreadable: readonly UnreadableRecord[];
 }> {
-	const launches: LaunchRecord[] = [];
-	const stopped: LaunchRecord[] = [];
-	const ended: EndedLaunch[] = [];
-	const unreadable: UnreadableRecord[] = [];
-	await Array.fromAsync(await launchIds(runsDirectory), async (id) => {
-		try {
-			const record = await readLaunchRecord(runsDirectory, id);
-			if (liveness.isAlive(record.pid)) {
-				launches.push(record);
+	const ids = await launchIds(runsDirectory);
+	const listed = await Promise.all(
+		ids.map(async (id) => await listedLaunch(runsDirectory, id, liveness)),
+	);
 
-				return;
-			}
-			const ending = await readLaunchEnding(runsDirectory, id);
-			if (ending !== undefined && !stoppedFirst(record, ending)) {
-				ended.push({ ending, record });
-			} else if (record.stopRequestedAt !== undefined) {
-				stopped.push(record);
-			}
-		} catch (error) {
-			unreadable.push(
-				unreadableLaunch(
-					id,
-					error instanceof Error ? error.message : String(error),
-				),
-			);
+	return {
+		ended: listed.flatMap((entry) =>
+			entry.kind === "ended" ? [entry.launch] : [],
+		),
+		launches: listed.flatMap((entry) =>
+			entry.kind === "alive" ? [entry.record] : [],
+		),
+		stopped: listed.flatMap((entry) =>
+			entry.kind === "stopped" ? [entry.record] : [],
+		),
+		unreadable: listed.flatMap((entry) =>
+			entry.kind === "unreadable" ? [entry.unreadable] : [],
+		),
+	};
+}
+
+async function listedLaunch(
+	runsDirectory: string,
+	id: string,
+	liveness: RunLiveness,
+): Promise<ListedLaunch> {
+	try {
+		const record = await readLaunchRecord(runsDirectory, id);
+		if (liveness.isAlive(record.pid)) {
+			return { kind: "alive", record };
 		}
-	});
 
-	return { ended, launches, stopped, unreadable };
+		if (record.stopRequestedAt !== undefined) {
+			return { kind: "stopped", record };
+		}
+
+		const ending = await readLaunchEnding(runsDirectory, id);
+
+		return ending === undefined
+			? { kind: "gone" }
+			: { kind: "ended", launch: { ending, record } };
+	} catch (error) {
+		return {
+			kind: "unreadable",
+			unreadable: unreadableLaunch(
+				id,
+				error instanceof Error ? error.message : String(error),
+			),
+		};
+	}
 }
 
 function unreadableLaunch(id: string, message: string): UnreadableRecord {
 	return { id, kind: "launch", reason: redactAbsolutePaths(message) };
-}
-
-function stoppedFirst(record: LaunchRecord, ending: LaunchEnding): boolean {
-	return (
-		record.stopRequestedAt !== undefined &&
-		Date.parse(record.stopRequestedAt) <= Date.parse(ending.endedAt)
-	);
 }
 
 export { liveLaunches as default };
