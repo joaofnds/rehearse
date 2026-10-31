@@ -24,5 +24,11 @@
 			"#server/*": ["../src/server/*"]
 		}
 	},
-	"include": ["src", "test-setup.ts", "vite.config.ts"]
+	"include": [
+		"src",
+		"test-setup.ts",
+		"vite.config.ts",
+		"refuse-server-only-imports.ts",
+		"refuse-server-only-imports.test.ts"
+	]
 }
