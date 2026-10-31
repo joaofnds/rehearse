@@ -400,7 +400,7 @@ when they ran come first, newest first, a session attempt or confirmation run
 by the start time it recorded, which its row shows. Session attempts and
 confirmation runs written before they recorded one follow, marked time not
 recorded, as does a run whose directory name names no time. The count of
-readable entries includes saved records and browser launches, with a separate count for each. Active launches appear in a compact queue above saved records; ended launches remain in the collapsed Ended launch history below them, whose label also counts the launches that ended with a reason, a refusal, a pause or a stop below the minimum grade, never counted as errors. All filters include matching launches in their counts, and Running includes active ones. A stopped single pipeline case has its launch history and its saved run. A running pipeline run's row offers Pause after this step, and a row a
+readable entries includes saved records and browser launches, with a separate count for each. Active launches appear in a compact queue above saved records; ended launches remain in the collapsed Ended launch history below them, whose label also counts the launches that ended with a reason, each listed as `ENDED` as described below. All filters include matching launches in their counts, and Running includes active ones. A stopped single pipeline case has its launch history and its saved run. A running pipeline run's row offers Pause after this step, and a row a
 browser launch started offers Stop & restore repo, except a root-cause analysis,
 which cannot be stopped; see
 [browser launches](reference.md#browser-launches). A paused run reads

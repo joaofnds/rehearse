@@ -27,7 +27,8 @@ restore the last selection during app navigation; Clear removes it. Sorting supp
 newest, oldest, highest cost and case; missing dates and partial or missing costs stay
 last. Active launches have their own queue, and ended launch records remain in a counted
 history disclosure, whose label also counts the launches that ended with a reason, each
-shown with that reason, which may be a refusal, a pause or a stop below the minimum grade. List counts distinguish saved records from launches. Failed requires
+shown with that reason, a refusal, a failure, a pause or a stop below the minimum grade
+among them. List counts distinguish saved records from launches. Failed requires
 a
 recorded quality failure, while execution errors and missing judgments stay distinct.
 Search in the sidebar, also available with Command/Ctrl-K, finds runs, cases,
