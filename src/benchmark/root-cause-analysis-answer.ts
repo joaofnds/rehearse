@@ -95,6 +95,20 @@ function failedRecord(
 	return { ...base, outcome: "failed", payload: reading.payload, reason };
 }
 
+/**
+ * The record an analysis holds its place with before its paid call. Its reason
+ * is true whenever the process ends before the outcome replaces it.
+ */
+function provisionalAnalysis(
+	base: Omit<AnalysisBase, "costUsd">,
+): FailedAnalysis {
+	return {
+		...base,
+		outcome: "failed",
+		reason: `No outcome was recorded for this analysis. Its call may not have started, may still be running, or ended before its outcome was written. The call is capped at $${base.capUsd}.`,
+	};
+}
+
 function withCost(
 	record: RootCauseAnalysisRecord,
 	costUsd: number | undefined,
@@ -193,4 +207,4 @@ function rootCauseViolation(
 	return lineRangeViolation(answer.rootCause, bundle.corpusFiles);
 }
 
-export { withCost, analysisRecordBase, resolveReading };
+export { withCost, analysisRecordBase, provisionalAnalysis, resolveReading };

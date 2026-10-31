@@ -1,8 +1,4 @@
-import {
-	analysisRecordBase,
-	resolveReading,
-	withCost,
-} from "./root-cause-analysis-answer";
+import AnalysisCall from "./root-cause-analysis-call";
 import {
 	analysisBudgetUsd,
 	refuseUnanalyzable,
@@ -10,7 +6,8 @@ import {
 import { analysisPrompt, promptSafeJson } from "./root-cause-analysis-protocol";
 import type { RootCauseAnalysisRecord } from "./root-cause-analysis-protocol";
 import { readSession } from "./root-cause-analysis-provider";
-import { writeAnalysis } from "./root-cause-analysis-storage";
+import { analysisRecordFiles } from "./root-cause-analysis-storage";
+import type { AnalysisRecordWriter } from "./root-cause-analysis-storage";
 import { assembleRootCauseBundle } from "./root-cause-bundle";
 import type { RunLiveness } from "./run-liveness";
 
@@ -35,6 +32,7 @@ interface AnalysisDependencies {
 	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
 	/** Told what the call can spend before it is made. */
 	readonly progress?: (message: string) => void;
+	readonly records?: AnalysisRecordWriter;
 }
 
 interface AnalysisResult {
@@ -56,30 +54,25 @@ async function analyzeRun(
 		request.run,
 	);
 	const bundleText = promptSafeJson(bundle);
+	const call = await AnalysisCall.claim({
+		budgetUsd,
+		bundle,
+		bundleText,
+		now: dependencies.now,
+		records: dependencies.records ?? analysisRecordFiles,
+		request,
+	});
 	dependencies.progress?.(
 		`Analyzing run ${request.run} with ${request.model}; the call spends at most $${budgetUsd}.`,
 	);
 
-	const started = dependencies.now();
 	const reading = await readSession(
 		dependencies.invoke,
 		analysisPrompt(bundleText),
 		budgetUsd,
 	);
 
-	const base = analysisRecordBase({
-		budgetUsd,
-		bundleText,
-		finished: dependencies.now(),
-		request,
-		started,
-	});
-	const record = resolveReading(base, reading, bundle);
-
-	return await writeAnalysis(
-		request.runsDirectory,
-		withCost(record, reading.costUsd),
-	);
+	return await call.settle(reading);
 }
 
 export { DEFAULT_ANALYSIS_BUDGET_USD, analyzeRun };

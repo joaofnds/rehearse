@@ -19,6 +19,9 @@ import { RUN, runStoppedAtBuild } from "./root-cause-analysis-test-support";
 
 registerAnalysisFixtureCleanup();
 
+const STARTED_AT = "2026-10-04T12:00:00.000Z";
+const ONE_MILLISECOND_LATER = "2026-10-04T12:00:00.001Z";
+
 const ANALYSIS_EXAMPLES_0 = [
 	{
 		digest: "c9f5ed01b92948cdec94b5995afa3ea31084efff79511c7ef52676fe08a87556",
@@ -109,6 +112,32 @@ async function keepsASecondAnalysisBesideTheFirstAndChangesNothingElse(): Promis
 	expect(second.file).not.toBe(first.file);
 	expect(after).toEqual(before);
 }
+async function namesASecondAnalysisInTheSameMillisecondOneMillisecondLater(): Promise<void> {
+	const directory = await runsDirectory();
+	await runStoppedAtBuild(directory);
+	const sameInstant = {
+		...dependencies(new FakeAnalysisProvider().invoke),
+		now: () => new Date(STARTED_AT),
+	};
+	const request = {
+		capUsd: 1,
+		model: "sonnet",
+		run: RUN,
+		runsDirectory: directory,
+	};
+
+	const first = await analyzeRun(request, sameInstant);
+	const second = await analyzeRun(request, sameInstant);
+
+	expect([first.record.startedAt, second.record.startedAt]).toEqual([
+		STARTED_AT,
+		ONE_MILLISECOND_LATER,
+	]);
+	expect(await Bun.file(second.file).json()).toEqual(second.record);
+	expect(second.file).toBe(
+		join(directory, "analyses", RUN, "2026-10-04T12-00-00.001Z.json"),
+	);
+}
 describe(analyzeRun.name, () => {
 	it.each(ANALYSIS_EXAMPLES_0)(
 		"retains historical saved bytes for $name",
@@ -121,5 +150,9 @@ describe(analyzeRun.name, () => {
 	it(
 		"keeps a second analysis beside the first and changes nothing else",
 		keepsASecondAnalysisBesideTheFirstAndChangesNothingElse,
+	);
+	it(
+		"names a second analysis that starts in the same millisecond one millisecond later",
+		namesASecondAnalysisInTheSameMillisecondOneMillisecondLater,
 	);
 });

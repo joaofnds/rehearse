@@ -1563,6 +1563,18 @@ whatever the session returned, and the command exits 1. Either way the command
 prints the record's path, or the record itself with `--json`. `show` does not
 open analysis records.
 
+Before the call the command writes a provisional record with `outcome:
+"failed"`, `durationMs` 0, no `costUsd`, and a `reason` saying no outcome was
+recorded: its call may not have started, may still be running, or ended before
+its outcome was written, and the call is capped at the stated budget. The
+outcome replaces that record once the call returns, so a process that dies
+during the call, SIGKILL included, still leaves the call recorded. While a call
+runs, the analyses API serves the provisional record as the run's newest. A
+provisional record that cannot be written stops the command before the call, so
+nothing is spent. Two analyses of one run that start in the same millisecond
+each keep a record: the second is named one millisecond later, and its
+`startedAt` says so.
+
 A record with `schemaVersion: 1` was written before the culprit analysis was
 renamed root-cause analysis. It stays on disk as written and is read under the
 new names: its `culprit` as the `rootCause`, and its roles `not implicated`,
@@ -1581,8 +1593,9 @@ runs are compared under), the `capUsd` a browser request would run under and a
 `refusal`. `capUsd` is the 1-dollar default lowered to the stored spend ceiling.
 When no ceiling is stored or the settings file cannot be opened or parsed,
 `capUsd` is `null` and `refusal` names the fix, since nothing spends without a ceiling, and
-the analyses are still served. A record is written whole to a temporary file and
-linked into place, so the route never reads half of one. It answers 400 for a
+the analyses are still served. The provisional record is written whole to a
+temporary file and linked into place, and the outcome is written whole to
+another and renamed over it, so the route never reads half of one. It answers 400 for a
 malformed run name and 404 for a run with no manifest.
 
 ## Run checkout and cleanup
@@ -1814,8 +1827,8 @@ report. Browser launches record themselves as `launches/<id>.json` with the
 child's output in `launches/<id>.log` and, when the child's command ended by
 an error, that error in `launches/<id>.ending`. A root-cause analysis lives at
 `analyses/<run>/<started-at>.json`, named by its start time with `:` written
-as `-` and created once, so a second analysis of the
-same run sits beside the first. Operator grades live at
+as `-`. An analysis replaces only its own provisional record, so a second
+analysis of the same run sits beside the first. Operator grades live at
 `operator-grades/run/<run>/<stage>.json`,
 `operator-grades/rep/<group-id>/<rep-id>/<stage>.json` and
 `operator-grades/replay/<lineage>/<timestamp>.json`, each created once and
