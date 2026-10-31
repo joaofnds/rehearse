@@ -18,9 +18,12 @@ interface AttemptRecordWrite extends StoppedAttemptCheck {
  * Once an operator stop has closed the command, which records the stop in
  * the attempt's directory, no record is written, so the attempt keeps only
  * what it preserved, as a stopped group's reps do, and neither a kill nor a
- * refused command the stop caused is recorded as the attempt's outcome.
+ * refused command the stop caused is recorded as the attempt's outcome. The
+ * claim is released in the same step as the check, so a stop that comes
+ * later finds the attempt settled and leaves its record alone.
  */
 function refuseWhenStopped({ paths, inFlight }: StoppedAttemptCheck): void {
+	inFlight.releaseRecord(paths.operatorStopFile);
 	if (inFlight.stoppedBy() !== undefined) {
 		throw new AttemptStoppedError(paths.directory);
 	}

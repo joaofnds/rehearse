@@ -38,6 +38,10 @@ class SessionAttemptsInFlight implements AttemptsInFlight {
 		}
 	}
 
+	public releaseRecord(operatorStopFile: string): void {
+		this.stopFiles.delete(operatorStopFile);
+	}
+
 	public async close(signal: NodeJS.Signals): Promise<void> {
 		this.stopSignal = signal;
 

@@ -88,6 +88,21 @@ async function stoppedAttemptFiles(
 	return await attemptFilesIn(request.runsDirectory);
 }
 
+/** What an attempt that wrote its record left on disk once a stop then closed the command. */
+async function attemptFilesStoppedAfterRecord(): Promise<
+	readonly StoppedAttemptFiles[]
+> {
+	const request = await corpora.requestFor(
+		await corpora.corpusDirectory("brief\n"),
+	);
+	const inFlight = new SessionAttemptsInFlight();
+	await runSessionDebugAttempt({ ...request, inFlight });
+
+	await inFlight.close("SIGTERM");
+
+	return await attemptFilesIn(request.runsDirectory);
+}
+
 /** What each attempt left on disk once the stop closed while it was hung in its session. */
 async function hungAttemptFiles(): Promise<readonly StoppedAttemptFiles[]> {
 	const request = await corpora.requestFor(
@@ -148,6 +163,18 @@ describe(runSessionDebugAttempt.name, () => {
 					attemptRecorded: false,
 					stopRecord: operatorStopRecord("SIGTERM"),
 				},
+			]);
+		});
+	});
+});
+
+describe(runSessionDebugAttempt.name, () => {
+	describe("when the operator stops the command after it recorded", () => {
+		it("keeps its record and records no stop", async () => {
+			const attempts = await attemptFilesStoppedAfterRecord();
+
+			expect(attempts).toEqual([
+				{ attemptRecorded: true, stopRecord: undefined },
 			]);
 		});
 	});
