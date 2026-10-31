@@ -3,9 +3,6 @@ import { symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
@@ -13,8 +10,8 @@ import { runSessionDebugAttempt } from "#cli/session-run-command";
 import SessionAttemptTestFiles from "./session-attempt-test-files";
 import {
 	SessionCaseBuilder,
-	config,
 	resumingCase,
+	runRequest,
 } from "./session-case-test-fixture";
 
 const files = SessionAttemptTestFiles.forEachTest();
@@ -25,20 +22,14 @@ async function refusesAFixtureTreeHoldingASymlinkBeforeAnyProviderCall(): Promis
 	const fixture = await files.temporary("rehearse-fixture-");
 	await symlink("/etc/hosts", join(fixture, "escape.md"));
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			runClaude: async () =>
-				await Promise.reject(new Error("a provider call must not happen")),
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: projects,
+		runClaude: async () =>
+			await Promise.reject(new Error("a provider call must not happen")),
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("escape.md");
@@ -51,23 +42,17 @@ async function refusesAFixtureWhoseSeededHistoryGitCannotReadExiting3BeforeAnyPr
 
 	const calls: string[] = [];
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			runClaude: async (_command, cwd) => {
-				calls.push(cwd);
+	const request = runRequest({
+		projectsDirectory: projects,
+		runClaude: async (_command, cwd) => {
+			calls.push(cwd);
 
-				return await Promise.resolve("");
-			},
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+			return await Promise.resolve("");
+		},
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({ fixturePath: fixture }).build(),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(exitCodeFor(failure)).toBe(EXIT_CODES.refusedPrecondition);
@@ -84,20 +69,14 @@ async function refusesATranscriptPrefixWhoseBytesDoNotMatchTheDeclaredDigestBefo
 	);
 	await writeFile(prefix, "bytes the declaration never hashed\n");
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			runClaude: async () =>
-				await Promise.reject(new Error("a provider call must not happen")),
-			runsDirectory: runs,
-			sessionCase: resumingCase(prefix),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: projects,
+		runClaude: async () =>
+			await Promise.reject(new Error("a provider call must not happen")),
+		runsDirectory: runs,
+		sessionCase: resumingCase(prefix),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("prefix.jsonl");

@@ -1,15 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { readShortIds } from "#benchmark/short-id";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
 
 const files = SessionAttemptTestFiles.forEachTest();
@@ -18,17 +15,13 @@ async function reportsTheAttemptUnsuccessfulWhenACheckFails(): Promise<void> {
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK sure thing"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK sure thing"),
+			runsDirectory: runs,
+		}),
+	);
 
 	const [observedFirstCheck] = outcome.record.checks;
 
@@ -40,22 +33,16 @@ async function refusesADeclaredCorpusFileThatDoesNotResolveBeforeAnyProviderCall
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			runClaude: async () =>
-				await Promise.reject(new Error("a provider call must not happen")),
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder({
-				corpusFiles: ["output-styles/no-such-style.md"],
-			}).build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: projects,
+		runClaude: async () =>
+			await Promise.reject(new Error("a provider call must not happen")),
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({
+			corpusFiles: ["output-styles/no-such-style.md"],
+		}).build(),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("no-such-style.md");

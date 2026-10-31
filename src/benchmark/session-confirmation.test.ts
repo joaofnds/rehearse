@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { CommandError } from "./command";
 import { runSessionAttempt } from "./session-attempt";
+import { request as attemptRequest } from "./session-attempt-case-test-fixtures";
 import { runSessionConfirmation } from "./session-confirmation";
 import confirmationEvidence from "./session-confirmation-evidence-test-fixtures";
 import {
@@ -25,7 +26,6 @@ import {
 	budgetSessionWorkspace,
 	resources,
 } from "./session-confirmation-workspace-test-fixtures";
-import ABSENT_HOME, { attemptsInFlight } from "./session-setup-test-fixtures";
 
 resources.registerCleanup();
 
@@ -140,24 +140,22 @@ async function recordsABudgetHaltedRepSStatedErrorAndCostOnItsStageAndAttempt():
 	const outcome = await runSessionConfirmation(
 		{
 			executeAttempt: async (plan) =>
-				await runSessionAttempt({
-					corpusSnapshot: plan.corpusSnapshot,
-					environment: {},
-					home: ABSENT_HOME,
-					inFlight: attemptsInFlight(),
-					liveCitations: { home: ABSENT_HOME, roots: [] },
-					projectsDirectory,
-					recordDirectory: plan.recordDirectory,
-					runClaude: (command) => {
-						throw new CommandError(command, {
-							exitCode: 1,
-							stderr: "",
-							stdout: halt,
-						});
-					},
-					sessionCase: plan.sessionCase,
-					settings: plan.settings,
-				}),
+				await runSessionAttempt(
+					attemptRequest({
+						corpusSnapshot: plan.corpusSnapshot,
+						projectsDirectory,
+						recordDirectory: plan.recordDirectory,
+						runClaude: (command) => {
+							throw new CommandError(command, {
+								exitCode: 1,
+								stderr: "",
+								stdout: halt,
+							});
+						},
+						sessionCase: plan.sessionCase,
+						settings: plan.settings,
+					}),
+				),
 		},
 		confirmationRequest({
 			corpus: corpusRoot,

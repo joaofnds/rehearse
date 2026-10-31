@@ -4,13 +4,14 @@ import { join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import type { SessionRunRequest } from "#cli/session-run-command";
 
 import type SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import {
+	SessionCaseBuilder,
+	config,
+	runRequest,
+} from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
 
 function styledCase(): SessionCase {
@@ -50,17 +51,13 @@ class SessionCorpusFixture {
 		const projects = await this.files.temporary("rehearse-projects-");
 		const runsDirectory = await this.files.temporary("rehearse-runs-");
 
-		return {
+		return runRequest({
 			config: corpus === undefined ? config : { ...config, corpus },
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
 			projectsDirectory: projects,
 			runClaude: fakeClaude(projects, "OK"),
 			runsDirectory,
 			sessionCase: styledCase(),
-			spendCeilingUsd: 100,
-		};
+		});
 	}
 }
 export { SessionCorpusFixture as default };

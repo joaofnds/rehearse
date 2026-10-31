@@ -9,12 +9,7 @@ import {
 	readAttemptRecord,
 } from "./session-attempt-record-observation";
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import {
-	ABSENT_HOME,
-	SessionCaseBuilder,
-	attemptsInFlight,
-	config,
-} from "./session-case-test-fixture";
+import { runRequest } from "./session-case-test-fixture";
 import {
 	loadContextEvidenceSource,
 	syntheticContextCatalog,
@@ -28,17 +23,13 @@ async function persistsExactToolDiagnosticsInTheParsedAttemptRecord(): Promise<v
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: diagnosticClaude(projects),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: diagnosticClaude(projects),
+			runsDirectory: runs,
+		}),
+	);
 	const written = await readAttemptRecord(outcome.recordFile);
 
 	expect(written.transcriptDiagnostics).toEqual(expectedTranscriptDiagnostics);
@@ -52,22 +43,18 @@ async function persistsRetainedDiagnosticsWhenADirectProviderAttemptFails(): Pro
 	let elapsedMs = 0;
 
 	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			now: () => elapsedMs,
-			projectsDirectory: projects,
-			runClaude: async (command, cwd) => {
-				await writesTranscript(command, cwd);
-				elapsedMs += providerDurationMs;
-				throw new Error("provider rejected the session");
-			},
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder().build(),
-			spendCeilingUsd: 100,
-		}),
+		runSessionDebugAttempt(
+			runRequest({
+				now: () => elapsedMs,
+				projectsDirectory: projects,
+				runClaude: async (command, cwd) => {
+					await writesTranscript(command, cwd);
+					elapsedMs += providerDurationMs;
+					throw new Error("provider rejected the session");
+				},
+				runsDirectory: runs,
+			}),
+		),
 	);
 	const record = await firstAttemptRecord({
 		caseId: "smoke",
@@ -98,19 +85,15 @@ async function persistsProviderContextEvidenceThroughTheSavedAttemptBoundary(): 
 	const contextEvidenceSource = await loadContextEvidenceSource();
 	const contextRateCatalog = syntheticContextCatalog();
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		contextEvidenceSource,
-		contextRateCatalog,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			contextEvidenceSource,
+			contextRateCatalog,
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: runs,
+		}),
+	);
 	const written = await readAttemptRecord(outcome.recordFile);
 
 	expect(written.contextEvidence?.source).toEqual(contextEvidenceSource);

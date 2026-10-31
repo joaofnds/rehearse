@@ -31,7 +31,4 @@ class SessionComparisonRequestBuilder {
 }
 
 export { SessionComparisonRequestBuilder as default };
-export {
-	default as ABSENT_HOME,
-	attemptsInFlight,
-} from "./session-setup-test-fixtures";
+export { request as attemptRequest } from "./session-attempt-case-test-fixtures";

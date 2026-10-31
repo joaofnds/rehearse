@@ -4,14 +4,11 @@ import { basename, dirname } from "node:path";
 import { z } from "zod";
 
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { readShortIds } from "#benchmark/short-id";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
 
 const files = SessionAttemptTestFiles.forEachTest();
@@ -20,17 +17,13 @@ async function writesOneRecordCarryingTheReplyTheTranscriptPathTheMetricsAndARes
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: runs,
+		}),
+	);
 
 	expect(outcome.record).toMatchObject({
 		caseId: "smoke",
@@ -59,17 +52,13 @@ async function claimsTheAttemptAShortIdInItsCase(): Promise<void> {
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: runs,
+		}),
+	);
 
 	expect(await readShortIds(runs, "smoke")).toEqual([
 		{
@@ -88,17 +77,14 @@ async function printsARecordThatParsesWithTheSchemaThatWroteIt(): Promise<void> 
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: runs,
+			spendCeilingUsd,
+		}),
+	);
 
 	const written = parseSessionAttemptRecord(
 		await Bun.file(outcome.recordFile).text(),
@@ -117,23 +103,19 @@ async function writesTheInstantTheAttemptStartedToItsRecordFile(): Promise<void>
 	let elapsedMs = 0;
 	const claude = fakeClaude(projects, "OK");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		now: () => elapsedMs,
-		projectsDirectory: projects,
-		runClaude: async (command, cwd) => {
-			elapsedMs += providerDurationMs;
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			now: () => elapsedMs,
+			projectsDirectory: projects,
+			runClaude: async (command, cwd) => {
+				elapsedMs += providerDurationMs;
 
-			return await claude(command, cwd);
-		},
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-		wallClock: () => startedAt + elapsedMs,
-	});
+				return await claude(command, cwd);
+			},
+			runsDirectory: runs,
+			wallClock: () => startedAt + elapsedMs,
+		}),
+	);
 
 	const written = z
 		.object({ elapsedMs: z.number(), startedAt: z.iso.datetime() })
@@ -150,17 +132,14 @@ async function recordedSetup(isolated: boolean): Promise<RecordedSetup> {
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder({ isolated }).build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: runs,
+			sessionCase: new SessionCaseBuilder({ isolated }).build(),
+		}),
+	);
 
 	return outcome.record.setup;
 }
@@ -192,17 +171,13 @@ async function writesTheMCPServersAndPluginsTheSessionReportedLoadingToItsRecord
 		type: "system",
 	});
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK", init),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK", init),
+			runsDirectory: runs,
+		}),
+	);
 
 	const written = parseSessionAttemptRecord(
 		await Bun.file(outcome.recordFile).text(),

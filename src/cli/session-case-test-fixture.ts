@@ -1,7 +1,12 @@
 import type { SessionCase } from "#benchmark/case";
 import type { SessionRunConfig } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
+import ABSENT_HOME, {
+	attemptsInFlight,
+} from "#benchmark/session-setup-test-fixtures";
 import { SHA256_HEX_DIGITS } from "#server/digest-test-support";
+
+import type { SessionRunRequest } from "./session-run-contract";
 
 const config: SessionRunConfig = {
 	caseId: "smoke",
@@ -60,7 +65,30 @@ function resumingCase(transcriptPath: string): SessionCase {
 		},
 	};
 }
-export { SessionCaseBuilder, config, resumingCase };
+
+/**
+ * A debug run request whose every field a test does not vary takes a default,
+ * so a new request field with a safe default changes this builder only.
+ */
+function runRequest(
+	overrides: Immutable<Partial<SessionRunRequest>> &
+		Pick<
+			SessionRunRequest,
+			"projectsDirectory" | "runClaude" | "runsDirectory"
+		>,
+): SessionRunRequest {
+	return {
+		config,
+		environment: {},
+		home: ABSENT_HOME,
+		inFlight: attemptsInFlight(),
+		sessionCase: new SessionCaseBuilder().build(),
+		spendCeilingUsd: 100,
+		...overrides,
+	};
+}
+
+export { SessionCaseBuilder, config, resumingCase, runRequest };
 export {
 	default as ABSENT_HOME,
 	attemptsInFlight,

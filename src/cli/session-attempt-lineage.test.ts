@@ -1,12 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import { runRequest } from "./session-case-test-fixture";
 import SessionCorpusFixture from "./session-corpus-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
 
@@ -47,17 +44,13 @@ async function leavesTheLineageUnchangedWhenTwoSourcesResolveToIdenticalBytes():
 async function recordsTheLineageTheSmokeCaseCarriedBeforeCorpusExisted(): Promise<void> {
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory: await files.temporary("rehearse-runs-"),
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory: await files.temporary("rehearse-runs-"),
+		}),
+	);
 
 	expect(outcome.record.lineage).toBe(
 		"f5c101c10b2941f88f89b2ba059a7f2ca6782162ef7ddccded391fd2c4d5b71b",

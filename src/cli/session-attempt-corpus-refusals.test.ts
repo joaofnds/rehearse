@@ -2,15 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 import type { ResolvedCorpusSource } from "#benchmark/corpus-source";
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { failureOf } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import { SessionCaseBuilder, runRequest } from "./session-case-test-fixture";
 
 const PROVIDER_CALL_COUNT_INCREMENT = 1;
 
@@ -24,32 +21,24 @@ async function refusesAnOutOfExtentLiveCorpusFileBeforeAnyProviderCall(): Promis
 	const { root, backingRoot } = await files.outOfExtentCorpus();
 	let providerCalls = 0;
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			resolveCorpus: async () =>
-				await Promise.resolve<ResolvedCorpusSource>({
-					backingRoot,
-					kind: "live",
-					root,
-				}),
-			runClaude: async () => {
-				providerCalls += PROVIDER_CALL_COUNT_INCREMENT;
-				return await Promise.reject(
-					new Error("a provider call must not happen"),
-				);
-			},
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder({
-				corpusFiles: ["output-styles/foreign.md"],
-			}).build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: projects,
+		resolveCorpus: async () =>
+			await Promise.resolve<ResolvedCorpusSource>({
+				backingRoot,
+				kind: "live",
+				root,
+			}),
+		runClaude: async () => {
+			providerCalls += PROVIDER_CALL_COUNT_INCREMENT;
+			return await Promise.reject(new Error("a provider call must not happen"));
+		},
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({
+			corpusFiles: ["output-styles/foreign.md"],
+		}).build(),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("live corpus extent");
@@ -64,32 +53,24 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 	const { root, backingRoot } = await files.invalidBackingCorpus();
 	let providerCalls = 0;
 
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: projects,
-			resolveCorpus: async () =>
-				await Promise.resolve<ResolvedCorpusSource>({
-					backingRoot,
-					kind: "live",
-					root,
-				}),
-			runClaude: async () => {
-				providerCalls += PROVIDER_CALL_COUNT_INCREMENT;
-				return await Promise.reject(
-					new Error("a provider call must not happen"),
-				);
-			},
-			runsDirectory: runs,
-			sessionCase: new SessionCaseBuilder({
-				corpusFiles: ["output-styles/foreign.md"],
-			}).build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: projects,
+		resolveCorpus: async () =>
+			await Promise.resolve<ResolvedCorpusSource>({
+				backingRoot,
+				kind: "live",
+				root,
+			}),
+		runClaude: async () => {
+			providerCalls += PROVIDER_CALL_COUNT_INCREMENT;
+			return await Promise.reject(new Error("a provider call must not happen"));
+		},
+		runsDirectory: runs,
+		sessionCase: new SessionCaseBuilder({
+			corpusFiles: ["output-styles/foreign.md"],
+		}).build(),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("not a directory");
@@ -97,24 +78,17 @@ async function reportsAnInvalidNeededLiveBackingTreeAsARefusedPrecondition(): Pr
 }
 
 async function reportsInvalidLiveCorpusConfigurationAsARefusedPrecondition(): Promise<void> {
-	const failure = await failureOf(
-		runSessionDebugAttempt({
-			config,
-			environment: {},
-			home: ABSENT_HOME,
-			inFlight: attemptsInFlight(),
-			projectsDirectory: await files.temporary("rehearse-projects-"),
-			resolveCorpus: async () =>
-				await Promise.reject(
-					new CorpusConfigurationError("invalid backing root"),
-				),
-			runClaude: async () =>
-				await Promise.reject(new Error("a provider call must not happen")),
-			runsDirectory: await files.temporary("rehearse-runs-"),
-			sessionCase: new SessionCaseBuilder().build(),
-			spendCeilingUsd: 100,
-		}),
-	);
+	const request = runRequest({
+		projectsDirectory: await files.temporary("rehearse-projects-"),
+		resolveCorpus: async () =>
+			await Promise.reject(
+				new CorpusConfigurationError("invalid backing root"),
+			),
+		runClaude: async () =>
+			await Promise.reject(new Error("a provider call must not happen")),
+		runsDirectory: await files.temporary("rehearse-runs-"),
+	});
+	const failure = await failureOf(runSessionDebugAttempt(request));
 
 	expect(failure).toBeInstanceOf(RefusedPreconditionError);
 	expect(failure.message).toContain("invalid backing root");

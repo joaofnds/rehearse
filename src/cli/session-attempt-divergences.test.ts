@@ -1,13 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
-import ABSENT_HOME, {
-	attemptsInFlight,
-} from "#benchmark/session-setup-test-fixtures";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import {
+	SessionCaseBuilder,
+	config,
+	runRequest,
+} from "./session-case-test-fixture";
 import SessionCorpusFixture from "./session-corpus-test-fixture";
 import {
 	fakeClaude,
@@ -43,17 +44,14 @@ async function reportsAnUndeclaredFileDivergenceForASkillTheSessionLoadedButTheC
 	const runsDirectory = await files.temporary("rehearse-runs-");
 	const runClaude = undeclaredSkillClaude(projects);
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude,
-		runsDirectory,
-		sessionCase: new SessionCaseBuilder({ isolated: true }).build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude,
+			runsDirectory,
+			sessionCase: new SessionCaseBuilder({ isolated: true }).build(),
+		}),
+	);
 
 	expect(outcome.record.divergences).toEqual([
 		{
@@ -74,19 +72,16 @@ async function reportsAnUndeclaredFileDivergenceForAnInstalledSkillTheCaseNeverD
 	const corpus = await files.temporary("rehearse-corpus-");
 	await Bun.write(join(corpus, "skills/verify/SKILL.md"), "verify skill\n");
 
-	const outcome = await runSessionDebugAttempt({
-		config: { ...config, corpus },
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: undeclaredSkillClaude(projects, (cwd) =>
-			join(cwd, ".claude/skills/verify"),
-		),
-		runsDirectory,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			config: { ...config, corpus },
+			projectsDirectory: projects,
+			runClaude: undeclaredSkillClaude(projects, (cwd) =>
+				join(cwd, ".claude/skills/verify"),
+			),
+			runsDirectory,
+		}),
+	);
 
 	expect(outcome.record.divergences).toEqual([
 		{
@@ -101,17 +96,16 @@ async function reportsAnUnloadedFileDivergenceForADeclaredProjectFileTheSessionN
 	const projects = await files.temporary("rehearse-projects-");
 	const runsDirectory = await files.temporary("rehearse-runs-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: ABSENT_HOME,
-		inFlight: attemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK"),
-		runsDirectory,
-		sessionCase: new SessionCaseBuilder({ projectFiles: ["NOTES.md"] }).build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK"),
+			runsDirectory,
+			sessionCase: new SessionCaseBuilder({
+				projectFiles: ["NOTES.md"],
+			}).build(),
+		}),
+	);
 
 	expect(outcome.record.divergences).toEqual([
 		{ half: "project", kind: "unloaded-file", path: "NOTES.md" },

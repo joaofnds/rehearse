@@ -2,11 +2,10 @@ import { describe, expect, it } from "bun:test";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import { runRequest } from "./session-case-test-fixture";
 import { fakeClaude } from "./session-provider-test-fixture";
 
 const SENTINEL = "sentinel-7c31d0-never-recorded";
@@ -70,17 +69,14 @@ async function writesNoValueOfTheUserSetupIntoARecordFieldRehearseAuthors(): Pro
 	const runs = await files.temporary("rehearse-runs-");
 	const projects = await files.temporary("rehearse-projects-");
 
-	const outcome = await runSessionDebugAttempt({
-		config,
-		environment: {},
-		home: await userHomeHoldingTheSentinel(),
-		inFlight: new SessionAttemptsInFlight(),
-		projectsDirectory: projects,
-		runClaude: fakeClaude(projects, "OK", SENTINEL_INIT),
-		runsDirectory: runs,
-		sessionCase: new SessionCaseBuilder().build(),
-		spendCeilingUsd: 100,
-	});
+	const outcome = await runSessionDebugAttempt(
+		runRequest({
+			home: await userHomeHoldingTheSentinel(),
+			projectsDirectory: projects,
+			runClaude: fakeClaude(projects, "OK", SENTINEL_INIT),
+			runsDirectory: runs,
+		}),
+	);
 
 	expect(outcome.record.setup).toMatchObject({
 		hookEvents: ["SessionStart"],

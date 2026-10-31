@@ -3,12 +3,15 @@ import { mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { ClaudeRunner } from "#benchmark/session-attempt";
-import SessionAttemptsInFlight from "#benchmark/session-attempts-in-flight";
 import { projectSlug } from "#benchmark/session-capture";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
 
 import SessionAttemptTestFiles from "./session-attempt-test-files";
-import { SessionCaseBuilder, config } from "./session-case-test-fixture";
+import {
+	SessionCaseBuilder,
+	config,
+	runRequest,
+} from "./session-case-test-fixture";
 import { fakeClaudeEnvelope } from "./session-provider-test-fixture";
 
 const files = SessionAttemptTestFiles.forEachTest();
@@ -129,28 +132,27 @@ async function attemptUnder(
 	run: CitingRun,
 	writes: (cited: string) => SessionWrites,
 ): ReturnType<typeof runSessionDebugAttempt> {
-	return await runSessionDebugAttempt({
-		config: { ...config, corpus: run.corpus },
-		environment: {},
-		home: run.home,
-		inFlight: new SessionAttemptsInFlight(),
-		projectsDirectory: run.projects,
-		runClaude: citationFollowingClaude(run.projects, writes),
-		runsDirectory: await files.temporary("rehearse-runs-"),
-		sessionCase: new SessionCaseBuilder({
-			declaration: {
-				checks: [],
-				corpusFiles: [],
-				id: "smoke",
-				kind: "session",
-				projectFiles: [],
-				prompt: "Follow your rule.",
-				title: "Smoke",
-				tools: [],
-			},
-		}).build(),
-		spendCeilingUsd: 100,
-	});
+	return await runSessionDebugAttempt(
+		runRequest({
+			config: { ...config, corpus: run.corpus },
+			home: run.home,
+			projectsDirectory: run.projects,
+			runClaude: citationFollowingClaude(run.projects, writes),
+			runsDirectory: await files.temporary("rehearse-runs-"),
+			sessionCase: new SessionCaseBuilder({
+				declaration: {
+					checks: [],
+					corpusFiles: [],
+					id: "smoke",
+					kind: "session",
+					projectFiles: [],
+					prompt: "Follow your rule.",
+					title: "Smoke",
+					tools: [],
+				},
+			}).build(),
+		}),
+	);
 }
 
 async function readsTheArmSCopyOfAFileItsInstructionsCiteByHomePath(): Promise<void> {
