@@ -36,13 +36,14 @@ class SessionCommandLifetime {
 	}: SessionCommandLifetimeRequest) {
 		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
 		this.groupId = randomUUID();
-		// A group records the stop in its directory here, and a single attempt
-		// in its own as it settles, from the signal it closed with. Attempts
-		// and commands close before the stop kills the commands, so none starts
+		// Closing the attempts records the stop in each single attempt's
+		// directory, and a group records it in its own here. Attempts and
+		// commands close before the stop kills the commands, so none starts
 		// after the kill. Commands close after the group's stop is written,
 		// since a rep that settles meanwhile stores its record unless that
 		// file is there, and a command refused before it would be recorded as
-		// the rep's failure.
+		// the rep's failure. They close even when a stop record cannot be
+		// written, since a command started after the kill outlives the exit.
 		this.release = (
 			boundary.stopOnSignal ??
 			((cleanUp, recordStop) =>
@@ -56,15 +57,18 @@ class SessionCommandLifetime {
 				await this.inFlight.settled(STOP_SETTLE_BOUND_MS);
 			},
 			async (signal) => {
-				await this.inFlight.close(signal);
-				if (config.confirmation !== undefined) {
-					await Bun.write(
-						confirmationGroupPaths(runsDirectory, this.groupId)
-							.operatorStopFile,
-						operatorStopRecord(signal),
-					);
+				try {
+					await this.inFlight.close(signal);
+					if (config.confirmation !== undefined) {
+						await Bun.write(
+							confirmationGroupPaths(runsDirectory, this.groupId)
+								.operatorStopFile,
+							operatorStopRecord(signal),
+						);
+					}
+				} finally {
+					refuseCommands();
 				}
-				refuseCommands();
 			},
 		);
 	}
