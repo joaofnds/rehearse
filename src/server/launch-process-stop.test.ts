@@ -115,7 +115,7 @@ async function verifyRefusesLeavingTheOneCappedCallToEndAnd(): Promise<void> {
 
 	expect(stop.status).toBe(HTTP_STATUS.HTTP_STATUS_CONFLICT);
 	expect(refusalSchema.parse(await stop.json()).error).toBe(
-		`Launch ${id} is a root-cause analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+		`Launch ${id} is a root-cause analysis, one call capped at the cost it stated; stopping it from the browser is not offered`,
 	);
 	expect(server.launcher.stopped).toEqual([]);
 	const record = await readLaunchRecord(server.runsDirectory, id);

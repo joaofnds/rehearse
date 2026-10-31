@@ -7,7 +7,7 @@ import type {
 	AnalysisDependencies,
 	AnalysisInvoker,
 } from "./root-cause-analysis";
-import { RUN } from "./root-cause-analysis-test-support";
+import { RUN, noSignalHandling } from "./root-cause-analysis-test-support";
 import { rootCauseAnalysesDirectory } from "./run-layout";
 import type { RunLiveness } from "./run-liveness";
 import { claimBy, nothingRunning } from "./run-records-test-support";
@@ -103,6 +103,7 @@ function dependencies(invoke: AnalysisInvoker): AnalysisDependencies {
 		now: steppingClock(),
 		requireSpendCeiling: async () =>
 			await Promise.resolve(STORED_SPEND_CEILING_USD),
+		stopOnSignal: noSignalHandling,
 	};
 }
 

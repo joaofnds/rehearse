@@ -1,7 +1,7 @@
 import type { ClaudeEnvelope } from "./contracts";
 import type { AnalysisInvoker, AnalysisResult } from "./root-cause-analysis";
 import { analyzeRun } from "./root-cause-analysis";
-import { RUN } from "./root-cause-analysis-test-support";
+import { RUN, noSignalHandling } from "./root-cause-analysis-test-support";
 import { nothingRunning } from "./run-records-test-support";
 
 const PROVIDER_BUDGET_USD = 30;
@@ -54,6 +54,7 @@ async function recordAnalysis(
 			now: () => new Date(startedAt),
 			requireSpendCeiling: async () =>
 				await Promise.resolve(PROVIDER_BUDGET_USD),
+			stopOnSignal: noSignalHandling,
 		},
 	);
 }

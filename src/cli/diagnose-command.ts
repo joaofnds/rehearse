@@ -1,4 +1,8 @@
-import type { AnalysisInvoker } from "#benchmark/root-cause-analysis";
+import type {
+	AnalysisInvoker,
+	AnalysisResult,
+	SignalStopInstaller,
+} from "#benchmark/root-cause-analysis";
 import {
 	DEFAULT_ANALYSIS_BUDGET_USD,
 	analyzeRun,
@@ -25,6 +29,7 @@ interface DiagnoseDependencies {
 	readonly now: () => Date;
 	readonly liveness: RunLiveness;
 	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
+	readonly stopOnSignal: SignalStopInstaller;
 }
 
 /**
@@ -45,12 +50,31 @@ async function runDiagnose(
 		throw new UsageError("Provide the model: --model <model>");
 	}
 
-	const { run } = parseRunRecordId(request.id);
-	const { file, record } = await analyzeRun(
+	const { file, record, stopped } = await analyze(
+		{ ...request, id: request.id, model: request.model },
+		dependencies,
+	);
+	// The stop that recorded itself ends the process with the signal's exit
+	// code, which an error thrown here would race.
+	if (stopped) {
+		return;
+	}
+
+	await writeRecord(dependencies.output, file, request.json);
+	if (record.outcome === "failed") {
+		throw new Error(`The root-cause analysis failed: ${record.reason}`);
+	}
+}
+
+async function analyze(
+	request: DiagnoseRequest & { readonly id: string; readonly model: string },
+	dependencies: DiagnoseDependencies,
+): Promise<AnalysisResult> {
+	return await analyzeRun(
 		{
 			capUsd: budgetUsd(request.budgetUsd),
 			model: request.model,
-			run,
+			run: parseRunRecordId(request.id).run,
 			runsDirectory: request.runsDirectory,
 		},
 		{
@@ -59,13 +83,9 @@ async function runDiagnose(
 			now: dependencies.now,
 			progress: diagnosticWriter(dependencies.output),
 			requireSpendCeiling: dependencies.requireSpendCeiling,
+			stopOnSignal: dependencies.stopOnSignal,
 		},
 	);
-
-	await writeRecord(dependencies.output, file, request.json);
-	if (record.outcome === "failed") {
-		throw new Error(`The root-cause analysis failed: ${record.reason}`);
-	}
 }
 
 /**

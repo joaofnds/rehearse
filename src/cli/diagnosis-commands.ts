@@ -5,10 +5,11 @@ import {
 } from "#benchmark/root-cause-analysis";
 import { liveRunLiveness } from "#benchmark/run-liveness";
 import { requireSpendCeiling } from "#benchmark/settings";
+import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
 import type { CommandEntry, CommandInvocation } from "#cli/command-contract";
 import { flagValue, jsonFlag } from "#cli/command-flags";
 import runDiagnose from "#cli/diagnose-command";
-import { processOutput } from "#cli/output";
+import { processOutput, signalDiagnostics } from "#cli/output";
 
 async function executeDiagnose({
 	commandLine,
@@ -28,6 +29,12 @@ async function executeDiagnose({
 			now: () => new Date(),
 			output: processOutput,
 			requireSpendCeiling,
+			stopOnSignal: (cleanUp, recordStop) =>
+				stopOnSignal(
+					processSignalStop(signalDiagnostics(processOutput)),
+					cleanUp,
+					recordStop,
+				),
 		},
 	);
 

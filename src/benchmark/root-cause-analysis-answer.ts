@@ -109,6 +109,31 @@ function provisionalAnalysis(
 	};
 }
 
+interface AnalysisStop {
+	readonly provisional: FailedAnalysis;
+	readonly signal: NodeJS.Signals;
+	readonly stopped: Readonly<Date>;
+}
+
+/**
+ * A stopped call's record. The kill ends the call before it prints what it
+ * spent, so the cap is the most the record can say about its cost.
+ */
+function stoppedAnalysis({
+	provisional,
+	signal,
+	stopped,
+}: AnalysisStop): FailedAnalysis {
+	return {
+		...provisional,
+		durationMs: Math.max(
+			stopped.getTime() - Date.parse(provisional.startedAt),
+			MINIMUM_ELAPSED_MS,
+		),
+		reason: `stopped by ${signal} during the paid call; what it spent is unknown, and the call is capped at $${provisional.capUsd}`,
+	};
+}
+
 function withCost(
 	record: RootCauseAnalysisRecord,
 	costUsd: number | undefined,
@@ -207,4 +232,10 @@ function rootCauseViolation(
 	return lineRangeViolation(answer.rootCause, bundle.corpusFiles);
 }
 
-export { withCost, analysisRecordBase, provisionalAnalysis, resolveReading };
+export {
+	withCost,
+	analysisRecordBase,
+	provisionalAnalysis,
+	resolveReading,
+	stoppedAnalysis,
+};

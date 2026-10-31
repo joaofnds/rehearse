@@ -26,11 +26,11 @@ async function runningLaunch(
 	}
 
 	const record = await readLaunchRecord(dependencies.runsDirectory, id);
-	// The diagnose command installs no signal handling, so a stopped call could
-	// spend and leave no record of it.
+	// The diagnose command records a stop, but the browser offers none for an
+	// analysis, so its launch row shows no Stop either.
 	if (record.kind === "analysis") {
 		throw new LaunchRefusalError(
-			`Launch ${id} is a root-cause analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+			`Launch ${id} is a root-cause analysis, one call capped at the cost it stated; stopping it from the browser is not offered`,
 			HTTP_STATUS_CONFLICT,
 		);
 	}

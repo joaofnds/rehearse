@@ -442,9 +442,10 @@ A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
 A launch row for a replay, group or session attempt offers Stop only. A
 root-cause analysis launch row reads "one call" and offers no Stop, and the stop
-route refuses one with 409: `diagnose` installs no signal handling, so a
-stopped call could spend and leave no record. The call ends on its own, and
-like any session budget its cap can be overrun by the call that crosses it.
+route refuses one with 409: an analysis is one call capped at the cost it
+stated, and stopping it from the browser is not offered. The call ends on its
+own, and like any session budget its cap can be overrun by the call that
+crosses it.
 Stop posts
 to `POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch
 and sends its process SIGTERM, which the process handles as it handles a
@@ -1574,6 +1575,15 @@ provisional record that cannot be written stops the command before the call, so
 nothing is spent. Two analyses of one run that start in the same millisecond
 each keep a record: the second is named one millisecond later, and its
 `startedAt` says so.
+
+A SIGINT, SIGTERM or SIGHUP during the call replaces the provisional record
+with a failed one whose `reason` says the call was stopped by that signal, that
+what it spent is unknown, and what it was capped at, with `durationMs` up to
+the stop. The command then kills the call, refuses any command it has not yet
+started, and exits 130, 143 or 129. A killed call prints no envelope, so the
+record carries no `costUsd`. A stop that arrives once the call has returned
+leaves its outcome as the record. Because a stop ends the command through its
+own signal handling, a browser launch it ends records no ending of its own.
 
 A record with `schemaVersion: 1` was written before the culprit analysis was
 renamed root-cause analysis. It stays on disk as written and is read under the

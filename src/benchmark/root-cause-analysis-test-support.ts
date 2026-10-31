@@ -226,8 +226,16 @@ async function runStoppedAtBuild(
  * answer the harness refuses records a failed analysis.
  */
 
+/** Installs nothing, so a test's process signals stay at their default. */
+function noSignalHandling(): () => void {
+	return () => {
+		// Nothing was installed, so nothing is released.
+	};
+}
+
 export {
 	RUN,
+	noSignalHandling,
 	CORPUS_BODIES,
 	gradedStage,
 	stoppedStage,

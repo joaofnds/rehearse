@@ -9,6 +9,7 @@ import {
 } from "#benchmark/root-cause-analysis-provider-test-fixtures";
 import {
 	RUN,
+	noSignalHandling,
 	runStoppedAtBuild,
 } from "#benchmark/root-cause-analysis-test-support";
 import { nothingRunning } from "#benchmark/run-records-test-support";
@@ -67,6 +68,7 @@ function dependencies(
 		output: recorder.output,
 		requireSpendCeiling: async () =>
 			await Promise.resolve(STORED_SPEND_CEILING_USD),
+		stopOnSignal: noSignalHandling,
 	};
 }
 

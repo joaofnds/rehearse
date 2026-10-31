@@ -25,6 +25,12 @@ interface AnalysisRequest extends AnalyzedRun {
 
 const DEFAULT_ANALYSIS_BUDGET_USD = 1;
 
+/** Installs the stop a signal makes, as stopOnSignal does, and answers its release. */
+type SignalStopInstaller = (
+	cleanUp: () => Promise<void>,
+	recordStop: (signal: NodeJS.Signals) => Promise<void>,
+) => () => void;
+
 interface AnalysisDependencies {
 	readonly invoke: AnalysisInvoker;
 	readonly now: () => Date;
@@ -33,11 +39,14 @@ interface AnalysisDependencies {
 	/** Told what the call can spend before it is made. */
 	readonly progress?: (message: string) => void;
 	readonly records?: AnalysisRecordWriter;
+	readonly stopOnSignal: SignalStopInstaller;
 }
 
 interface AnalysisResult {
 	readonly file: string;
 	readonly record: RootCauseAnalysisRecord;
+	/** True when a stop signal ended the call and its record is the stop. */
+	readonly stopped: boolean;
 }
 
 async function analyzeRun(
@@ -61,6 +70,7 @@ async function analyzeRun(
 		now: dependencies.now,
 		records: dependencies.records ?? analysisRecordFiles,
 		request,
+		stopOnSignal: dependencies.stopOnSignal,
 	});
 	dependencies.progress?.(
 		`Analyzing run ${request.run} with ${request.model}; the call spends at most $${budgetUsd}.`,
@@ -82,6 +92,7 @@ export type {
 	AnalysisRequest,
 	AnalysisDependencies,
 	AnalysisResult,
+	SignalStopInstaller,
 };
 export {
 	analysisSessionArgs,
