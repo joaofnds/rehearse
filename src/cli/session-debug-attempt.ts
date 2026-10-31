@@ -97,14 +97,20 @@ class SessionAttemptRecorder {
 	}
 }
 
+/**
+ * Tracked whole, so an operator stop waits for the record this attempt writes
+ * after its session, not only for the session.
+ */
 async function runSessionDebugAttempt(
 	request: SessionRunRequest,
 ): Promise<SessionRunOutcome> {
-	const evidence = await prepareSessionDebugAttempt(request);
-	return await new SessionAttemptRecorder({
-		evidence,
-		execution: request,
-	}).run();
+	return await request.inFlight.track(async () => {
+		const evidence = await prepareSessionDebugAttempt(request);
+		return await new SessionAttemptRecorder({
+			evidence,
+			execution: request,
+		}).run();
+	});
 }
 
 export { runSessionDebugAttempt as default };

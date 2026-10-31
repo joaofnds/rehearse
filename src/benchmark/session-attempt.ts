@@ -16,7 +16,9 @@ import { removeAttemptFiles } from "./session-attempt-transcript";
 async function runSessionAttempt(
 	request: SessionAttemptRequest,
 ): Promise<SessionAttempt> {
-	return await request.inFlight.track(attemptInTemporaryDirectory(request));
+	return await request.inFlight.track(
+		async () => await attemptInTemporaryDirectory(request),
+	);
 }
 
 async function attemptInTemporaryDirectory(

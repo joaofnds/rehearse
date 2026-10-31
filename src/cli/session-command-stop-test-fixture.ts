@@ -54,6 +54,7 @@ class MidRunStop {
 	private readonly records: string[] = [];
 	private readonly preparing: FakeClaude;
 	private readonly attempts: Promise<SessionAttempt>[] = [];
+	private preparingAttempt: Promise<SessionAttempt> | undefined = undefined;
 	private readonly lifetime: SessionCommandLifetime;
 	private callbacks: StopCallbacks | undefined = undefined;
 
@@ -66,7 +67,7 @@ class MidRunStop {
 					this.callbacks = { cleanUp, recordStop };
 
 					return () => {
-						this.attempts.length = 0;
+						this.callbacks = undefined;
 					};
 				},
 			},
@@ -96,9 +97,11 @@ class MidRunStop {
 	}
 
 	private async startPreparing(): Promise<void> {
-		this.attempts.push(
-			this.attempt(await recordDirectory(), this.preparing.run),
+		this.preparingAttempt = this.attempt(
+			await recordDirectory(),
+			this.preparing.run,
 		);
+		this.attempts.push(this.preparingAttempt);
 	}
 
 	private async attempt(
@@ -119,9 +122,7 @@ class MidRunStop {
 		const finished = Promise.allSettled(this.attempts);
 		const { recordStop, cleanUp } = this.registeredStop();
 		await recordStop("SIGTERM");
-		for (const claude of this.killed) {
-			claude.kill();
-		}
+		await this.killRunningThenLetPreparingContinue();
 		await cleanUp();
 		const after = await this.read();
 
@@ -129,6 +130,19 @@ class MidRunStop {
 		this.lifetime.close();
 
 		return { ...after, preparingProviderRuns: this.preparing.runs.length };
+	}
+
+	/**
+	 * The attempt still preparing goes on between the kill and the cleanup, as
+	 * it would while the kill runs, so it reaches its provider call only if the
+	 * stop has not refused it by then.
+	 */
+	private async killRunningThenLetPreparingContinue(): Promise<void> {
+		for (const claude of this.killed) {
+			claude.kill();
+		}
+
+		await Promise.allSettled([this.preparingAttempt]);
 	}
 
 	private registeredStop(): StopCallbacks {

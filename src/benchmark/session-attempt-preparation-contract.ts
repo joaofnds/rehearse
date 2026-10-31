@@ -18,7 +18,7 @@ type ClaudeRunner = (
 
 /** What an attempt needs from the command's record of its attempts under way. */
 interface AttemptsInFlight {
-	readonly track: <Result>(attempt: Promise<Result>) => Promise<Result>;
+	readonly track: <Result>(start: () => Promise<Result>) => Promise<Result>;
 	readonly assertOpen: () => void;
 }
 

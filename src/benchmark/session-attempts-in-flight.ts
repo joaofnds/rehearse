@@ -6,8 +6,9 @@ const NO_ATTEMPTS = 0;
 
 /**
  * The session attempts one command has under way. An operator stop closes it
- * before it kills their provider commands, so an attempt still preparing never
- * starts a paid session the kill has already passed, and the stop then waits
+ * before it kills their provider commands, so an attempt that has not begun
+ * never begins and one still preparing never starts a paid session the kill
+ * has already passed, and the stop then waits
  * for each attempt to record what its killed session wrote and remove what it
  * left in the user's projects directory before the process exits.
  */
@@ -15,7 +16,9 @@ class SessionAttemptsInFlight implements AttemptsInFlight {
 	private readonly running = new Set<Promise<unknown>>();
 	private closed = false;
 
-	public async track<Result>(attempt: Promise<Result>): Promise<Result> {
+	public async track<Result>(start: () => Promise<Result>): Promise<Result> {
+		this.assertOpen();
+		const attempt = start();
 		this.running.add(attempt);
 		try {
 			return await attempt;
