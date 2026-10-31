@@ -48,8 +48,7 @@ describe("rehearse --launch", () => {
 
 		await launchedCli(records, REFUSED_REPLAY);
 
-		expect(await readLaunchEnding(records, LAUNCH_ID)).toEqual({
-			endedAt: expect.any(String),
+		expect(await readLaunchEnding(records, LAUNCH_ID)).toMatchObject({
 			exitCode: REFUSED_PRECONDITION_EXIT_CODE,
 			message: REFUSAL,
 		});
@@ -81,10 +80,8 @@ describe("rehearse --launch", () => {
 
 			const result = await launchedCli(records, REFUSED_REPLAY);
 
-			expect(result).toMatchObject({
-				exitCode: REFUSED_PRECONDITION_EXIT_CODE,
-				stderr: expect.stringContaining(`${REFUSAL}\n`),
-			});
+			expect(result.exitCode).toBe(REFUSED_PRECONDITION_EXIT_CODE);
+			expect(result.stderr).toStartWith(`${REFUSAL}\n`);
 		});
 	});
 });

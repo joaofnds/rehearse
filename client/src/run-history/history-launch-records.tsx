@@ -74,13 +74,16 @@ function launchOutcome(launch: LaunchRow): React.JSX.Element {
 				</>
 			);
 		}
-		default: {
+		case "OPERATOR_STOPPED": {
 			return (
 				<>
 					<Status state={runStatusState(launch.status)} />
 					<span className="text-12 text-dim">stopped by the operator</span>
 				</>
 			);
+		}
+		default: {
+			return launch satisfies never;
 		}
 	}
 }
