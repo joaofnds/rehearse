@@ -1,3 +1,4 @@
+import { LAUNCH_ENDED } from "#benchmark/launch-ending";
 import {
 	OPERATOR_STOPPED,
 	isPaused,
@@ -11,11 +12,17 @@ import type { StatusState } from "#client/system/components/status";
  * stopped run is never rendered as a failure (SPEC.md's third product rule):
  * it maps to `stopped`, the same neutral state the graph and the ledger use
  * for a step that fell below the minimum, not `interrupted` or a red glyph.
- * A run the operator stopped is not a failure either, and reads the same.
+ * A run the operator stopped is not a failure either, and reads the same, as
+ * does a launch whose command ended by an error, which may be a pause or a
+ * stop below the minimum.
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
 function runStatusState(status: string): StatusState {
-	if (isStopped(status) || status === OPERATOR_STOPPED) {
+	if (
+		isStopped(status) ||
+		status === OPERATOR_STOPPED ||
+		status === LAUNCH_ENDED
+	) {
 		return "stopped";
 	}
 	if (isPaused(status)) {

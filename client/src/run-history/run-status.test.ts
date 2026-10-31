@@ -13,6 +13,7 @@ describe(runStatusState.name, () => {
 		["STOPPED:shape", "stopped"],
 		["PAUSED:build", "paused"],
 		["OPERATOR_STOPPED", "stopped"],
+		["ENDED", "stopped"],
 	] as const)("reads %s as %s", (status, expected) => {
 		expect(runStatusState(status)).toBe(expected);
 	});

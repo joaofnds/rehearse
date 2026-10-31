@@ -52,6 +52,39 @@ function launchTarget(launch: LaunchRow): string {
 	}
 }
 
+function launchOutcome(launch: LaunchRow): React.JSX.Element {
+	switch (launch.status) {
+		case "RUNNING": {
+			return (
+				<>
+					<Status state={runStatusState(launch.status)} />
+					<span className="text-12 text-dim">started from the browser</span>
+					{/* An analysis is one capped call the server refuses to stop. */}
+					{launch.target === "analysis" ? undefined : (
+						<RunControls key={launch.id} launchId={launch.id} run={undefined} />
+					)}
+				</>
+			);
+		}
+		case "ENDED": {
+			return (
+				<>
+					<Status state={runStatusState(launch.status)} label="ended" />
+					<span className="text-12 text-dim">{launch.ending.message}</span>
+				</>
+			);
+		}
+		default: {
+			return (
+				<>
+					<Status state={runStatusState(launch.status)} />
+					<span className="text-12 text-dim">stopped by the operator</span>
+				</>
+			);
+		}
+	}
+}
+
 function launchCells(
 	launch: LaunchRow,
 	nowMs: number,
@@ -68,18 +101,7 @@ function launchCells(
 			<span className="text-12 text-dim">{launchAttemptsLine(launch)}</span>
 		</span>,
 		<span key="outcome" className="flex flex-col gap-0.5">
-			<Status state={runStatusState(launch.status)} />
-			{launch.status === "RUNNING" ? (
-				<>
-					<span className="text-12 text-dim">started from the browser</span>
-					{/* An analysis is one capped call the server refuses to stop. */}
-					{launch.target === "analysis" ? undefined : (
-						<RunControls key={launch.id} launchId={launch.id} run={undefined} />
-					)}
-				</>
-			) : (
-				<span className="text-12 text-dim">stopped by the operator</span>
-			)}
+			{launchOutcome(launch)}
 		</span>,
 		<span key="started" className="text-12 text-muted-foreground">
 			{instant === undefined ? (
@@ -91,6 +113,17 @@ function launchCells(
 			)}
 		</span>,
 	];
+}
+
+function endedLaunchesLabel(launches: readonly LaunchRow[]): string {
+	const endedByAnError = launches.filter(
+		({ status }) => status === "ENDED",
+	).length;
+	const count = String(launches.length);
+
+	return endedByAnError === EMPTY_COLLECTION_LENGTH
+		? `Ended launch history (${count})`
+		: `Ended launch history (${count}, ${String(endedByAnError)} ended by an error)`;
 }
 
 function newestLaunches(launches: readonly LaunchRow[]): readonly LaunchRow[] {
@@ -152,7 +185,7 @@ function EndedLaunches({
 	return (
 		<div className="rounded-lg border border-divider bg-card p-4">
 			<Disclosure
-				collapsedLabel={`Ended launch history (${String(launches.length)})`}
+				collapsedLabel={endedLaunchesLabel(launches)}
 				expandedLabel="Hide ended launch history"
 			>
 				<p className="my-2 text-14 text-muted-foreground">
