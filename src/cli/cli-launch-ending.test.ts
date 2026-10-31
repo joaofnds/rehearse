@@ -81,7 +81,9 @@ describe("rehearse --launch", () => {
 			const result = await launchedCli(records, REFUSED_REPLAY);
 
 			expect(result.exitCode).toBe(REFUSED_PRECONDITION_EXIT_CODE);
-			expect(result.stderr).toStartWith(`${REFUSAL}\n`);
+			expect(result.stderr).toStartWith(
+				`${REFUSAL}\nThe launch's ending was not recorded: `,
+			);
 		});
 	});
 });

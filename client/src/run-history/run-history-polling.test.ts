@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import LaunchRowBuilder from "./run-history-page-launch-row-builder";
 import {
 	polledRunHistoryQuery,
 	polledRunListingQuery,
@@ -33,6 +34,11 @@ describe(somethingRuns.name, () => {
 	it("counts a launch whose process is still running", () => {
 		const listing = response([launch("RUNNING")]);
 		expect(somethingRuns(listing)).toBe(true);
+	});
+
+	it("does not count a launch that ended by an error", () => {
+		const listing = response([new LaunchRowBuilder().buildEnded("refused")]);
+		expect(somethingRuns(listing)).toBe(false);
 	});
 
 	it("does not count a launch the operator stopped", () => {
