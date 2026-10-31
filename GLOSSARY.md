@@ -224,6 +224,13 @@ See [current state](docs/status.md) for implementation coverage and
 - **Benchmark case** — one frozen task with its source or checkpoint and all
   non-corpus inputs. It is the sampling unit a multi-case comparison pairs its
   arms on; a single-case stage or session comparison samples reps instead.
+- **Browser launch**: a CLI command the server starts detached for the browser,
+  recorded under `launches/` with its log, listed in run history while it runs,
+  and under Ended launch history once it was stopped or ended by an error.
+- **Ended launch**: a browser launch whose command ended by an error and
+  recorded that error's message, with no earlier stop request. Run history
+  shows the message as how it ended, and does not call it a failure, since a
+  pause or a stop below the minimum grade ends the same way.
 - **Sampling unit** — the observation a comparison's uncertainty is estimated
   over. A multi-case comparison pairs its arms case by case and reads variation
   between case means. A single-case stage or session comparison samples the

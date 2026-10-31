@@ -82,9 +82,9 @@ browser. Its control group replays the stage on the Baseline corpus without the
 stage's own skill, under an unchanged prompt that still names that skill; it
 refuses a skill the stage never read, since all three arms would read the same
 files. One real-provider comparison of attempts has run, 3d115adf, on
-2026-09-29. A comparison launch that fails after its
-process starts leaves no run history row, and its log is not served; the
-failure is only in `launches/<id>.log`. Since ACT-271.5 the route also serves
+2026-09-29. A comparison launch whose command fails after its process starts
+is listed under Ended launch history with the error it ended by; its log is
+not served. Since ACT-271.5 the route also serves
 a per-case summary of how Candidate compares with Baseline and each with Control
 over every combination of their attempts, Candidate’s reply-length change and
 what adding attempts would cost. `compare extend` adds attempts to every arm of
@@ -400,7 +400,7 @@ when they ran come first, newest first, a session attempt or confirmation run
 by the start time it recorded, which its row shows. Session attempts and
 confirmation runs written before they recorded one follow, marked time not
 recorded, as does a run whose directory name names no time. The count of
-readable entries includes saved records and browser launches, with a separate count for each. Active launches appear in a compact queue above saved records; ended launches remain in the collapsed Ended launch history below them. All filters include matching launches in their counts, and Running includes active ones. A stopped single pipeline case has its launch history and its saved run. A running pipeline run's row offers Pause after this step, and a row a
+readable entries includes saved records and browser launches, with a separate count for each. Active launches appear in a compact queue above saved records; ended launches remain in the collapsed Ended launch history below them, whose label also counts the launches that ended by an error. All filters include matching launches in their counts, and Running includes active ones. A stopped single pipeline case has its launch history and its saved run. A running pipeline run's row offers Pause after this step, and a row a
 browser launch started offers Stop & restore repo, except a root-cause analysis,
 which cannot be stopped; see
 [browser launches](reference.md#browser-launches). A paused run reads
@@ -410,7 +410,9 @@ stopped confirmation group writes no group record, so its reps never read as
 failed, a stopped single session attempt writes no attempt record, so it never
 reads as failed, and a replay, group or session attempt stopped from the browser stays
 listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
-row. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
+row. A browser launch whose command ends by an error, a refusal, a pause or a
+stop below the minimum grade among them, stays listed as an ended launch with
+that error's message, in the stopped state and never as a failure. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
 with a stopped stage; Failed requires a saved quality failure rather than missing
 judgment or an execution error. Current corpus requires measured unchanged reads
 at the current version. Search includes the case, canonical/short ID, corpus version
@@ -556,9 +558,12 @@ the linked corpus, so a pipeline case is refused while a directory is linked.
 Settings changes are serialized inside the server, but a `rehearse settings`
 command run at the same moment as a browser change can still overwrite the
 other's field. A launch whose command refuses after the 202, for a
-dirty target or a failed probe, leaves its launch record and log under
-`launches/` once its process exits, with no row in run history and no reason
-on any screen. A launch
+dirty target or a failed probe, is listed under Ended launch history with the
+refusal's message once its process exits. A command killed by a signal it does
+not handle, or one that fails before the CLI's entry runs, records no ending, so
+its launch leaves run history with its reason only in `launches/<id>.log`, as
+does a refusal whose cleanup then fails, which records the cleanup's error
+instead. A launch
 row is kept while a process holds its recorded pid, and a reused pid is not
 told apart there, though Stop tells it apart by the process start time.
 

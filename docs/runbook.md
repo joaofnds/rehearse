@@ -422,7 +422,9 @@ later command reads. The run keeps going if you stop the server, and its
 output goes to `launches/<id>.log` in the records directory. While it runs,
 its row in run history offers Stop & restore repo, which ends it and cleans up
 as Ctrl-C would, also after a server restart. A stopped launch stays
-listed as stopped, and a stopped confirmation group writes no group record or
+listed as stopped, one whose command ended by an error, a refusal before
+anything ran included, stays under Ended launch history with that error's
+message, and a stopped confirmation group writes no group record or
 report. A pipeline run's
 row offers Pause after this step, which ends the run once the stage in progress
 is judged, unless that stage is the last. See

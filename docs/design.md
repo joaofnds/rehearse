@@ -253,7 +253,10 @@ environment minus the `BENCHMARK_` knobs a case declares, and records the child'
 stays the only code that executes a case, so a browser launch writes the same
 records a terminal launch does, and the child keeps running when the server
 stops. A stop signals the recorded pid, once its start time still matches, and
-leaves the stop to the CLI's own signal handling. A pause writes a request file
+leaves the stop to the CLI's own signal handling. The CLI is started as
+`rehearse --launch <id> <command>`, and a command that ends by an error writes
+that error beside the launch record, so run history shows why a launch ended
+without the server watching the process. A pause writes a request file
 the run reads between stages, so neither control needs the server to hold the
 process. An analysis launch is refused while a launch record holds an
 analysis of the same run whose process is alive, the same test run history

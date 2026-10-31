@@ -265,8 +265,9 @@ directory does not see a request this one is still starting, so neither is
 refused. Any launch whose process starts but whose record cannot be written has
 its process stopped and answers 500.
 The knob refusal, the spend ceiling and the model probe
-run later in the started process, so they end the launch with the reason only
-in its log. `GET /api/cases` lists
+run later in the started process, so they end the launch with the reason in its
+log, and run history lists the launch as `ENDED` with that reason once the
+process exits. `GET /api/cases` lists
 every active declared case with its kind, title and model. Archived declarations
 are omitted from browser case and launch choices. A pipeline case also
 carries its `target`, its `pipeline` (each stage with its rubric, read from its
@@ -415,6 +416,21 @@ process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits. A root-cause analysis launch is
 listed while its process is alive, under its run, and is never stopped. A launch the operator stopped
 stays listed after its process exits, as described below.
+
+The server starts every launch's command as `rehearse --launch <id> <command>`.
+The CLI's entry takes the option off before the command runs, and when the
+command ends by an error it writes `launches/<id>.ending` with the error's
+message (its first 4 KiB), the exit code and the time, after reporting the
+error on stderr as usual. Once the process has exited, `/api/runs` lists a
+launch with an ending under `status: "ENDED"` and an `ending` of
+`{ exitCode, message }`, the message with absolute paths redacted, unless the
+operator's stop was requested no later than the ending's time, which keeps it
+`OPERATOR_STOPPED`. A launch whose process is alive reads `RUNNING` whatever
+its ending says. A pause, a stop below the minimum grade and a ceiling stop
+also end the command by an error, so `ENDED` is not a failure. An ending that
+does not read is listed in `unreadable` as a launch. A command killed by a
+signal it does not handle, or one that fails before the entry runs, writes no
+ending.
 
 A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
@@ -1789,7 +1805,8 @@ directory and are shared by browsers and server instances using it.
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
-child's output in `launches/<id>.log`. A root-cause analysis lives at
+child's output in `launches/<id>.log` and, when the child's command ended by
+an error, that error in `launches/<id>.ending`. A root-cause analysis lives at
 `analyses/<run>/<started-at>.json`, named by its start time with `:` written
 as `-` and created once, so a second analysis of the
 same run sits beside the first. Operator grades live at
