@@ -23,6 +23,8 @@ interface PreparedSessionDebugAttempt extends AttemptCorpusMeasurement {
 /**
  * The attempt is claimed once its corpus resolves, so a corpus that does not
  * resolve leaves no attempt directory, and before its snapshot is written.
+ * An operator stop records itself in every claimed attempt, however late it
+ * would settle.
  */
 async function claimedCorpus(
 	request: SessionRunRequest,
@@ -34,6 +36,7 @@ async function claimedCorpus(
 	);
 
 	await claimInFlight(attemptPaths.directory);
+	await request.inFlight.claimRecord(attemptPaths.operatorStopFile);
 
 	return await requireCorpus(
 		{

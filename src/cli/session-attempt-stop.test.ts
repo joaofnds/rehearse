@@ -45,29 +45,14 @@ function beforeItsSession(stop: () => void): Partial<SessionRunRequest> {
 	};
 }
 
-/** What each attempt the operator stopped at the given point left on disk. */
-async function stoppedAttemptFiles(
-	stopAt: StopPoint,
+async function attemptFilesIn(
+	runsDirectory: string,
 ): Promise<readonly StoppedAttemptFiles[]> {
-	const request = await corpora.requestFor(
-		await corpora.corpusDirectory("brief\n"),
-	);
-	const inFlight = new SessionAttemptsInFlight();
-
-	await failureOf(
-		runSessionDebugAttempt({
-			...request,
-			inFlight,
-			...stopAt(() => {
-				void inFlight.close("SIGTERM");
-			}),
-		}),
-	);
-	const attempts = await sessionAttemptIds(request.runsDirectory);
+	const attempts = await sessionAttemptIds(runsDirectory);
 
 	return await Promise.all(
 		attempts.map(async (attempt) => {
-			const paths = sessionAttemptPaths(request.runsDirectory, attempt);
+			const paths = sessionAttemptPaths(runsDirectory, attempt);
 
 			return {
 				attemptRecorded: await Bun.file(paths.recordFile).exists(),
@@ -77,6 +62,52 @@ async function stoppedAttemptFiles(
 			};
 		}),
 	);
+}
+
+/** What each attempt the operator stopped at the given point left on disk. */
+async function stoppedAttemptFiles(
+	stopAt: StopPoint,
+): Promise<readonly StoppedAttemptFiles[]> {
+	const request = await corpora.requestFor(
+		await corpora.corpusDirectory("brief\n"),
+	);
+	const inFlight = new SessionAttemptsInFlight();
+	let stopping: Promise<void> = Promise.resolve();
+
+	await failureOf(
+		runSessionDebugAttempt({
+			...request,
+			inFlight,
+			...stopAt(() => {
+				stopping = inFlight.close("SIGTERM");
+			}),
+		}),
+	);
+	await stopping;
+
+	return await attemptFilesIn(request.runsDirectory);
+}
+
+/** What each attempt left on disk once the stop closed while it was hung in its session. */
+async function hungAttemptFiles(): Promise<readonly StoppedAttemptFiles[]> {
+	const request = await corpora.requestFor(
+		await corpora.corpusDirectory("brief\n"),
+	);
+	const inFlight = new SessionAttemptsInFlight();
+	const sessionStarted = Promise.withResolvers<string>();
+	void runSessionDebugAttempt({
+		...request,
+		inFlight,
+		runClaude: async (_command, cwd) => {
+			sessionStarted.resolve(cwd);
+			return await Promise.withResolvers<never>().promise;
+		},
+	});
+	await sessionStarted.promise;
+
+	await inFlight.close("SIGTERM");
+
+	return await attemptFilesIn(request.runsDirectory);
 }
 
 describe(runSessionDebugAttempt.name, () => {
@@ -96,6 +127,21 @@ describe(runSessionDebugAttempt.name, () => {
 	describe("when the operator stops it before its session starts", () => {
 		it("records the operator stop and no attempt record", async () => {
 			const attempts = await stoppedAttemptFiles(beforeItsSession);
+
+			expect(attempts).toEqual([
+				{
+					attemptRecorded: false,
+					stopRecord: operatorStopRecord("SIGTERM"),
+				},
+			]);
+		});
+	});
+});
+
+describe(runSessionDebugAttempt.name, () => {
+	describe("when its session outlives the stop's wait", () => {
+		it("records the operator stop while it still runs", async () => {
+			const attempts = await hungAttemptFiles();
 
 			expect(attempts).toEqual([
 				{

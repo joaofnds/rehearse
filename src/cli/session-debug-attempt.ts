@@ -8,7 +8,7 @@ import { buildSessionAttemptRecord } from "#benchmark/session-record";
 import type { PreparedSessionDebugAttempt } from "./session-attempt-preparation";
 import prepareSessionDebugAttempt from "./session-attempt-preparation";
 import writeAttemptRecord, {
-	writeStopWhenStopped,
+	refuseWhenStopped,
 } from "./session-attempt-record-file";
 import attempted from "./session-attempt-refusal";
 import type {
@@ -87,7 +87,7 @@ class SessionAttemptRecorder {
 			});
 		} catch (error) {
 			if (!(error instanceof SessionInvocationError)) {
-				await writeStopWhenStopped({
+				refuseWhenStopped({
 					inFlight: request.inFlight,
 					paths: this.evidence.attemptPaths,
 				});
