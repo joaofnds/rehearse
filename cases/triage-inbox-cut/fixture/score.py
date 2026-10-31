@@ -21,7 +21,8 @@ PLAN_SECTIONS = ["North Star", "Current focus", "Milestone sequence"]
 CARD_ORDER = ["TASK-2", "TASK-1", "TASK-4"]
 HISTORY = ["Admitted on", "Progress 2026-09-25", "spent most of its time", "reading the board twice"]
 APPROVALS = ["go ahead with the total line", "yes to both"]
-MOVED_FACT = "summed\\s+the\\s+TOTAL\\s+over\\s+the\\s+whole\\s+ledger"
+# A tidy that moves the fact may drop an article, so each "the" is optional.
+MOVED_FACT = "summed\\s+(?:the\\s+)?TOTAL\\s+over\\s+(?:the\\s+)?whole\\s+ledger"
 ORIGINAL_DOC0 = """---
 id: doc-0
 title: 00 Priority
