@@ -221,11 +221,6 @@ async function runStoppedAtBuild(
 	return corpusVersion;
 }
 
-/**
- * Records one analysis of the fixture run, started at the ISO `startedAt`. An
- * answer the harness refuses records a failed analysis.
- */
-
 /** Installs nothing, so a test's process signals stay at their default. */
 function noSignalHandling(): () => void {
 	return () => {
