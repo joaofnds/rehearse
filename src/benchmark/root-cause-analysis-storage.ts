@@ -98,8 +98,9 @@ async function linkedIntoPlace(
 	record: FailedAnalysis,
 ): Promise<boolean> {
 	await mkdir(dirname(file), { recursive: true });
-	const temporary = await writeTemporary(file, record);
+	const temporary = temporaryFile(file);
 	try {
+		await writeRecord(temporary, record);
 		await link(temporary, file);
 
 		return true;
@@ -119,8 +120,9 @@ async function replaceAnalysis(
 	file: string,
 	record: RootCauseAnalysisRecord,
 ): Promise<void> {
-	const temporary = await writeTemporary(file, record);
+	const temporary = temporaryFile(file);
 	try {
+		await writeRecord(temporary, record);
 		await rename(temporary, file);
 	} finally {
 		await rm(temporary, { force: true });
@@ -144,18 +146,19 @@ function analysisFile(
 	);
 }
 
-async function writeTemporary(
+function temporaryFile(file: string): string {
+	return `${file}.${randomUUID()}.tmp`;
+}
+
+async function writeRecord(
 	file: string,
 	record: RootCauseAnalysisRecord,
-): Promise<string> {
-	const temporary = `${file}.${randomUUID()}.tmp`;
+): Promise<void> {
 	const json = orderedJson({
 		json: JSON.stringify(record),
 		order: analysisRecordFieldOrder,
 	});
-	await writeFile(temporary, `${json}\n`);
-
-	return temporary;
+	await writeFile(file, `${json}\n`);
 }
 
 async function readAnalysisFile(
