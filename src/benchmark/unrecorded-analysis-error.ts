@@ -2,9 +2,9 @@ import type { RootCauseAnalysisRecord } from "./root-cause-analysis-protocol";
 
 /**
  * An analysis whose outcome could not replace its provisional record. The
- * message carries the record as JSON, which escapes the model's control
- * characters, so the terminal or a browser launch's log keeps what the call
- * found and spent.
+ * message carries the record as JSON, so the terminal or a browser launch's
+ * log keeps what the call found and spent. JSON escapes the C0 control
+ * characters but not DEL, C1 or bidi controls the model may choose.
  */
 class UnrecordedAnalysisError extends Error {
 	public override name = "UnrecordedAnalysisError";

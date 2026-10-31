@@ -41,7 +41,8 @@ interface AnalysisCallRequest {
  * call to the outcome or the stop that replaces it, so no way the call ends
  * leaves it unrecorded. Settling is one synchronous step, so the outcome and
  * a stop never both replace the record: a stop that began first keeps its
- * record, and one that comes later leaves the outcome alone.
+ * record, and one that comes later leaves the outcome alone and holds the
+ * exit until the outcome is written.
  */
 class AnalysisCall {
 	private stopRecord: FailedAnalysis | undefined = undefined;
@@ -81,7 +82,6 @@ class AnalysisCall {
 	public async settle(reading: SessionReading): Promise<AnalysisResult> {
 		const { file } = this.claimed;
 		this.isSettled = true;
-		this.settled.resolve();
 		try {
 			if (this.stopRecord !== undefined) {
 				return { file, record: this.stopRecord, stopped: true };
@@ -92,6 +92,7 @@ class AnalysisCall {
 
 			return { file, record, stopped: false };
 		} finally {
+			this.settled.resolve();
 			this.release();
 		}
 	}

@@ -10,13 +10,14 @@ import type {
 
 /**
  * The analysis record files, with a failure the test can set for the claim or
- * for each record that replaces the claimed one, or a step to run once one
- * has, such as a stop.
+ * for each record that replaces the claimed one, or a step to run as one
+ * begins or once one has, such as a stop.
  */
 class RecordWriterProbe implements AnalysisRecordWriter {
 	private claimFailure: string | undefined = undefined;
 	private replaceFailure: string | undefined = undefined;
 	private afterReplace: (() => Promise<void>) | undefined = undefined;
+	private beforeReplace: (() => void) | undefined = undefined;
 
 	public constructor(
 		private readonly files: AnalysisRecordWriter = analysisRecordFiles,
@@ -41,11 +42,18 @@ class RecordWriterProbe implements AnalysisRecordWriter {
 			throw new Error(this.replaceFailure);
 		}
 
+		const before = this.beforeReplace;
+		this.beforeReplace = undefined;
+		before?.();
 		await this.files.replace(file, record);
 		const step = this.afterReplace;
 		this.afterReplace = undefined;
 		await step?.();
 	};
+
+	public runOnceBeforeReplace(step: () => void): void {
+		this.beforeReplace = step;
+	}
 
 	public runOnceAfterReplace(step: () => Promise<void>): void {
 		this.afterReplace = step;
