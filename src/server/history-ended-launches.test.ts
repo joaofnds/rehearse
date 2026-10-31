@@ -6,6 +6,7 @@ import { writeLaunchRecord } from "#benchmark/launch-record";
 import { launchPaths } from "#benchmark/run-layout";
 import { directorySource } from "#benchmark/run-records-test-support";
 import {
+	LAUNCHED_AT,
 	LAUNCH_ID,
 	LIVE_PID,
 	launchLiveness,
@@ -27,7 +28,7 @@ const REFUSAL = "backlog contains a link, so it is not workflow state";
 const ENDED_AT = "2026-09-29T10:00:02.000Z";
 
 const STOP_TIMES = [
-	["its ending", ENDED_AT],
+	["at its ending", ENDED_AT],
 	["before its ending", "2026-09-29T10:00:01.000Z"],
 	["after its ending", "2026-09-29T10:00:03.000Z"],
 ] as const;
@@ -60,7 +61,7 @@ describe("history ended launches", () => {
 
 	describe("when the operator also stopped it", () => {
 		it.each(STOP_TIMES)(
-			"lists a launch stopped at %s as OPERATOR_STOPPED",
+			"lists a launch stopped %s as OPERATOR_STOPPED",
 			verifyListsAStoppedLaunchAsStoppedWhenItsStopCame,
 		);
 
@@ -78,7 +79,7 @@ async function caseLaunchThatEnded(launch: LaunchProcess): Promise<string> {
 		caseId: "audit-log",
 		id: LAUNCH_ID,
 		kind: "case",
-		launchedAt: "2026-09-29T10:00:00.000Z",
+		launchedAt: LAUNCHED_AT,
 		...launch,
 	});
 	await writeLaunchEnding(fixture.runsDirectory, LAUNCH_ID, {
@@ -178,7 +179,7 @@ async function verifyListsACaseLaunchThatEndedByAnError(): Promise<void> {
 			ending: { exitCode: 1, message: REFUSAL },
 			id: LAUNCH_ID,
 			kind: "launch",
-			launchedAt: "2026-09-29T10:00:00.000Z",
+			launchedAt: LAUNCHED_AT,
 			run: undefined,
 			stage: undefined,
 			status: "ENDED",
@@ -192,7 +193,7 @@ async function verifyListsAnAnalysisLaunchThatEndedByAnError(): Promise<void> {
 	await writeLaunchRecord(fixture.runsDirectory, {
 		id: LAUNCH_ID,
 		kind: "analysis",
-		launchedAt: "2026-09-29T10:00:00.000Z",
+		launchedAt: LAUNCHED_AT,
 		pid: DEAD_PID,
 		run: fixture.replayableRun,
 		usd: 0.5,
