@@ -13,6 +13,7 @@ import {
 	resumedSmokeCase,
 	sessionMetrics,
 } from "./run-command-test-fixture";
+import CitationStop from "./session-citation-stop-test-fixture";
 import {
 	SessionRequestBuilder,
 	recordSuccessfulSessionAttempt,
@@ -93,6 +94,61 @@ async function writesNoRepRecordOnceTheOperatorStopIsRecorded(): Promise<void> {
 	expect(await writtenRepRecords(runsDirectory)).toEqual([]);
 }
 
+/**
+ * The sessions a two-rep confirmation group starts when the operator stops it
+ * while both reps await the live citation map, before either starts its
+ * session.
+ */
+async function sessionsOfAGroupStoppedBeforeItsReps(
+	runsDirectory: string,
+): Promise<readonly string[]> {
+	const commands = new CommandRefusalProbe();
+	const citations = new CitationStop();
+
+	const dependencies = sessionCommandDependencies({
+		executeSession: async (execution, boundary) =>
+			await executeSessionRun(execution, {
+				...boundary,
+				preparedSession: citations.boundary,
+				refuseCommands: commands.refuse,
+				runsDirectory,
+				stopOnSignal: (cleanUp, recordStop) => {
+					citations.stops.push(async () => {
+						await recordStop("SIGTERM");
+						await cleanUp();
+					});
+
+					return () => {
+						citations.stops.length = 0;
+					};
+				},
+			}),
+		output: recordOutput().output,
+	});
+	await failureOf(
+		runRunCommand(
+			new SessionRequestBuilder({}, [
+				"--confirm",
+				"--reps",
+				"2",
+				"--yes",
+			]).build(),
+			dependencies,
+		),
+	);
+	commands.lift();
+
+	return citations.sessions;
+}
+
+async function startsNoRepSessionOnceTheOperatorStopsTheGroup(): Promise<void> {
+	const runsDirectory = await testResources.createControlDirectory();
+
+	const sessions = await sessionsOfAGroupStoppedBeforeItsReps(runsDirectory);
+
+	expect(sessions).toEqual([]);
+}
+
 async function refusesAnUnsupportedResumedConfirmationBeforeItsModelProbe(): Promise<void> {
 	const { output } = recordOutput();
 	const paidCalls: string[] = [];
@@ -146,6 +202,10 @@ describe("runRunCommand for a session case", () => {
 	it(
 		"writes no rep record once the operator stop is recorded",
 		writesNoRepRecordOnceTheOperatorStopIsRecorded,
+	);
+	it(
+		"starts no rep's session once the operator stops the group",
+		startsNoRepSessionOnceTheOperatorStopsTheGroup,
 	);
 	it(
 		"refuses an unsupported resumed confirmation before its model probe and reps",

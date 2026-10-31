@@ -8,6 +8,7 @@ import type { PipelinePreflightInputs } from "#benchmark/preflight";
 import type { SessionConfirmationDependencies } from "#benchmark/session-confirmation";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import type { CommandOutput } from "#cli/output";
+import type { PreparedSessionBoundary } from "#cli/prepared-session-command";
 import type runSessionDebugAttempt from "#cli/session-debug-attempt";
 
 interface RunCommandRequest {
@@ -60,6 +61,7 @@ interface SessionRunExecutionDependencies extends SessionExecutionBoundary {
 	readonly assertSystemPromptSnapshotSupported?: typeof assertSystemPromptSnapshotSupported;
 	readonly runDebug?: typeof runSessionDebugAttempt;
 	readonly executeAttempt?: SessionConfirmationDependencies["executeAttempt"];
+	readonly preparedSession?: PreparedSessionBoundary;
 	readonly resolveCorpus?: SessionConfirmationDependencies["resolveCorpus"];
 	readonly runsDirectory?: string;
 	readonly refuseCommands?: () => () => void;

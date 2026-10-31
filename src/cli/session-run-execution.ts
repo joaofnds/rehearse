@@ -36,7 +36,8 @@ async function executeSessionRun(
 	const attempts = new SessionCommandAttempts({
 		dependencies,
 		executeAttempt:
-			dependencies.executeAttempt ?? preparedSessionAttempts(lifetime.inFlight),
+			dependencies.executeAttempt ??
+			preparedSessionAttempts(lifetime.inFlight, dependencies.preparedSession),
 		execution,
 		groupId: lifetime.groupId,
 		inFlight: lifetime.inFlight,

@@ -59,3 +59,4 @@ function preparedSessionAttempts(
 }
 
 export { preparedSessionAttempts as default };
+export type { PreparedSessionBoundary };
