@@ -85,6 +85,7 @@ class AnalysisCall {
 
 	public async settle(reading: SessionReading): Promise<AnalysisResult> {
 		const { file } = this.claimed;
+
 		this.isSettled = true;
 		try {
 			if (this.stopRecord !== undefined) {

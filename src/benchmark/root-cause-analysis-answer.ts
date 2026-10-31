@@ -119,6 +119,11 @@ interface AnalysisStop {
  * A stopped call's record. The kill ends the call before it prints what it
  * spent, so the cap is the most the record can say about its cost.
  */
+/** A clock stepped back during the call reads as no time, not negative time. */
+function elapsedMs(started: Readonly<Date>, finished: Readonly<Date>): number {
+	return Math.max(finished.getTime() - started.getTime(), MINIMUM_ELAPSED_MS);
+}
+
 function stoppedAnalysis({
 	provisional,
 	signal,
@@ -126,10 +131,7 @@ function stoppedAnalysis({
 }: AnalysisStop): FailedAnalysis {
 	return {
 		...provisional,
-		durationMs: Math.max(
-			stopped.getTime() - Date.parse(provisional.startedAt),
-			MINIMUM_ELAPSED_MS,
-		),
+		durationMs: elapsedMs(new Date(provisional.startedAt), stopped),
 		reason: `stopped by ${signal} before its outcome was recorded; what the call spent is unknown, and it is capped at $${provisional.capUsd}`,
 	};
 }
@@ -166,11 +168,7 @@ function analysisRecordBase({
 			.update(bundleText)
 			.digest("hex"),
 		capUsd: budgetUsd,
-		// A clock stepped back during the call reads as no time, not negative time.
-		durationMs: Math.max(
-			finished.getTime() - started.getTime(),
-			MINIMUM_ELAPSED_MS,
-		),
+		durationMs: elapsedMs(started, finished),
 		model: request.model,
 		run: request.run,
 		schemaVersion: 2,
