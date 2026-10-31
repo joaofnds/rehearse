@@ -70,7 +70,9 @@ function launchOutcome(launch: LaunchRow): React.JSX.Element {
 			return (
 				<>
 					<Status state={runStatusState(launch.status)} label="ended" />
-					<span className="text-12 text-dim">{launch.ending.message}</span>
+					<span className="text-12 text-dim whitespace-pre-line wrap-anywhere">
+						{launch.ending.message}
+					</span>
 				</>
 			);
 		}
