@@ -62,6 +62,7 @@ interface SessionRunExecutionDependencies extends SessionExecutionBoundary {
 	readonly executeAttempt?: SessionConfirmationDependencies["executeAttempt"];
 	readonly resolveCorpus?: SessionConfirmationDependencies["resolveCorpus"];
 	readonly runsDirectory?: string;
+	readonly refuseCommands?: () => () => void;
 	readonly stopOnSignal?: (
 		cleanUp: () => Promise<void>,
 		recordStop: (signal: NodeJS.Signals) => Promise<void>,

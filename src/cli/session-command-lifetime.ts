@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { refuseCommands } from "#benchmark/command";
 import type { SessionRunConfig } from "#benchmark/config";
 import { operatorStopRecord } from "#benchmark/operator-stop";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
@@ -20,7 +21,10 @@ interface SessionCommandLifetimeRequest {
 	readonly config: Pick<SessionRunConfig, "confirmation">;
 	readonly output: CommandOutput;
 	readonly runsDirectory: string;
-	readonly boundary: Pick<SessionRunExecutionDependencies, "stopOnSignal">;
+	readonly boundary: Pick<
+		SessionRunExecutionDependencies,
+		"refuseCommands" | "stopOnSignal"
+	>;
 }
 class SessionCommandLifetime {
 	public readonly questioner: TerminalQuestioner;
@@ -35,8 +39,9 @@ class SessionCommandLifetime {
 	}: SessionCommandLifetimeRequest) {
 		this.questioner = terminalQuestioner(signalDiagnostics(output).flush);
 		this.groupId = randomUUID();
-		// Only a group has a directory to record the stop in. Provider calls close
-		// before the stop kills the commands, so none starts after the kill.
+		// Only a group has a directory to record the stop in. Attempts and
+		// commands close before the stop kills the commands, so none starts after
+		// the kill.
 		this.release = (
 			boundary.stopOnSignal ??
 			((cleanUp, recordStop) =>
@@ -51,6 +56,7 @@ class SessionCommandLifetime {
 			},
 			async (signal) => {
 				this.inFlight.close();
+				(boundary.refuseCommands ?? refuseCommands)();
 				if (config.confirmation !== undefined) {
 					await Bun.write(
 						confirmationGroupPaths(runsDirectory, this.groupId)

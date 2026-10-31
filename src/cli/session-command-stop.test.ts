@@ -17,6 +17,12 @@ describe(SessionCommandLifetime.name, () => {
 			expect(preparingProviderRuns).toBe(NO_PROVIDER_RUNS);
 		});
 
+		it("refuses every command started after the stop", async () => {
+			const { commandAfterStop } = await MidRunStop.afterStop();
+
+			expect(commandAfterStop).toBe("refused");
+		});
+
 		it("keeps each killed attempt's full transcript in its record", async () => {
 			const { recordedTranscripts, writtenTranscripts } =
 				await MidRunStop.afterStop();

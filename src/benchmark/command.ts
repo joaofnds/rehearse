@@ -4,6 +4,7 @@ import withoutLaunchContext from "./claude-launch-environment";
 import CommandOutputLines from "./command-output-lines";
 import type { OutputReader } from "./command-output-lines";
 import CommandSilenceError from "./command-silence-error";
+import CommandsRefusedError from "./commands-refused-error";
 import { COMMAND_TIMEOUT_MS } from "./config";
 import MissingDirectoryError from "./missing-directory-error";
 
@@ -73,6 +74,7 @@ async function readLines(
 }
 
 const activeProcesses = new Set<ReturnType<typeof Bun.spawn>>();
+let refusing = false;
 
 interface KillableProcess {
 	readonly pid: number;
@@ -119,6 +121,10 @@ async function runCommand(
 	cwd: string,
 	options: CommandOptions = {},
 ): Promise<string> {
+	if (refusing) {
+		throw new CommandsRefusedError(command);
+	}
+
 	const child = await spawnIn(command, cwd, options);
 	activeProcesses.add(child);
 	try {
@@ -222,6 +228,18 @@ async function killActiveCommands(): Promise<void> {
 	await Promise.allSettled(children.map(async (child) => await child.exited));
 }
 
-export { CommandError, runCommand, killActiveCommands };
+/**
+ * Refuses every command started from now on, so none can start after a stop
+ * has killed the running ones and outlive the exit. Answers the release.
+ */
+function refuseCommands(): () => void {
+	refusing = true;
+
+	return () => {
+		refusing = false;
+	};
+}
+
+export { CommandError, runCommand, killActiveCommands, refuseCommands };
 
 export type { CommandOptions };

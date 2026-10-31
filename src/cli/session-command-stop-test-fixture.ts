@@ -1,6 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+import CommandRefusalProbe from "#benchmark/command-refusal-test-probe";
+import type { CommandOutcome } from "#benchmark/command-refusal-test-probe";
 import { runSessionAttempt } from "#benchmark/session-attempt";
 import type { SessionAttempt } from "#benchmark/session-attempt";
 import { request } from "#benchmark/session-attempt-case-test-fixtures";
@@ -21,6 +23,7 @@ interface AfterStop {
 	readonly writtenTranscripts: readonly string[];
 	readonly attemptDirectoriesLeft: readonly boolean[];
 	readonly preparingProviderRuns: number;
+	readonly commandAfterStop: CommandOutcome;
 }
 
 interface StopCallbacks {
@@ -57,12 +60,14 @@ class MidRunStop {
 	private preparingAttempt: Promise<SessionAttempt> | undefined = undefined;
 	private readonly lifetime: SessionCommandLifetime;
 	private callbacks: StopCallbacks | undefined = undefined;
+	private readonly commands = new CommandRefusalProbe();
 
 	private constructor(private readonly projects: string) {
 		this.killed = [new KilledClaude(projects), new KilledClaude(projects)];
 		this.preparing = new FakeClaude(projects, "OK");
 		this.lifetime = new SessionCommandLifetime({
 			boundary: {
+				refuseCommands: this.commands.refuse,
 				stopOnSignal: (cleanUp, recordStop) => {
 					this.callbacks = { cleanUp, recordStop };
 
@@ -118,16 +123,24 @@ class MidRunStop {
 		);
 	}
 
+	/** The refusal is process-wide, so it lifts even when the stop fails. */
 	private async stop(): Promise<AfterStop> {
 		const finished = Promise.allSettled(this.attempts);
+		try {
+			return await this.stopAndRead();
+		} finally {
+			this.commands.lift();
+			await finished;
+			this.lifetime.close();
+		}
+	}
+
+	private async stopAndRead(): Promise<AfterStop> {
 		const { recordStop, cleanUp } = this.registeredStop();
 		await recordStop("SIGTERM");
 		await this.killRunningThenLetPreparingContinue();
 		await cleanUp();
 		const after = await this.read();
-
-		await finished;
-		this.lifetime.close();
 
 		return { ...after, preparingProviderRuns: this.preparing.runs.length };
 	}
@@ -160,6 +173,7 @@ class MidRunStop {
 					async (claude) => await exists(claude.attemptDirectory),
 				),
 			),
+			commandAfterStop: await CommandRefusalProbe.outcome(),
 			projectEntries: await readdir(this.projects),
 			recordedTranscripts: await Promise.all(
 				this.records.map(async (record) => await recordedTranscript(record)),

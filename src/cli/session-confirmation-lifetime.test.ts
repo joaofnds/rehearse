@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import CommandRefusalProbe from "#benchmark/command-refusal-test-probe";
 import { GroupStoppedError } from "#benchmark/confirmation-evidence";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { TestResources } from "#benchmark/test-support";
@@ -26,6 +27,7 @@ const testResources = TestResources.forEachTest();
 async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 	const { output } = recordOutput();
 	const stops: (() => Promise<void>)[] = [];
+	const commands = new CommandRefusalProbe();
 
 	const dependencies = sessionCommandDependencies({
 		executeSession: async (execution, boundary) =>
@@ -35,6 +37,7 @@ async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 					await stops[FIRST_STOP_REQUEST_INDEX]?.();
 					return await recordSuccessfulSessionAttempt(plan);
 				},
+				refuseCommands: commands.refuse,
 				runsDirectory,
 				stopOnSignal: (cleanUp, recordStop) => {
 					stops.push(async () => {
@@ -54,7 +57,7 @@ async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 				status: "COMPLETE" as const,
 			}),
 	});
-	return await failureOf(
+	const failure = await failureOf(
 		runRunCommand(
 			new SessionRequestBuilder({}, [
 				"--confirm",
@@ -65,6 +68,9 @@ async function stoppedConfirmationGroup(runsDirectory: string): Promise<Error> {
 			dependencies,
 		),
 	);
+	commands.lift();
+
+	return failure;
 }
 
 async function recordsAStoppedConfirmationGroupSOperatorStopAnd(): Promise<void> {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import CommandRefusalProbe from "#benchmark/command-refusal-test-probe";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { executeSessionRun, runRunCommand } from "#cli/run-command";
 
@@ -78,6 +79,7 @@ const RECORD_WRITE_MS = 10;
 async function makesAnOperatorStopWaitForTheDebugAttemptItRuns(): Promise<void> {
 	const { output } = recordOutput();
 	let stop: (() => Promise<void>) | undefined = undefined;
+	const commands = new CommandRefusalProbe();
 	let recordWritten = false;
 	let writtenWhenTheStopReturned = false;
 
@@ -88,6 +90,7 @@ async function makesAnOperatorStopWaitForTheDebugAttemptItRuns(): Promise<void> 
 				assertSystemPromptSnapshotSupported: async () => {
 					await Promise.resolve();
 				},
+				refuseCommands: commands.refuse,
 				runDebug: async (request) => {
 					const attempt = request.inFlight.track(async () => {
 						await Bun.sleep(RECORD_WRITE_MS);
@@ -117,6 +120,7 @@ async function makesAnOperatorStopWaitForTheDebugAttemptItRuns(): Promise<void> 
 	await failureOf(
 		runRunCommand(new SessionRequestBuilder({}, []).build(), dependencies),
 	);
+	commands.lift();
 
 	expect(writtenWhenTheStopReturned).toBe(true);
 }
