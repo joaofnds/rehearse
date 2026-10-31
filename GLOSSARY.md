@@ -224,13 +224,6 @@ See [current state](docs/status.md) for implementation coverage and
 - **Benchmark case** — one frozen task with its source or checkpoint and all
   non-corpus inputs. It is the sampling unit a multi-case comparison pairs its
   arms on; a single-case stage or session comparison samples reps instead.
-- **Browser launch**: a CLI command the server starts detached for the browser,
-  recorded under `launches/` with its log, listed in run history while it runs,
-  and under Ended launch history once it was stopped or ended by an error.
-- **Ended launch**: a browser launch whose command ended by an error and
-  recorded that error's message, with no earlier stop request. Run history
-  shows the message as how it ended, and does not call it a failure, since a
-  pause or a stop below the minimum grade ends the same way.
 - **Sampling unit** — the observation a comparison's uncertainty is estimated
   over. A multi-case comparison pairs its arms case by case and reads variation
   between case means. A single-case stage or session comparison samples the
@@ -560,6 +553,19 @@ See [current state](docs/status.md) for implementation coverage and
   as `PAUSED:<stage>`. A paused run is not resumed. Continuing it is a replay
   from that checkpoint. Distinct from the review pause, which holds a
   candidate in the run's checkout for a human edit.
+- **Browser launch**: a CLI command the server starts detached for the browser,
+  recorded under `launches/` with its log, listed in run history while its
+  process runs (a pipeline run's own row stands for it while that run shows as
+  running), and under Ended launch history once the operator stopped it or its
+  command ended by an error. Name accepted unattended as unsettled, pending the
+  operator's confirmation (ACT-355, doc-339).
+- **Ended launch**: in run history's Ended filter and Ended launch history, any
+  browser launch whose process has exited and is still listed. Its narrower
+  status `ENDED` marks one whose command recorded the error it ended by, with
+  no stop from the operator, and shows that message as how it ended. It is not
+  called a failure, since a pause or a stop below the minimum grade ends the
+  same way. Name accepted unattended as unsettled, pending the operator's
+  confirmation (ACT-355, doc-339).
 - **Operator stop**: a run, replay, group or session attempt the operator
   ended, by Stop & restore repo in the browser or a signal from a terminal.
   It kills the commands, cleans up, and records the stop so the

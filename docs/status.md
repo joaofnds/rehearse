@@ -411,8 +411,10 @@ failed, a stopped single session attempt writes no attempt record, so it never
 reads as failed, and a replay, group or session attempt stopped from the browser stays
 listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
 row. A browser launch whose command ends by an error, a refusal, a pause or a
-stop below the minimum grade among them, stays listed as an ended launch with
-that error's message, in the stopped state and never as a failure. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
+stop below the minimum grade among them, stays listed as `ENDED` with that
+error's message, shown with the stopped glyph and never as a failure, unless
+the operator stopped it, which keeps it `OPERATOR_STOPPED`. Such a launch
+matches the Ended filter, not Stopped. Status, kind, corpus and text filters compose. Stopped matches pipeline runs
 with a stopped stage; Failed requires a saved quality failure rather than missing
 judgment or an execution error. Current corpus requires measured unchanged reads
 at the current version. Search includes the case, canonical/short ID, corpus version
@@ -560,10 +562,11 @@ command run at the same moment as a browser change can still overwrite the
 other's field. A launch whose command refuses after the 202, for a
 dirty target or a failed probe, is listed under Ended launch history with the
 refusal's message once its process exits. A command killed by a signal it does
-not handle, or one that fails before the CLI's entry runs, records no ending, so
-its launch leaves run history with its reason only in `launches/<id>.log`, as
-does a refusal whose cleanup then fails, which records the cleanup's error
-instead. A launch
+not handle, one that fails before the CLI's entry runs, and one that ends
+through its own signal handling, such as a stop sent from a terminal, record no
+ending, so their launch leaves run history with its reason only in
+`launches/<id>.log`. A refusal whose cleanup then fails is listed with the
+cleanup's error, and the refusal itself is only in the log. A launch
 row is kept while a process holds its recorded pid, and a reused pid is not
 told apart there, though Stop tells it apart by the process start time.
 

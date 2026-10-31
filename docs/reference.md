@@ -414,8 +414,9 @@ is alive, and leaves it out while a pipeline run shows as running and carries
 that launch's id. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits. A root-cause analysis launch is
-listed while its process is alive, under its run, and is never stopped. A launch the operator stopped
-stays listed after its process exits, as described below.
+listed while its process is alive, under its run, and is never stopped. A launch the operator stopped,
+and one whose command ended by an error, stays listed after its process exits,
+as described below.
 
 The server starts every launch's command as `rehearse --launch <id> <command>`.
 The CLI's entry takes the option off before the command runs, and when the
@@ -423,14 +424,19 @@ command ends by an error it writes `launches/<id>.ending` with the error's
 message (its first 4 KiB), the exit code and the time, after reporting the
 error on stderr as usual. Once the process has exited, `/api/runs` lists a
 launch with an ending under `status: "ENDED"` and an `ending` of
-`{ exitCode, message }`, the message with absolute paths redacted, unless the
-operator's stop was requested no later than the ending's time, which keeps it
-`OPERATOR_STOPPED`. A launch whose process is alive reads `RUNNING` whatever
-its ending says. A pause, a stop below the minimum grade and a ceiling stop
-also end the command by an error, so `ENDED` is not a failure. An ending that
-does not read is listed in `unreadable` as a launch. A command killed by a
-signal it does not handle, or one that fails before the entry runs, writes no
-ending.
+`{ exitCode, message }`, the message with absolute paths redacted. A launch
+the operator stopped reads `OPERATOR_STOPPED` whatever its ending says, since
+the stop route records a stop only while the launch's process is running, and
+its ending is not read. A launch whose process is alive reads `RUNNING`
+whatever its ending says. A pause, a stop below the minimum grade and a
+ceiling stop also end the command by an error, so `ENDED` is not a failure. An
+ending that does not read is listed in `unreadable` as a launch. No ending is
+written for a command killed by a signal it does not handle, one that fails
+before the entry runs, or one that ends through its own signal handling, such
+as a `kill -TERM` sent from a terminal rather than through the Stop route; such
+a launch leaves the listing with its reason only in its log. The option is for
+the server: a terminal command given an old launch's id would list that launch
+as `ENDED` with its own error.
 
 A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
