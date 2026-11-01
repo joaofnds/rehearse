@@ -4,6 +4,7 @@ import { failureOf } from "#cli/cli-test-support";
 
 import { runJudge } from "./judge";
 import { JudgeExecutionError } from "./judge-attempt";
+import { FINAL_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import JudgeResponseScript from "./judge-script-test-fixture";
 import {
 	completeGrade,
@@ -80,6 +81,7 @@ async function retainsRejectedAttemptWhenRetryFails(): Promise<void> {
 		],
 		cause: invocationFailure,
 		costUsd: 0.1,
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		providerCalls: [{ metrics: { ...firstCall } }, {}],
 	});
 	expect(script.prompts.length).toBe(expectedCalls);

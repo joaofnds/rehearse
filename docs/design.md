@@ -48,6 +48,13 @@ Each fresh worker session receives that canonical JSON, and the initial and
 accepted-stage checkpoints record its digest. A shared Product Owner session
 answers questions from the task and product brief. Stage Judges see frozen
 evidence and rubrics, and the final Judge evaluates the delivered candidate.
+Their shared system/prompt/evidence definitions, emitted response schemas and
+retry instructions supply separate deterministic contract digests. Writers retain
+those identities with Judge results and attempted-Judge failures. Comparison
+loaders require known matching identities across frozen group inputs and Judge
+evidence; agreement and drift consumers group by recorded identity and report
+unknown historical exclusions. Readers preserve historical evidence without
+assigning it the current contract.
 
 The target owns its project instructions. The harness no longer installs this
 repository's `CLAUDE.md` into the target. The run copies its retained Git ref

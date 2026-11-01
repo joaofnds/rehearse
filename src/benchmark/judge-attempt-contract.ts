@@ -35,11 +35,13 @@ type JudgeAttemptWithoutMetrics = Omit<JudgeAttemptEvidence, "metrics"> &
 class JudgeOutputValidationError extends Error {
 	public override name = "JudgeOutputValidationError";
 	public readonly prompt: string;
+	public readonly judgeContractSha256: string | undefined;
 	public readonly attempts: readonly JudgeAttempt[];
 	public readonly providerCalls: readonly ProviderCall[];
 	public readonly costUsd: number;
 
 	public constructor(props: {
+		readonly judgeContractSha256?: string | undefined;
 		readonly message: string;
 		readonly prompt: string;
 		readonly attempts: readonly JudgeAttempt[];
@@ -47,6 +49,7 @@ class JudgeOutputValidationError extends Error {
 	}) {
 		super(props.message);
 		this.prompt = props.prompt;
+		this.judgeContractSha256 = props.judgeContractSha256;
 		this.attempts = props.attempts;
 		this.providerCalls = judgeProviderCalls(props.attempts);
 		this.costUsd = props.costUsd;
@@ -60,6 +63,8 @@ interface JudgeAttemptResult<Value> {
 }
 
 interface JudgeAttemptExecution<Value> {
+	readonly onInvocation?: ((judgeContractSha256: string) => void) | undefined;
+	readonly judgeContractSha256?: string | undefined;
 	readonly invoke: JudgeInvoker;
 	readonly validate: (envelope: ClaudeEnvelope) => Value;
 }

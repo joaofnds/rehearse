@@ -42,6 +42,7 @@ function asScorecard(stage: Readonly<CalibratableStageRecord>): StageScorecard {
 		costUsd: stage.costUsd,
 		grade: stage.grade,
 		input: stage.input,
+		judgeContractSha256: stage.judgeContractSha256,
 		prompt: stage.prompt,
 		rubric: stage.rubric,
 		rubricPath: stage.rubricPath,
@@ -81,7 +82,11 @@ function agreementInput(
 	}
 
 	return {
-		final: { grade: record.record.grade, rubric: record.record.rubric },
+		final: {
+			grade: record.record.grade,
+			judgeContractSha256: record.record.judgeContractSha256,
+			rubric: record.record.rubric,
+		},
 		humanReview: calibration.humanReview,
 		judgeModel: record.record.judgeModel,
 		stages: record.record.stageScorecards,

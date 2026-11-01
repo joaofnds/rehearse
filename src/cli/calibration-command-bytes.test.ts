@@ -172,8 +172,9 @@ async function preservesOriginalCalibratedRecordAndDownstreamBytes({
 	const persisted = await Bun.file(fixture.recordFile).text();
 	const bundle = await assembleRootCauseBundle(fixture.directory, RUN_NAME);
 
-	// Goldens came from public runCalibrate on all-src d020bf3a. Only
-	// the temporary directory is normalized; arbitrary later fields stay.
+	// Goldens originate at d020bf3a. Their agreement output now excludes unknown
+	// contracts, and real rejudges append identity; all other bytes stay fixed.
+	// Only the temporary directory is normalized.
 	expect(persisted.replaceAll(fixture.directory, "__RUNS__")).toBe(
 		expectedRecord,
 	);

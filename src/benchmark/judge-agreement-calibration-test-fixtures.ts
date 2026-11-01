@@ -10,6 +10,8 @@ import type {
 } from "./judge-agreement";
 import { finalRubricSha256, stageRubricSha256 } from "./judge-agreement";
 
+const SHA256_HEX_CHARACTERS = 64;
+
 const FIRST_CALIBRATION_OBSERVATION_INDEX = 0;
 
 const stageEvidence = [
@@ -108,10 +110,21 @@ const humanReview = {
 	verdict: "REJECT",
 } satisfies HumanReview;
 const FULL_CALIBRATION = {
-	final: { grade: finalGrade, rubric: finalRubric },
+	final: {
+		grade: finalGrade,
+		judgeContractSha256: "f".repeat(SHA256_HEX_CHARACTERS),
+		rubric: finalRubric,
+	},
 	humanReview,
 	judgeModel: "opus",
-	stages: [{ grade, rubric, stage: "build" }],
+	stages: [
+		{
+			grade,
+			judgeContractSha256: "e".repeat(SHA256_HEX_CHARACTERS),
+			rubric,
+			stage: "build",
+		},
+	],
 } satisfies JudgeAgreementCalibration;
 const EXPECTED_DECISIONS = [
 	["build", "caught", "FAIL", "FAIL"],
@@ -125,6 +138,9 @@ const EXPECTED_DECISIONS = [
 const EXPECTED_CALIBRATION_OBSERVATIONS: readonly JudgeAgreementObservation[] =
 	EXPECTED_DECISIONS.map(([stage, rubricId, judgeDecision, humanDecision]) => ({
 		humanDecision,
+		judgeContractSha256: (stage === "build" ? "e" : "f").repeat(
+			SHA256_HEX_CHARACTERS,
+		),
 		judgeDecision,
 		judgeModel: "opus",
 		rubricId,

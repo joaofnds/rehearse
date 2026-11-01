@@ -7,6 +7,8 @@ import {
 	stageEvidence,
 } from "./judge-agreement-calibration-test-fixtures";
 
+const SHA256_HEX_CHARACTERS = 64;
+
 const stageArtifact = {
 	calibration: {
 		humanReview: {
@@ -64,41 +66,9 @@ async function historicalCalibrationFiles(
 	);
 }
 const HISTORICAL_AGREEMENT_REPORT = {
-	baselines: [
-		{
-			criteria: [
-				{
-					judgePassHumanPass: 1,
-					rubricId: "clarity",
-					sampleSize: 1,
-				},
-				{
-					judgePassHumanPass: 1,
-					rubricId: "goal",
-					sampleSize: 1,
-				},
-			],
-			judgeModel: "opus",
-			stage: "discuss",
-		},
-		{
-			criteria: [
-				{
-					judgePassHumanPass: 2,
-					rubricId: "clarity",
-					sampleSize: 2,
-				},
-				{
-					judgePassHumanPass: 2,
-					rubricId: "goal",
-					sampleSize: 2,
-				},
-			],
-			judgeModel: "opus",
-			stage: "shape",
-		},
-	],
+	baselines: [],
 	skippedCalibrations: 1,
+	skippedUnknownJudgeObservations: 6,
 };
 const CURRENT_CALIBRATIONS = [
 	{
@@ -110,6 +80,7 @@ const CURRENT_CALIBRATIONS = [
 				summary: "passed criterion",
 				verdict: "PASS",
 			},
+			judgeContractSha256: "d".repeat(SHA256_HEX_CHARACTERS),
 			rubric: "1. `criterion`: contract\n",
 		},
 		humanReview: {

@@ -86,13 +86,19 @@ const STAGE_EVIDENCE_ORDER: JsonFieldOrder = {
 		"harnessFailure",
 	],
 };
+const FINAL_EVIDENCE_FIELDS = [
+	"baselineContext",
+	"checkIntegrity",
+	"localChecks",
+	"diff",
+] as const;
 const FINAL_EVIDENCE_ORDER: JsonFieldOrder = {
 	children: {
 		baselineContext: CONTEXT_FILE_ORDER,
 		checkIntegrity: CHECK_RESULT_ORDER,
 		localChecks: CHECK_RESULT_ORDER,
 	},
-	fields: ["baselineContext", "checkIntegrity", "localChecks", "diff"],
+	fields: FINAL_EVIDENCE_FIELDS,
 };
 
 const RECORDED_STAGE_EVIDENCE_ORDER: JsonFieldOrder = {
@@ -129,8 +135,12 @@ interface FinalJudgeEvidence {
 }
 
 function finalJudgeEvidence(input: FinalJudgeEvidence): string {
+	const fields = FINAL_EVIDENCE_FIELDS.map(
+		(field) => [field, input[field]] as const,
+	);
+	const evidence = Object.fromEntries(fields);
 	return orderedJson({
-		json: JSON.stringify(input),
+		json: JSON.stringify(evidence),
 		order: FINAL_EVIDENCE_ORDER,
 		space: 0,
 	});
@@ -151,6 +161,8 @@ function stageJudgeEvidence(
 }
 
 export {
+	FINAL_EVIDENCE_ORDER,
+	RECORDED_STAGE_EVIDENCE_ORDER,
 	METRICS_ORDER,
 	STAGE_EVIDENCE_ORDER,
 	finalJudgeEvidence,

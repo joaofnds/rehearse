@@ -44,6 +44,8 @@ type ConfirmationGroupLineage =
 	  };
 
 interface ConfirmationGroupInputs {
+	readonly judgeContractSha256: string;
+	readonly finalJudgeContractSha256?: string | undefined;
 	readonly lineage: ConfirmationGroupLineage;
 	readonly files: readonly Readonly<FrozenFile>[];
 	readonly model: string;

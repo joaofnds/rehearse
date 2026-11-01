@@ -4,6 +4,7 @@ import { failureOf } from "#cli/cli-test-support";
 
 import { ClaudeSessionError } from "./claude";
 import {
+	FINAL_JUDGE_CONTRACT_SHA256,
 	citedFinalJudgeInputs,
 	completeGrade,
 	failedJudgeResponses,
@@ -79,6 +80,7 @@ async function recordsRejectedFinalPayloads(): Promise<void> {
 			{ costUsd: 0.1, outcome: "REJECTED" },
 			{ costUsd: 0.1, outcome: "REJECTED" },
 		],
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		judgeCostUsd: 0.2,
 		stageScorecards: [],
 		status: "FAILED",
@@ -107,6 +109,7 @@ async function recordsRefusedRetrySpend(): Promise<void> {
 	).toMatchObject({
 		ceilingStop: { ceilingUsd: 0.15, spentUsd: 0.2 },
 		judgeAttempts: [{ costUsd: 0.2, outcome: "REJECTED" }],
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		judgeCostUsd: 0.2,
 		status: "FAILED",
 	});
@@ -187,6 +190,7 @@ async function includesJudgmentInRunClock(): Promise<void> {
 
 	expect(artifact).toMatchObject({
 		elapsedMs: 6000,
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		reviewFile: "/runs/review.md",
 		status: "AWAITING_HUMAN_REVIEW",
 	});

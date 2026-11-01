@@ -9,6 +9,7 @@ import type {
 	ComparisonCaseEvidence,
 } from "./comparison-evidence";
 import ComparisonEvidenceError from "./comparison-evidence";
+import { judgeContractDifference } from "./comparison-judge-contract";
 import type { ComparisonArm } from "./comparison-record";
 import type { Immutable } from "./contracts";
 
@@ -35,7 +36,10 @@ function contractDifference(
 		return "declaredStages";
 	}
 
-	return repDifference(comparison);
+	return (
+		repDifference(comparison) ??
+		judgeContractDifference(comparison.referenceArm, comparison.arm)
+	);
 }
 
 function repDifference(

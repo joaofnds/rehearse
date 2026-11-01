@@ -12,6 +12,11 @@ import {
 	stageRubricSchema,
 	stageScorecardSchema,
 } from "./contracts";
+import judgeContractSha256Schema from "./judge-contract-schema";
+
+const recordedScorecardSchema = stageScorecardSchema.extend({
+	judgeContractSha256: judgeContractSha256Schema.optional(),
+});
 
 /**
  * What `calibrate` reads back out of a run's own records: the frozen evidence
@@ -25,6 +30,7 @@ import {
  * that rejudges nothing needs neither.
  */
 const judgeKnobsSchema = z.object({
+	judgeContractSha256: judgeContractSha256Schema.optional(),
 	judgeEffort: effortSchema.optional(),
 	judgeModel: z.string().nonempty(),
 	sessionBudgetUsd: z.number().positive().optional(),
@@ -44,7 +50,7 @@ const calibratableArtifactSchema = judgeKnobsSchema
 		reviewFile: z.string().nonempty(),
 		rubric: z.string().nonempty(),
 		sourceRoot: z.string().nonempty(),
-		stageScorecards: z.array(stageScorecardSchema),
+		stageScorecards: z.array(recordedScorecardSchema),
 		status: z.enum(["AWAITING_HUMAN_REVIEW", "COMPLETE", "FAILED"]),
 	})
 	.loose();

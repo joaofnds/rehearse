@@ -6,6 +6,10 @@ import type {
 	StageScorecard,
 } from "./contracts";
 import type { JudgeResult } from "./judge";
+import {
+	FINAL_JUDGE_CONTRACT_SHA256,
+	STAGE_JUDGE_CONTRACT_SHA256,
+} from "./judge-contract";
 
 const CONFIRMATION_METRIC: ClaudeCallMetrics = {
 	cacheReadTokens: 30,
@@ -52,6 +56,7 @@ function pipelineStageScorecard(
 			verdict: "CONTINUE",
 		},
 		input,
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 		prompt: "prompt",
 		rubric: source.rubric,
 		rubricPath: source.rubricPath,
@@ -91,6 +96,7 @@ function completeFinalJudgment(): JudgeResult {
 		],
 		costUsd: CONFIRMATION_METRIC.costUsd,
 		grade: completeFinalGrade("PASS"),
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		prompt: "final prompt",
 	};
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 
+import { FINAL_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import runPipelineConfirmation from "./pipeline-confirmation";
 import { readAgreementReport } from "./pipeline-confirmation-report-test-reader";
 import {
@@ -22,6 +23,7 @@ async function reportsAgreementOnlyForItsExactJudgeModel(): Promise<void> {
 			},
 		},
 		grade: completeFinalGrade("PASS"),
+		judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 		rubric: "1. `final`: pass the candidate\n",
 		stageScorecards: [],
 		status: "COMPLETE",

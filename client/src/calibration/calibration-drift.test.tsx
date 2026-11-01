@@ -14,9 +14,12 @@ import {
 	reportWith,
 } from "./calibration-test-fixtures";
 
+const CONTRACT_CHOICES = 2;
+
 const groups: CalibrationResponse["groups"] = [
 	{
 		drift: [{ dimension: "clarity", steps: 1 }],
+		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 		judgeModel: "opus",
 		reviews: 2,
 		rubricSha256: "abc123def456".padEnd(SHA256_HEX_CHARACTERS, "0"),
@@ -24,6 +27,7 @@ const groups: CalibrationResponse["groups"] = [
 	},
 	{
 		drift: [{ dimension: "diff-hygiene", steps: -1 }],
+		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 		judgeModel: null,
 		reviews: 1,
 		rubricSha256: null,
@@ -48,6 +52,15 @@ describe(CalibrationPage.name, () => {
 	it(
 		"names the Judge model, step and rubric each drift figure belongs to",
 		namesTheJudgeModelStepAndRubricEachDriftFigureBelongsTo,
+	);
+
+	it(
+		"selects both contracts when the model, stage and rubric are the same",
+		selectsBothContracts,
+	);
+	it(
+		"explains why unknown historical identities do not contribute drift",
+		explainsUnknownIdentities,
 	);
 
 	describe("when grades span more than one Judge model or rubric", () => {
@@ -76,6 +89,7 @@ async function showsEachDimensionSDriftAsASignedValueOverASevenCellBarOrAgrees()
 						{ dimension: "clarity", steps: 2 },
 						{ dimension: "goal-stated", steps: 0.36 },
 					],
+					judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 					judgeModel: "opus",
 					reviews: 3,
 					rubricSha256: "a".repeat(SHA256_HEX_CHARACTERS),
@@ -118,6 +132,7 @@ async function roundsADriftAndItsMirrorToTheSameSizeHalfATenthAwayFromAgreement(
 						{ dimension: "scope-discipline", steps: 0.05 },
 						{ dimension: "diff-hygiene", steps: -0.05 },
 					],
+					judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 					judgeModel: "opus",
 					reviews: 4,
 					rubricSha256: "a".repeat(SHA256_HEX_CHARACTERS),
@@ -151,6 +166,7 @@ async function namesTheJudgeModelStepAndRubricEachDriftFigureBelongsTo(): Promis
 			groups: [
 				{
 					drift: [{ dimension: "clarity", steps: 1 }],
+					judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 					judgeModel: "opus",
 					reviews: 1,
 					rubricSha256: "abc123def456".padEnd(SHA256_HEX_CHARACTERS, "0"),
@@ -167,7 +183,7 @@ async function namesTheJudgeModelStepAndRubricEachDriftFigureBelongsTo(): Promis
 	});
 
 	expect(aside).toHaveTextContent(
-		"opus · shape · rubric abc123def456 · 1 review",
+		"opus · shape · rubric abc123def456 · contract aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa · 1 review",
 	);
 	expect(within(aside).queryByRole("combobox")).not.toBeInTheDocument();
 }
@@ -186,7 +202,9 @@ async function showsTheGroupWithTheMostOperatorGradesFirstNeverAMeanAcrossGroups
 	).toEqual(["clarityjudge +1.0 steps▮▮▮▮▮▯▯"]);
 	expect(
 		within(aside).getByRole("combobox", { name: "Judge group" }),
-	).toHaveDisplayValue("opus · shape · rubric abc123def456 · 2 reviews");
+	).toHaveDisplayValue(
+		"opus · shape · rubric abc123def456 · contract aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa · 2 reviews",
+	);
 }
 
 async function switchesToAnotherGroupSDrift(): Promise<void> {
@@ -196,7 +214,7 @@ async function switchesToAnotherGroupSDrift(): Promise<void> {
 	});
 
 	const other = within(aside).getByRole<HTMLOptionElement>("option", {
-		name: "Judge model not recorded · build · rubric not recorded · 1 review",
+		name: "Judge model not recorded · build · rubric not recorded · contract aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa · 1 review",
 	});
 	fireEvent.change(
 		within(aside).getByRole("combobox", { name: "Judge group" }),
@@ -208,4 +226,53 @@ async function switchesToAnotherGroupSDrift(): Promise<void> {
 			.getAllByRole("listitem")
 			.map((item) => item.textContent),
 	).toEqual(["diff-hygienejudge −1.0 steps▮▮▮▮▮▯▯"]);
+}
+
+async function selectsBothContracts(): Promise<void> {
+	const [first] = groups;
+	if (first === undefined) {
+		throw new Error("missing drift group");
+	}
+	const secondContract = "b".repeat(SHA256_HEX_CHARACTERS);
+	renderCalibration(
+		reportWith({
+			groups: [
+				first,
+				{
+					...first,
+					drift: [{ dimension: "clarity", steps: -1 }],
+					judgeContractSha256: secondContract,
+				},
+			],
+			reviews: 4,
+		}),
+	);
+	const aside = await screen.findByRole("complementary", {
+		name: "Where the judge drifts",
+	});
+	expect(within(aside).getAllByRole("option")).toHaveLength(CONTRACT_CHOICES);
+	const other = within(aside).getByRole<HTMLOptionElement>("option", {
+		name: new RegExp(secondContract, "u"),
+	});
+
+	fireEvent.change(within(aside).getByRole("combobox"), {
+		target: { value: other.value },
+	});
+
+	expect(within(aside).getByRole("listitem")).toHaveTextContent(
+		"clarityjudge −1.0 steps",
+	);
+}
+
+async function explainsUnknownIdentities(): Promise<void> {
+	renderCalibration(reportWith({ excludedUnknownJudgeReviews: 2, reviews: 2 }));
+
+	const aside = await screen.findByRole("complementary", {
+		name: "Where the judge drifts",
+	});
+
+	expect(aside).toHaveTextContent(
+		"2 reviews excluded from drift because Judge instruction identity was not recorded. Individual reviews remain available.",
+	);
+	expect(within(aside).queryByRole("list")).not.toBeInTheDocument();
 }

@@ -1,6 +1,9 @@
 import { dirname, join } from "node:path";
 
-import { comparisonBuildScorecard } from "./comparison-evidence-record-test-fixtures";
+import {
+	SHA256_HEX_CHARACTERS,
+	comparisonBuildScorecard,
+} from "./comparison-evidence-record-test-fixtures";
 import type { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import { readComparisonGroup } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
@@ -66,6 +69,7 @@ function preliminaryStage(
 			resultSha: "e".repeat(GIT_SHA_HEX_CHARACTERS),
 		},
 		grade: "A",
+		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 		stage: "shape",
 		status: "JUDGED",
 		verdict: isStopped ? "STOP" : "CONTINUE",

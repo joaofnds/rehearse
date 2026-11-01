@@ -53,6 +53,11 @@ function groupRecord(
 		inputs: {
 			corpusDelivery: NOTHING_DELIVERED,
 			files: controlledGroupFiles(options),
+			finalJudgeContractSha256:
+				options.mode === "pipeline"
+					? "f".repeat(SHA256_HEX_CHARACTERS)
+					: undefined,
+			judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 			judgeModel: "opus",
 			lineage: {
 				kind: "CHECKPOINT",

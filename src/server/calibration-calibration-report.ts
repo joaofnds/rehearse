@@ -103,23 +103,35 @@ function dimensionDrift(
 	}));
 }
 
-/** Grouped by Judge model, stage and rubric, as the binary baseline groups, so one figure never blends two Judges. */
+/** A recorded contract is required before judgments can contribute to one drift figure. */
 function driftGroups(graded: readonly GradedStage[]): readonly DriftGroup[] {
-	const groups = new Map<string, GradedStage[]>();
+	const groups = new Map<
+		string,
+		{ readonly judgeContractSha256: string; readonly members: GradedStage[] }
+	>();
 	for (const entry of graded) {
-		const { judgeModel, stageName, rubricSha256 } = entry.stage;
-		const key = JSON.stringify([judgeModel, stageName, rubricSha256]);
-		const members = groups.get(key) ?? [];
-		members.push(entry);
-		groups.set(key, members);
+		const { judgeModel, stageName, rubricSha256, judgeContractSha256 } =
+			entry.stage;
+		if (judgeContractSha256 !== undefined) {
+			const key = JSON.stringify([
+				judgeModel,
+				stageName,
+				rubricSha256,
+				judgeContractSha256,
+			]);
+			const group = groups.get(key) ?? { judgeContractSha256, members: [] };
+			group.members.push(entry);
+			groups.set(key, group);
+		}
 	}
 
 	return [...groups.values()]
-		.map((members) => {
+		.map(({ judgeContractSha256, members }) => {
 			const [first] = members;
 
 			return {
 				drift: dimensionDrift(members),
+				judgeContractSha256,
 				judgeModel: first?.stage.judgeModel ?? null,
 				reviews: members.length,
 				rubricSha256: first?.stage.rubricSha256 ?? null,
@@ -136,6 +148,7 @@ async function calibrationReport(runsDirectory: string): Promise<{
 	readonly next: GradedStageRef | null;
 	readonly rows: readonly AgreementRow[];
 	readonly groups: readonly DriftGroup[];
+	readonly excludedUnknownJudgeReviews: number;
 }> {
 	const graded: GradedStage[] = [];
 	let next: GradedStageRef | undefined = undefined;
@@ -153,6 +166,9 @@ async function calibrationReport(runsDirectory: string): Promise<{
 	const rows = graded.map((entry) => agreementRow(entry));
 
 	return {
+		excludedUnknownJudgeReviews: graded.filter(
+			({ stage }) => stage.judgeContractSha256 === undefined,
+		).length,
 		groups: driftGroups(graded),
 		next: next ?? null,
 		reviews: rows.length,

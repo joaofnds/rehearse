@@ -1,12 +1,16 @@
 import { dirname, relative } from "node:path";
 
-import type { DigestedRecord } from "./comparison-evidence";
+import type {
+	DigestedComparisonRep,
+	DigestedRecord,
+} from "./comparison-evidence";
 import type { LoadArmRequest } from "./comparison-evidence-files";
 import {
 	descendantPath,
 	evidenceError,
 	readEvidenceFile,
 } from "./comparison-evidence-files";
+import loadFinalJudge from "./comparison-final-judge";
 import type { StageGradingRecord } from "./comparison-stage-grading";
 import { stageGradingRecordSchema } from "./comparison-stage-grading";
 import type { ParsedConfirmationRepRecord } from "./confirmation-record";
@@ -73,4 +77,15 @@ async function loadStageScorecards(
 	return scorecards;
 }
 
-export { loadStageScorecards as default };
+async function loadJudgeRecords(
+	request: Readonly<LoadArmRequest>,
+	record: Immutable<ParsedConfirmationRepRecord>,
+	location: StageScorecardLocation,
+): Promise<Pick<DigestedComparisonRep, "scorecards" | "finalJudge">> {
+	return {
+		finalJudge: await loadFinalJudge(request, record, location),
+		scorecards: await loadStageScorecards(request, record, location),
+	};
+}
+
+export { loadJudgeRecords as default };

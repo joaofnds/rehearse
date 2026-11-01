@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import writeComparisonReport from "./comparison-command";
+import { SHA256_HEX_CHARACTERS } from "./comparison-evidence-record-test-fixtures";
 import { useJudgeModel } from "./comparison-frozen-evidence-test-fixtures";
 import { loadComparisonEvidence } from "./comparison-loader";
 import comparisonLoaderTestFixture from "./comparison-loader-test-fixture";
@@ -36,6 +37,7 @@ const calibrationArtifact = {
 		summary: "calibrated grade",
 		verdict: "PASS",
 	},
+	judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 	rubric: "1. `agreement`: calibrated\n",
 	stageScorecards: [],
 	status: "COMPLETE",

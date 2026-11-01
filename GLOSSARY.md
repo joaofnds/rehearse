@@ -496,17 +496,21 @@ See [current state](docs/status.md) for implementation coverage and
 - **Judge** — evaluator attached to a stage transition: deterministic check or
   rubric-scored LLM with rationale.
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
-  for one exact Judge model and frozen rubric contract, summarized separately
-  for each rubric criterion.
+  for one exact Judge model, recorded instruction identity, stage and frozen
+  rubric contract, summarized separately for each rubric criterion. New
+  baselines exclude observations whose historical record has no instruction
+  identity and report their count.
 - **Grade agreement**: how many places apart the operator's and the Judge's
   letters for one stage sit on the scale A, B, C, D, F, which has no E. The
   design calls a place a letter step. Zero is exact, and "within one step"
   counts exact matches too. Distinct from the Judge agreement baseline, which
   counts binary decisions per rubric criterion. Name accepted unattended as
   unsettled, pending the operator's confirmation (ACT-273).
-- **Judge drift**: for one rubric dimension under one Judge model and rubric,
-  the mean of the operator's letter place minus the Judge's over every stage
-  the operator graded. Positive means the Judge grades more generously. Name
+- **Judge drift**: for one rubric dimension under one Judge model, recorded
+  instruction identity, stage and rubric, the mean of the operator's letter place
+  minus the Judge's over the stages the operator graded. Historical judgments
+  with no instruction identity remain individually reviewable and contribute no
+  drift mean. Positive means the Judge grades more generously. Name
   accepted unattended as unsettled, pending the operator's confirmation
   (ACT-273).
 - **Judge attempt** — one Judge call against frozen evidence and a rubric,
@@ -865,7 +869,8 @@ See [current state](docs/status.md) for implementation coverage and
   bytes on disk cannot establish that their contents entered context. No
   observation recorded means no recognized read, not absence from context.
 - **Stage scorecard** — persisted Judge result for one stage: its frozen input
-  and rubric, citations, grade, prompt, and Judge cost; a rejected scorecard
+  and rubric, citations, grade, prompt, recorded Judge instruction identity, and
+  Judge cost; historical scorecards may lack identity. A rejected scorecard
   also carries its calibration.
 - **Stage settings** — the harness-owned JSON a stage session is started with,
   holding a permissions deny list and a fixed set of boolean feature switches.

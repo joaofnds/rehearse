@@ -9,6 +9,7 @@ import {
 } from "./confirmation-record-protocol";
 import { corpusDeliverySchema } from "./corpus-delivery";
 import corpusMeasurementSchema from "./corpus-measurement";
+import judgeContractSha256Schema from "./judge-contract-schema";
 import { inheritedConfigurationSchema } from "./session-record-context-schema";
 
 const frozenFileSchema = z
@@ -33,7 +34,9 @@ const frozenInputsSchema = z
 		corpusVersion: corpusMeasurementSchema.optional(),
 		effort: effortSchema.optional(),
 		files: z.array(frozenFileSchema).nonempty(),
+		finalJudgeContractSha256: judgeContractSha256Schema.optional(),
 		inheritedConfiguration: inheritedConfigurationSchema.optional(),
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		judgeEffort: effortSchema.optional(),
 		judgeModel: z.string().nonempty(),
 		lineage: lineageSchema,

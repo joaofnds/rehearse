@@ -21,6 +21,7 @@ const EMPTY_CORPUS: CorpusResponse = {
 };
 
 const NO_GRADES: CalibrationResponse = {
+	excludedUnknownJudgeReviews: 0,
 	groups: [],
 	next: null,
 	reviews: 0,

@@ -2,6 +2,7 @@ import type { StageJudgeInput, StageScorecard } from "./contracts";
 import { StageValidationError } from "./contracts";
 import type { JudgeBudget } from "./judge-attempt";
 import { runJudgeAttempts } from "./judge-attempt";
+import { STAGE_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import withJudgeDirectory from "./judge-directory";
 import type { JudgeSettings } from "./judge-invocation";
 import { stageJudgeInvoker } from "./judge-invocation";
@@ -37,13 +38,14 @@ interface StageJudgeExecution extends JudgeSettings {
 
 interface StageJudgeHooks {
 	readonly invoke?: StageJudgeInvoker | undefined;
+	readonly onInvocation?: ((judgeContractSha256: string) => void) | undefined;
 	readonly onProgress?: ((progress: JudgeProgress) => void) | undefined;
 }
 
 async function runStageJudge(
 	{ model, effort, budget }: StageJudgeExecution,
 	{ evidenceOrigin, input, source }: StageJudgment,
-	{ invoke, onProgress }: StageJudgeHooks = {},
+	{ invoke, onInvocation, onProgress }: StageJudgeHooks = {},
 ): Promise<StageScorecard> {
 	return await withJudgeDirectory(
 		`rehearse-${input.stage}-judge-`,
@@ -64,6 +66,8 @@ async function runStageJudge(
 				prompt,
 				{
 					invoke: watch.invoke,
+					judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
+					onInvocation,
 					validate: (envelope) =>
 						readStageGrade(envelope, {
 							input,
@@ -79,6 +83,7 @@ async function runStageJudge(
 				costUsd: result.costUsd,
 				grade: result.value,
 				input,
+				judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 				prompt,
 				rubric: source.rubric,
 				rubricPath: source.rubricPath,

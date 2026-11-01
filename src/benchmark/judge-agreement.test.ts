@@ -50,6 +50,7 @@ function reportsNullKappaWhenExpectedAgreementIsOne(): void {
 	const observations: readonly JudgeAgreementObservation[] = [
 		{
 			humanDecision: "PASS",
+			judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 			judgeDecision: "PASS",
 			judgeModel: "opus",
 			rubricId: "correctness",

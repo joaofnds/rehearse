@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import type { JudgeAttempt } from "./judge-attempt";
 import { JudgeOutputValidationError } from "./judge-attempt";
+import { STAGE_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import { runGradedStages } from "./run";
 import type { PendingStage } from "./run-abort";
 import {
@@ -35,6 +36,7 @@ const retainsValidationFailure = async (): Promise<void> => {
 	const failure = new JudgeOutputValidationError({
 		attempts,
 		costUsd: 0.1,
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 		message: "invalid evidence",
 		prompt: "original prompt",
 	});
@@ -55,6 +57,7 @@ const retainsValidationFailure = async (): Promise<void> => {
 	expect(pendingStages.at(FINAL_PENDING_STAGE_OFFSET)?.failure).toEqual({
 		attempts,
 		costUsd: 0.1,
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 		judgeProviderCalls: [{}],
 		prompt: "original prompt",
 	});

@@ -102,6 +102,7 @@ function stageObservations(
 				{ rubricId, stage: stage.stage },
 				judgeDecision,
 			),
+			judgeContractSha256: stage.judgeContractSha256,
 			judgeDecision,
 			judgeModel,
 			rubricId,
@@ -120,6 +121,7 @@ function finalObservations(
 
 	return final.grade.requirements.map(({ id: rubricId, status }) => ({
 		humanDecision: humanDecision(review, { rubricId, stage: "final" }, status),
+		judgeContractSha256: final.judgeContractSha256,
 		judgeDecision: status,
 		judgeModel,
 		rubricId,

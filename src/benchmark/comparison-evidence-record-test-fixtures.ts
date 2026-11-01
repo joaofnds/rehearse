@@ -98,6 +98,7 @@ function comparisonBuildScorecard(
 		input: {
 			artifact: { content: `${role} build plan${padding}`, path: "plan.md" },
 		},
+		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 		stage: "build",
 	};
 }
@@ -130,6 +131,7 @@ function repRecord(
 				elapsedMs: 10,
 				evidence: resultEvidence,
 				grade: "A",
+				judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 				stage: "build",
 				status: "JUDGED",
 				verdict: "CONTINUE",
@@ -160,6 +162,7 @@ function comparisonStageGroup({
 			effort: "medium",
 			files,
 			inheritedConfiguration: [],
+			judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
 			judgeEffort: "medium",
 			judgeModel: "opus",
 			lineage: lineage(caseId),

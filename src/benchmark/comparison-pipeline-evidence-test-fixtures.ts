@@ -48,6 +48,10 @@ async function finishPipelineRep(
 	const repFile = fixture.repFile(caseId, role, ordinal);
 	const rep = parseConfirmationRepRecord(await Bun.file(repFile).text());
 	await Bun.write(
+		join(dirname(repFile), "final.json"),
+		JSON.stringify({ judgeContractSha256: "f".repeat(SHA256_HEX_CHARACTERS) }),
+	);
+	await Bun.write(
 		repFile,
 		`${JSON.stringify(
 			{
@@ -57,6 +61,7 @@ async function finishPipelineRep(
 						recordFile: "final.json",
 						resultSha: "e".repeat(GIT_SHA_HEX_CHARACTERS),
 					},
+					judgeContractSha256: "f".repeat(SHA256_HEX_CHARACTERS),
 					status: "JUDGED",
 					verdict: "PASS",
 				},
@@ -134,6 +139,7 @@ function pipelineGroupRecord(
 				),
 				files.checkpoint,
 			],
+			finalJudgeContractSha256: "f".repeat(SHA256_HEX_CHARACTERS),
 		},
 		mode: "pipeline",
 	});

@@ -12,6 +12,7 @@ import ReplayCorpusBuilder from "./replay-confirmation-corpus-test-builder";
 import ReplayConfirmationFixtureBuilder from "./replay-confirmation-fixture-builder";
 import { TestResources } from "./test-support";
 
+const SHA256_HEX_DIGITS = 64;
 const calibrationArtifact = {
 	calibration: {
 		humanReview: {
@@ -37,6 +38,7 @@ const calibrationArtifact = {
 		summary: "calibrated grade",
 		verdict: "PASS",
 	},
+	judgeContractSha256: "a".repeat(SHA256_HEX_DIGITS),
 	rubric: "1. `agreement`: calibrated\n",
 	stageScorecards: [],
 	status: "COMPLETE",
@@ -78,7 +80,6 @@ const REPLAY_SETTINGS = [
 const replayReportSchema = z.object({ judgeAgreement: judgeAgreementSchema });
 const testResources = TestResources.forEachTest();
 const MEASUREMENT_COUNT_INCREMENT = 1;
-const SHA256_HEX_DIGITS = 64;
 const expectedMeasurements = 1;
 const measuresTheCorpusOnceForTheGroupAndRecordsThat =
 	async (): Promise<void> => {

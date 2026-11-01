@@ -15,6 +15,7 @@ interface StageGrade extends StageJudgeOutput {
 }
 
 interface StageScorecard {
+	readonly judgeContractSha256?: string | undefined;
 	readonly stage: WorkflowStage;
 	readonly rubricPath: string;
 	readonly rubric: StageRubric;
@@ -47,6 +48,7 @@ interface CalibrationResult {
 	readonly updatedRubric?: string | undefined;
 	readonly revisedRubricIds?: readonly string[] | undefined;
 	readonly revisedJudgePrompt?: string | undefined;
+	readonly revisedJudgeContractSha256?: string | undefined;
 	readonly revisedGrade?: JudgeGrade | undefined;
 	readonly rejudgeConfirmedByHuman?: boolean | undefined;
 	readonly stageRubricsChanged: readonly WorkflowStage[];

@@ -29,6 +29,7 @@ async function writeStageJudgeFailure(
 				effort: pending.effort,
 				error: reason,
 				input: pending.input,
+				judgeContractSha256: pending.judgeContractSha256,
 				judgeEffort: pending.judgeEffort,
 				judgeModel: pending.judgeModel,
 				model: pending.model,
@@ -92,7 +93,10 @@ async function writeOperatorStop(
 	await persistence.write(file, operatorStopRecord(stop.signal));
 }
 
-type ScorecardReadings = Pick<StageScorecard, "attempts" | "costUsd"> &
+type ScorecardReadings = Pick<
+	StageScorecard,
+	"attempts" | "costUsd" | "judgeContractSha256"
+> &
 	Pick<
 		StageScorecard["grade"],
 		"dimensions" | "hardBlockers" | "requirements" | "summary"
@@ -111,6 +115,7 @@ function scorecardReadings(
 					verdict: scorecard.grade.verdict,
 				},
 				hardBlockers: scorecard.grade.hardBlockers,
+				judgeContractSha256: scorecard.judgeContractSha256,
 				requirements: scorecard.grade.requirements,
 				summary: scorecard.grade.summary,
 			}

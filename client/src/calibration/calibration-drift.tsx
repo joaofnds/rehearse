@@ -12,6 +12,7 @@ const FIRST_CALIBRATION_GROUP_INDEX = 0;
 const PREFIX_START_INDEX = 0;
 
 const SINGLE_ITEM_COUNT = 1;
+const NO_EXCLUDED_REVIEWS = 0;
 
 type DriftGroup = CalibrationResponse["groups"][number];
 
@@ -27,6 +28,7 @@ function groupLine(group: DriftGroup): string {
 		group.judgeModel ?? "Judge model not recorded",
 		group.stage,
 		rubric,
+		`contract ${group.judgeContractSha256}`,
 		plural(group.reviews, "review"),
 	].join(" · ");
 }
@@ -36,7 +38,12 @@ function groupLine(group: DriftGroup): string {
  * count, which changes when a grade lands and would lose the choice.
  */
 function groupKey(group: DriftGroup): string {
-	return JSON.stringify([group.judgeModel, group.stage, group.rubricSha256]);
+	return JSON.stringify([
+		group.judgeModel,
+		group.stage,
+		group.rubricSha256,
+		group.judgeContractSha256,
+	]);
 }
 
 interface DriftListProps {
@@ -79,9 +86,13 @@ function DriftList({ group }: DriftListProps): React.JSX.Element {
  */
 interface DriftAsideProps {
 	readonly groups: readonly DriftGroup[];
+	readonly excludedUnknownJudgeReviews: number;
 }
 
-function DriftAside({ groups }: DriftAsideProps): React.JSX.Element {
+function DriftAside({
+	groups,
+	excludedUnknownJudgeReviews,
+}: DriftAsideProps): React.JSX.Element {
 	const headingId = useId();
 	const selectId = useId();
 	const [chosen, setChosen] = useState<string>();
@@ -111,6 +122,13 @@ function DriftAside({ groups }: DriftAsideProps): React.JSX.Element {
 					<DriftList group={shown} />
 				</section>
 			)}
+			{excludedUnknownJudgeReviews > NO_EXCLUDED_REVIEWS ? (
+				<p className="mt-3 text-14 text-muted-foreground">
+					{plural(excludedUnknownJudgeReviews, "review")} excluded from drift
+					because Judge instruction identity was not recorded. Individual
+					reviews remain available.
+				</p>
+			) : null}
 			<p className="mt-3 text-14 text-pretty text-muted-foreground">
 				Calibration does not change a grade. It tells you how much to trust one.
 			</p>

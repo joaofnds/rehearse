@@ -12,6 +12,9 @@ import JudgedGradeBuilder from "#server/calibration-judged-grade-test-builder";
 import CalibrationScorecardBuilder from "#server/calibration-scorecard-test-builder";
 import StageGradeBuilder from "#server/calibration-stage-grade-test-builder";
 
+const SHA256_HEX_CHARACTERS = 64;
+const JUDGE_CONTRACT = "a".repeat(SHA256_HEX_CHARACTERS);
+
 const FIRST_REVIEW_DIMENSION_INDEX = 0;
 
 const SECOND_REVIEW_DIMENSION_INDEX = 1;
@@ -20,6 +23,7 @@ interface JudgedStage {
 	readonly run: string;
 	readonly stage?: string;
 	readonly judgeModel?: string;
+	readonly judgeContractSha256?: string | null;
 	readonly dimensions: readonly [StageLetterGrade, StageLetterGrade];
 	readonly input?: Readonly<Record<string, JsonValue>>;
 }
@@ -56,6 +60,10 @@ async function writeJudgedStage(
 			...new CalibrationScorecardBuilder({
 				grade,
 				input: { ...INPUT, stage },
+				judgeContractSha256:
+					judged.judgeContractSha256 === null
+						? undefined
+						: (judged.judgeContractSha256 ?? JUDGE_CONTRACT),
 			}).build(),
 			input: judged.input ?? { ...INPUT, stage },
 		}),

@@ -12,6 +12,7 @@ const RECORD_JSON_INDENT_SPACES = 2;
 interface JudgeRejection {
 	readonly message: string;
 	readonly prompt: string;
+	readonly judgeContractSha256?: string | undefined;
 	readonly attempts: readonly ProviderCall[];
 	readonly costUsd: number;
 }
@@ -56,6 +57,7 @@ function judgedStage(
 			resultSha: result.resultSha,
 		},
 		grade: result.scorecard.grade.grade,
+		judgeContractSha256: result.scorecard.judgeContractSha256,
 		...liveReadsField(result.liveReads),
 		stage: rep.request.stage,
 		status: "JUDGED",
@@ -147,6 +149,7 @@ function rejectedJudgeRepRecord(
 				elapsedMs: stageElapsedMs,
 				error: error.message,
 				evidence: { recordFile, resultSha },
+				judgeContractSha256: error.judgeContractSha256,
 				...liveReadsField(liveReads),
 				stage: rep.request.stage,
 				status: "EXECUTION_FAILED",

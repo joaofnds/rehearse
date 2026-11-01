@@ -32,10 +32,10 @@ async function calibrate(
 		current,
 		{ judges, log },
 	);
-	const { revisedRubricIds, revisedJudgePrompt, revisedGrade } =
-		changes.rubricChanged
-			? await rejudgeFinal(frozen, current.finalRubric, { judges, log })
-			: {};
+	const revised = changes.rubricChanged
+		? await rejudgeFinal(frozen, current.finalRubric, { judges, log })
+		: {};
+	const { revisedGrade } = revised;
 
 	validateCalibration(
 		review,
@@ -52,13 +52,11 @@ async function calibrate(
 	}
 
 	return calibrationResult({
+		...revised,
 		changes,
 		current,
 		rejudged,
 		review,
-		revisedGrade,
-		revisedJudgePrompt,
-		revisedRubricIds,
 		revisedStageScorecards,
 		stageRubricsChanged,
 	});
@@ -82,6 +80,7 @@ function calibrationResult({
 	review,
 	rejudged,
 	revisedGrade,
+	revisedJudgeContractSha256,
 	revisedJudgePrompt,
 	revisedRubricIds,
 	revisedStageScorecards,
@@ -92,6 +91,7 @@ function calibrationResult({
 		instructionsChanged: changes.instructionsChanged,
 		rejudgeConfirmedByHuman: rejudged ? true : undefined,
 		revisedGrade,
+		revisedJudgeContractSha256,
 		revisedJudgePrompt,
 		revisedRubricIds,
 		revisedStageScorecards:

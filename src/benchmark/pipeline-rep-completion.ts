@@ -69,6 +69,18 @@ async function stopPipelineRep({
 		evidence.resultSha,
 	);
 }
+function judgedFinalOutcome(
+	judge: JudgeResult,
+	recordFile: string,
+	resultSha: string,
+): ConfirmationRepRecord["finalOutcome"] {
+	return {
+		evidence: { recordFile, resultSha },
+		judgeContractSha256: judge.judgeContractSha256,
+		status: "JUDGED",
+		verdict: judge.grade.verdict,
+	};
+}
 async function completePipelineRep(
 	{ scope, evidence, resources }: PreparedPipelineRep,
 	finalJudge: JudgeResult,
@@ -94,14 +106,11 @@ async function completePipelineRep(
 	const record = pipelineRepRecord({
 		elapsedMs: scope.runtime.now() - scope.repStart,
 		evidence: metrics,
-		finalOutcome: {
-			evidence: {
-				recordFile: relative(repPaths.directory, repPaths.finalFile),
-				resultSha: evidence.resultSha,
-			},
-			status: "JUDGED",
-			verdict: finalJudge.grade.verdict,
-		},
+		finalOutcome: judgedFinalOutcome(
+			finalJudge,
+			relative(repPaths.directory, repPaths.finalFile),
+			evidence.resultSha,
+		),
 		plan: scope.context.plan,
 		request: scope.context.request,
 		stages: evidence.stageOutcomes,

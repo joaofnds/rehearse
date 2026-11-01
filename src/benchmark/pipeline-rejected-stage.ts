@@ -23,7 +23,7 @@ async function writeRejectedStage({
 
 	await Bun.write(
 		stageFile,
-		`${JSON.stringify({ attempts: judgeFailure.attempts, costUsd: judgeFailure.costUsd, error: failure.message, prompt: judgeFailure.prompt, readManifest: judgedReads, stage: stage.name, status: "REJECTED" }, null, RECORD_JSON_INDENT_SPACES)}\n`,
+		`${JSON.stringify({ attempts: judgeFailure.attempts, costUsd: judgeFailure.costUsd, error: failure.message, judgeContractSha256: judgeFailure.judgeContractSha256, prompt: judgeFailure.prompt, readManifest: judgedReads, stage: stage.name, status: "REJECTED" }, null, RECORD_JSON_INDENT_SPACES)}\n`,
 	);
 
 	return {

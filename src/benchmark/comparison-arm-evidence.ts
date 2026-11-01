@@ -94,9 +94,18 @@ function readConfirmationGroup(
 
 function repSourcePaths(
 	manifestDirectory: string,
-	{ attempt, scorecards, canonicalPath, path }: DigestedComparisonRep,
+	{
+		attempt,
+		finalJudge,
+		scorecards,
+		canonicalPath,
+		path,
+	}: Immutable<DigestedComparisonRep>,
 ): readonly string[] {
 	const paths = [canonicalPath ?? resolve(manifestDirectory, path)];
+	if (finalJudge?.canonicalPath !== undefined) {
+		paths.push(finalJudge.canonicalPath);
+	}
 	if (attempt?.canonicalPath !== undefined) {
 		paths.push(attempt.canonicalPath);
 	}

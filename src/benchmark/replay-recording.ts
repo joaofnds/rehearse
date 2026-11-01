@@ -68,6 +68,7 @@ class ReplayRecording {
 			corpusVersion: session.corpusVersion,
 			effort: request.effort,
 			elapsedMs,
+			judgeContractSha256: scorecard.judgeContractSha256,
 			judgeCostUsd: scorecard.costUsd,
 			judgeEffort: request.judgeEffort,
 			judgeModel: request.judgeModel,

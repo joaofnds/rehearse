@@ -16,6 +16,7 @@ const RUN = "2026-10-01T10-00-00.000Z";
 
 function reportWith(report: Partial<CalibrationResponse>): CalibrationResponse {
 	return {
+		excludedUnknownJudgeReviews: 0,
 		groups: [],
 		next: null,
 		reviews: 0,

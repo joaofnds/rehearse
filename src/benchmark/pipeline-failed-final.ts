@@ -2,6 +2,7 @@ import { relative } from "node:path";
 
 import type { ConfirmationRepRecord } from "./confirmation-record";
 import type { JudgeOutputValidationError } from "./judge-attempt";
+import judgeFailureContract from "./judge-failure-contract";
 import type { PipelineRepFailure } from "./pipeline-rep-failure";
 
 const RECORD_JSON_INDENT_SPACES = 2;
@@ -18,6 +19,7 @@ async function failedFinalOutcome(
 					attempts: judgeFailure.attempts,
 					costUsd: judgeFailure.costUsd,
 					error: failure.message,
+					judgeContractSha256: judgeFailure.judgeContractSha256,
 					prompt: judgeFailure.prompt,
 					status: "REJECTED",
 				},
@@ -29,6 +31,7 @@ async function failedFinalOutcome(
 
 	return {
 		error: failure.message,
+		judgeContractSha256: judgeFailureContract(failure),
 		status: "EXECUTION_FAILED",
 		...(completedJudgeRejection
 			? {

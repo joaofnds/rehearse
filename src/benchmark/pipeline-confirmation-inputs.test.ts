@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import { parseArgs } from "./config";
+import {
+	FINAL_JUDGE_CONTRACT_SHA256,
+	STAGE_JUDGE_CONTRACT_SHA256,
+} from "./judge-contract";
 import runPipelineConfirmation from "./pipeline-confirmation";
 import PipelineConfirmationClock from "./pipeline-confirmation-clock-test-fixture";
 import {
@@ -39,6 +43,10 @@ async function recordsTheResolvedJudgeModelInPipelineConfirmationEvidence(): Pro
 		model: config.model,
 	});
 	const group = await readGroup(outcome);
+	expect(group.inputs).toMatchObject({
+		finalJudgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
+	});
 
 	expect({
 		judgeModel: group.inputs.judgeModel,

@@ -8,6 +8,7 @@ import type { StageScorecard } from "./contracts";
 import { gradedHardBlockersSchema, stageLetterGradeSchema } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import corpusMeasurementSchema from "./corpus-measurement";
+import judgeContractSha256Schema from "./judge-contract-schema";
 import type { ReadManifestEntry } from "./read-manifest";
 import { readManifestSchema } from "./read-manifest";
 
@@ -31,6 +32,7 @@ interface ReplayRecord {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly judgeModel: string;
+	readonly judgeContractSha256?: string | undefined;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
 	readonly spendCeilingUsd?: number | undefined;
@@ -88,6 +90,7 @@ const replayRecordSchema = z
 		effort: effortSchema.optional(),
 		/** From the stage session's start to its judge's grade; older records lack it. */
 		elapsedMs: z.number().nonnegative().optional(),
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		judgeCostUsd: z.number().nonnegative(),
 		judgeEffort: effortSchema.optional(),
 		judgeModel: z.string().nonempty(),
@@ -102,6 +105,7 @@ const replayRecordSchema = z
 			.object({
 				costUsd: z.number(),
 				grade: replayGradeSchema,
+				judgeContractSha256: judgeContractSha256Schema.optional(),
 				stage: z.string().nonempty(),
 			})
 			.loose(),

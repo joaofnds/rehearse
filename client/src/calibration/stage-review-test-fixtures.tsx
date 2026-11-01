@@ -117,6 +117,7 @@ function fullSavedInput(): StageReview {
 
 function recordedCalibrationReport(reviews: number): CalibrationResponse {
 	return {
+		excludedUnknownJudgeReviews: 0,
 		groups: [],
 		next: { kind: "run", run: RUN, stage: "shape" },
 		reviews,

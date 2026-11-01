@@ -1,6 +1,7 @@
 import type { SessionCaseDeclaration } from "./case";
 import type { ComparisonArmEvidence, FrozenFile } from "./comparison-evidence";
 import ComparisonEvidenceError from "./comparison-evidence";
+import { judgeContractDifference } from "./comparison-judge-contract";
 import type { Immutable } from "./contracts";
 
 const CORPUS_FILE_INDEX_STEP = 1;
@@ -209,7 +210,11 @@ function controlledInputDifference(
 		}
 		return setupDifference(comparison) ?? sessionInputDifference(comparison);
 	}
-	return setupDifference(comparison) ?? stageInputDifference(comparison);
+	return (
+		setupDifference(comparison) ??
+		stageInputDifference(comparison) ??
+		judgeContractDifference(comparison.reference, comparison.other)
+	);
 }
 
 function assertControlledInputs(

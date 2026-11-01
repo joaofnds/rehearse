@@ -1,6 +1,7 @@
 import type { StageTranscriptSource } from "./checkpoint";
 import { preserveStageTranscript } from "./checkpoint";
 import type { WorkflowStage } from "./config";
+import { JudgeExecutionError } from "./judge-execution-error";
 import type { PendingStage } from "./run-abort";
 import { ceilingReadings, paidJudgeFailure } from "./run-final-judgment";
 import type { StageContext } from "./run-stage-context";
@@ -62,6 +63,15 @@ function recordPaidStageJudgeFailure(
 ): void {
 	const paid = paidJudgeFailure(error, context.spendCeiling);
 	if (paid === undefined) {
+		if (
+			error instanceof JudgeExecutionError &&
+			error.judgeContractSha256 !== undefined
+		) {
+			context.updatePendingStage({
+				...readStage,
+				judgeContractSha256: error.judgeContractSha256,
+			});
+		}
 		return;
 	}
 
@@ -72,6 +82,7 @@ function recordPaidStageJudgeFailure(
 		failure: {
 			attempts: failure.attempts,
 			costUsd: failure.costUsd,
+			judgeContractSha256: failure.judgeContractSha256,
 			judgeProviderCalls: failure.providerCalls,
 			prompt: failure.prompt,
 		},

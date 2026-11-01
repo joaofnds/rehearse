@@ -190,3 +190,5 @@ export {
 	parsePaidFinalArtifact,
 };
 export type { FinalJudgeResponses };
+
+export { FINAL_JUDGE_CONTRACT_SHA256 } from "./judge-contract";

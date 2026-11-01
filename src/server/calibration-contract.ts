@@ -55,6 +55,7 @@ interface StageCriteria {
 }
 
 interface JudgedStage {
+	readonly judgeContractSha256: string | undefined;
 	readonly judgeModel: string | undefined;
 	readonly rubricSha256: string | undefined;
 	readonly criteria: StageCriteria;
@@ -113,6 +114,7 @@ interface DimensionDrift {
 }
 
 interface DriftGroup {
+	readonly judgeContractSha256: string;
 	readonly judgeModel: string | null;
 	readonly stage: string;
 	readonly rubricSha256: string | null;

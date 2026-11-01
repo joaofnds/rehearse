@@ -7,6 +7,7 @@ import {
 } from "#benchmark/contracts";
 import { jsonValueSchema } from "#benchmark/json-value";
 import { stageRubricSha256 } from "#benchmark/judge-agreement";
+import judgeContractSha256Schema from "#benchmark/judge-contract-schema";
 import type { JudgedStage } from "#server/calibration-contract";
 import { judgeGradeSchema } from "#server/calibration-contract";
 import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
@@ -26,6 +27,7 @@ const inputTextSchema = z.record(
 const scorecardSchema = z.looseObject({
 	grade: judgeGradeSchema,
 	input: inputTextSchema,
+	judgeContractSha256: judgeContractSha256Schema.optional(),
 	judgeModel: z.string().nonempty().optional(),
 	rubric: stageRubricSchema,
 });
@@ -34,6 +36,7 @@ const scorecardSchema = z.looseObject({
 const stopRecordSchema = judgedGradeSchema.extend({
 	grade: z.looseObject({ grade: stageLetterGradeSchema }),
 	input: inputTextSchema,
+	judgeContractSha256: judgeContractSha256Schema.optional(),
 	judgeModel: z.string().nonempty().optional(),
 	status: z.literal("STAGE_JUDGE_FAILED"),
 	summary: z.string(),
@@ -55,6 +58,7 @@ const judgedStageSchema = z.union([
 			requirements: stop.requirements.map(({ id }) => ({ id })),
 		},
 		input: stop.input,
+		judgeContractSha256: stop.judgeContractSha256,
 		judgeGrade: {
 			dimensions: stop.dimensions,
 			grade: stop.grade.grade,
@@ -68,6 +72,7 @@ const judgedStageSchema = z.union([
 	scorecardSchema.transform((scorecard): JudgedStage => ({
 		criteria: scorecard.rubric,
 		input: scorecard.input,
+		judgeContractSha256: scorecard.judgeContractSha256,
 		judgeGrade: scorecard.grade,
 		judgeModel: scorecard.judgeModel,
 		rubricSha256: stageRubricSha256(scorecard.rubric),

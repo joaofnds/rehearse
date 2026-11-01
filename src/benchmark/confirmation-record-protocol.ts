@@ -3,6 +3,7 @@ import { z } from "zod";
 import { LEGACY_CASE_ID } from "./config";
 import { claudeCallMetricsSchema, stageLetterGradeSchema } from "./contracts";
 import { liveCorpusReadSchema } from "./corpus-delivery";
+import judgeContractSha256Schema from "./judge-contract-schema";
 
 const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
@@ -41,6 +42,7 @@ const judgedStageSchema = z
 		elapsedMs: elapsedSchema,
 		evidence: resultEvidenceSchema,
 		grade: stageLetterGradeSchema,
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		/**
 		 * Each file the stage's install held that its session or a sub-agent
 		 * still reached through the live install. Absent from stages recorded
@@ -59,6 +61,7 @@ const failedStageSchema = z
 		elapsedMs: elapsedSchema.optional(),
 		error: z.string().nonempty(),
 		evidence: resultEvidenceSchema.optional(),
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		/**
 		 * The live reads of a stage whose session ran before it failed, as a
 		 * judged stage records them. Absent when no session transcript was read.
@@ -88,6 +91,7 @@ const finalOutcomeSchema = z.union([
 	z
 		.object({
 			evidence: resultEvidenceSchema,
+			judgeContractSha256: judgeContractSha256Schema.optional(),
 			status: z.literal("JUDGED"),
 			verdict: z.enum(["PASS", "FAIL"]),
 		})
@@ -96,6 +100,7 @@ const finalOutcomeSchema = z.union([
 		.object({
 			error: z.string().nonempty(),
 			evidence: resultEvidenceSchema.optional(),
+			judgeContractSha256: judgeContractSha256Schema.optional(),
 			status: z.enum(["EXECUTION_FAILED", "METRICS_MISSING"]),
 			worktreePath: z.string().nonempty().optional(),
 		})

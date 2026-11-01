@@ -8,10 +8,10 @@ import {
 	evidenceError,
 	readEvidenceFile,
 } from "./comparison-evidence-files";
+import loadJudgeRecords from "./comparison-judge-records";
 import { assertRepMatchesGroup } from "./comparison-rep-validation";
 import type { SessionGroupRecord } from "./comparison-session-attempt-contract";
 import loadSessionRep from "./comparison-session-rep";
-import loadStageScorecards from "./comparison-stage-scorecards";
 import type {
 	ParsedConfirmationGroupRecord,
 	ParsedConfirmationRepRecord,
@@ -185,10 +185,10 @@ async function loadRepEvidence(
 	return group.mode === "stage" || group.mode === "pipeline"
 		? {
 				...digested,
-				scorecards: await loadStageScorecards(request, record, {
+				...(await loadJudgeRecords(request, record, {
 					field,
 					repPath: path,
-				}),
+				})),
 			}
 		: digested;
 }

@@ -2,6 +2,10 @@ import { inheritedConfiguration } from "./claude-launch-environment";
 import { finalizeConfirmationGroup } from "./confirmation-evidence";
 import { HOME_PATH_DELIVERY_RULE, NOTHING_DELIVERED } from "./corpus-delivery";
 import type { CorpusDelivery } from "./corpus-delivery";
+import {
+	FINAL_JUDGE_CONTRACT_SHA256,
+	STAGE_JUDGE_CONTRACT_SHA256,
+} from "./judge-contract";
 import type { PipelineConfirmationExecution } from "./pipeline-confirmation-execution";
 import type { PipelineConfirmationRepResults } from "./pipeline-confirmation-reps";
 import type { PipelineConfirmationOutcome } from "./pipeline-confirmation-request";
@@ -47,7 +51,9 @@ async function finalizePipelineConfirmation({
 			corpusVersion: frozen.corpusVersion,
 			effort: request.effort,
 			files: frozen.files,
+			finalJudgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 			inheritedConfiguration: inheritedConfiguration(Bun.env),
+			judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 			judgeEffort: request.judgeEffort,
 			judgeModel: request.judgeModel,
 			lineage: { kind: "SOURCE", sha: request.source.sha },

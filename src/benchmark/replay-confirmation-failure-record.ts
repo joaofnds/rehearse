@@ -31,6 +31,7 @@ function readFailedReplayEvidence(
 
 		return {
 			elapsedMs: now() - stageStart,
+			judgeContractSha256: failure.judgeContractSha256,
 			productOwnerCalls,
 			stageJudgeCalls: failure.providerCalls,
 			workerCalls: session.transcript.providerCalls,
@@ -51,6 +52,7 @@ function readFailedReplayEvidence(
 	return undefined;
 }
 interface FailedStageEvidence {
+	readonly judgeContractSha256?: string | undefined;
 	readonly workerCalls: readonly ProviderCall[];
 	readonly productOwnerCalls: readonly ProviderCall[];
 	readonly stageJudgeCalls: readonly ProviderCall[];
@@ -69,6 +71,7 @@ function failedStage(
 	return {
 		elapsedMs: stageEvidence?.elapsedMs ?? elapsedMs,
 		error,
+		judgeContractSha256: stageEvidence?.judgeContractSha256,
 		...liveReadsField(liveReads),
 		stage: rep.request.stage,
 		status: "EXECUTION_FAILED",

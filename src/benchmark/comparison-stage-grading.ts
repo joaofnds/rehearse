@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Immutable } from "./contracts";
 import { stageLetterGradeSchema } from "./contracts";
+import judgeContractSha256Schema from "./judge-contract-schema";
 import type { OutputWords } from "./output-words";
 import { recordedFinalReplySchema, stageOutputWords } from "./output-words";
 
@@ -35,6 +36,7 @@ const stageGradingRecordSchema = z.looseObject({
 		artifact: recordedArtifactSchema,
 		transcript: recordedFinalReplySchema.optional(),
 	}),
+	judgeContractSha256: judgeContractSha256Schema.optional(),
 	stage: z.string().nonempty(),
 });
 

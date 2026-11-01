@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { projectConfirmationCost } from "./confirmation";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
+import { STAGE_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import runReplayConfirmation from "./replay-confirmation";
 import ReplayCorpusBuilder from "./replay-confirmation-corpus-test-builder";
 import ReplayConfirmationFixtureBuilder from "./replay-confirmation-fixture-builder";
@@ -42,6 +43,10 @@ const recordsOnTheGroupTheSpendCeilingEachRepRan = async (): Promise<void> => {
 		await Bun.file(outcome.groupRecordFile).text(),
 	);
 
+	expect(group.inputs).toHaveProperty(
+		"judgeContractSha256",
+		STAGE_JUDGE_CONTRACT_SHA256,
+	);
 	expect(group.inputs.spendCeilingUsd).toBe(expectedSpendCeilingUsd);
 	// The frozen input hash is an independent d020bf3a byte golden.
 	const pipeline = group.inputs.files.find(({ kind }) => kind === "pipeline");

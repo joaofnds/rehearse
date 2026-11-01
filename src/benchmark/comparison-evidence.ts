@@ -1,4 +1,5 @@
 import type { SessionCaseDeclaration } from "./case";
+import type { FinalJudgeIdentity } from "./comparison-final-judge";
 import type { ComparisonArm } from "./comparison-record";
 import type { StageGradingRecord } from "./comparison-stage-grading";
 import type {
@@ -41,6 +42,7 @@ interface DigestedComparisonRep {
 	readonly canonicalPath?: string;
 	readonly attempt?: DigestedRecord<Immutable<SessionAttemptRecord>>;
 	readonly scorecards?: readonly DigestedRecord<StageGradingRecord>[];
+	readonly finalJudge?: DigestedRecord<FinalJudgeIdentity> | undefined;
 }
 
 /** Each confirmation group an arm names, in the order the manifest names them. */

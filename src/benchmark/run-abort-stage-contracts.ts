@@ -14,6 +14,7 @@ import type { SessionSpend } from "./stage-session-error";
 import type { ProductOwnerSnapshot } from "./workflow";
 
 interface PendingStage {
+	readonly judgeContractSha256?: string | undefined;
 	readonly file: string;
 	readonly stage: WorkflowStage;
 	readonly input: StageJudgeInput;
@@ -28,6 +29,7 @@ interface PendingStage {
 	readonly failure?:
 		| {
 				readonly prompt: string;
+				readonly judgeContractSha256?: string | undefined;
 				readonly attempts: readonly JudgeAttempt[];
 				readonly judgeProviderCalls: readonly ProviderCall[];
 				readonly costUsd: number;

@@ -94,6 +94,7 @@ class PipelineRepEvidence {
 				resultSha: session.resultSha,
 			},
 			grade: scorecard.grade.grade,
+			judgeContractSha256: scorecard.judgeContractSha256,
 			...liveReadsField(
 				await this.liveReads(inspection, session.transcript.sessionId),
 			),

@@ -5,7 +5,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
   "schemaVersion": 6,
   "judgeAgreement": {
     "skippedCalibrations": 0,
-    "baselines": []
+    "baselines": [],
+    "skippedUnknownJudgeObservations": 0
   },
   "manifest": {
     "sha256": "b4391357dab54ceb0636c4dca9274c3c1ef7b8df2e796ae2f53c708d4cce71ed"
@@ -25,13 +26,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-baseline/group.json",
-                "sha256": "9d088ef32c403f654b17aaeba48c191b2cdbd4b1ae2bb91fc967bce8b3e41c12"
+                "sha256": "7a66d8c3d5b62a5080774f33b80e15dca918685787aaecb440c55e3b892e74d3"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-1-baseline/reps/case-1-baseline-rep-1/rep.json",
-                "sha256": "7e347fa59cd0bb0b8bf38deecddbb7d7fa4acc1d6aed377a05e29ceedbf06921",
+                "sha256": "6af3b2d3a39c4f7207ca3074640ce1c911b5ea4e639c2aa81056240cdb5af7ef",
                 "repId": "case-1-baseline-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -47,7 +48,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-baseline/reps/case-1-baseline-rep-1/stages/build.json",
-                      "sha256": "d229c1bb5447287d827ccc090c6be10542d591d09a8ac0d0a1132af9150d2bf9"
+                      "sha256": "eac6bcbe65def1a481957d4f84083bdf1cd193bec645680a909723ea1ac8cb53"
                     },
                     "hardBlockers": [
                       {
@@ -71,7 +72,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/rep.json",
-                "sha256": "038aca7c0a5c9bb40077bf2ab63f18dcceb02967a07f94ce30dc70d72379da45",
+                "sha256": "272160985f5f33fdb18fd6cccd1d6609a3a0f75311a335d5cc48702e6ab7d90a",
                 "repId": "case-1-baseline-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -87,7 +88,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/stages/build.json",
-                      "sha256": "7d696f3aa2223a2467693298ffc8b4ab167b6db092de625aa7213dc5efad0f8d"
+                      "sha256": "5181089ed4c494099776240ebbd989d865de34d17d681d18ac47e0cf4ce26fcf"
                     },
                     "hardBlockers": [
                       {
@@ -346,13 +347,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-candidate/group.json",
-                "sha256": "8cf5ff0760b249e9cd30a3d4230f71a4f5893c0c73aed9215d64eabc64d4051a"
+                "sha256": "cf1c40645508ac1815c826a8ffabb963380936ae9d845f381ec4c3b08aa0366a"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-1-candidate/reps/case-1-candidate-rep-1/rep.json",
-                "sha256": "94f7c7924fb03d2cae859474db2ace1d3a251c6f390d2f445c62e54f062167e4",
+                "sha256": "366d30145828cc032c05ac0bf08de5aafe9aef6f8356c0d5df16b192f6ec5dcc",
                 "repId": "case-1-candidate-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -368,7 +369,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-candidate/reps/case-1-candidate-rep-1/stages/build.json",
-                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                      "sha256": "1af41ef291b88aeeeac3cb52148c6600337917de9ee5113998d403bce543f0d6"
                     },
                     "hardBlockers": [
                       {
@@ -392,7 +393,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/rep.json",
-                "sha256": "f74dbe90d68972e0619ed2ba3796734b269210a66930ac21389b1f49b9655351",
+                "sha256": "73a2b5460b5c3a192382a89379f241522e096fe56b59aac5646ba127b5a5dfff",
                 "repId": "case-1-candidate-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -408,7 +409,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/stages/build.json",
-                      "sha256": "15b5f928b10ef3e8bd27f5bfedbffb884e1a7bb7f2f83add3fbf3821ee67782e"
+                      "sha256": "2359ddf01b2cd332dd245394d2a89a97035bbe21d81e4c4af87c3d6b7f891260"
                     },
                     "hardBlockers": [
                       {
@@ -667,13 +668,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-1-control/group.json",
-                "sha256": "15f6374a7fd0d8f30be6e88d676f8642c33819f99b1ca530634f44787845b594"
+                "sha256": "7283ecec70e95467aac0ec0ed18a6cec71eb99ed1fd4138fd4ebd3204d3864d7"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-1-control/reps/case-1-control-rep-1/rep.json",
-                "sha256": "3e542db17dbb4745a7d6d15b573d2b8c8a76ea8d74b2b1020de07dc903b07c87",
+                "sha256": "3d3b3a6e9ceb828f8d9a2cbaaf546c52f8cbf35d261c8ba40019059a3e1ec4af",
                 "repId": "case-1-control-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -689,7 +690,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-control/reps/case-1-control-rep-1/stages/build.json",
-                      "sha256": "b13ac1e7512d07d1ccd0bcafa715d1ba32a038e6c4880638917be06d7f45b102"
+                      "sha256": "d82d2f8284e7c10d68a29cc1ad8d491aa02d6919d2a369a0710b2cdf4a868a9e"
                     },
                     "hardBlockers": [
                       {
@@ -713,7 +714,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-1-control/reps/case-1-control-rep-2/rep.json",
-                "sha256": "bb2b782396bfd85f523d88f8a7ab51e9890cdcea1b003712e8089c7edc769874",
+                "sha256": "a08c1e618ea2518b777753fb0f4a961b512b0d979c97b0e053abebf00934e2f8",
                 "repId": "case-1-control-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -729,7 +730,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-control/reps/case-1-control-rep-2/stages/build.json",
-                      "sha256": "b39cacd5606e57e2b47364a4535af97f84af139ac34eb83456f1d05e390e525b"
+                      "sha256": "059159aeba82235570012dd7254aedef4a33cb32d994c2d2b9b285f275580382"
                     },
                     "hardBlockers": [
                       {
@@ -993,13 +994,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-baseline/group.json",
-                "sha256": "912a28732c746944e0fbd903601e8766a936504392e40a7292b05f1d7a156c5f"
+                "sha256": "e0b15bb7799ec8a665bc0e6f4973325b5d77a554cf91f214edc21e598fa70977"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-2-baseline/reps/case-2-baseline-rep-1/rep.json",
-                "sha256": "792e2ff12bb15b6abe05cdc453f0af86f5a1b8d525f88b33b1d810fccbc1b9cd",
+                "sha256": "0ad4e60e0a67467a4b1819289514fe3207c51e8e02cf6c02989179c9e9bdf819",
                 "repId": "case-2-baseline-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -1015,7 +1016,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-baseline/reps/case-2-baseline-rep-1/stages/build.json",
-                      "sha256": "d229c1bb5447287d827ccc090c6be10542d591d09a8ac0d0a1132af9150d2bf9"
+                      "sha256": "eac6bcbe65def1a481957d4f84083bdf1cd193bec645680a909723ea1ac8cb53"
                     },
                     "hardBlockers": [
                       {
@@ -1039,7 +1040,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/rep.json",
-                "sha256": "fb2d7af682af89c5d9e1220d153fc97803f359af0043e2793fa82abcdc440fa0",
+                "sha256": "3862e5184e6d24a7b62c605589acf818d74c617ae6d22e9286bf1308c43a4906",
                 "repId": "case-2-baseline-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -1055,7 +1056,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/stages/build.json",
-                      "sha256": "7d696f3aa2223a2467693298ffc8b4ab167b6db092de625aa7213dc5efad0f8d"
+                      "sha256": "5181089ed4c494099776240ebbd989d865de34d17d681d18ac47e0cf4ce26fcf"
                     },
                     "hardBlockers": [
                       {
@@ -1314,13 +1315,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-candidate/group.json",
-                "sha256": "95e777da2ca73424966004c22eac2c04e66886bd4dffd23676adbb4e76dbf670"
+                "sha256": "e84eef569e5890e2c4455f6a0f86ad2e546b29502dec4d33a64bddbf08e7406e"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-2-candidate/reps/case-2-candidate-rep-1/rep.json",
-                "sha256": "79234d75395c32bc631ac8333011e230cb982fbfc01ad041c0e7e445cbbf4867",
+                "sha256": "914970f7cfdf4a5fe136d09201d12c84075fb89e6c782bccb8707f2743781af5",
                 "repId": "case-2-candidate-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -1336,7 +1337,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-candidate/reps/case-2-candidate-rep-1/stages/build.json",
-                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                      "sha256": "1af41ef291b88aeeeac3cb52148c6600337917de9ee5113998d403bce543f0d6"
                     },
                     "hardBlockers": [
                       {
@@ -1360,7 +1361,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/rep.json",
-                "sha256": "00b3b78771a6ddddec0d2fa46cb11d572daafd6f35fd5b9b29d152031acb89a3",
+                "sha256": "bf5641698bc37aff7f67c488693c07d372b3f8645329a4a68d38b9d16cc0a283",
                 "repId": "case-2-candidate-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -1376,7 +1377,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/stages/build.json",
-                      "sha256": "15b5f928b10ef3e8bd27f5bfedbffb884e1a7bb7f2f83add3fbf3821ee67782e"
+                      "sha256": "2359ddf01b2cd332dd245394d2a89a97035bbe21d81e4c4af87c3d6b7f891260"
                     },
                     "hardBlockers": [
                       {
@@ -1635,13 +1636,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
             "groups": [
               {
                 "path": "groups/case-2-control/group.json",
-                "sha256": "e2dde6a689d5f975b6c534e14e9560f100b035b0b605dba0b0d3da17353ab0c0"
+                "sha256": "d241a2ac8079582971c13fcf29d9a6dbe606666a588785a593fdaf02934738da"
               }
             ],
             "reps": [
               {
                 "path": "groups/case-2-control/reps/case-2-control-rep-1/rep.json",
-                "sha256": "0d8580066305de1188730c18120fc6e8bd635c546a1f0828875b7f66c2be7b14",
+                "sha256": "fc4e8bf35ec8bc8f65dddd7666e6a762fdeb69bce0641cfeb753f00d5359e0ac",
                 "repId": "case-2-control-rep-1",
                 "ordinal": 1,
                 "outcomes": [
@@ -1657,7 +1658,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-control/reps/case-2-control-rep-1/stages/build.json",
-                      "sha256": "b13ac1e7512d07d1ccd0bcafa715d1ba32a038e6c4880638917be06d7f45b102"
+                      "sha256": "d82d2f8284e7c10d68a29cc1ad8d491aa02d6919d2a369a0710b2cdf4a868a9e"
                     },
                     "hardBlockers": [
                       {
@@ -1681,7 +1682,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
               },
               {
                 "path": "groups/case-2-control/reps/case-2-control-rep-2/rep.json",
-                "sha256": "9aa6e6017934f1bad0408f1e38f1e63d891741f4f80a7278dd5e01b31efa7855",
+                "sha256": "71ba653fff9fdb980ad77ce8a6e45d21ec0e11605609a78083311d94710d82d8",
                 "repId": "case-2-control-rep-2",
                 "ordinal": 2,
                 "outcomes": [
@@ -1697,7 +1698,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-control/reps/case-2-control-rep-2/stages/build.json",
-                      "sha256": "b39cacd5606e57e2b47364a4535af97f84af139ac34eb83456f1d05e390e525b"
+                      "sha256": "059159aeba82235570012dd7254aedef4a33cb32d994c2d2b9b285f275580382"
                     },
                     "hardBlockers": [
                       {

@@ -4,6 +4,8 @@ import type {
 	JudgeAgreementReport,
 } from "./judge-agreement-contract";
 
+const INITIAL_UNKNOWN_OBSERVATIONS = 0;
+
 const DEGENERATE_KAPPA_DENOMINATOR = 0;
 
 const KAPPA_NUMERATOR_FACTOR = 2;
@@ -22,6 +24,7 @@ interface MutableCriterionCounts {
 }
 
 interface MutableBaseline {
+	readonly judgeContractSha256: string;
 	readonly judgeModel: string;
 	readonly stage: string;
 	readonly rubricSha256: string;
@@ -78,6 +81,7 @@ function baselineKey(observation: Readonly<JudgeAgreementObservation>): string {
 		observation.judgeModel,
 		observation.stage,
 		observation.rubricSha256,
+		observation.judgeContractSha256,
 	]);
 }
 
@@ -102,9 +106,17 @@ function incrementCounts(
 }
 
 class AgreementCounts {
+	private skippedUnknownJudgeObservations = INITIAL_UNKNOWN_OBSERVATIONS;
 	private readonly baselines = new Map<string, MutableBaseline>();
 	public include(observation: Readonly<JudgeAgreementObservation>): void {
-		const baseline = this.baselineFor(observation);
+		if (observation.judgeContractSha256 === undefined) {
+			this.skippedUnknownJudgeObservations += 1;
+			return;
+		}
+		const baseline = this.baselineFor(
+			observation,
+			observation.judgeContractSha256,
+		);
 		const counts = baseline.criteria.get(observation.rubricId) ?? {
 			judgeFailHumanFail: 0,
 			judgeFailHumanPass: 0,
@@ -118,12 +130,14 @@ class AgreementCounts {
 	}
 	private baselineFor(
 		observation: Readonly<JudgeAgreementObservation>,
+		judgeContractSha256: string,
 	): MutableBaseline {
 		const key = baselineKey(observation);
 		let baseline = this.baselines.get(key);
 		if (baseline === undefined) {
 			baseline = {
 				criteria: new Map(),
+				judgeContractSha256,
 				judgeModel: observation.judgeModel,
 				rubricSha256: observation.rubricSha256,
 				stage: observation.stage,
@@ -140,17 +154,20 @@ class AgreementCounts {
 					(left, right) =>
 						compareText(left.judgeModel, right.judgeModel) ||
 						compareText(left.stage, right.stage) ||
-						compareText(left.rubricSha256, right.rubricSha256),
+						compareText(left.rubricSha256, right.rubricSha256) ||
+						compareText(left.judgeContractSha256, right.judgeContractSha256),
 				)
 				.map((baseline) => ({
 					criteria: [...baseline.criteria.entries()]
 						.toSorted(([left], [right]) => compareText(left, right))
 						.map(([rubricId, counts]) => summarizeCriterion(rubricId, counts)),
+					judgeContractSha256: baseline.judgeContractSha256,
 					judgeModel: baseline.judgeModel,
 					rubricSha256: baseline.rubricSha256,
 					stage: baseline.stage,
 				})),
 			skippedCalibrations,
+			skippedUnknownJudgeObservations: this.skippedUnknownJudgeObservations,
 		};
 	}
 }

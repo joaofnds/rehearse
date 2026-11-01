@@ -44,6 +44,7 @@ async function writeRejectedReplayStage(
 				attempts: failure.attempts,
 				costUsd: failure.costUsd,
 				error: failure.message,
+				judgeContractSha256: failure.judgeContractSha256,
 				prompt: failure.prompt,
 				readManifest: judgedReads,
 				stage,

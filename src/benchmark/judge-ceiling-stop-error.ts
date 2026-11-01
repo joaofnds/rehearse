@@ -11,11 +11,13 @@ import { SpendCeilingReachedError } from "./spend-ceiling";
 class JudgeCeilingStopError extends SpendCeilingReachedError {
 	public override name = "JudgeCeilingStopError";
 	public readonly prompt: string;
+	public readonly judgeContractSha256: string | undefined;
 	public readonly attempts: readonly JudgeAttempt[];
 	public readonly providerCalls: readonly ProviderCall[];
 	public readonly costUsd: number;
 
 	public constructor(props: {
+		readonly judgeContractSha256?: string | undefined;
 		readonly ceilingUsd: number;
 		readonly spentUsd: number;
 		readonly prompt: string;
@@ -24,6 +26,7 @@ class JudgeCeilingStopError extends SpendCeilingReachedError {
 	}) {
 		super({ ceilingUsd: props.ceilingUsd, spentUsd: props.spentUsd });
 		this.prompt = props.prompt;
+		this.judgeContractSha256 = props.judgeContractSha256;
 		this.attempts = props.attempts;
 		this.providerCalls = judgeProviderCalls(props.attempts);
 		this.costUsd = props.costUsd;

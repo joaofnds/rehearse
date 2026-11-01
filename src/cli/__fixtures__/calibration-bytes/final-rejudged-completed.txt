@@ -732,87 +732,15 @@
           "summary": "graded",
           "grade": "A",
           "verdict": "CONTINUE"
-        }
+        },
+        "judgeContractSha256": "3c715c302d8ba583d134acc976dadb6d82c09a455b20964ef29bbf9927841b7e"
       }
-    ]
+    ],
+    "revisedJudgeContractSha256": "60ed5754b0d3a28b00f8a2b300fd9c9cf298c201e62d9e3ea903482d200c8e3b"
   },
   "judgeAgreement": {
     "skippedCalibrations": 0,
-    "baselines": [
-      {
-        "judgeModel": "sonnet",
-        "stage": "final",
-        "rubricSha256": "b3b3f64aba5f758ad72f30e748f329f0fc3b798a907889d72c533ed6d70219e4",
-        "criteria": [
-          {
-            "rubricId": "worker",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          }
-        ]
-      },
-      {
-        "judgeModel": "sonnet",
-        "stage": "shape",
-        "rubricSha256": "184ae0719d5e273e24fe85cb87346c25ab653e9a5b1f28dd143cb5053eb7422d",
-        "criteria": [
-          {
-            "rubricId": "clarity",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          },
-          {
-            "rubricId": "false-test-safety",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          },
-          {
-            "rubricId": "invalid-stage-delivery",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          },
-          {
-            "rubricId": "scope",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          },
-          {
-            "rubricId": "unfinished-delivery",
-            "sampleSize": 1,
-            "judgePassHumanPass": 1,
-            "judgeFailHumanFail": 0,
-            "judgePassHumanFail": 0,
-            "judgeFailHumanPass": 0,
-            "observedAgreement": 1,
-            "cohensKappa": null
-          }
-        ]
-      }
-    ]
+    "baselines": [],
+    "skippedUnknownJudgeObservations": 6
   }
 }

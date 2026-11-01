@@ -1,11 +1,24 @@
 import type { ConfirmationRepRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
+import judgeFailureContract from "./judge-failure-contract";
 import type { PipelineJudgeRejection } from "./pipeline-judge-rejection";
 import writeRejectedStage from "./pipeline-rejected-stage";
 import type { PipelineRepFailure } from "./pipeline-rep-failure";
 import { liveReadsField } from "./stage-live-reads";
 
 const NEXT_STAGE_INDEX_STEP = 1;
+function notReachedStages(
+	state: PipelineRepFailure,
+	failedStage: string,
+): Immutable<ConfirmationRepRecord["stages"]> {
+	return state.request.pipeline.stages
+		.slice(state.currentStageIndex + NEXT_STAGE_INDEX_STEP)
+		.map((stage) => ({
+			reason: `${failedStage} execution failed`,
+			stage: stage.name,
+			status: "NOT_REACHED" as const,
+		}));
+}
 async function failedStageOutcomes(
 	state: PipelineRepFailure,
 	rejection: PipelineJudgeRejection,
@@ -34,6 +47,9 @@ async function failedStageOutcomes(
 		{
 			elapsedMs: now() - (state.stageClock.read() ?? state.repStart),
 			error: diagnosticError,
+			judgeContractSha256: state.judgingStage
+				? judgeFailureContract(state.failure)
+				: undefined,
 			...liveReadsField(state.currentLiveReads),
 			stage: failedStage.name,
 			status: "EXECUTION_FAILED",
@@ -41,19 +57,14 @@ async function failedStageOutcomes(
 				? { worktreePath: plan.worktreePath }
 				: { evidence }),
 		},
-		...request.pipeline.stages
-			.slice(currentStageIndex + NEXT_STAGE_INDEX_STEP)
-			.map((stage) => ({
-				reason: `${failedStage.name} execution failed`,
-				stage: stage.name,
-				status: "NOT_REACHED" as const,
-			})),
+		...notReachedStages(state, failedStage.name),
 	];
-	const finalOutcome: ConfirmationRepRecord["finalOutcome"] = {
-		reason: `${failedStage.name} execution failed`,
-		status: "NOT_REACHED",
+	return {
+		finalOutcome: {
+			reason: `${failedStage.name} execution failed`,
+			status: "NOT_REACHED",
+		},
+		stages,
 	};
-
-	return { finalOutcome, stages };
 }
 export { failedStageOutcomes as default };

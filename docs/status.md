@@ -30,6 +30,14 @@ summary and an attempt as a record that could not be read, since no launch
 holds its claim. A launch whose process crashed and whose pid a later process
 has taken keeps its group or attempt reading as in flight.
 
+Pipeline Judge results now retain the identity of their fixed instructions,
+evidence definition and output schema. New stage/pipeline comparisons require
+known matching identities across group inputs and Judge evidence. Historical
+records and saved reports remain readable; unknown historical judgments stay
+reviewable but are excluded from new agreement baselines and drift means, with
+the exclusion reported. See [Judge identity](reference.md#judge-instruction-identity)
+and [contract derivation](../src/benchmark/judge-contract.ts).
+
 ## Implemented
 
 | Capability                     | Current boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                                                                                                                           |

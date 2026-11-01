@@ -78,7 +78,11 @@ class RunReview {
 	): Promise<JudgeAgreementReport> {
 		return await this.collectJudgeAgreement([
 			{
-				final: { grade: artifact.grade, rubric: artifact.rubric },
+				final: {
+					grade: artifact.grade,
+					judgeContractSha256: artifact.judgeContractSha256,
+					rubric: artifact.rubric,
+				},
 				humanReview: calibration.humanReview,
 				judgeModel: this.request.execution.inputs.config.judgeModel,
 				stages: artifact.stageScorecards,

@@ -68,7 +68,11 @@ class AgreementArtifactReader {
 		const final = artifact.record;
 		this.observations.push(
 			...calibrationObservations({
-				final: { grade: final.grade, rubric: final.rubric },
+				final: {
+					grade: final.grade,
+					judgeContractSha256: final.judgeContractSha256,
+					rubric: final.rubric,
+				},
 				humanReview: final.calibration.humanReview,
 				judgeModel: final.judgeModel,
 				stages: final.stageScorecards,
@@ -116,6 +120,7 @@ function filterJudgeAgreementReport(
 			included.has(judgeModel),
 		),
 		skippedCalibrations: report.skippedCalibrations,
+		skippedUnknownJudgeObservations: report.skippedUnknownJudgeObservations,
 	};
 }
 

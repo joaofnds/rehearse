@@ -13,6 +13,7 @@ import type {
 	CalibratedStage,
 	JudgeAgreementCalibration,
 } from "./judge-agreement-contract";
+import judgeContractSha256Schema from "./judge-contract-schema";
 import { benchmarkRunPaths } from "./run-layout";
 
 const PREFIX_START_INDEX = 0;
@@ -23,6 +24,7 @@ const calibratedStageArtifactSchema = z
 	.object({
 		calibration: calibrationSchema,
 		grade: stageGradeSchema,
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		judgeModel: z.string().nonempty().optional(),
 		rubric: stageRubricSchema,
 		stage: z.string().nonempty(),
@@ -44,6 +46,7 @@ const calibratedFinalArtifactSchema = z
 	.object({
 		calibration: calibrationSchema,
 		grade: judgeGradeSchema,
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		judgeModel: z.string().nonempty(),
 		rubric: z.string().nonempty(),
 		stageScorecards: z.array(gradedStageSchema),

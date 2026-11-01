@@ -2,6 +2,7 @@ import { inheritedConfiguration } from "./claude-launch-environment";
 import type { ConfirmationRepResult } from "./confirmation-evidence";
 import { finalizeConfirmationGroup } from "./confirmation-evidence";
 import type { ConfirmationGroupFinalization } from "./confirmation-group-finalization-contract";
+import { STAGE_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import type {
 	ReplayConfirmationOutcome,
 	ReplayConfirmationRequest,
@@ -28,6 +29,7 @@ function replayGroupInputs(
 		effort: request.effort,
 		files: frozen.files,
 		inheritedConfiguration: inheritedConfiguration(Bun.env),
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 		judgeEffort: request.judgeEffort,
 		judgeModel: request.judgeModel,
 		lineage: {

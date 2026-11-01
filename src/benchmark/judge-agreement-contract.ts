@@ -6,6 +6,7 @@ import type {
 	StageGrade,
 	StageRubric,
 } from "./contracts";
+import judgeContractSha256Schema from "./judge-contract-schema";
 
 const MAXIMUM_AGREEMENT = 1;
 
@@ -18,6 +19,7 @@ const MINIMUM_KAPPA = -1;
 type AgreementDecision = "PASS" | "FAIL";
 
 interface JudgeAgreementObservation {
+	readonly judgeContractSha256?: string | undefined;
 	readonly judgeModel: string;
 	readonly stage: string;
 	readonly rubricSha256: string;
@@ -38,6 +40,7 @@ interface JudgeAgreementCriterion {
 }
 
 interface JudgeAgreementBaseline {
+	readonly judgeContractSha256?: string | undefined;
 	readonly judgeModel: string;
 	readonly stage: string;
 	readonly rubricSha256: string;
@@ -45,6 +48,7 @@ interface JudgeAgreementBaseline {
 }
 
 interface JudgeAgreementReport {
+	readonly skippedUnknownJudgeObservations?: number | undefined;
 	readonly skippedCalibrations: number;
 	readonly baselines: readonly JudgeAgreementBaseline[];
 }
@@ -65,6 +69,7 @@ const judgeAgreementCriterionSchema = z
 const judgeAgreementBaselineSchema = z
 	.object({
 		criteria: z.array(judgeAgreementCriterionSchema).nonempty(),
+		judgeContractSha256: judgeContractSha256Schema.optional(),
 		judgeModel: z.string().nonempty(),
 		rubricSha256: z.string().regex(/^[0-9a-f]{64}$/u),
 		stage: z.string().nonempty(),
@@ -75,16 +80,19 @@ const judgeAgreementReportSchema = z
 	.object({
 		baselines: z.array(judgeAgreementBaselineSchema),
 		skippedCalibrations: z.number().int().nonnegative(),
+		skippedUnknownJudgeObservations: z.number().int().nonnegative().optional(),
 	})
 	.strict();
 
 interface CalibratedStage {
+	readonly judgeContractSha256?: string | undefined;
 	readonly stage: string;
 	readonly rubric: StageRubric;
 	readonly grade: StageGrade;
 }
 
 interface CalibratedFinal {
+	readonly judgeContractSha256?: string | undefined;
 	readonly rubric: string;
 	readonly grade: JudgeGrade;
 }

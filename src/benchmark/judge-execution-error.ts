@@ -9,11 +9,13 @@ function judgeProviderCalls(attempts: readonly JudgeAttempt[]): ProviderCall[] {
 
 class JudgeExecutionError extends Error {
 	public readonly prompt: string;
+	public readonly judgeContractSha256: string | undefined;
 	public readonly attempts: readonly JudgeAttempt[];
 	public readonly providerCalls: readonly ProviderCall[];
 	public readonly costUsd: number;
 
 	public constructor(props: {
+		readonly judgeContractSha256?: string | undefined;
 		readonly cause: unknown;
 		readonly prompt: string;
 		readonly attempts: readonly JudgeAttempt[];
@@ -29,6 +31,7 @@ class JudgeExecutionError extends Error {
 		);
 		this.name = "JudgeExecutionError";
 		this.prompt = props.prompt;
+		this.judgeContractSha256 = props.judgeContractSha256;
 		this.attempts = props.attempts;
 		this.providerCalls = [
 			...judgeProviderCalls(props.attempts),

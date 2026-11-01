@@ -5,6 +5,7 @@ import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { StageJudgeInput, StageScorecard } from "./contracts";
 import type { CorpusRoot } from "./corpus-file";
 import { JudgeOutputValidationError } from "./judge-attempt";
+import { STAGE_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import type { TargetCheck } from "./pipeline";
 import type { ReplayDependencies } from "./replay";
 import type { ServiceEnvironment } from "./target-services";
@@ -158,6 +159,7 @@ function replayScorecard(
 			verdict,
 		},
 		input,
+		judgeContractSha256: STAGE_JUDGE_CONTRACT_SHA256,
 		prompt: "prompt",
 		rubric: {
 			dimensions: [

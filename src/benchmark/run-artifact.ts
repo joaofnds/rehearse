@@ -62,9 +62,14 @@ interface RunArtifactInputs extends RunArtifactBaseInputs {
 	readonly reviewFile: string;
 }
 
+type RecordedJudgeEvidence = Pick<
+	JudgeResult,
+	"prompt" | "attempts" | "costUsd" | "judgeContractSha256"
+>;
+
 function runArtifactEvidence(
 	inputs: RunArtifactBaseInputs,
-	judge: Pick<JudgeResult, "prompt" | "attempts" | "costUsd">,
+	judge: RecordedJudgeEvidence,
 ): RunArtifactEvidence {
 	const { source, config, evidence, productOwner } = inputs;
 
@@ -82,6 +87,7 @@ function runArtifactEvidence(
 		elapsedMs: inputs.elapsedMs,
 		instructions: inputs.instructions,
 		judgeAttempts: judge.attempts,
+		judgeContractSha256: judge.judgeContractSha256,
 		judgeCostUsd: judge.costUsd,
 		judgeEffort: config.judgeEffort,
 		judgeModel: config.judgeModel,

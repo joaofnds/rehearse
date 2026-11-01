@@ -1478,9 +1478,12 @@ review and calibration validate. Changes to corpus/rubrics made during review
 remain after the checkout is removed.
 
 Completed calibration contributes Judge/human contingency counts per exact
-Judge model, stage, frozen rubric contract, and criterion. Reports include
-observed agreement and Cohen's kappa; kappa is null when its denominator is zero.
-Changing the model or rubric starts a distinct agreement baseline.
+Judge model, recorded Judge instruction identity, stage, frozen rubric contract,
+and criterion. Reports include observed agreement and Cohen's kappa; kappa is
+null when its denominator is zero. Changing the model, Judge instructions or
+rubric starts a distinct agreement baseline. Historical observations without
+Judge identity stay readable but are excluded from newly calculated baselines;
+`skippedUnknownJudgeObservations` counts those excluded criterion observations.
 
 ### Operator grades
 
@@ -1504,8 +1507,12 @@ The calibration report lists each graded stage with both letters and how many
 steps apart they are, the count of reviews within one step, the stages still
 ungraded and the oldest of them, and each dimension's drift. Drift is the
 operator's letter place minus the Judge's, averaged per dimension within one
-Judge model, stage name and rubric contract, so a positive figure means the
-Judge grades more generously. A stop record's group has no rubric contract.
+Judge model, recorded Judge instruction identity, stage name and rubric
+contract, so a positive figure means the Judge grades more generously. A stop
+record's group has no rubric contract. Historical judgments without instruction
+identity remain individually reviewable and in the all-review counts, but
+contribute no drift mean. `excludedUnknownJudgeReviews` reports that count;
+the browser explains the exclusion and distinguishes group choices by identity.
 
 | Route                                                                 | Use                         |
 | --------------------------------------------------------------------- | --------------------------- |
@@ -2331,6 +2338,24 @@ existed gains its column on open and keeps its events. Stage replays, replay
 confirmation, calibration, pipeline confirmation and the final judge do not
 record judge progress.
 
+### Judge instruction identity
+
+New pipeline stage scorecards and final Judge results record
+`judgeContractSha256`: SHA-256 of the fixed system prompt, reusable prompt and
+evidence definition, provider-emitted response schema, and retry instructions.
+Stage and final Judges have separate identities. Candidate evidence, rubric
+substitutions, model, effort and budgets are outside this digest; their existing
+record fields keep those facts. Rejudges record the identity they used, including
+`revisedJudgeContractSha256` for a revised final judgment. Attempted-Judge
+failure and stop evidence retains identity; a stop before judging does not
+claim an invocation.
+
+The live invocation and digest share their fixed definitions. New confirmation
+groups record the stage identity in `inputs.judgeContractSha256` and pipeline
+groups also record `inputs.finalJudgeContractSha256`. Historical records lack
+these fields. Readers leave identity unknown instead of inferring it from a
+saved user prompt, which carries neither the original system text nor schema.
+
 ### Stage judge
 
 `/api/runs/<run>/stages/<stage>/judge` answers one stage's judge as the live
@@ -2783,7 +2808,12 @@ executed corpus differ from the first's.
 The loader checks schemas, frozen-file hashes, rep records, controlled inputs,
 mode/stage consistency, and corpus identity across cases before writing a
 report. Within a case the arms must preserve the controlled experiment inputs,
-including model, effort, budget, and non-corpus evidence. A changed corpus is
+including model, effort, budget, and non-corpus evidence. Stage and pipeline
+comparisons also require known equal Judge identities, with agreement between
+group inputs, rep outcomes and the loaded Judge files. A missing identity, even
+in both historical arms, or a conflicting identity refuses a new comparison.
+Saved historical reports remain readable; session comparisons keep their
+existing checks. A changed corpus is
 the treatment. Session checks are read from the recorded attempt and must agree
 with the frozen case declaration; no final-outcome row is synthesized. Debug
 attempts cannot substitute for confirmation groups.

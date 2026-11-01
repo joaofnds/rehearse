@@ -16,6 +16,7 @@ import type {
 } from "./workflow-stage-contract";
 
 interface RunArtifactEvidence {
+	readonly judgeContractSha256?: string | undefined;
 	readonly caseId: string;
 	readonly timestamp: string;
 	readonly controlSha: string;

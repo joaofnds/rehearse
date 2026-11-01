@@ -11,6 +11,8 @@ import StageJudgeInputBuilder from "./run-abort-stage-input-builder";
 import { TestResources } from "./test-support";
 
 const testResources = TestResources.forEachTest();
+const CONTRACT_DIGEST_WIDTH = 64;
+const RECORDED_JUDGE_CONTRACT = "a".repeat(CONTRACT_DIGEST_WIDTH);
 
 async function testRetainsTheFrozenInputAndBothRejectedJudgeAttempts(): Promise<void> {
 	const directory = await mkdtemp(join(tmpdir(), "rehearse-stage-failure-"));
@@ -37,6 +39,7 @@ async function testRetainsTheFrozenInputAndBothRejectedJudgeAttempts(): Promise<
 		failure: {
 			attempts,
 			costUsd: 0.3,
+			judgeContractSha256: RECORDED_JUDGE_CONTRACT,
 			judgeProviderCalls: [{}, {}],
 			prompt: "original prompt",
 		},
@@ -52,6 +55,7 @@ async function testRetainsTheFrozenInputAndBothRejectedJudgeAttempts(): Promise<
 		costUsd: 0.3,
 		error: "second validation error",
 		input,
+		judgeContractSha256: RECORDED_JUDGE_CONTRACT,
 		judgeProviderCalls: [{}, {}],
 		prompt: "original prompt",
 		stage: "shape",
@@ -90,9 +94,10 @@ async function testCarriesTheScorecardSGradeFieldsWhenANormalGradeFailureSupplie
 	testResources.track(directory);
 
 	const file = join(directory, "discuss.json");
-	const scorecard = new StageScorecardBuilder({
-		requirementStatus: "FAIL",
-	}).build();
+	const scorecard = {
+		...new StageScorecardBuilder({ requirementStatus: "FAIL" }).build(),
+		judgeContractSha256: RECORDED_JUDGE_CONTRACT,
+	};
 	const pending: PendingStage = {
 		file,
 		input: scorecard.input,
@@ -110,6 +115,7 @@ async function testCarriesTheScorecardSGradeFieldsWhenANormalGradeFailureSupplie
 		grade: { grade: scorecard.grade.grade, verdict: scorecard.grade.verdict },
 		hardBlockers: scorecard.grade.hardBlockers,
 		input: scorecard.input,
+		judgeContractSha256: RECORDED_JUDGE_CONTRACT,
 		requirements: scorecard.grade.requirements,
 		stage: "discuss",
 		status: "STAGE_JUDGE_FAILED",
@@ -149,8 +155,24 @@ async function testCarriesTheModelJudgeModelEffortSettingsAndBudgetIntoTheFailed
 	});
 }
 
+async function doesNotIdentifyAnUnattemptedJudge(): Promise<void> {
+	const directory = await testResources.createControlDirectory();
+	const file = join(directory, "shape.json");
+	await writeStageJudgeFailure(
+		{ file, input: new StageJudgeInputBuilder().build(), stage: "shape" },
+		"stopped before Judge",
+	);
+	expect(JSON.parse(await Bun.file(file).text())).not.toHaveProperty(
+		"judgeContractSha256",
+	);
+}
+
 describe(writeStageJudgeFailure.name, () => {
 	describe("when recording a failed stage", () => {
+		it(
+			"keeps a pre-Judge stop without an attempted contract",
+			doesNotIdentifyAnUnattemptedJudge,
+		);
 		it(
 			"retains the frozen input and both rejected Judge attempts",
 			testRetainsTheFrozenInputAndBothRejectedJudgeAttempts,

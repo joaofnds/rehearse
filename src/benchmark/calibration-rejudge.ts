@@ -58,6 +58,7 @@ async function rejudgeStages(
 }
 
 interface FinalRejudge {
+	readonly revisedJudgeContractSha256?: string | undefined;
 	readonly revisedRubricIds?: readonly string[] | undefined;
 	readonly revisedJudgePrompt?: string | undefined;
 	readonly revisedGrade?: JudgeGrade | undefined;
@@ -85,6 +86,7 @@ async function rejudgeFinal(
 
 	return {
 		revisedGrade: revised.grade,
+		revisedJudgeContractSha256: revised.judgeContractSha256,
 		revisedJudgePrompt: revised.prompt,
 		revisedRubricIds,
 	};

@@ -25,6 +25,7 @@ import type {
 	LoadedComparisonCaseEvidence,
 } from "./comparison-evidence";
 import ComparisonEvidenceError from "./comparison-evidence";
+import { assertArmJudgeContract } from "./comparison-judge-contract";
 import { COMPARISON_ARMS } from "./comparison-record";
 import type { Immutable } from "./contracts";
 
@@ -59,6 +60,7 @@ function assertCaseArms(
 		assertArmRanTheCase(benchmarkCase.caseId, arm);
 		assertArmDelivered(benchmarkCase.caseId, arm);
 		assertExpectedRepCount(benchmarkCase.caseId, arm);
+		assertArmJudgeContract(benchmarkCase.caseId, arm);
 	}
 	assertControlledInputs({
 		caseId: benchmarkCase.caseId,
@@ -154,6 +156,7 @@ function assertAdditionalGroup(
 	}
 	named.add(other.group.record.groupId);
 	assertArmRanTheCase(caseId, other);
+	assertArmJudgeContract(caseId, other);
 	const field = groupDifference(caseId, reference, other);
 	if (field !== undefined) {
 		throw new ComparisonEvidenceError(

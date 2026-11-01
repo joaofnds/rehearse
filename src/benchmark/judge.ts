@@ -2,6 +2,7 @@ import { HARNESS_RUBRIC_IDS } from "./config";
 import type { JudgeGrade } from "./contracts";
 import type { JudgeAttempt, JudgeBudget, JudgeInvoker } from "./judge-attempt";
 import { runJudgeAttempts } from "./judge-attempt";
+import { FINAL_JUDGE_CONTRACT_SHA256 } from "./judge-contract";
 import withJudgeDirectory from "./judge-directory";
 import type { JudgeSettings } from "./judge-invocation";
 import { finalJudgeInvoker } from "./judge-invocation";
@@ -12,6 +13,7 @@ import readJudgeGrade from "./judge-response";
 const EMPTY_COLLECTION_LENGTH = 0;
 
 interface JudgeResult {
+	readonly judgeContractSha256?: string | undefined;
 	readonly grade: JudgeGrade;
 	readonly prompt: string;
 	readonly attempts: readonly JudgeAttempt[];
@@ -86,6 +88,7 @@ async function runJudge(
 			prompt,
 			{
 				invoke: invokeJudge,
+				judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 				validate: (envelope) => readJudgeGrade(envelope, rubricIds, candidate),
 			},
 			budget,
@@ -95,6 +98,7 @@ async function runJudge(
 			attempts: result.attempts,
 			costUsd: result.costUsd,
 			grade: result.value,
+			judgeContractSha256: FINAL_JUDGE_CONTRACT_SHA256,
 			prompt,
 		};
 	});

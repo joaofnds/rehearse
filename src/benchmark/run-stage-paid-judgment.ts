@@ -33,6 +33,9 @@ async function gradePaidStage({
 					{ input, source: rubric },
 					{
 						invoke: undefined,
+						onInvocation: (judgeContractSha256) => {
+							context.updatePendingStage({ ...readStage, judgeContractSha256 });
+						},
 						onProgress: (progress) => {
 							context.runEvents?.recordJudgeProgress(
 								stage,

@@ -118,6 +118,8 @@ function pipelineArm(
 			corpusDelivery: group.inputs.corpusDelivery,
 			effort: group.inputs.effort,
 			files,
+			finalJudgeContractSha256: group.inputs.finalJudgeContractSha256,
+			judgeContractSha256: group.inputs.judgeContractSha256,
 			judgeEffort: group.inputs.judgeEffort,
 			judgeModel: group.inputs.judgeModel,
 			lineage: group.inputs.lineage,

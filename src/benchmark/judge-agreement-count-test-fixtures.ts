@@ -11,6 +11,7 @@ const SHA256_HEX_DIGITS = 64;
 
 function rawAgreementObservations(): readonly JudgeAgreementObservation[] {
 	const baseline = {
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeModel: "opus",
 		rubricId: "correctness",
 		rubricSha256: "a".repeat(SHA256_HEX_DIGITS),
@@ -43,16 +44,19 @@ const RAW_AGREEMENT_REPORT = {
 					sampleSize: 6,
 				},
 			],
+			judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 			judgeModel: "opus",
 			rubricSha256: "a".repeat(SHA256_HEX_DIGITS),
 			stage: "build",
 		},
 	],
 	skippedCalibrations: 0,
+	skippedUnknownJudgeObservations: 0,
 };
 const IDENTITY_OBSERVATIONS: readonly JudgeAgreementObservation[] = [
 	{
 		humanDecision: "PASS",
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeDecision: "PASS",
 		judgeModel: "sonnet",
 		rubricId: "second",
@@ -61,6 +65,7 @@ const IDENTITY_OBSERVATIONS: readonly JudgeAgreementObservation[] = [
 	},
 	{
 		humanDecision: "PASS",
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeDecision: "PASS",
 		judgeModel: "opus",
 		rubricId: "second",
@@ -69,6 +74,7 @@ const IDENTITY_OBSERVATIONS: readonly JudgeAgreementObservation[] = [
 	},
 	{
 		humanDecision: "PASS",
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeDecision: "PASS",
 		judgeModel: "opus",
 		rubricId: "second",
@@ -77,6 +83,7 @@ const IDENTITY_OBSERVATIONS: readonly JudgeAgreementObservation[] = [
 	},
 	{
 		humanDecision: "PASS",
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeDecision: "PASS",
 		judgeModel: "opus",
 		rubricId: "second",
@@ -85,6 +92,7 @@ const IDENTITY_OBSERVATIONS: readonly JudgeAgreementObservation[] = [
 	},
 	{
 		humanDecision: "PASS",
+		judgeContractSha256: "d".repeat(SHA256_HEX_DIGITS),
 		judgeDecision: "PASS",
 		judgeModel: "opus",
 		rubricId: "first",

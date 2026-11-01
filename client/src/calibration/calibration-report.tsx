@@ -107,7 +107,10 @@ function CalibrationReport({
 					rows={report.rows.map((row) => rowFor(row))}
 				/>
 			</div>
-			<DriftAside groups={report.groups} />
+			<DriftAside
+				groups={report.groups}
+				excludedUnknownJudgeReviews={report.excludedUnknownJudgeReviews}
+			/>
 		</div>
 	);
 }
