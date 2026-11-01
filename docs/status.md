@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-10-18**. This is the public
+Reviewed against the code and project board on **2026-11-01**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -179,6 +179,10 @@ links no attempt history, since its attempts record no session.
   the same run, and signals sent through a process outside the sandbox are not
   confined. See
   [signal confinement](reference.md#signal-confinement).
+  Live Claude invocations also refuse when their tools, settings or isolation
+  flags require confinement but the command's process has no confinement marker.
+  The check preserves sealed and isolated toolless sessions, including copied
+  corpus styles, and relies on the provider honoring its declared controls.
 - **Corpus containment is a read boundary.** Declared inputs, stage capture,
   `stale`, and the corpus API check layout roots and entries against their
   source extent. Live sources allow the install and configured backing tree;

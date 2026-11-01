@@ -80,6 +80,14 @@ re-execute as, or with the reason it refuses, which stops the command with exit
 code 3. macOS has the only one, and every other system gets one that refuses,
 so supporting another system means writing its `Sandbox` and selecting it there.
 
+The live Claude command adapter checks the completed invocation against the
+process's confinement marker before spawning. JSON sessions, streamed sessions,
+session attempts and the model preflight share this boundary. Its
+[`invocation check`](../src/benchmark/claude-confinement.ts) refuses a drift
+between the CLI declaration and the tools, settings or isolation flags the
+session receives. Argument builders and injected fake providers start no live
+session and need no confinement.
+
 Session cases use temporary directories seeded with optional fixture files and
 conversation prefixes. Their checks consume replies and tool calls, and a case
 may also declare a scorer over the files and git state the session leaves, which

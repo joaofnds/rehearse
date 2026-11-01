@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { failureOf } from "#cli/cli-test-support";
 
 import { runJsonSession, runStreamedSession } from "./claude";
+import markTestProcessConfined from "./confined-session-test-fixture";
 import { createSpendCeiling } from "./spend-ceiling";
 import StageSessionError from "./stage-session-error";
 import { budgetHaltEnvelope, haltingCommand } from "./test-support";
@@ -16,6 +17,7 @@ import {
 } from "./workflow-test-fixtures";
 
 testResources.registerCleanup();
+markTestProcessConfined();
 
 const INITIAL_WORKER_TURN_NUMBER = 1;
 const HALTED_SESSION_COST_USD = 0.5782854;

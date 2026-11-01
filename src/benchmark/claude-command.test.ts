@@ -16,7 +16,10 @@ import {
 	printing,
 } from "./claude-test-fixtures";
 import { CommandError } from "./command";
+import markTestProcessConfined from "./confined-session-test-fixture";
 import { budgetHaltEnvelope, haltingCommand } from "./test-support";
+
+markTestProcessConfined();
 
 function returnsTheFinalStreamResult(): void {
 	const result = JSON.stringify({

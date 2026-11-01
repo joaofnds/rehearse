@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { tmpdir } from "node:os";
 
+import markTestProcessConfined from "#benchmark/confined-session-test-fixture";
+
 import runClaudeCommand from "./session-claude-runner";
 
 const EFFORT_VARIABLE = "CLAUDE_CODE_EFFORT_LEVEL";
 
 const inherited = Bun.env["CLAUDE_CODE_EFFORT_LEVEL"];
+markTestProcessConfined();
 
 function setUp(): void {
 	Bun.env["CLAUDE_CODE_EFFORT_LEVEL"] = "max";

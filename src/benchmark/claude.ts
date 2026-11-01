@@ -1,7 +1,8 @@
 import { z } from "zod";
 
+import runClaudeCommand from "./claude-command";
 import { ClaudeSessionError, failedCommandEnvelope } from "./claude-response";
-import { CommandError, runCommand } from "./command";
+import { CommandError } from "./command";
 import type { CommandOptions } from "./command";
 import type { Effort } from "./config";
 import type { SchemaPropertyOrder } from "./contracts";
@@ -136,7 +137,7 @@ async function runStreamedSession(
 	options: CommandOptions = {},
 ): Promise<string> {
 	try {
-		return readStreamResult(await runCommand(command, cwd, options));
+		return readStreamResult(await runClaudeCommand(command, cwd, options));
 	} catch (error) {
 		if (error instanceof CommandError) {
 			throw sessionFailure(
@@ -155,7 +156,7 @@ async function runJsonSession(
 	options: CommandOptions = {},
 ): Promise<string> {
 	try {
-		return await runCommand(command, cwd, options);
+		return await runClaudeCommand(command, cwd, options);
 	} catch (error) {
 		if (error instanceof CommandError) {
 			throw sessionFailure(error);

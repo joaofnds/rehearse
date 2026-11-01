@@ -1,4 +1,4 @@
-import { runCommand } from "#benchmark/command";
+import runLiveClaude from "#benchmark/claude-command";
 import { CLAUDE_TIMEOUT_MS } from "#benchmark/config";
 import type { ClaudeRunner } from "#benchmark/session-attempt";
 
@@ -8,6 +8,6 @@ import type { ClaudeRunner } from "#benchmark/session-attempt";
  * with them.
  */
 const runClaudeCommand: ClaudeRunner = async (command, cwd) =>
-	await runCommand(command, cwd, { timeoutMs: CLAUDE_TIMEOUT_MS });
+	await runLiveClaude(command, cwd, { timeoutMs: CLAUDE_TIMEOUT_MS });
 
 export { runClaudeCommand as default };

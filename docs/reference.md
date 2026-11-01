@@ -123,6 +123,17 @@ The confined command marks its environment with `REHEARSE_CONFINED=1` so it
 does not confine itself twice. A shell that exports that variable runs these
 commands unconfined.
 
+The live Claude runners also check the completed invocation before starting
+the provider. An invocation selecting tools, hooks, actual setup or executable
+project configuration requires the Rehearse process's confinement marker. A
+missing or weakened isolation flag, an unknown flag or duplicate flags also
+requires it. A mismatched command declaration therefore produces a refusal
+before Claude starts. Sealed sessions and isolated toolless sessions can still
+run without the marker; copied corpus styles and skills alone do not require
+it. This checks Rehearse's declared controls and relies on Claude Code honoring
+them; it does not establish stronger isolation of the provider's settings or
+plugins.
+
 On macOS without `/usr/bin/sandbox-exec` those commands stop with exit code 3
 before any provider call, naming the missing program. On any other operating
 system they stop the same way, naming that system. Every other command, and

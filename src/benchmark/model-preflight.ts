@@ -7,6 +7,7 @@ import {
 	readClaudeEnvelope,
 	spendUsd,
 } from "./claude";
+import runClaudeCommand from "./claude-command";
 import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
 import type { ClaudeCallMetrics } from "./contracts";
@@ -82,7 +83,7 @@ type CommandRunner = (
  */
 function defaultModelProbe(
 	model: string,
-	run: CommandRunner = runCommand,
+	run: CommandRunner = runClaudeCommand,
 ): ModelProbe {
 	return async () => {
 		try {

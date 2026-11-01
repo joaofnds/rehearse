@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import type { LoadedCase, SessionCase } from "#benchmark/case";
+import { CONFINED_VARIABLE } from "#benchmark/claude-confinement";
 import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { pathExists } from "#benchmark/file-presence";
@@ -11,8 +12,6 @@ const ENVIRONMENT_VALUE_ENTRY_INDEX = 1;
 const RUNTIME_EXECUTABLE_ARGUMENT_COUNT = 1;
 
 const EMPTY_COLLECTION_LENGTH = 0;
-
-const CONFINED_VARIABLE = "REHEARSE_CONFINED";
 
 /**
  * Which Claude Code tools run commands could not be established, and hooks
@@ -160,7 +159,6 @@ function liveConfinementHost(): ConfinementHost {
 }
 
 export {
-	CONFINED_VARIABLE,
 	confineIfNeeded,
 	confinesItself,
 	enterConfinement,
@@ -168,3 +166,4 @@ export {
 	sessionCanRunCommands,
 };
 export type { Confined, ConfinementHost, ProcessImage, Sandbox };
+export { CONFINED_VARIABLE } from "#benchmark/claude-confinement";
