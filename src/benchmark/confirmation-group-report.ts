@@ -20,6 +20,7 @@ import {
 	filterJudgeAgreementReport,
 	loadJudgeAgreementReport,
 } from "./judge-agreement";
+import type { SessionQualityReading } from "./session-quality-reading";
 
 const ORDINAL_BASE = 1;
 
@@ -78,6 +79,21 @@ async function groupReport(
 				: reliability,
 		resources: sessionResources,
 	};
+	if (
+		finalization.mode === "session" &&
+		records.some((record) => "judge" in record && record.judge !== undefined)
+	) {
+		return {
+			...commonReport,
+			judges: records.flatMap((record) =>
+				"judge" in record && record.judge !== undefined
+					? [{ repId: record.repId, ...record.judge }]
+					: [],
+			),
+			outcomeMeaning: "reply/transcript checks only",
+		};
+	}
+
 	const report =
 		finalization.mode === "session"
 			? commonReport
@@ -133,6 +149,10 @@ function groupRecord(
 type FinalizationRepRecord = ReturnType<typeof parseConfirmationRepRecord>;
 
 interface FinalizedGroupReport {
+	readonly outcomeMeaning?: string | undefined;
+	readonly judges?:
+		| readonly ({ readonly repId: string } & SessionQualityReading)[]
+		| undefined;
 	readonly reliability: ReturnType<typeof buildReliabilityReport>;
 	readonly resources: ReturnType<typeof buildResourceReport> & {
 		readonly commandTotal?: ReturnType<typeof buildSessionCommandTotal>;

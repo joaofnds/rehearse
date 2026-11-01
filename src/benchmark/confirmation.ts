@@ -5,6 +5,7 @@ import { MODEL_PREFLIGHT_MAXIMUM_USD } from "./model-preflight";
 import { groupCeilingReading } from "./spend-ceiling";
 
 const SESSION_CASE_PROVIDER_CALL_COUNT = 1;
+const NO_JUDGE_BUDGET_USD = 0;
 const STAGE_PRE_JUDGE_SESSION_COUNT = 2;
 const PIPELINE_STAGE_SESSION_COUNT = 1;
 const PIPELINE_FINAL_SESSION_COUNT = 1;
@@ -24,6 +25,7 @@ type ConfirmationCostRequest =
 	  }
 	| {
 			readonly mode: "session";
+			readonly judgeBudgetUsd?: number | undefined;
 			readonly reps: number;
 			readonly sessionBudgetUsd: number;
 			readonly spendCeilingUsd: number;
@@ -43,11 +45,6 @@ interface ConfirmationCostProjection {
 	readonly totalMaximumUsd: number;
 }
 
-/**
- * A session case's rep is one provider call and a deterministic check list, so
- * its projection is reps x one session at the budget: no Judge attempts, no
- * Product Owner, nothing else to pay for.
- */
 function sessionsPerRepFor(request: ConfirmationCostRequest): number {
 	switch (request.mode) {
 		case "session": {
@@ -74,7 +71,10 @@ function projectConfirmationCost(
 ): ConfirmationCostProjection {
 	const sessionsPerRep = sessionsPerRepFor(request);
 	const perRepMaximumUsd = Math.min(
-		sessionsPerRep * request.sessionBudgetUsd,
+		sessionsPerRep * request.sessionBudgetUsd +
+			(request.mode === "session"
+				? MAX_JUDGE_ATTEMPTS * (request.judgeBudgetUsd ?? NO_JUDGE_BUDGET_USD)
+				: NO_JUDGE_BUDGET_USD),
 		request.spendCeilingUsd,
 	);
 	if (request.mode === "session") {

@@ -5,6 +5,7 @@ import SummaryPanel from "#client/system/components/summary-panel";
 
 import type { AttemptEvidenceResponse } from "./attempt-evidence-query";
 import { SavedOutput } from "./saved-attempt-output";
+import SessionJudgeEvidence from "./session-judge-evidence";
 
 const NO_PASSED_STATE_CHECKS = 0;
 
@@ -102,6 +103,7 @@ function SessionEvidence({ record }: SessionEvidenceProps): React.JSX.Element {
 			/>
 			<SummaryPanel title="Session assessment">
 				<SessionAssessmentSummary record={record} />
+				<SessionJudgeEvidence judge={record.judge} />
 				{record.stateResults === undefined ? null : (
 					<SessionChecks
 						title="Saved state checks"

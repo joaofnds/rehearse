@@ -46,6 +46,7 @@ interface ComparisonAttempt {
 		| { readonly state: "unavailable"; readonly reason: string };
 	readonly words: OutputWords;
 	readonly checks?: ScoredRep["checks"];
+	readonly judge?: ScoredRep["judge"];
 	readonly stateChecks?: ScoredRep["stateResults"];
 }
 
@@ -90,6 +91,7 @@ function attemptsOf(reps: readonly ReportRep[]): readonly ComparisonAttempt[] {
 	return reps.map((rep) => ({
 		blockersFired: blockersFiredOf(rep),
 		checks: "checks" in rep ? rep.checks : undefined,
+		judge: "judge" in rep ? rep.judge : undefined,
 		ordinal: rep.ordinal,
 		outcomes: outcomesOf(rep),
 		repId: rep.repId,

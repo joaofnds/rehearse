@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { SessionCase } from "./case";
 import type { Immutable } from "./contracts";
-import { jsonValueSchema } from "./json-value";
+import { jsonObjectSchema } from "./json-value";
 import type { Assessment } from "./session-assessment";
 import { evaluateChecks } from "./session-check";
 import { orderedForHashing } from "./session-lineage";
@@ -13,6 +13,7 @@ import {
 	savedEvidence,
 	unavailable,
 } from "./session-regrade-evidence";
+import regradeSessionJudge from "./session-regrade-judge";
 import { regradeState, verdictOver } from "./session-regrade-state";
 /**
  * The identity of the definition that produced an assessment, which nothing
@@ -27,10 +28,14 @@ import { regradeState, verdictOver } from "./session-regrade-state";
  * effort stay out because they name the arm rather than the grader.
  */
 function gradingDefinitionDigest(sessionCase: Immutable<SessionCase>): string {
-	const definition = jsonValueSchema.parse({
+	const definition = jsonObjectSchema.parse({
 		checks: sessionCase.checks,
 		stateCheck: sessionCase.stateCheck ?? null,
 	});
+
+	if (sessionCase.judge !== undefined) {
+		definition["judge"] = jsonObjectSchema.parse(sessionCase.judge);
+	}
 
 	return createHash("sha256")
 		.update(JSON.stringify(orderedForHashing(definition)))
@@ -66,14 +71,16 @@ async function regradeAttempt(
 		(check, position) => byPosition.get(position) ?? unavailable(check),
 	);
 	const state = await regradeState(request);
+	const judge = await regradeSessionJudge(request);
 
 	return {
 		checks,
 		evidence: digests,
 		gradingDefinition: gradingDefinitionDigest(request.sessionCase),
+		judge,
 		sourceAttempt: request.attemptId,
 		...state,
-		outcome: verdictOver(checks, state),
+		outcome: verdictOver(checks, state, judge),
 	};
 }
 export { gradingDefinitionDigest, regradeAttempt };

@@ -13,12 +13,14 @@ import {
 import sessionFrozenPath from "./comparison-session-frozen-paths";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
+import { parseRubricIds } from "./judge";
 
 const SINGLE_ITEM_COUNT = 1;
 
 const EMPTY_COLLECTION_LENGTH = 0;
 
 interface SessionFrozenInputs {
+	readonly judgeRubric?: string | undefined;
 	readonly sessionCase: Immutable<SessionCaseDeclaration>;
 	readonly files: readonly LoadedFrozenFile[];
 	readonly corpusFiles: readonly FrozenFile[];
@@ -44,6 +46,7 @@ function sessionCaseFile(
 			"source group records no case file",
 		);
 	}
+
 	return caseFile;
 }
 
@@ -58,6 +61,7 @@ function assertSessionFrozenFiles(
 	);
 	assertSessionFixtureFiles(request, sessionCase, frozen.files);
 	assertSessionTranscriptFiles(request, sessionCase, frozen.files);
+	const judgeRubric = sessionRubric(request, sessionCase, frozen.files);
 	const corpusFiles = assertSessionCorpusFiles(
 		request,
 		sessionCase,
@@ -67,9 +71,54 @@ function assertSessionFrozenFiles(
 	return {
 		corpusFiles: corpusFiles.map(({ record }) => record),
 		files: frozen.files,
+		judgeRubric,
 		sessionCase,
 		sourcePaths: frozen.sourcePaths,
 	};
+}
+
+function sessionRubric(
+	request: Readonly<LoadArmRequest>,
+	sessionCase: Immutable<SessionCaseDeclaration>,
+	files: readonly LoadedFrozenFile[],
+): string | undefined {
+	const rubrics = files.filter(({ record }) => record.kind === "rubric");
+	if (
+		sessionCase.judge === undefined &&
+		rubrics.length === EMPTY_COLLECTION_LENGTH
+	) {
+		return undefined;
+	}
+
+	const [rubric] = rubrics;
+	if (
+		sessionCase.judge === undefined ||
+		rubrics.length !== SINGLE_ITEM_COUNT ||
+		rubric === undefined
+	) {
+		throw evidenceError(
+			{
+				arm: request.role,
+				caseId: request.caseId,
+				field: "inputs.files.rubric",
+			},
+			"a declared session Judge requires exactly one frozen rubric",
+		);
+	}
+	try {
+		parseRubricIds(rubric.text);
+	} catch {
+		throw evidenceError(
+			{
+				arm: request.role,
+				caseId: request.caseId,
+				field: "inputs.files.rubric",
+			},
+			"the frozen session rubric has no unique requirement IDs",
+		);
+	}
+
+	return rubric.text;
 }
 
 function readFrozenSessionCase(
@@ -81,6 +130,7 @@ function readFrozenSessionCase(
 		if (parsed.kind !== "session") {
 			throw new Error("frozen case is not a session declaration");
 		}
+
 		return parsed;
 	} catch {
 		throw evidenceError(
@@ -138,6 +188,7 @@ function assertSessionTranscriptFiles(
 			`source group records ${transcriptFiles.length} transcript files for the declared session input`,
 		);
 	}
+
 	if (sessionCase.transcript !== undefined) {
 		const [transcriptFile] = transcriptFiles;
 		if (transcriptFile === undefined) {
@@ -174,6 +225,7 @@ function assertSessionTranscriptRecord(
 			"frozen transcript path disagrees with the session case declaration",
 		);
 	}
+
 	if (transcriptFile.record.sha256 !== transcript.sha256) {
 		throw evidenceError(
 			{

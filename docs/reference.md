@@ -22,8 +22,8 @@ A debug attempt helps inspect behavior. Confirmation repeats a frozen input set
 and reports reliability and resource use. `compare <manifest>` consumes existing
 evidence and launches no agents. `compare attempts` takes two recorded stage
 groups as arms A and B and replays only the control group, so it spends
-like one `replay --confirm`. Session comparisons use recorded checks and worker
-metrics; they do not load pipeline Judges.
+like one `replay --confirm`. Session comparisons use recorded checks, optional
+session Judge results and provider metrics. They do not load pipeline Judges.
 
 ## Command interface
 
@@ -51,11 +51,12 @@ The shared settings are `--model`, `--effort`, `--judge-model`,
 Effort accepts `low`, `medium`, `high`, `xhigh`, and `max`. The provider must
 support the selected model and effort combination.
 
-Workflow model and effort also govern the Product Owner. Judges default to
-`opus`, or `sonnet` when the workflow model belongs to the Opus family. Judge
+Workflow model and effort also govern the Product Owner. Pipeline Judges default
+to `opus`, or `sonnet` when the workflow model belongs to the Opus family. Judge
 effort defaults to workflow effort. Explicitly selecting a Judge from the same
 recognized model family prints a self-preference warning. A full model ID can
-pin a comparison more precisely than a moving alias.
+pin a comparison more precisely than a moving alias. Session Judges resolve their
+settings from the case's `judge` declaration as described below.
 
 `--minimum-grade` / `BENCHMARK_MINIMUM_GRADE` defaults to B and controls when
 a plain pipeline run continues. Replay and pipeline confirmation do not currently
@@ -73,6 +74,9 @@ rewrite the Judge's grade or make a low grade a reliability success.
   checkout and leaves review/calibration to separate commands.
 - `calibrate --confirm-rejudge` approves revised Judge conclusions. Calibration
   can invoke paid Judges long after the run's checkout was removed.
+- `regrade` can invoke a paid session Judge when the current case declares one.
+  Outside a terminal, pass `--model` or `BENCHMARK_MODEL` to authorize that spend.
+  Regrading checks and a state scorer alone starts no provider session.
 
 Model availability is checked with a paid probe whose budget is $0.10.
 For pipeline `run`, repository and settings preconditions precede the probe,
@@ -87,8 +91,9 @@ fresh session cases do not need the check.
 The session budget applies to each workflow session, the shared PO session, and
 each Judge invocation on its own, not to the whole run. Confirmation projects
 rep costs from those budgets and holds each rep to the stored spend ceiling
-where the ceiling is lower; session confirmation adds the probe allowance,
-which the ceiling does not hold. The approval line also names the ceiling per
+where the ceiling is lower. A session case with a Judge includes the worker
+budget and up to two Judge calls at the Judge's budget. Session confirmation adds
+the probe allowance, which the ceiling does not hold. The approval line also names the ceiling per
 attempt and the group's ceiling, the figures the browser's launch dialog
 states for the same group. Where the session budgets sum below that group
 ceiling, the projection is the lower sum, so it reads below the dialog's
@@ -199,8 +204,8 @@ value as `sessionBudgetUsd`.
 A pipeline or replay confirmation group holds each rep to the ceiling and all
 reps together to the reps times the ceiling. Since reps run at once, one rep's
 overrun counts against the others, and once the group total is reached no rep
-starts another session. A session group's reps each start one session with a
-budget clamped to the ceiling, so they share no running total. A replay or a group rep refused by the ceiling fails through its
+starts another session. Each session rep holds its worker and any Judge calls to one shared attempt
+ceiling. Separate session reps each hold their own ceiling. A replay or a group rep refused by the ceiling fails through its
 ordinary failure path, without a `ceilingStop` field.
 
 The run manifest, a replay record, a session attempt record, and every
@@ -655,9 +660,10 @@ the recorded identity or expose the recording machine's path.
 A session case declares a prompt, allowed tools, declared corpus files, and at
 least one deterministic check. Optional inputs are a fixture tree, transcript
 prefix, inline settings/agent definitions, `projectFiles` for context
-manifest reconciliation, and a `stateCheck` grading the files and git state the
-session leaves. Declared settings carry a `permissions.allow` block
-where the case needs to edit files or run a command. A declared
+manifest reconciliation, a `stateCheck` grading the files and git state the
+session leaves, and a rubric `judge` grading its recorded work. Declared settings
+carry a `permissions.allow` block where the case needs to edit files or run a
+command. A declared
 `transcript.file` is a `.jsonl` file name directly in the case directory, with
 no subdirectory. Neither a fixture tree nor
 a transcript prefix may be a symlink, which is refused before any provider
@@ -702,6 +708,64 @@ error, so it records `EXECUTION_FAILED` with the provider's stated error and
 spend. Confirmation counts that rep as
 unsuccessful; it also records execution failures and missing metrics
 explicitly.
+
+#### Session rubric Judge
+
+A session case can declare a `judge` alongside its deterministic checks:
+
+```json
+"judge": {
+  "rubric": "rubric.md",
+  "files": ["src/answer.ts"],
+  "model": "sonnet",
+  "effort": "high",
+  "sessionBudgetUsd": 1
+}
+```
+
+`rubric` names a Markdown file inside the case directory. The loader reads and
+validates it before execution. Each requirement has a unique ID in this form:
+
+```markdown
+1. `correctness`: The answer implements the behavior the prompt requests.
+2. `explanation`: The reply explains the result using the supplied evidence.
+```
+
+There are no mandatory pipeline harness IDs. Omitted model, effort and per-call
+budget inherit the worker's settings. `files` defaults to an empty list and
+selects literal UTF-8 text-file paths relative to the final tree, without globs.
+The Judge also receives the original prompt, saved reply, recorded attempt-region
+transcript where its boundary is known, and an evidence-availability manifest.
+A missing transcript is named in the manifest. A selected file absent from an
+existing saved tree is a gradable absence. New attempts retain an omission index
+for links and irregular entries, so selecting one is unavailable rather than
+graded as absent. A missing reply or whole saved tree
+when files are selected makes judging `UNAVAILABLE`, with no paid call. Unsafe paths, links, binary data and oversized selected final files also prevent
+a call. A refused optional transcript is omitted and named in the availability
+manifest, so a reply rubric can still be judged. Selected files and the optional
+transcript use the context-file size limit. All supplied evidence uses the total
+context limit, which prevents a call when exceeded. Evidence is never silently
+truncated.
+
+The Judge runs sealed, with no tools or inherited hooks. Its prompt treats all
+candidate evidence as untrusted JSON. It returns one `PASS` or `FAIL` per rubric
+ID and a verdict that passes only when every requirement passes. Each result
+cites supplied text and quotes a supporting span; the harness validates the
+citation and computes its locator. Invalid output can receive one correction
+attempt, subject to the same spend ceiling as the worker.
+
+An attempt's `judge` retains its rubric bytes and digest, supplied input, prompt,
+settings, attempts, provider calls and cost, with the instruction-contract digest
+when an invocation occurred. A `GRADED` result carries the cited grade. `ERROR`
+and `UNAVAILABLE` carry a reason and no grade. The recorded attempt outcome continues to describe the deterministic
+reply/transcript checks; the CLI and Results show the Judge verdict separately.
+Confirmation freezes the rubric with its inputs and includes Judge calls in its
+budget and recorded spend. Comparisons retain the separate checks and Judge
+readings, so a passing check list is not a quality verdict.
+
+Session Judge grades have no human calibration or measured agreement baseline
+yet. Their saved inputs and outputs support inspection; the pipeline calibration
+commands do not accept session attempts.
 
 #### State checks
 
@@ -796,8 +860,13 @@ author's control.
 
 `regrade attempt:session:<case>/<uuid>` re-evaluates a saved attempt's evidence
 against its case as it stands now and prints the path of the assessment it
-wrote. It reaches no provider, so correcting a wrong check costs no second paid
-session.
+wrote. Without a declared Judge it starts no provider session. When the current
+case declares a Judge, it starts a sealed Judge over the saved work and uses the
+current stored spend ceiling. Its model, effort and budget come from the current
+Judge declaration, falling back to the original worker's recorded settings.
+`--model` overrides the Judge model and authorizes a paid nonterminal regrade.
+The worker never runs again. A paid regrade with this new Judge path has not yet
+been validated against a live provider.
 
 The definition comes from the case declaration on disk, the way `replay`,
 `calibrate` and `stale` all read frozen evidence against what the case declares
@@ -807,10 +876,11 @@ no flag to grade it against a substitute definition.
 The evidence comes from the attempt directory: the reply from `attempt.json`,
 the transcript from `transcript.jsonl` beside it, and the files and git state
 from `state/`. A record's own `transcriptFile` is an absolute path on the
-machine that wrote it and is not what a regrade opens. Each pass restores the
-state evidence into its own copy before grading, so the saved reply, transcript
-and state stay byte-identical however many passes run and whatever the scorer
-writes.
+machine that wrote it and is not what a regrade opens. Each scorer pass restores
+the state evidence into its own copy, while the Judge reads only its selected saved
+text. The saved reply, transcript and state stay byte-identical however many
+passes run and whatever the scorer writes. The Judge receives the original
+recorded prompt even if the case prompt has since changed.
 
 Transcript checks regrade over the boundary the attempt recorded, honoring
 `transcriptDiagnostics.prefixLinesExcluded` only when the diagnostics state is
@@ -825,10 +895,12 @@ reports that scorer unavailable for the same reason.
 
 An assessment carries `PASS`, `FAIL` or `UNAVAILABLE` per declared check, the
 digest of each evidence body it read, and a grading definition digest over
-`{checks, stateCheck}`. Two assessments of one attempt whose digests differ
-were produced by different definitions. An assessment in which any declared
-check is unavailable carries no overall outcome, because a verdict over the
-checks that had evidence would read as a verdict over the whole definition.
+`{checks, stateCheck, judge}`, including the current rubric content and Judge
+settings where declared. Two assessments of one attempt whose digests differ
+were produced by different definitions. The assessment retains the new Judge
+result as well. Its overall outcome requires every declared check, state scorer
+and Judge to have graded; a Judge failure of the work makes that outcome
+unsuccessful, while an unavailable or errored Judge withholds it.
 
 Assessments accumulate; nothing prunes them, and none rewrites `attempt.json`.
 Comparison digests a rep's `attempt.json` bytes as provenance, so rewriting a
@@ -2984,9 +3056,9 @@ that digest, or is not UTF-8 text. A case whose arms ran identical corpora
 lists no file. A digest with no recorded comparison answers 404, as
 `GET /api/comparisons/<digest>` does.
 
-Session resource values are per-repetition worker metrics; group preflight cost
-remains at confirmation-group level, and unavailable metrics stay visible as
-unavailable.
+Session resource values combine each repetition's worker and recorded Judge
+calls. Group preflight cost remains at confirmation-group level, and unavailable
+metrics stay visible as unavailable.
 
 Each arm's resources carry its attempt elapsed time as the per-repetition
 observations and their mean, beside cost and tokens, so a variant that got

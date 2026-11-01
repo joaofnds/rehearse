@@ -18,7 +18,7 @@ import {
 	sessionSetupRecordSchema,
 	sha256Schema,
 } from "./session-record-context-schema";
-import { stateResultSchema } from "./session-state-check";
+import { judgeField, stateGradeFields } from "./session-record-grading";
 import { transcriptDiagnosticsSchema } from "./transcript";
 
 const sessionAttemptRecordFields = {
@@ -31,6 +31,7 @@ const sessionAttemptRecordFields = {
 	corpusVersion: corpusMeasurementSchema.optional(),
 	effort: effortSchema.optional(),
 	elapsedMs: z.number().nonnegative(),
+	...judgeField,
 	lineage: z.string().nonempty(),
 	metrics: claudeCallMetricsSchema.optional(),
 	model: z.string().nonempty(),
@@ -47,11 +48,6 @@ const sessionAttemptRecordFields = {
 
 const unavailableSubagentsSchema = z.array(z.string().nonempty()).optional();
 
-const stateGradeFields = {
-	stateGradingError: z.string().nonempty().optional(),
-	stateResults: z.array(stateResultSchema).optional(),
-};
-
 const executionFailedSessionAttemptRecordFields = {
 	caseId: z.string().nonempty(),
 	checks: z.array(checkResultSchema).length(EMPTY_COLLECTION_LENGTH),
@@ -65,6 +61,7 @@ const executionFailedSessionAttemptRecordFields = {
 	effort: effortSchema.optional(),
 	elapsedMs: z.number().nonnegative(),
 	error: z.string().nonempty(),
+	...judgeField,
 	lineage: z.string().nonempty(),
 	metrics: claudeCallMetricsSchema.optional(),
 	model: z.string().nonempty(),
@@ -94,7 +91,8 @@ const sessionAttemptRecordV3Fields = {
 
 export {
 	sessionAttemptRecordFields,
-	stateGradeFields,
 	executionFailedSessionAttemptRecordFields,
 	sessionAttemptRecordV3Fields,
 };
+
+export { stateGradeFields } from "./session-record-grading";

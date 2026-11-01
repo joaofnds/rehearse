@@ -39,6 +39,12 @@ function reportSessionChecks(
 	record: Immutable<SessionAttemptRecord>,
 	output: CommandOutput,
 ): void {
+	if (record.judge !== undefined) {
+		const { judge } = record;
+		output.stderr(
+			`Judge: ${judge.status === "GRADED" ? judge.grade.verdict : judge.status} ($${String(judge.costUsd)}). Recorded outcome covers reply/transcript checks.\n`,
+		);
+	}
 	for (const check of record.checks) {
 		output.stderr(`${check.status} ${check.kind}: ${check.detail}\n`);
 	}

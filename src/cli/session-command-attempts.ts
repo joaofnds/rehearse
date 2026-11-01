@@ -41,6 +41,11 @@ class SessionCommandAttempts {
 		spendCeilingUsd: number,
 	): ConfirmationCostProjection =>
 		projectConfirmationCost({
+			judgeBudgetUsd:
+				this.context.execution.sessionCase.judge === undefined
+					? undefined
+					: (this.context.execution.sessionCase.judge.sessionBudgetUsd ??
+						this.context.execution.config.sessionBudgetUsd),
 			mode: "session",
 			reps:
 				this.context.execution.config.confirmation?.reps ??

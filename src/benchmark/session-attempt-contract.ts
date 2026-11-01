@@ -1,7 +1,11 @@
 import type { HashedFile } from "./checkpoint";
 import type { ContextEvidence } from "./context-evidence";
 import type { ContextManifest } from "./context-manifest";
-import type { ClaudeCallMetrics, Immutable } from "./contracts";
+import type {
+	ClaudeCallMetrics,
+	Immutable,
+	SessionJudgeRecord,
+} from "./contracts";
 import type { CorpusDeliveryRecord } from "./corpus-delivery";
 import type {
 	CorpusOverlay,
@@ -14,6 +18,7 @@ import type { TranscriptDiagnostics, TranscriptLine } from "./transcript";
 
 interface SessionAttempt {
 	readonly attemptDirectory: string;
+	readonly judge?: SessionJudgeRecord | undefined;
 	readonly reply: string | undefined;
 	readonly transcriptFile: string;
 	readonly metrics: ClaudeCallMetrics | undefined;

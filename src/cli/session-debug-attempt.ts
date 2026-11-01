@@ -68,23 +68,26 @@ class SessionAttemptRecorder {
 		const request = this.execution;
 		const { corpus, settings } = this.evidence;
 		try {
-			return await attempted({
-				contextEvidenceSource: request.contextEvidenceSource,
-				contextRateCatalog: request.contextRateCatalog,
-				corpusSnapshot: corpus.snapshot,
-				environment: request.environment,
-				home: request.home,
-				inFlight: request.inFlight,
-				liveCitations: await sessionCitationMap(
-					request.home,
-					request.environment,
-				),
-				projectsDirectory: request.projectsDirectory,
-				recordDirectory: this.evidence.attemptPaths.directory,
-				runClaude: request.runClaude,
-				sessionCase: request.sessionCase,
-				settings,
-			});
+			return await attempted(
+				{
+					contextEvidenceSource: request.contextEvidenceSource,
+					contextRateCatalog: request.contextRateCatalog,
+					corpusSnapshot: corpus.snapshot,
+					environment: request.environment,
+					home: request.home,
+					inFlight: request.inFlight,
+					liveCitations: await sessionCitationMap(
+						request.home,
+						request.environment,
+					),
+					projectsDirectory: request.projectsDirectory,
+					recordDirectory: this.evidence.attemptPaths.directory,
+					runClaude: request.runClaude,
+					sessionCase: request.sessionCase,
+					settings,
+				},
+				request.spendCeilingUsd,
+			);
 		} catch (error) {
 			if (!(error instanceof SessionInvocationError)) {
 				refuseWhenStopped({

@@ -3,6 +3,8 @@ import { sessionConfirmationRepRecordSchema } from "./confirmation-record";
 import type { SessionAttempt } from "./session-attempt";
 import type { SessionConfirmationRequest } from "./session-confirmation-contract";
 import type { FrozenSessionInputs } from "./session-confirmation-frozen-inputs";
+import sessionProviderMetrics from "./session-provider-metrics";
+import { sessionQualityReading } from "./session-quality-reading";
 
 interface SessionRepContext {
 	readonly request: SessionConfirmationRequest;
@@ -16,23 +18,11 @@ interface SessionRepResult {
 	readonly elapsedMs: number;
 }
 
-const NO_WORKER_TURNS = 0;
-
 function repRecord(
 	{ request, inputs, plan }: SessionRepContext,
 	{ attempt, error, elapsedMs }: SessionRepResult,
 ): SessionConfirmationRepRecord {
-	const metrics =
-		attempt.metrics === undefined
-			? {
-					calls: [],
-					missing: ["worker call metrics"],
-					status: "MISSING" as const,
-				}
-			: {
-					calls: [{ metrics: attempt.metrics, role: "worker" as const }],
-					status: "COMPLETE" as const,
-				};
+	const metrics = sessionProviderMetrics(attempt);
 	const stage = checksStage({ attempt, elapsedMs, error });
 
 	return sessionConfirmationRepRecordSchema.parse({
@@ -41,17 +31,17 @@ function repRecord(
 		finalOutcome: { status: "NOT_APPLICABLE" },
 		groupId: request.groupId,
 		lineage: { kind: "SESSION", lineage: inputs.lineage },
-		metrics,
+		...metrics,
+		judge: sessionQualityReading(attempt.judge),
 		mode: "session",
 		ordinal: plan.ordinal,
 		outcome:
-			attempt.outcome === "SUCCESSFUL" && attempt.metrics !== undefined
+			attempt.outcome === "SUCCESSFUL" && metrics.metrics.status === "COMPLETE"
 				? "SUCCESSFUL"
 				: "UNSUCCESSFUL",
 		repId: plan.repId,
 		schemaVersion: 2,
 		stages: [stage],
-		workerTrajectorySteps: attempt.metrics?.turns ?? NO_WORKER_TURNS,
 	});
 }
 

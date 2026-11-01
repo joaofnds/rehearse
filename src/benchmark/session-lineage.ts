@@ -65,6 +65,11 @@ async function sessionUpstreamDigest(
 			? []
 			: await scorerFiles(fixturePath, sessionCase.stateCheck.command);
 
+	if (sessionCase.judge !== undefined) {
+		const { rubricPath: _path, ...judge } = sessionCase.judge;
+		hashed["judge"] = jsonObjectSchema.parse(judge);
+	}
+
 	const graded =
 		sessionCase.stateCheck === undefined
 			? hashed

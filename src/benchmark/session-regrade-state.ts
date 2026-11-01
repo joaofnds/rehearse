@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import type { Immutable } from "./contracts";
+import type { Immutable, SessionJudgeRecord } from "./contracts";
 import { statIfExists } from "./file-presence";
 import type {
 	Assessment,
@@ -69,9 +69,11 @@ async function regradeState(
 function verdictOver(
 	checks: readonly RegradedCheck[],
 	state: Readonly<StateGrade>,
+	judge?: SessionJudgeRecord,
 ): Assessment["outcome"] {
 	if (
 		state.stateCheck !== undefined ||
+		(judge !== undefined && judge.status !== "GRADED") ||
 		checks.some(({ status }) => status === "UNAVAILABLE")
 	) {
 		return undefined;
@@ -81,6 +83,10 @@ function verdictOver(
 		({ status }) => status === "PASS",
 	);
 
-	return passed ? "SUCCESSFUL" : "UNSUCCESSFUL";
+	return passed &&
+		(judge === undefined ||
+			(judge.status === "GRADED" && judge.grade.verdict === "PASS"))
+		? "SUCCESSFUL"
+		: "UNSUCCESSFUL";
 }
 export { regradeState, verdictOver };

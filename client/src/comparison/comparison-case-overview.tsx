@@ -32,7 +32,7 @@ function attemptsPerArm(
 function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
 	switch (mode) {
 		case "session": {
-			return "Recorded session check outcomes and saved state checks are shown separately; no independent final workflow outcome is measured.";
+			return "Recorded session check outcomes and saved state checks are shown separately; no independent final workflow outcome is measured. Attempt pairs also show each recorded session Judge verdict separately from those checks.";
 		}
 		case "pipeline": {
 			return "The final workflow outcome is judged independently of intermediate step grades. Read each named measure separately.";

@@ -11,12 +11,8 @@ import type {
 	SessionAttemptPair,
 } from "./comparison-session-attempt-contract";
 import assertSessionAttemptInputs from "./comparison-session-attempt-inputs";
-
-const SINGLE_ITEM_COUNT = 1;
-
-const EMPTY_COLLECTION_LENGTH = 0;
-
-const NO_WORKER_TRAJECTORY_STEPS = 0;
+import sessionProviderMetrics from "./session-provider-metrics";
+import { sessionQualityReading } from "./session-quality-reading";
 
 function assertSessionAttemptMetrics(
 	request: Readonly<LoadArmRequest>,
@@ -24,22 +20,10 @@ function assertSessionAttemptMetrics(
 	field: string,
 ): void {
 	const { attempt, rep } = pair;
-	if (attempt.metrics === undefined) {
-		assertSessionMissingMetrics(request, pair, field);
-		return;
-	}
-	if (rep.metrics.status !== "COMPLETE") {
-		throw evidenceError(
-			{ arm: request.role, caseId: request.caseId, field: `${field}.metrics` },
-			"rep records missing metrics for an attempt with metrics",
-		);
-	}
-	const [workerCall] = rep.metrics.calls;
+	const expected = sessionProviderMetrics(attempt);
 	if (
-		rep.metrics.calls.length !== SINGLE_ITEM_COUNT ||
-		workerCall?.role !== "worker" ||
-		!sameValue(workerCall.metrics, attempt.metrics) ||
-		rep.workerTrajectorySteps !== attempt.metrics.turns
+		!sameValue(rep.metrics, expected.metrics) ||
+		rep.workerTrajectorySteps !== expected.workerTrajectorySteps
 	) {
 		throw evidenceError(
 			{ arm: request.role, caseId: request.caseId, field: `${field}.metrics` },
@@ -55,7 +39,8 @@ function assertSessionAttemptAggregate(
 ): void {
 	const [checks] = rep.stages;
 	const expectedOutcome =
-		attempt.outcome === "SUCCESSFUL" && attempt.metrics !== undefined
+		attempt.outcome === "SUCCESSFUL" &&
+		sessionProviderMetrics(attempt).metrics.status === "COMPLETE"
 			? "SUCCESSFUL"
 			: "UNSUCCESSFUL";
 	if (rep.outcome !== expectedOutcome) {
@@ -65,6 +50,13 @@ function assertSessionAttemptAggregate(
 		);
 	}
 	assertSessionAttemptMetrics(request, { attempt, rep }, field);
+	if (!sameValue(rep.judge, sessionQualityReading(attempt.judge))) {
+		throw evidenceError(
+			{ arm: request.role, caseId: request.caseId, field: `${field}.judge` },
+			"rep Judge result disagrees with its recorded attempt",
+		);
+	}
+
 	const failedChecksStatus = sessionFailedChecksStatus(attempt.outcome);
 	if (
 		failedChecksStatus !== undefined &&
@@ -75,36 +67,6 @@ function assertSessionAttemptAggregate(
 			failedChecksStatus === "NOT_REACHED"
 				? "no-reply attempt must map to a not-reached checks outcome"
 				: "failed invocation must map to an execution-failed checks outcome",
-		);
-	}
-}
-
-function assertSessionMissingMetrics(
-	request: Readonly<LoadArmRequest>,
-	{ rep }: SessionAttemptPair,
-	field: string,
-): void {
-	if (rep.metrics.status !== "MISSING") {
-		throw evidenceError(
-			{
-				arm: request.role,
-				caseId: request.caseId,
-				field: `${field}.metrics`,
-			},
-			"rep records complete metrics for an attempt with missing metrics",
-		);
-	}
-	if (
-		rep.metrics.calls.length > EMPTY_COLLECTION_LENGTH ||
-		rep.workerTrajectorySteps !== NO_WORKER_TRAJECTORY_STEPS
-	) {
-		throw evidenceError(
-			{
-				arm: request.role,
-				caseId: request.caseId,
-				field: `${field}.metrics`,
-			},
-			"rep metrics disagree with its attempt's missing metrics",
 		);
 	}
 }

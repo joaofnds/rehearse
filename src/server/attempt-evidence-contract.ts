@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import type { Immutable } from "#benchmark/contracts";
+import type { SessionJudgeRecord } from "#benchmark/session-judge-contract";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { RecordId } from "#cli/record-id";
 import type {
@@ -12,12 +13,23 @@ import type { RecordedEvidenceFile } from "#server/session-history-reader";
 
 const STATE_GRADING_SESSION_RECORD_VERSION = 3;
 
+type SessionJudgeEvidence =
+	| Omit<
+			Extract<SessionJudgeRecord, { status: "GRADED" }>,
+			"attempts" | "providerCalls"
+	  >
+	| Omit<
+			Extract<SessionJudgeRecord, { status: "ERROR" | "UNAVAILABLE" }>,
+			"attempts" | "providerCalls"
+	  >;
+
 interface SessionEvidence {
 	readonly caseId: string;
 	readonly outcome: SessionAttemptRecord["outcome"];
 	readonly reply?: string | undefined;
 	readonly error?: string | undefined;
 	readonly checks: Immutable<SessionAttemptRecord["checks"]>;
+	readonly judge?: SessionJudgeEvidence | undefined;
 	readonly stateResults?: Immutable<
 		Extract<
 			SessionAttemptRecord,
@@ -79,6 +91,7 @@ interface RepStageEvidence {
 
 export type {
 	SessionEvidence,
+	SessionJudgeEvidence,
 	AttemptEvidenceReport,
 	ScorecardEvidence,
 	AttemptEvidenceInput,

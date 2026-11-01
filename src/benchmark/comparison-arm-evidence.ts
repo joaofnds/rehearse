@@ -131,6 +131,7 @@ async function loadArmEvidence(
 		{ group, groupPath },
 		{
 			frozenCorpus: session?.corpusFiles ?? [],
+			judgeRubric: session?.judgeRubric,
 			sessionCase: session?.sessionCase,
 		},
 	);
@@ -154,6 +155,7 @@ async function loadArmEvidence(
 	if (session === undefined) {
 		return loaded;
 	}
+
 	return { ...loaded, sessionCase: session.sessionCase };
 }
 

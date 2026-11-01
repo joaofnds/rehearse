@@ -28,6 +28,7 @@ interface GroupEvidence {
 }
 
 interface SessionGroupInputs {
+	readonly judgeRubric?: string | undefined;
 	readonly sessionCase: Immutable<SessionCaseDeclaration> | undefined;
 	readonly frozenCorpus: readonly FrozenFile[];
 }
@@ -123,7 +124,7 @@ async function loadSessionRepEvidence(
 	const {
 		request,
 		reference,
-		inputs: { sessionCase, frozenCorpus },
+		inputs: { sessionCase, frozenCorpus, judgeRubric },
 	} = input;
 	const { field, path, record, source } = loaded;
 	const group = comparableSessionGroup(request, input.group, field);
@@ -154,6 +155,7 @@ async function loadSessionRepEvidence(
 		field,
 		frozenCorpus,
 		group,
+		judgeRubric,
 		path,
 		record,
 		reference,

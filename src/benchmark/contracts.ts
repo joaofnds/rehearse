@@ -127,3 +127,5 @@ export type {
 	FailedJudgeRunArtifact,
 	RunArtifact,
 } from "./run-artifact-contract";
+
+export type { SessionJudgeRecord } from "./session-judge-contract";

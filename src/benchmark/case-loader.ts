@@ -1,4 +1,4 @@
-import { relative } from "node:path";
+import { dirname, relative } from "node:path";
 
 import { readCaseDeclaration } from "./case-catalog";
 import { CaseDeclarationError } from "./case-declaration";
@@ -14,13 +14,16 @@ import type {
 } from "./case-model";
 import {
 	caseRelative,
+	casesRoot,
 	declaredSettingsFilePath,
 	declaredTarget,
 	transcriptPrefixPath,
 } from "./case-paths";
 import { CONTROL_DIR } from "./config";
+import { parseRubricIds } from "./judge";
 import { loadPipeline } from "./pipeline";
 import type { PipelineDefinition } from "./pipeline";
+import { selectedJudgeText } from "./session-judge-evidence";
 import { loadStageRubric } from "./stage-rubric";
 
 async function loadPipelineWithRubrics(
@@ -95,8 +98,46 @@ async function loadPipelineCase(
 	};
 }
 
-function loadSessionCase(declaration: SessionCaseDeclaration): SessionCase {
+function validateSessionRubric(id: string, content: string): void {
+	try {
+		parseRubricIds(content);
+	} catch (error) {
+		throw new CaseDeclarationError(
+			`Case ${id} has an invalid judge rubric: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
+async function loadSessionJudge(
+	declaration: SessionCaseDeclaration,
+	root: string,
+): Promise<SessionCase["judge"]> {
+	const { judge } = declaration;
+	if (judge === undefined) {
+		return undefined;
+	}
+
+	const directory = dirname(caseRelative(declaration, "case.json", root));
+	const rubric = await selectedJudgeText(
+		directory,
+		relative(directory, caseRelative(declaration, judge.rubric, root)),
+	);
+	if (rubric.kind !== "file") {
+		throw new CaseDeclarationError(
+			`Case ${declaration.id} cannot read judge rubric ${judge.rubric}: ${rubric.detail}`,
+		);
+	}
+	validateSessionRubric(declaration.id, rubric.content);
+
+	return { ...judge, rubric: rubric.content, rubricPath: judge.rubric };
+}
+
+async function loadSessionCase(
+	declaration: SessionCaseDeclaration,
+	root: string = casesRoot(),
+): Promise<SessionCase> {
 	const { fixture, transcript } = declaration;
+	const loadedJudge = await loadSessionJudge(declaration, root);
 
 	return {
 		agents: declaration.agents,
@@ -104,8 +145,11 @@ function loadSessionCase(declaration: SessionCaseDeclaration): SessionCase {
 		corpusFiles: declaration.corpusFiles,
 		declaration,
 		fixturePath:
-			fixture === undefined ? undefined : caseRelative(declaration, fixture),
+			fixture === undefined
+				? undefined
+				: caseRelative(declaration, fixture, root),
 		isolated: declaration.isolated === true,
+		judge: loadedJudge,
 		kind: "session",
 		projectFiles: declaration.projectFiles,
 		prompt: declaration.prompt,
@@ -115,14 +159,14 @@ function loadSessionCase(declaration: SessionCaseDeclaration): SessionCase {
 		transcriptPath:
 			transcript === undefined
 				? undefined
-				: transcriptPrefixPath(declaration.id, transcript.file),
+				: transcriptPrefixPath(declaration.id, transcript.file, root),
 	};
 }
 
 async function loadCase(id: string): Promise<LoadedCase> {
 	const declaration = await readCaseDeclaration(id);
 	if (declaration.kind === "session") {
-		return loadSessionCase(declaration);
+		return await loadSessionCase(declaration);
 	}
 
 	return await loadPipelineCase(declaration);
@@ -145,4 +189,4 @@ async function withPipeline(
 	return { ...benchmarkCase, pipeline, pipelinePath, stageRubrics };
 }
 
-export { loadCase, withPipeline };
+export { loadCase, loadSessionCase, withPipeline };

@@ -53,6 +53,17 @@ class SessionInputFiles {
 		const transcriptPath = await this.freezeTranscript(
 			sessionCase.transcriptPath,
 		);
+		const { judge } = sessionCase;
+		if (judge !== undefined) {
+			this.files.push(
+				await writeFrozenFile(this.directories.groupDirectory, {
+					content: judge.rubric,
+					kind: "rubric",
+					path: join(this.directories.inputsDirectory, "rubric.md"),
+				}),
+			);
+		}
+
 		this.files.push(
 			...(await frozenDirectoryFiles(
 				this.directories.groupDirectory,

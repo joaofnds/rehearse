@@ -72,6 +72,7 @@ function blockersText(blockersFired: Attempt["blockersFired"]): string {
 	if (blockersFired.state === "unavailable") {
 		return "blockers not recorded";
 	}
+
 	if (blockersFired.blockers.length === EMPTY_COLLECTION_LENGTH) {
 		return "no blocker fired";
 	}
@@ -101,6 +102,7 @@ function History({
 	if (link === undefined) {
 		return null;
 	}
+
 	if (link.status === "stale") {
 		return (
 			<span
@@ -179,6 +181,13 @@ function SessionAttemptChecks({
 }: SessionAttemptChecksProps): React.JSX.Element {
 	return (
 		<div className="flex flex-col gap-1 text-12">
+			{attempt.judge === undefined ? null : (
+				<span>
+					{attempt.judge.status === "GRADED"
+						? `Judge: ${attempt.judge.verdict} (separate from recorded checks)`
+						: `Judge ${attempt.judge.status.toLowerCase()}: ${attempt.judge.detail}`}
+				</span>
+			)}
 			<span>
 				{attempt.checks === undefined
 					? "Reply / transcript: not recorded"

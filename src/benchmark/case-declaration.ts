@@ -5,6 +5,7 @@ import effortSchema from "./effort";
 import parseJsonDocument from "./json-document";
 import { jsonObjectSchema } from "./json-value";
 import { checkSchema } from "./session-check";
+import { sessionJudgeDeclarationSchema } from "./session-judge-contract";
 import { stateCheckSchema } from "./session-state-check";
 import type { ValidationFieldOrder } from "./validation-issue-order";
 import orderedValidationIssues from "./validation-issue-order";
@@ -69,6 +70,7 @@ const sessionCaseDeclarationSchema = z
 		fixture: caseRelativePathSchema.optional(),
 		id: caseIdSchema,
 		isolated: z.boolean().optional(),
+		judge: sessionJudgeDeclarationSchema.optional(),
 		kind: z.literal("session"),
 		model: declaredModelSchema,
 		projectFiles: z.array(z.string().nonempty()).default([]),

@@ -61,6 +61,7 @@ interface MutableSessionAttemptRecord {
 	metrics?: SessionAttempt["metrics"];
 	outcome: SessionAttempt["outcome"];
 	checks: SessionAttempt["checks"];
+	judge?: SessionAttempt["judge"];
 	stateResults?: SessionAttempt["stateResults"];
 	stateGradingError?: string;
 	startedAt: string;

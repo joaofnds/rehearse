@@ -42,6 +42,7 @@ function sessionRecordBase(
 		corpusOrigin: inputs.corpusOrigin,
 		corpusVersion: { ...inputs.corpusVersion },
 		elapsedMs: inputs.elapsedMs,
+		judge: attempt.judge,
 		lineage: inputs.lineage,
 		model: settings.model,
 		outcome: attempt.outcome,

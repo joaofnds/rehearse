@@ -67,6 +67,7 @@ function sessionCaseDifference(
 		["projectFiles", left.projectFiles, right.projectFiles],
 		["checks", left.checks, right.checks],
 		["stateCheck", left.stateCheck, right.stateCheck],
+		["judge", left.judge, right.judge],
 		["model", left.model, right.model],
 		["sessionBudgetUsd", left.sessionBudgetUsd, right.sessionBudgetUsd],
 	] as const;
@@ -142,6 +143,7 @@ function sessionInputDifference(
 	if (caseDifference !== undefined) {
 		return caseDifference;
 	}
+
 	const fileDifference = controlledFileDifference(
 		comparison.reference.controlledFiles.filter(({ kind }) => kind !== "case"),
 		comparison.other.controlledFiles.filter(({ kind }) => kind !== "case"),
@@ -149,6 +151,7 @@ function sessionInputDifference(
 	if (fileDifference !== undefined) {
 		return fileDifference;
 	}
+
 	const reference = comparison.reference.group.record.inputs;
 	const other = comparison.other.group.record.inputs;
 	return [
@@ -171,6 +174,7 @@ function stageInputDifference(
 	if (fileDifference !== undefined) {
 		return fileDifference;
 	}
+
 	const reference = comparison.reference.group.record.inputs;
 	const other = comparison.other.group.record.inputs;
 	return [
@@ -208,7 +212,12 @@ function controlledInputDifference(
 		if (referenceGroup.mode !== "session" || otherGroup.mode !== "session") {
 			return "mode";
 		}
-		return setupDifference(comparison) ?? sessionInputDifference(comparison);
+
+		return (
+			setupDifference(comparison) ??
+			sessionInputDifference(comparison) ??
+			judgeContractDifference(comparison.reference, comparison.other)
+		);
 	}
 	return (
 		setupDifference(comparison) ??

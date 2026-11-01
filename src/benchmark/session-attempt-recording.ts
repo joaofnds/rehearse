@@ -11,6 +11,7 @@ import {
 	invocationError,
 	providerFailureMessage,
 } from "./session-attempt-failure";
+import judgeCompletedAttempt from "./session-attempt-judge";
 import { completedAttempt, gradeAttemptState } from "./session-attempt-outcome";
 import type { SessionAttemptRequest } from "./session-attempt-preparation-contract";
 import {
@@ -83,7 +84,7 @@ async function recordAttempt(
 		stateEvidenceDirectory,
 	);
 
-	return await completedAttempt({
+	const completed = await completedAttempt({
 		attempt,
 		base: {
 			attemptDirectory,
@@ -97,6 +98,11 @@ async function recordAttempt(
 		stateEvidenceDirectory,
 		stateGrade,
 		turn,
+	});
+
+	return await judgeCompletedAttempt(request, completed, {
+		stateDirectory: stateEvidenceDirectory,
+		workerCostUsd: envelope.total_cost_usd,
 	});
 }
 

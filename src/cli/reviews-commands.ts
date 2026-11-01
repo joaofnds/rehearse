@@ -34,7 +34,10 @@ async function executeRegrade({
 		{
 			id: commandLine.argument,
 			json: commandLine.json,
+			model:
+				flagValue(commandLine.flags, "--model") ?? Bun.env["BENCHMARK_MODEL"],
 			runsDirectory,
+			stdinIsTerminal: process.stdin.isTTY,
 		},
 		{
 			now: () => new Date().toISOString(),
@@ -45,6 +48,7 @@ async function executeRegrade({
 
 	return EXIT_CODES.completed;
 }
+
 const reviewsCommands: readonly CommandEntry[] = [
 	{
 		definition: {
@@ -82,10 +86,18 @@ const reviewsCommands: readonly CommandEntry[] = [
 		definition: {
 			argument: "record-id",
 			confinement: "never",
-			flags: [jsonFlag],
+			flags: [
+				{
+					envVar: "BENCHMARK_MODEL",
+					help: "Judge model override; authorizes a paid regrade outside a terminal",
+					kind: "value",
+					name: "--model",
+				},
+				jsonFlag,
+			],
 			name: "regrade",
 			summary:
-				"Re-evaluate a saved attempt's evidence against its case as it stands now; runs no session",
+				"Re-evaluate saved evidence against current checks and rubric; may start a sealed Judge",
 		},
 		execute: executeRegrade,
 	},

@@ -59,7 +59,14 @@ async function executeSessionReps({
 	);
 }
 async function executeSessionRep(
-	{ dependencies, inputs, paths, now, wallClock }: SessionConfirmationContext,
+	{
+		dependencies,
+		inputs,
+		paths,
+		request,
+		now,
+		wallClock,
+	}: SessionConfirmationContext,
 	plan: ConfirmationRepPlan<FrozenSessionInputs>,
 ): Promise<ExecutedRep> {
 	const repStartedAt = startTime(wallClock);
@@ -76,6 +83,7 @@ async function executeSessionRep(
 				repId: plan.repId,
 				sessionCase: inputs.sessionCase,
 				settings: inputs.settings,
+				spendCeilingUsd: request.spendCeilingUsd,
 			}),
 			elapsedMs: now() - repStart,
 			error: undefined,

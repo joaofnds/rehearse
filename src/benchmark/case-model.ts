@@ -7,6 +7,7 @@ import type { Immutable, StageRubric } from "./contracts";
 import type { JsonObject } from "./json-value";
 import type { PipelineDefinition } from "./pipeline";
 import type { Check } from "./session-check";
+import type { SessionJudgeDefinition } from "./session-judge-contract";
 import type { StateCheck } from "./session-state-check";
 
 interface LoadedStageRubric {
@@ -32,6 +33,7 @@ interface BenchmarkCase {
 
 interface SessionCase {
 	readonly kind: "session";
+	readonly judge?: SessionJudgeDefinition | undefined;
 	readonly declaration: SessionCaseDeclaration;
 	readonly fixturePath: string | undefined;
 	readonly transcriptPath: string | undefined;

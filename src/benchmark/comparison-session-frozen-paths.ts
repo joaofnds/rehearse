@@ -5,7 +5,12 @@ import { unhandled } from "./contracts";
 
 const EMPTY_COLLECTION_LENGTH = 0;
 
-type SessionFrozenFileKind = "case" | "fixture" | "transcript" | "corpus";
+type SessionFrozenFileKind =
+	| "case"
+	| "fixture"
+	| "transcript"
+	| "corpus"
+	| "rubric";
 
 function sessionFrozenPath(
 	request: Readonly<LoadArmRequest>,
@@ -62,6 +67,7 @@ function isSessionFrozenFileKind(
 		kind === "case" ||
 		kind === "fixture" ||
 		kind === "transcript" ||
+		kind === "rubric" ||
 		kind === "corpus"
 	);
 }
@@ -69,6 +75,9 @@ function isSessionFrozenFileKind(
 function sessionFrozenPrefix(kind: SessionFrozenFileKind): string {
 	switch (kind) {
 		case "case": {
+			return "inputs/";
+		}
+		case "rubric": {
 			return "inputs/";
 		}
 		case "fixture": {

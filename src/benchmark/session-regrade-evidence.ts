@@ -3,14 +3,23 @@ import { createHash } from "node:crypto";
 import type { SessionCase } from "./case";
 import type { Immutable } from "./contracts";
 import { unhandled } from "./contracts";
+import type { JudgeInvoker } from "./judge-attempt";
 import type { SessionAttemptId, SessionAttemptPaths } from "./run-layout";
 import type { EvidenceDigests, RegradedCheck } from "./session-assessment";
 import type { Check, CheckEvidence } from "./session-check";
 import type { SessionAttemptRecord } from "./session-record";
+import type { SpendCeiling } from "./spend-ceiling";
 import { parseTranscript, toolUses } from "./transcript";
 
 interface RegradeRequest {
 	readonly attemptId: Immutable<SessionAttemptId>;
+	readonly judge?:
+		| {
+				readonly invoke?: JudgeInvoker | undefined;
+				readonly spendCeiling: SpendCeiling;
+				readonly model?: string | undefined;
+		  }
+		| undefined;
 	readonly record: Immutable<SessionAttemptRecord>;
 	/**
 	 * Where the attempt keeps its evidence, from `sessionAttemptPaths` rather

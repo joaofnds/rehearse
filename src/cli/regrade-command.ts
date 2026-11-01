@@ -10,13 +10,19 @@ import { writeRecord } from "#cli/output";
 import type { SessionAttemptRecordId } from "#cli/record-id";
 import { formatRecordId, parseRecordId } from "#cli/record-id";
 
-interface RegradeRequest {
+import prepareRegradeJudge from "./regrade-judge";
+import type {
+	RegradeJudgeDependencies,
+	RegradeJudgeOptions,
+} from "./regrade-judge";
+
+interface RegradeRequest extends RegradeJudgeOptions {
 	readonly id: string | undefined;
 	readonly runsDirectory: string;
 	readonly json: boolean;
 }
 
-interface RegradeDependencies {
+interface RegradeDependencies extends RegradeJudgeDependencies {
 	readonly output: CommandOutput;
 	readonly requireCase: (caseId: string) => Promise<LoadedCase>;
 	readonly now: () => string;
@@ -103,11 +109,13 @@ async function runRegrade(
 	}
 
 	const record = parseSessionAttemptRecord(await saved.text());
+	const sessionCase = await caseBehind(attemptId, dependencies);
 	const assessment = await regradeAttempt({
 		attemptId: { caseId: attemptId.caseId, uuid: attemptId.uuid },
+		judge: await prepareRegradeJudge(request, sessionCase, dependencies),
 		paths,
 		record,
-		sessionCase: await caseBehind(attemptId, dependencies),
+		sessionCase,
 	});
 
 	const written = await writeAssessment(paths, dependencies.now(), assessment);

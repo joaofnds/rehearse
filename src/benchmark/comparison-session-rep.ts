@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { dirname, relative } from "node:path";
 
 import type { SessionCaseDeclaration } from "./case";
@@ -8,7 +9,7 @@ import {
 	evidenceError,
 	readEvidenceFile,
 } from "./comparison-evidence-files";
-import { assertRepMatchesGroup } from "./comparison-rep-validation";
+import { assertRepMatchesGroup, sameValue } from "./comparison-rep-validation";
 import type {
 	SessionGroupRecord,
 	SessionRepRecord,
@@ -21,6 +22,7 @@ import { parseSessionAttemptRecord } from "./session-record";
 const SESSION_ONLY_STAGE_INDEX = 0;
 
 interface LoadSessionRepRequest {
+	readonly judgeRubric?: string | undefined;
 	readonly request: Readonly<LoadArmRequest>;
 	readonly group: Immutable<SessionGroupRecord>;
 	readonly reference: Immutable<SessionGroupRecord["repRecords"][number]>;
@@ -81,6 +83,7 @@ async function loadSessionAttempt(
 		path: attemptPath,
 	});
 	const attempt = readSessionAttempt(request, attemptSource, field);
+	assertSessionJudge(input, attempt);
 	assertSessionAttempt(
 		request,
 		{ attempt, group: input.group, rep: record },
@@ -92,6 +95,48 @@ async function loadSessionAttempt(
 		record: attempt,
 		sha256: attemptSource.sha256,
 	};
+}
+
+function assertSessionJudge(
+	input: Readonly<LoadSessionRepRequest>,
+	attempt: Immutable<SessionAttemptRecord>,
+): void {
+	const declaration = input.sessionCase.judge;
+	const { judge } = attempt;
+	if (declaration === undefined && judge === undefined) {
+		return;
+	}
+
+	if (
+		judge === undefined &&
+		(attempt.outcome === "EXECUTION_FAILED" || attempt.outcome === "NO_REPLY")
+	) {
+		return;
+	}
+
+	if (
+		declaration === undefined ||
+		judge === undefined ||
+		judge.definition.rubric !== input.judgeRubric ||
+		judge.definition.rubricSha256 !==
+			createHash("sha256")
+				.update(input.judgeRubric ?? "")
+				.digest("hex") ||
+		!sameValue(judge.definition.files, declaration.files) ||
+		judge.model !== (declaration.model ?? input.group.inputs.model) ||
+		judge.effort !== (declaration.effort ?? input.group.inputs.effort) ||
+		judge.sessionBudgetUsd !==
+			(declaration.sessionBudgetUsd ?? input.group.inputs.sessionBudgetUsd)
+	) {
+		throw evidenceError(
+			{
+				arm: input.request.role,
+				caseId: input.request.caseId,
+				field: `${input.field}.judge`,
+			},
+			"attempt Judge definition disagrees with its frozen session inputs",
+		);
+	}
 }
 
 function sessionAttemptPath(input: Readonly<LoadSessionRepRequest>): string {
@@ -107,6 +152,7 @@ function sessionAttemptPath(input: Readonly<LoadSessionRepRequest>): string {
 			"session rep has no attempt evidence",
 		);
 	}
+
 	if (evidence.recordFile !== "attempt.json") {
 		throw evidenceError(
 			{
@@ -117,6 +163,7 @@ function sessionAttemptPath(input: Readonly<LoadSessionRepRequest>): string {
 			"session attempt evidence must be the producer's attempt.json file",
 		);
 	}
+
 	return descendantPath(request, {
 		field: `${field}.attempt.path`,
 		path: evidence.recordFile,

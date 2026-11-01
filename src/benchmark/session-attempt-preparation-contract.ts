@@ -8,8 +8,10 @@ import type {
 } from "./context-evidence";
 import type { CorpusDelivery } from "./corpus-delivery";
 import type { HomePathCitationMap } from "./home-path-citation";
+import type { JudgeInvoker } from "./judge-attempt";
 import type { SessionCorpusSnapshot } from "./session-corpus";
 import type { PreparedSetup } from "./session-setup";
+import type { SpendCeiling } from "./spend-ceiling";
 
 type ClaudeRunner = (
 	command: readonly string[],
@@ -30,6 +32,8 @@ interface AttemptsInFlight {
 
 interface SessionAttemptRequest {
 	readonly sessionCase: SessionCase;
+	readonly spendCeiling?: SpendCeiling | undefined;
+	readonly invokeJudge?: JudgeInvoker | undefined;
 	readonly settings: SessionSettings;
 	readonly projectsDirectory: string;
 	/** The home directory whose Claude Code setup a session runs with. */

@@ -10,6 +10,7 @@ import type {
 } from "#benchmark/session-attempt";
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import type { SessionConfirmationRepPlan } from "#benchmark/session-confirmation";
+import { createSpendCeiling } from "#benchmark/spend-ceiling";
 
 import attempted from "./session-attempt-refusal";
 import runClaudeCommand from "./session-claude-runner";
@@ -54,6 +55,9 @@ function preparedSessionAttempts(
 			runClaude: runClaudeCommand,
 			sessionCase: plan.sessionCase,
 			settings: plan.settings,
+			spendCeiling: createSpendCeiling({
+				ceilingUsd: plan.spendCeilingUsd ?? plan.settings.budgetUsd,
+			}),
 		});
 	};
 }

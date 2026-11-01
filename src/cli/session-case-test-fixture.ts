@@ -62,3 +62,8 @@ function resumingCase(transcriptPath: string): SessionCase {
 }
 
 export { SessionCaseBuilder, config, resumingCase };
+
+export {
+	RUBRIC,
+	sessionJudgeResponse,
+} from "#benchmark/session-judge-test-fixtures";

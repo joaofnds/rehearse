@@ -58,7 +58,7 @@ const projectedCostSchema = z
 
 const sessionFrozenFileSchema = z
 	.object({
-		kind: z.enum(["case", "fixture", "transcript", "corpus"]),
+		kind: z.enum(["case", "fixture", "transcript", "corpus", "rubric"]),
 		path: z.string().nonempty(),
 		sha256: z.string().regex(/^[0-9a-f]{64}$/u, "Invalid SHA-256 digest"),
 	})

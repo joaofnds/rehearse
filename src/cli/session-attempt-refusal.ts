@@ -6,6 +6,7 @@ import {
 	SessionInputError,
 	runSessionAttempt,
 } from "#benchmark/session-attempt";
+import { createSpendCeiling } from "#benchmark/spend-ceiling";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
 /**
@@ -16,9 +17,14 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
  */
 async function attempted(
 	request: SessionAttemptRequest,
+	ceilingUsd?: number,
 ): Promise<SessionAttempt> {
 	try {
-		return await runSessionAttempt(request);
+		return await runSessionAttempt(
+			ceilingUsd === undefined
+				? request
+				: { ...request, spendCeiling: createSpendCeiling({ ceilingUsd }) },
+		);
 	} catch (error) {
 		if (error instanceof SessionInputError) {
 			throw new RefusedPreconditionError(error.message);

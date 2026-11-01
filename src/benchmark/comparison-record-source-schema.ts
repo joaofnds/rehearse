@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { stageLetterGradeSchema } from "./contracts";
+import { sessionQualityReadingSchema } from "./session-quality-reading";
 
 const REQUIRED_TEXT_MINIMUM_CODE_UNITS = 1;
 
@@ -157,6 +158,7 @@ const repStageGradingSchema = z
 const currentSourceRepSchema = sourceRepSchema
 	.extend({
 		checks: repCheckScoreSchema.optional(),
+		judge: sessionQualityReadingSchema.optional(),
 		outcomes: z.array(repOutcomeSchema).nonempty(),
 		stageGrading: z.array(repStageGradingSchema).optional(),
 		stateResults: repStateScoreSchema.optional(),
@@ -167,6 +169,7 @@ const currentSourceRepSchema = sourceRepSchema
 const currentSessionSourceRepSchema = sessionSourceRepSchema
 	.extend({
 		checks: repCheckScoreSchema.optional(),
+		judge: sessionQualityReadingSchema.optional(),
 		outcomes: z.array(repOutcomeSchema).nonempty(),
 		stateResults: repStateScoreSchema.optional(),
 		words: repWordsSchema.optional(),

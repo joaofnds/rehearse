@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { runCommand } from "./command";
 import STORED_GIT_DIRECTORY from "./git-directory-name";
 import copyPresentTree from "./present-tree-copy";
+import { writeStateOmissions } from "./state-evidence-omissions";
 
 const STATE_EVIDENCE_DIRECTORY = "state";
 
@@ -55,7 +56,7 @@ async function preserveStateEvidence(
 ): Promise<string> {
 	const destination = join(recordDirectory, STATE_EVIDENCE_DIRECTORY);
 
-	await copyPresentTree(
+	const omitted = await copyPresentTree(
 		attemptDirectory,
 		destination,
 		async (source) =>
@@ -68,6 +69,8 @@ async function preserveStateEvidence(
 	if (await Bun.file(join(gitDirectory, "HEAD")).exists()) {
 		await rename(gitDirectory, join(destination, STORED_GIT_DIRECTORY));
 	}
+
+	await writeStateOmissions(recordDirectory, attemptDirectory, omitted);
 
 	return destination;
 }

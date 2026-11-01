@@ -27,6 +27,7 @@ interface SessionConfirmationRequest {
 }
 
 interface SessionConfirmationRepPlan {
+	readonly spendCeilingUsd?: number | undefined;
 	readonly ordinal: number;
 	readonly repId: string;
 	readonly recordDirectory: string;

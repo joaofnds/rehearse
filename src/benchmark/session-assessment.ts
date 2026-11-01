@@ -6,6 +6,8 @@ import type { Immutable } from "./contracts";
 import type { SessionAttemptId, SessionAttemptPaths } from "./run-layout";
 import type { CheckKind } from "./session-check-result";
 import { checkKindSchema } from "./session-check-result";
+import { sessionJudgeRecordSchema } from "./session-judge-contract";
+import type { SessionJudgeRecord } from "./session-judge-contract";
 import type { StateResult } from "./session-state-check";
 import { stateResultSchema } from "./session-state-check";
 
@@ -45,6 +47,7 @@ interface Assessment {
 	 */
 	readonly sourceAttempt: Immutable<SessionAttemptId>;
 	readonly gradingDefinition: string;
+	readonly judge?: SessionJudgeRecord | undefined;
 	readonly evidence: EvidenceDigests;
 	readonly checks: readonly RegradedCheck[];
 	/**
@@ -107,6 +110,7 @@ const assessmentSchema = z
 			})
 			.strict(),
 		gradingDefinition: z.string().nonempty(),
+		judge: sessionJudgeRecordSchema.optional(),
 		outcome: z.enum(["SUCCESSFUL", "UNSUCCESSFUL"]).optional(),
 		schemaVersion: z.literal(SESSION_ASSESSMENT_SCHEMA_VERSION),
 		sourceAttempt: z

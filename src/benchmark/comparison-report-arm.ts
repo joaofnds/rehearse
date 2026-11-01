@@ -6,6 +6,12 @@ import type {
 import { comparisonReliabilityRep } from "./comparison-quality";
 import type { ComparisonArm } from "./comparison-record";
 import type { ArmResources } from "./comparison-resources";
+import sessionRepAssessment from "./comparison-session-assessment";
+import type {
+	RepCheckScore,
+	RepStateScore,
+	SessionQualityReading,
+} from "./comparison-session-assessment";
 import type {
 	StageGrading,
 	StageGradingRecord,
@@ -19,33 +25,12 @@ import { buildReliabilityOutcomes } from "./confirmation-report";
 import type { Immutable } from "./contracts";
 import type { OutputWords } from "./output-words";
 import { replyWords } from "./output-words";
-import type { SessionAttemptRecord } from "./session-record";
-import type { StateResult } from "./session-state-check";
 
 const FINAL_DECLARED_STAGE_OFFSET = -1;
 
 const ORDINAL_BASE = 1;
 
 const PREFIX_START_INDEX = 0;
-
-interface RepCheckScore {
-	readonly passed: number;
-	readonly declared: number;
-	readonly failing: readonly {
-		readonly index: number;
-		readonly kind: string;
-		readonly detail: string;
-	}[];
-}
-
-interface RepStateScore {
-	readonly passed: number;
-	readonly declared: number;
-	readonly failing: readonly {
-		readonly name: string;
-		readonly detail: string;
-	}[];
-}
 
 interface RepStageGrading extends Omit<StageGrading, "words"> {
 	readonly scorecard: { readonly path: string; readonly sha256: string };
@@ -89,6 +74,7 @@ interface BuiltReportArm {
 				| { readonly path: string; readonly sha256: string }
 				| undefined;
 			readonly checks?: RepCheckScore | undefined;
+			readonly judge?: SessionQualityReading | undefined;
 			readonly stateResults?: RepStateScore | undefined;
 			readonly words?: OutputWords | undefined;
 			readonly stageGrading?: readonly RepStageGrading[] | undefined;
@@ -102,13 +88,9 @@ interface BuiltReportArm {
 	readonly resources: ArmResources;
 }
 
-interface RepStateScoreField {
-	readonly stateResults?: RepStateScore | undefined;
-}
-
 type RepEvidenceFields = Pick<
 	BuiltReportArm["source"]["reps"][number],
-	"attempt" | "checks" | "stateResults" | "words" | "stageGrading"
+	"attempt" | "checks" | "judge" | "stateResults" | "words" | "stageGrading"
 >;
 
 function stageRepGrading(
@@ -135,54 +117,6 @@ function stageRepGrading(
 	};
 }
 
-/**
- * The per-check tally beside the rep's pass or fail grade. A grade of F says
- * nothing about whether one check failed or all of them, and a check result
- * carries no name, so a failing check is identified by its position in the
- * case's declaration list together with its kind.
- */
-function repCheckScore(
-	attempt: Immutable<SessionAttemptRecord>,
-): RepCheckScore {
-	const failing = attempt.checks.flatMap((check, index) =>
-		check.status === "FAIL"
-			? [{ detail: check.detail, index, kind: check.kind }]
-			: [],
-	);
-
-	return {
-		declared: attempt.checks.length,
-		failing,
-		passed: attempt.checks.length - failing.length,
-	};
-}
-
-function repStateScoreField(
-	attempt: Immutable<SessionAttemptRecord>,
-): RepStateScoreField {
-	if (!("stateResults" in attempt) || attempt.stateResults === undefined) {
-		return {};
-	}
-
-	return { stateResults: repStateScore(attempt.stateResults) };
-}
-
-function repStateScore(
-	results: readonly Immutable<StateResult>[],
-): RepStateScore {
-	const failing = results.flatMap((result) =>
-		result.status === "FAIL"
-			? [{ detail: result.detail, name: result.name }]
-			: [],
-	);
-
-	return {
-		declared: results.length,
-		failing,
-		passed: results.length - failing.length,
-	};
-}
-
 function repEvidenceFields(
 	rep: ComparisonArmEvidence["reps"][number],
 	lastStage: string | undefined,
@@ -190,13 +124,14 @@ function repEvidenceFields(
 	if (rep.scorecards !== undefined) {
 		return stageRepGrading(rep.scorecards, lastStage);
 	}
+
 	if (rep.attempt === undefined) {
 		return {};
 	}
+
 	return {
 		attempt: { path: rep.attempt.path, sha256: rep.attempt.sha256 },
-		checks: repCheckScore(rep.attempt.record),
-		...repStateScoreField(rep.attempt.record),
+		...sessionRepAssessment(rep.attempt.record),
 		words: replyWords(rep.attempt.record.reply),
 	};
 }

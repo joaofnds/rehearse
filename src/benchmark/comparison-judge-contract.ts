@@ -3,6 +3,10 @@ import type {
 	DigestedComparisonRep,
 } from "./comparison-evidence";
 import ComparisonEvidenceError from "./comparison-evidence";
+import {
+	sessionJudgeContract,
+	sessionJudgeContractDifference,
+} from "./comparison-session-judge-contract";
 import type { ParsedConfirmationRepRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
 
@@ -19,7 +23,7 @@ function judgeContractDifference(
 	const left = reference.group.record;
 	const right = other.group.record;
 	if (left.mode === "session" || right.mode === "session") {
-		return undefined;
+		return sessionJudgeContractDifference(reference, other);
 	}
 
 	if (
@@ -115,6 +119,7 @@ function assertArmJudgeContract(
 ): void {
 	const group = arm.group.record;
 	if (group.mode === "session") {
+		sessionJudgeContract(arm);
 		return;
 	}
 

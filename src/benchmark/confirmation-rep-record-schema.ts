@@ -14,6 +14,7 @@ import {
 } from "./confirmation-record-protocol";
 import type { Immutable } from "./contracts";
 import { parseRecord } from "./record-parse-cache";
+import { sessionQualityReadingSchema } from "./session-quality-reading";
 
 const SINGLE_SESSION_STAGE_COUNT = 1;
 
@@ -178,6 +179,7 @@ const sessionConfirmationRepRecordSchema = z
 		elapsedMs: elapsedSchema,
 		finalOutcome: z.object({ status: z.literal("NOT_APPLICABLE") }).strict(),
 		groupId: identitySchema,
+		judge: sessionQualityReadingSchema.optional(),
 		lineage: z
 			.object({ kind: z.literal("SESSION"), lineage: z.string().nonempty() })
 			.strict(),

@@ -4,9 +4,24 @@ import type { Immutable } from "#benchmark/contracts";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { RecordId } from "#cli/record-id";
-import type { AttemptEvidenceReport } from "#server/attempt-evidence-contract";
+import type {
+	AttemptEvidenceReport,
+	SessionJudgeEvidence,
+} from "#server/attempt-evidence-contract";
 import readOwnedConfirmationRep from "#server/confirmation-evidence";
 import { SessionHistoryReaderError } from "#server/session-history-reader";
+
+function judgeEvidence(
+	judge: Immutable<SessionAttemptRecord["judge"]>,
+): SessionJudgeEvidence | undefined {
+	if (judge === undefined) {
+		return undefined;
+	}
+
+	const { attempts: _attempts, providerCalls: _calls, ...evidence } = judge;
+
+	return evidence;
+}
 
 function sessionEvidence(
 	record: Immutable<SessionAttemptRecord>,
@@ -25,6 +40,7 @@ function sessionEvidence(
 			caseId: record.caseId,
 			checks: record.checks,
 			error: "error" in record ? record.error : undefined,
+			judge: judgeEvidence(record.judge),
 			outcome: record.outcome,
 			reply: record.reply,
 			stateGradingError:

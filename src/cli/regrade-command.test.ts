@@ -15,7 +15,11 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { RegradeRequest } from "#cli/regrade-command";
 import runRegrade from "#cli/regrade-command";
 
-import { SessionCaseBuilder } from "./session-case-test-fixture";
+import {
+	RUBRIC,
+	SessionCaseBuilder,
+	sessionJudgeResponse,
+} from "./session-case-test-fixture";
 
 const workspace = CliTestWorkspace.forEachTest();
 
@@ -192,4 +196,76 @@ describe(runRegrade.name, () => {
 			refusesNamingTheRecordItLookedFor,
 		);
 	});
+});
+
+const REGRADING_CEILING_USD = 1;
+
+async function writesJudgeAssessment(): Promise<void> {
+	const directory = await runsDirectory();
+	await savedAttempt(directory);
+	const paths = sessionAttemptPaths(directory, ATTEMPT);
+	const before = await Bun.file(paths.recordFile).text();
+	const recorder = recordOutput();
+
+	await runRegrade(
+		new RegradeRequestBuilder({
+			json: true,
+			model: "sonnet",
+			runsDirectory: directory,
+		}).build(),
+		{
+			invokeJudge: async (_prompt, budgetUsd) => {
+				expect(budgetUsd).toBe(REGRADING_CEILING_USD);
+				return await Promise.resolve(
+					sessionJudgeResponse({ quote: "one two three" }),
+				);
+			},
+			now: clockAt("2026-11-01T12:00:00.000Z"),
+			output: recorder.output,
+			requireCase: async () =>
+				await Promise.resolve(
+					new SessionCaseBuilder({
+						judge: { files: [], rubric: RUBRIC, rubricPath: "quality.md" },
+					}).build(),
+				),
+			requireSpendCeiling: async () =>
+				await Promise.resolve(REGRADING_CEILING_USD),
+		},
+	);
+
+	expect(parseAssessment(recorder.stdout.join(""))).toMatchObject({
+		judge: { grade: { verdict: "PASS" }, model: "sonnet", status: "GRADED" },
+	});
+	expect(await Bun.file(paths.recordFile).text()).toBe(before);
+}
+async function refusesUnapprovedJudge(): Promise<void> {
+	const directory = await runsDirectory();
+	await savedAttempt(directory);
+
+	const pending = runRegrade(
+		new RegradeRequestBuilder({ runsDirectory: directory }).build(),
+		{
+			now: clockAt("2026-11-01T12:00:00.000Z"),
+			output: recordOutput().output,
+			requireCase: async () =>
+				await Promise.resolve(
+					new SessionCaseBuilder({
+						judge: { files: [], rubric: RUBRIC, rubricPath: "quality.md" },
+					}).build(),
+				),
+		},
+	);
+
+	expect(await failureOf(pending)).toBeInstanceOf(RefusedPreconditionError);
+}
+
+describe("paid session regrade", () => {
+	it(
+		"writes a Judge assessment without rewriting the attempt and uses the current ceiling",
+		writesJudgeAssessment,
+	);
+	it(
+		"refuses a nonterminal paid regrade unless the caller names its model",
+		refusesUnapprovedJudge,
+	);
 });

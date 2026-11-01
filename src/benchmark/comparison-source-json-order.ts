@@ -55,6 +55,7 @@ const repsOrder: JsonFieldOrder = {
 	children: {
 		attempt: digestedPathOrder,
 		checks: checksOrder,
+		judge: { fields: ["status", "verdict", "detail"] },
 		outcomes: outcomesOrder,
 		stageGrading: stageGradingOrder,
 		stateResults: stateResultsOrder,
@@ -68,6 +69,7 @@ const repsOrder: JsonFieldOrder = {
 		"attempt",
 		"outcomes",
 		"checks",
+		"judge",
 		"stateResults",
 		"stageGrading",
 		"words",

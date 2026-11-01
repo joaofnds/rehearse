@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 
+import type { Immutable } from "#benchmark/contracts";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 
 import { AttemptEvidence } from "./attempt-evidence";
@@ -9,7 +10,9 @@ import type { AttemptEvidenceResponse } from "./attempt-evidence-query";
 const originalFetch = globalThis.fetch;
 
 function showSession(
-	record: Extract<AttemptEvidenceResponse, { kind: "session" }>["record"],
+	record: Immutable<
+		Extract<AttemptEvidenceResponse, { kind: "session" }>["record"]
+	>,
 ): void {
 	stubFetchByPath(
 		new Map([

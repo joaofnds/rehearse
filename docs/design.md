@@ -26,7 +26,7 @@ versions and scripts belong to [package.json](../package.json).
 
 ```text
 CLI → case + flags + preconditions
-        ├─ session → temporary directory → deterministic checks → attempt
+        ├─ session → temporary directory → checks + optional Judge → attempt
         ├─ pipeline → clone of target main → stages + Judges → run + checkpoints
         └─ replay → checkpoint worktree → one stage + Judge → attempt
 
@@ -102,8 +102,14 @@ seeding keeps out of the session's tree so the session cannot learn how it is
 graded. That tree is copied into the run's record directory before cleanup, and
 each grade runs against its own restored copy, so the evidence outlives the
 attempt and a later pass reads the bytes this one did.
-Session confirmation freezes its declared inputs once and retains each repetition,
-including unsuccessful and execution-failed attempts.
+An optional session rubric Judge reads the recorded prompt, reply, bounded
+attempt-region transcript and explicitly selected final-tree text. It uses the
+shared sealed invocation, retry, budget and citation-location machinery with a
+session-specific prompt and instruction identity. Its verdict is recorded
+separately from the deterministic checks. `regrade` combines the current rubric
+with saved evidence and writes another assessment without starting the worker.
+Session confirmation freezes its declared inputs, including the rubric, once and
+retains each repetition, including unsuccessful and execution-failed attempts.
 
 ## Instruction and evidence identity
 

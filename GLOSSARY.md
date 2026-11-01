@@ -23,11 +23,12 @@ See [current state](docs/status.md) for implementation coverage and
   card update, or commits.
 - **Assessment** — the record one regrade writes: the attempt it read, the
   digest of each evidence body it read, the grading definition digest that
-  produced it, one result per declared check, and a state grade where the case
-  declares a scorer. It carries an overall outcome only when every declared
-  check was graded, because a verdict over the checks that had evidence would
-  read as a verdict over the whole definition. It is filed beside the attempt
-  and never rewrites the attempt record.
+  produced it, one result per declared check, a state grade where the case
+  declares a scorer, and the optional session Judge result. It carries an overall
+  outcome only when every declared check, scorer and Judge produced a grade,
+  because a verdict over a subset would read as a verdict over the whole
+  definition. It is filed beside the attempt and never rewrites the attempt
+  record.
 - **Attempt** — one execution of a case's unit of work: a stage at a checkpoint
   (the original run's stage result or any replay) or one session of a session
   case. The unit a comparison presents.
@@ -430,12 +431,12 @@ See [current state](docs/status.md) for implementation coverage and
   precondition (a needed approval whose flag is absent while stdin is not a
   TTY, a run that cannot be replayed); `1` an execution failure. A failing grade
   is evidence, not an error.
-- **Grading definition digest** — the identity of the check list and state
-  scorer that produced an assessment: a SHA-256 over the canonical form of
-  `{checks, stateCheck}`. Lineage cannot serve, because it hashes the
-  transcript, fixture, prompt, tools, settings, agents, project files and state
-  scorer but not `checks`, so two cases differing only in a reply check share
-  a lineage. Two assessments of one attempt carrying different digests is how
+- **Grading definition digest** — the identity of the checks, state scorer and
+  optional session Judge that produced an assessment: a SHA-256 over the canonical
+  form of `{checks, stateCheck, judge}`, including the rubric and Judge settings.
+  Lineage cannot serve, because it hashes the transcript, fixture, prompt, tools,
+  settings, agents, project files, state scorer and Judge but not `checks`, so two
+  cases differing only in a reply check share a lineage. Two assessments of one attempt carrying different digests is how
   an operator sees that the definition changed between them.
 - **Fired reply** — the end-of-turn reply João answered with `/brief`. It is the
   reply the style produced and he rejected, not the one he wanted; the rewrite
@@ -493,8 +494,9 @@ See [current state](docs/status.md) for implementation coverage and
   among the confirmation runs with no saved summary until the operator archives
   it. Name accepted unattended as unsettled, pending the operator's
   confirmation (ACT-369).
-- **Judge** — evaluator attached to a stage transition: deterministic check or
-  rubric-scored LLM with rationale.
+- **Judge** — evaluator of recorded work at a session attempt, workflow stage,
+  or final pipeline result. A session rubric Judge returns cited requirement
+  PASS/FAIL results separately from deterministic checks.
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
   for one exact Judge model, recorded instruction identity, stage and frozen
   rubric contract, summarized separately for each rubric criterion. New
@@ -617,12 +619,11 @@ See [current state](docs/status.md) for implementation coverage and
   stored on the evidence item beside the claim. A quote its cited source does
   not hold rejects the Judge attempt.
 - **Regrade** — one re-evaluation of a saved attempt's evidence against the
-  case as it stands now, reaching no provider. It reads the recorded reply, the
-  transcript beside the attempt, and the preserved state evidence, and writes
-  an assessment. A check whose evidence the attempt does not hold is reported
-  unavailable rather than graded, and the saved reply, transcript and state
-  evidence are left byte-identical, so a corrected check costs no second paid
-  session.
+  case as it stands now. It reads the recorded prompt and reply, the transcript
+  beside the attempt, and the preserved state evidence, then writes an assessment.
+  A declared session Judge starts a sealed paid session; deterministic checks and
+  a state scorer alone start no provider session. Missing evidence is reported
+  unavailable, and the saved attempt and its evidence stay byte-identical.
 - **Record ID** — how a session names one recorded thing to the CLI and how
   the CLI names it back: a kind prefix and the identity that kind already has
   on disk, `case:<id>`, `run:<name>`, `checkpoint:<run>/<stage>`,
@@ -685,8 +686,9 @@ See [current state](docs/status.md) for implementation coverage and
   - **Never ran**: a declared stage whose agent session never started, because
     the run stopped before it or the spend ceiling refused it, recorded by the
     harness rather than read by the agent.
-- **Rubric** — the frozen grading contract a Judge applies; per-stage under the
-  case's `rubrics/`, final in the case's `rubric.md`.
+- **Rubric** — the frozen grading contract a Judge applies. A session case's
+  `judge.rubric` names its requirement rubric. Pipeline rubrics are per-stage
+  under the case's `rubrics/` and final in the case's `rubric.md`.
 - **Rubric criterion** — one identified hard blocker, requirement, or quality
   dimension within a rubric, reduced to a binary pass/fail decision for
   calibration.
