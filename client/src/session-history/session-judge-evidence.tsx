@@ -79,8 +79,8 @@ function SessionJudgeEvidence({
 				{judge.status === "GRADED" ? judge.grade.verdict : judge.status}
 			</h3>
 			<p className="mt-2 text-12 text-dim">
-				{judge.model} · ${String(judge.costUsd)} · Uncalibrated: human agreement
-				is not recorded.
+				{judge.model} · ${String(judge.costUsd)} · Human review is separate;
+				this grade alone does not establish calibrated accuracy.
 			</p>
 			<p className="mt-2 text-14">
 				The recorded outcome covers reply/transcript checks. This Judge assesses

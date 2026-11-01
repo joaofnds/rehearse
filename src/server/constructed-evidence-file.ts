@@ -3,16 +3,20 @@ import { basename, dirname, relative } from "node:path";
 import type { RecordedEvidenceFile } from "./session-history-reader";
 import {
 	SessionHistoryReaderError,
-	readVerifiedFile,
+	readVerifiedBytes,
 	verifiedDirectory,
 	verifiedFile,
 } from "./session-history-reader";
+
+interface ConstructedEvidenceFile extends RecordedEvidenceFile {
+	readonly sourceSha256: string;
+}
 
 /** A path built from run-layout and parsed identities has no recorded-path root marker. */
 async function readConstructedEvidenceFile(
 	root: string,
 	file: string,
-): Promise<RecordedEvidenceFile> {
+): Promise<ConstructedEvidenceFile> {
 	const directory = await verifiedDirectory(
 		root,
 		relative(root, dirname(file))
@@ -31,7 +35,14 @@ async function readConstructedEvidenceFile(
 		);
 	}
 
-	return { path: verified, text: await readVerifiedFile(root, verified) };
+	const bytes = await readVerifiedBytes(root, verified);
+	return {
+		path: verified,
+		sourceSha256: Bun.CryptoHasher.hash("sha256", bytes, "hex"),
+		text: Buffer.from(bytes).toString("utf8"),
+	};
 }
 
 export { readConstructedEvidenceFile as default };
+
+export type { ConstructedEvidenceFile };

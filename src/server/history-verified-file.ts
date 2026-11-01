@@ -37,13 +37,20 @@ async function openVerifiedFile(
 	}
 }
 
-async function readVerifiedFile(root: string, path: string): Promise<string> {
+async function readVerifiedBytes(
+	root: string,
+	path: string,
+): Promise<Uint8Array> {
 	const handle = await openVerifiedFile(root, path);
 	try {
-		return await handle.readFile({ encoding: "utf8" });
+		return await handle.readFile();
 	} finally {
 		await handle.close();
 	}
+}
+
+async function readVerifiedFile(root: string, path: string): Promise<string> {
+	return Buffer.from(await readVerifiedBytes(root, path)).toString("utf8");
 }
 
 async function* readVerifiedLines(
@@ -76,4 +83,9 @@ async function readVerifiedLine(
 	return undefined;
 }
 
-export { readVerifiedFile, readVerifiedLines, readVerifiedLine };
+export {
+	readVerifiedBytes,
+	readVerifiedFile,
+	readVerifiedLines,
+	readVerifiedLine,
+};

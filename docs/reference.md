@@ -560,8 +560,10 @@ steer a click onto Start.
 A command that a SIGINT, SIGTERM or SIGHUP stops through its own signal
 handling exits 130, 143 or 129.
 
-A command that writes a record puts that record's path on stdout, or its bytes
-with `--json`, and nothing else. Progress lines, grades, diagnostics, and
+Record-writing commands put the record's path on stdout, or its bytes
+with `--json`, and nothing else. Session `review` instead prints readable review
+context by default and context JSON with `--json`, including the source digest
+needed for a rubric review. Progress lines, grades, diagnostics, and
 session check summaries use stderr, so redirecting `run --json` or
 `replay --json` captures a document a parser accepts once the command exits 0.
 
@@ -763,9 +765,10 @@ Confirmation freezes the rubric with its inputs and includes Judge calls in its
 budget and recorded spend. Comparisons retain the separate checks and Judge
 readings, so a passing check list is not a quality verdict.
 
-Session Judge grades have no human calibration or measured agreement baseline
-yet. Their saved inputs and outputs support inspection; the pipeline calibration
-commands do not accept session attempts.
+A person can [review the saved session attempt](#session-human-review) against
+its original rubric. Such reviews record nonblind agreement, not a measured
+Judge-accuracy baseline. The pipeline calibration commands do not accept session
+attempts.
 
 #### State checks
 
@@ -1479,6 +1482,63 @@ exist at baseline and retain their bytes, preventing a candidate from passing by
 weakening checks.
 
 ## Review and calibration
+
+### Session human review
+
+Open a saved standalone or confirmation session attempt's **Results**, then
+**Human review**. Record a `PASS` or `FAIL` and a summary. When the original
+attempt retained a Judge rubric, grade every requirement exactly once; the human
+verdict passes only when all requirements pass. A failed or unavailable Judge
+still permits human review of its saved rubric, with no model agreement figure.
+An attempt without a Judge takes an overall verdict and an empty requirements list.
+
+The CLI reads the same review context and saved review when given a session
+record ID without write flags:
+
+```sh
+rehearse review attempt:session:<case-id>/<uuid> --json
+rehearse review rep:session:<group-id>/<rep-id> --json
+```
+
+For an attempt without a rubric, write with `--verdict PASS|FAIL --summary <text>`.
+For a rubric review, use `--file <review.json>`, copying `sourceSha256` from the
+read above. The file has this shape; replace its digest and requirement IDs with
+those returned for the saved attempt:
+
+```json
+{
+	"sourceSha256": "<digest from the review context>",
+	"verdict": "FAIL",
+	"summary": "The answer omits the requested explanation.",
+	"requirements": [
+		{ "id": "correctness", "status": "PASS" },
+		{ "id": "explanation", "status": "FAIL" }
+	]
+}
+```
+
+`GET /api/session-reviews/<encoded-record-id>` reads this context;
+`POST` at the same path records the review through the server's same-origin JSON
+guard. Neither the CLI nor the browser starts a model call. Session reviews do
+not accept the pipeline-only `--finding` flag.
+
+One review is created atomically beside the attempt as `<attempt-file>.review.json`.
+It retains the canonical record ID, timestamp, source SHA-256 and recorded Judge
+model, rubric digest and instruction-contract digest when available. The original
+attempt and its checks, saved-state grades and Judge result remain unchanged.
+A duplicate submission returns conflict. A submitted source digest that no longer
+matches returns conflict before writing. If the saved attempt later changes,
+the review remains readable as stale and agreement is withheld.
+
+Results and CLI show verdict agreement and requirement differences against the
+original saved Judge. This review is **nonblind**: Results exposes the Judge and
+checks before the human grades. It does not certify Judge accuracy, contribute
+to pipeline letter agreement or dimension drift, or supply an aggregate session
+agreement baseline. It reviews the original attempt; later `regrade` assessments
+retain their separate identity and do not replace its review. No paid experiment
+or measured human agreement is established merely by enabling this path.
+
+### Pipeline review
 
 Without `--pause`, a pipeline debug run retains its candidate under
 `refs/rehearse/<run>` in the target, removes its checkout, and prints the record and follow-up

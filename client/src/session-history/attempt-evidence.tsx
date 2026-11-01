@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import attemptEvidenceQuery from "./attempt-evidence-query";
 import { SessionEvidence } from "./session-evidence";
+import SessionReviewPanel from "./session-review";
 import ScorecardEvidence from "./stage-evidence";
 
 async function readSavedRecord(id: string): Promise<string> {
@@ -47,7 +48,14 @@ function AttemptEvidence({ id }: AttemptEvidenceProps): React.JSX.Element {
 		return <p className="text-14 text-attention">{query.data.reason}</p>;
 	}
 	return query.data.kind === "session" ? (
-		<SessionEvidence record={query.data.record} />
+		<div className="flex flex-col gap-4">
+			<SessionEvidence record={query.data.record} />
+			<SessionReviewPanel
+				key={id}
+				id={id}
+				sourceSha256={query.data.sourceSha256}
+			/>
+		</div>
 	) : (
 		<ScorecardEvidence record={query.data} />
 	);

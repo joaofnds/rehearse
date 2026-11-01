@@ -81,7 +81,7 @@ function parseRecordReference(text: string): RecordId | ShortIdReference {
 }
 
 /**
- * `review`, `calibrate`, and `show --checkout` take a run and nothing else, so
+ * Pipeline `review`, `calibrate`, and `show --checkout` take a run, so
  * the `run:` prefix carries no information the command lacks and a bare name
  * is accepted too. Both forms go through the parser above, which is what
  * refuses a segment naming a path outside the runs directory.

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { UsageError } from "#cli/commands";
 import evidenceSourceAnswer from "#server/api-evidence-source";
 import { commandRefusal, historyError } from "#server/api-refusal";
+import sessionReviewsApi from "#server/api-session-reviews";
 import type { ApiContext, ApiDependencies } from "#server/api-source";
 import { readAttemptEvidence } from "#server/attempt-evidence";
 import routes from "#server/route-factory";
@@ -81,7 +82,8 @@ const evidenceApi = routes((dependencies: ApiDependencies) =>
 			"/api/runs/:run/final/evidence/:item/:index",
 			finalEvidenceHandler(dependencies),
 		)
-		.get("/api/attempt-evidence/:id", attemptEvidenceHandler(dependencies)),
+		.get("/api/attempt-evidence/:id", attemptEvidenceHandler(dependencies))
+		.route("/", sessionReviewsApi(dependencies)),
 );
 
 export { evidenceApi as default };

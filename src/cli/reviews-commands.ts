@@ -52,7 +52,7 @@ async function executeRegrade({
 const reviewsCommands: readonly CommandEntry[] = [
 	{
 		definition: {
-			argument: "run",
+			argument: "run|session-record-id",
 			confinement: "never",
 			flags: [
 				{
@@ -61,7 +61,7 @@ const reviewsCommands: readonly CommandEntry[] = [
 					name: "--file",
 				},
 				{
-					help: "ACCEPT or REJECT",
+					help: "ACCEPT or REJECT for a pipeline; PASS or FAIL for a session",
 					kind: "value",
 					name: "--verdict",
 				},
@@ -75,10 +75,14 @@ const reviewsCommands: readonly CommandEntry[] = [
 					kind: "value",
 					name: "--finding",
 				},
-				jsonFlag,
+				{
+					...jsonFlag,
+					help: "Print the pipeline review record or session review context as JSON",
+				},
 			],
 			name: "review",
-			summary: "Record the human or agent review of a run's Judge result",
+			summary:
+				"Record a pipeline review, or read/record a saved session human review",
 		},
 		execute: executeReview,
 	},

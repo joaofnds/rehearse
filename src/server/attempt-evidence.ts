@@ -27,21 +27,10 @@ interface AttemptEvidenceRequest {
 async function readAttemptEvidence(
 	request: AttemptEvidenceRequest,
 ): Promise<AttemptEvidenceReport> {
-	const id = parseRecordId(request.id);
-	if (
-		id.kind !== "attempt:session" &&
-		id.kind !== "attempt:stage" &&
-		id.kind !== "rep:session" &&
-		id.kind !== "rep:stage"
-	) {
-		throw new SessionHistoryReaderError(
-			"refused",
-			"This record is not a saved attempt.",
-		);
-	}
+	const id = parseEvidenceId(request.id);
 
 	const { root, saved } = await savedAttemptFile(request.runsDirectory, id);
-	return await readableDetailedEvidence(async () => {
+	const report = await readableDetailedEvidence(async () => {
 		switch (id.kind) {
 			case "attempt:session": {
 				return savedSessionEvidence(saved.text, id.caseId);
@@ -67,6 +56,31 @@ async function readAttemptEvidence(
 			}
 		}
 	});
+	if (report.state === "available" && report.kind === "session") {
+		return {
+			...report,
+			sourceSha256: saved.sourceSha256,
+		};
+	}
+
+	return report;
+}
+
+function parseEvidenceId(text: string): AttemptEvidenceIdentity {
+	const id = parseRecordId(text);
+	if (
+		id.kind !== "attempt:session" &&
+		id.kind !== "attempt:stage" &&
+		id.kind !== "rep:session" &&
+		id.kind !== "rep:stage"
+	) {
+		throw new SessionHistoryReaderError(
+			"refused",
+			"This record is not a saved attempt.",
+		);
+	}
+
+	return id;
 }
 
 function savedSessionEvidence(

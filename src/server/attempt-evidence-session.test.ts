@@ -31,11 +31,17 @@ async function verifyProjectsTheExactSavedSessionReplyAndDeterministicOutcomes()
 			caseId: record.caseId,
 			checks: record.checks,
 			error: undefined,
+			judge: undefined,
 			outcome: record.outcome,
 			reply: record.reply,
 			stateGradingError: undefined,
 			stateResults: undefined,
 		},
+		sourceSha256: Bun.CryptoHasher.hash(
+			"sha256",
+			await Bun.file(saved.sessionAttemptFile).bytes(),
+			"hex",
+		),
 		state: "available",
 	});
 }

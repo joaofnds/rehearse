@@ -108,6 +108,10 @@ shared sealed invocation, retry, budget and citation-location machinery with a
 session-specific prompt and instruction identity. Its verdict is recorded
 separately from the deterministic checks. `regrade` combines the current rubric
 with saved evidence and writes another assessment without starting the worker.
+A session human review is a separate, exclusively created sidecar bound to the
+original attempt's digest and Judge identity. The CLI and guarded API share the
+reader and writer; Results records a nonblind PASS/FAIL and per-requirement
+agreement. It does not alter attempts, regrade assessments or pipeline calibration.
 Session confirmation freezes its declared inputs, including the rubric, once and
 retains each repetition, including unsuccessful and execution-failed attempts.
 

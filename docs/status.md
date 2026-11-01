@@ -39,6 +39,9 @@ the exclusion reported. See [Judge identity](reference.md#judge-instruction-iden
 and [contract derivation](../src/benchmark/judge-contract.ts). Session Judges retain
 their own [instruction contract](../src/benchmark/session-judge-prompt.ts), rubric,
 input and paid-call evidence separately from the checks-only attempt outcome.
+Saved session Results and `review <session-record-id>` now record one nonblind
+human PASS/FAIL review, with each saved rubric requirement and exact-record
+Judge agreement. See [session human review](reference.md#session-human-review).
 
 ## Implemented
 
@@ -255,8 +258,9 @@ links no attempt history, since its attempts record no session.
   the saved work. `regrade` reads that evidence against the corrected case and
   pays for a new Judge only when one is declared. Checks and Judge verdicts stay
   separate in attempts and comparisons. Session Judges have provider-free
-  transport and record tests, but no live-provider validation or human
-  calibration yet. Pipeline calibration does not accept session attempts.
+  transport and record tests and a nonblind human-review path, but no
+  live-provider validation or measured human agreement baseline. Pipeline
+  calibration does not accept session attempts.
   Comparison does not yet enforce assessment grading-definition digests across
   arms. A doctrine example's tool-call check is not evidence that its
   implementation is correct.

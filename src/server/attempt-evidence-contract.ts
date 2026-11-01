@@ -4,6 +4,7 @@ import type { Immutable } from "#benchmark/contracts";
 import type { SessionJudgeRecord } from "#benchmark/session-judge-contract";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { RecordId } from "#cli/record-id";
+import type { ConstructedEvidenceFile } from "#server/constructed-evidence-file";
 import type {
 	SavedStageOutput,
 	StepAssessment,
@@ -44,6 +45,7 @@ type AttemptEvidenceReport =
 	| {
 			readonly state: "available";
 			readonly kind: "session";
+			readonly sourceSha256?: string;
 			readonly record: SessionEvidence;
 	  }
 	| {
@@ -72,7 +74,7 @@ type AttemptEvidenceIdentity = Extract<
 interface AttemptEvidenceInput {
 	readonly root: string;
 	readonly id: AttemptEvidenceIdentity;
-	readonly saved: RecordedEvidenceFile;
+	readonly saved: ConstructedEvidenceFile;
 }
 
 interface GroupAttemptIndex {

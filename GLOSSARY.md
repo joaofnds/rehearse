@@ -139,7 +139,9 @@ See [current state](docs/status.md) for implementation coverage and
   declared flag prints no flag section.
 - **Command record** — the validated evidence a command writes. Depending on
   mode, `run` returns a run artifact, session attempt, or confirmation report.
-  `--json` selects record bytes over the record path; stdout carries one or the
+  Session `review` returns context instead: readable text by default and JSON
+  with `--json`, including the saved source digest. Other commands use `--json`
+  to select record bytes over the record path; stdout carries one or the
   other and no progress, which goes to stderr. `show --json` reads the selected
   record directly.
 - **Comparison** — a deterministic report over completed stage, pipeline, or
@@ -472,7 +474,10 @@ See [current state](docs/status.md) for implementation coverage and
   records against a run's Judge result, in `<run>.review.json`. The reviewer is
   a person or the agent standing in for one; the name says whose judgment the
   record carries, not which hand typed it. `rehearse review` writes it from
-  flags or from a file, and calibration reads it.
+  flags or from a file, and pipeline calibration reads it. For a saved session
+  attempt, it records a separate PASS/FAIL, summary and each saved rubric
+  requirement beside the attempt. This nonblind review keeps the original Judge
+  identity and shows agreement without changing the attempt or its grades.
 - **Interrupted run** — a run whose process ended (a `kill -9` or a crash)
   without writing a terminal artifact or stop record. A signal the handler
   catches is not one: it stops the pending stage, writes that stage's stop

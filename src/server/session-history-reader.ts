@@ -275,6 +275,7 @@ export {
 	verifiedFile,
 } from "#server/history-verified-path";
 export {
+	readVerifiedBytes,
 	readVerifiedFile,
 	readVerifiedLines,
 } from "#server/history-verified-file";

@@ -11,6 +11,7 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
 import { writeRecord } from "#cli/output";
 import { parseRunRecordId } from "#cli/record-id";
+import runSessionReview from "#cli/session-review-command";
 import RECORD_JSON_INDENT_SPACES from "#server/json-record-format";
 
 const EMPTY_COLLECTION_LENGTH = 0;
@@ -81,7 +82,22 @@ async function runReview(
 		throw new UsageError("Provide the run: rehearse review <run:name|name>");
 	}
 
-	const { run } = parseRunRecordId(request.id);
+	if (request.id.startsWith("attempt:") || request.id.startsWith("rep:")) {
+		await asUsageErrorAsync(async () => {
+			await runSessionReview({ ...request, id: request.id ?? "" }, output);
+		});
+		return;
+	}
+
+	await recordPipelineReview(request.id, request, output);
+}
+
+async function recordPipelineReview(
+	id: string,
+	request: ReviewRequest,
+	output: CommandOutput,
+): Promise<void> {
+	const { run } = parseRunRecordId(id);
 	const paths = benchmarkRunPaths(request.runsDirectory, run);
 	if (!(await Bun.file(paths.artifactFile).exists())) {
 		throw new RefusedPreconditionError(
