@@ -14,9 +14,11 @@ function renderJudgeTemplate(
 			const value = Object.hasOwn(substitutions, slot)
 				? substitutions[slot]
 				: undefined;
+
 			if (value === undefined) {
 				throw new Error(`Missing Judge template substitution ${slot}`);
 			}
+
 			return value;
 		},
 	);

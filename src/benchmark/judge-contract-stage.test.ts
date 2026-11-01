@@ -46,11 +46,15 @@ async function preservesStageContract(): Promise<void> {
 
 async function recordsAttemptedContract(): Promise<void> {
 	const observed: string[] = [];
+	const observedAtInvocation: string[] = [];
 	const result = runStageJudge(
 		{ budget: judgeBudget(), effort: undefined, model: "sonnet" },
 		{ input: new StageJudgeInputBuilder().build(), source: rubricSource },
 		{
-			invoke: async () => await Promise.reject(new Error("provider failed")),
+			invoke: async () => {
+				observedAtInvocation.push(...observed);
+				return await Promise.reject(new Error("provider failed"));
+			},
 			onInvocation: (digest) => {
 				observed.push(digest);
 			},
@@ -61,6 +65,7 @@ async function recordsAttemptedContract(): Promise<void> {
 	});
 	await Promise.allSettled([result]);
 	expect(observed).toEqual([STAGE_JUDGE_CONTRACT_SHA256]);
+	expect(observedAtInvocation).toEqual([STAGE_JUDGE_CONTRACT_SHA256]);
 }
 
 describe("stage Judge instruction identity", () => {

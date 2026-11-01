@@ -13,6 +13,7 @@ interface EvidenceLocation {
 
 interface ReadEvidenceFileRequest extends EvidenceLocation {
 	readonly path: string;
+	readonly sourceRoot?: string | undefined;
 }
 
 interface EvidenceFile {
@@ -25,6 +26,11 @@ interface EvidencePathReference {
 	readonly root: string;
 	readonly path: string;
 	readonly field: string;
+}
+
+interface SourcePath {
+	readonly root: string;
+	readonly path: string;
 }
 
 interface LoadArmRequest {
@@ -52,13 +58,7 @@ function descendantPath(
 	{ root, path, field }: EvidencePathReference,
 ): string {
 	const absolute = resolve(root, path);
-	const descendant = relative(root, absolute);
-	if (
-		descendant === "" ||
-		descendant === ".." ||
-		descendant.startsWith(`..${sep}`) ||
-		isAbsolute(descendant)
-	) {
+	if (!isDescendant({ path: absolute, root })) {
 		throw evidenceError(
 			{ arm: request.role, caseId: request.caseId, field },
 			"evidence path must remain inside its source directory",
@@ -66,6 +66,17 @@ function descendantPath(
 	}
 
 	return absolute;
+}
+
+function isDescendant({ root, path }: SourcePath): boolean {
+	const descendant = relative(root, path);
+
+	return (
+		descendant !== "" &&
+		descendant !== ".." &&
+		!descendant.startsWith(`..${sep}`) &&
+		!isAbsolute(descendant)
+	);
 }
 
 async function readEvidenceFile(
@@ -76,10 +87,26 @@ async function readEvidenceFile(
 		throw evidenceError(request, `no file at ${request.path}`);
 	}
 
-	const bytes = await file.bytes();
+	const canonicalPath = await realpath(request.path);
+	if (
+		request.sourceRoot !== undefined &&
+		!isDescendant({
+			path: canonicalPath,
+			root: await realpath(request.sourceRoot),
+		})
+	) {
+		throw evidenceError(
+			request,
+			"evidence path must remain inside its source directory",
+		);
+	}
+
+	const sourceFile =
+		request.sourceRoot === undefined ? file : Bun.file(canonicalPath);
+	const bytes = await sourceFile.bytes();
 
 	return {
-		canonicalPath: await realpath(request.path),
+		canonicalPath,
 		sha256: sha256(bytes),
 		text: new TextDecoder().decode(bytes),
 	};

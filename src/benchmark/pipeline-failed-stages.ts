@@ -59,6 +59,7 @@ async function failedStageOutcomes(
 		},
 		...notReachedStages(state, failedStage.name),
 	];
+
 	return {
 		finalOutcome: {
 			reason: `${failedStage.name} execution failed`,

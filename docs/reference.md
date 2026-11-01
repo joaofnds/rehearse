@@ -2810,7 +2810,9 @@ mode/stage consistency, and corpus identity across cases before writing a
 report. Within a case the arms must preserve the controlled experiment inputs,
 including model, effort, budget, and non-corpus evidence. Stage and pipeline
 comparisons also require known equal Judge identities, with agreement between
-group inputs, rep outcomes and the loaded Judge files. A missing identity, even
+group inputs, rep outcomes and the loaded Judge files. Stage and final Judge
+files must resolve within their repetition directory, including through file
+links or linked directories. A missing identity, even
 in both historical arms, or a conflicting identity refuses a new comparison.
 Saved historical reports remain readable; session comparisons keep their
 existing checks. A changed corpus is

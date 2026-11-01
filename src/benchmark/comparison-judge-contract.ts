@@ -21,6 +21,7 @@ function judgeContractDifference(
 	if (left.mode === "session" || right.mode === "session") {
 		return undefined;
 	}
+
 	if (
 		left.inputs.judgeContractSha256 === undefined ||
 		right.inputs.judgeContractSha256 === undefined ||
@@ -28,6 +29,7 @@ function judgeContractDifference(
 	) {
 		return "inputs.judgeContractSha256";
 	}
+
 	if (
 		left.mode === "pipeline" &&
 		(left.inputs.finalJudgeContractSha256 === undefined ||
@@ -37,6 +39,7 @@ function judgeContractDifference(
 	) {
 		return "inputs.finalJudgeContractSha256";
 	}
+
 	return undefined;
 }
 
@@ -114,12 +117,14 @@ function assertArmJudgeContract(
 	if (group.mode === "session") {
 		return;
 	}
+
 	const contract = group.inputs.judgeContractSha256;
 	if (contract === undefined) {
 		throw new ComparisonEvidenceError(
 			`case ${caseId} arm ${arm.role} field inputs.judgeContractSha256 is unknown; rerun the group to identify its Judge instructions`,
 		);
 	}
+
 	for (const rep of arm.reps) {
 		assertRepJudgeContract({ arm, caseId, contract }, rep);
 	}

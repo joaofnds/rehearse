@@ -31,6 +31,7 @@ async function loadFinalJudge(
 	if (record.mode !== "pipeline" || record.finalOutcome.status !== "JUDGED") {
 		return undefined;
 	}
+
 	const field = `${location.field}.finalOutcome.evidence.recordFile`;
 	const path = descendantPath(request, {
 		field,
@@ -42,8 +43,10 @@ async function loadFinalJudge(
 		caseId: request.caseId,
 		field,
 		path,
+		sourceRoot: dirname(location.repPath),
 	});
 	const parsed = parseIdentity(source.text, request, field);
+
 	return {
 		canonicalPath: source.canonicalPath,
 		path: relative(request.manifestDirectory, path),

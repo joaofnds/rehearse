@@ -113,6 +113,7 @@ class AgreementCounts {
 			this.skippedUnknownJudgeObservations += 1;
 			return;
 		}
+
 		const baseline = this.baselineFor(
 			observation,
 			observation.judgeContractSha256,

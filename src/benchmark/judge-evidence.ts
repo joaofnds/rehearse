@@ -139,6 +139,7 @@ function finalJudgeEvidence(input: FinalJudgeEvidence): string {
 		(field) => [field, input[field]] as const,
 	);
 	const evidence = Object.fromEntries(fields);
+
 	return orderedJson({
 		json: JSON.stringify(evidence),
 		order: FINAL_EVIDENCE_ORDER,

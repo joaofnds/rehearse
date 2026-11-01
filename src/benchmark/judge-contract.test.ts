@@ -1,10 +1,5 @@
 import { describe, expect, it } from "bun:test";
 
-import { claudeArgs } from "./claude";
-import {
-	judgeGradeResponseSchema,
-	stageJudgeResponseSchema,
-} from "./contracts";
 import type { ContextFile } from "./contracts";
 import { runJudge } from "./judge";
 import {
@@ -14,6 +9,7 @@ import {
 	STAGE_JUDGE_CONTRACT_SHA256,
 	judgeContractSha256,
 } from "./judge-contract";
+import observeJudgeInvocation from "./judge-invocation-test-fixture";
 import {
 	DIFF,
 	RUBRIC_IDS,
@@ -21,7 +17,9 @@ import {
 	passingChecks,
 	response,
 } from "./judge-test-fixtures";
-import { judgeBudget } from "./test-support";
+import { TestResources, judgeBudget } from "./test-support";
+
+const resources = TestResources.forEachTest();
 
 const CONTRACT_FIELDS = [
 	"systemPrompt",
@@ -80,21 +78,18 @@ describe("recorded Judge contracts", () => {
 		},
 	);
 
-	it("uses the schema and system text emitted by live provider arguments", () => {
-		for (const [contract, schema] of [
-			[FINAL_JUDGE_CONTRACT, judgeGradeResponseSchema],
-			[STAGE_JUDGE_CONTRACT, stageJudgeResponseSchema],
-		] as const) {
-			const args = claudeArgs({
-				access: "sealed",
-				schema,
-				settings: { budgetUsd: 1, effort: undefined, model: "sonnet" },
-				systemPrompt: contract.systemPrompt,
-			});
+	it.each([
+		{ contract: FINAL_JUDGE_CONTRACT, kind: "final" },
+		{ contract: STAGE_JUDGE_CONTRACT, kind: "stage" },
+	] as const)(
+		"uses the schema and system text emitted by the default $kind Judge",
+		async ({ contract, kind }) => {
+			const args = await observeJudgeInvocation(resources, kind);
+
 			expect(args).toContain(contract.responseSchema);
 			expect(args).toContain(contract.systemPrompt);
-		}
-	});
+		},
+	);
 
 	it(
 		"records the same final contract while the candidate evidence changes",

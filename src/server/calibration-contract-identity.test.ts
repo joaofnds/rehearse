@@ -12,6 +12,7 @@ import {
 	recordsDirectory,
 } from "#server/calibration-http-fixture";
 import OperatorGradeBuilder from "#server/calibration-operator-grade-test-builder";
+import { HTTP_STATUS_OK } from "#server/http-status";
 
 const DIGEST_WIDTH = 64;
 const FIRST_CONTRACT = "a".repeat(DIGEST_WIDTH);
@@ -56,6 +57,7 @@ async function separatesContracts(): Promise<void> {
 	await gradeBoth(runsDirectory);
 	const response = await appFor(runsDirectory).request("/api/calibration");
 
+	expect(response.status).toBe(HTTP_STATUS_OK);
 	expect(await response.json()).toMatchObject({
 		excludedUnknownJudgeReviews: 0,
 		groups: [
@@ -89,6 +91,7 @@ async function excludesUnknownIdentity(): Promise<void> {
 	await gradeBoth(runsDirectory);
 	const response = await appFor(runsDirectory).request("/api/calibration");
 
+	expect(response.status).toBe(HTTP_STATUS_OK);
 	expect(await response.json()).toMatchObject({
 		excludedUnknownJudgeReviews: 2,
 		groups: [],

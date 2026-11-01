@@ -57,6 +57,7 @@ async function loadStageScorecards(
 				caseId: request.caseId,
 				field: stageField,
 				path: scorecardPath,
+				sourceRoot: dirname(repPath),
 			});
 			const parsed = parsedScorecard(scorecardSource.text);
 			if (parsed?.stage !== stage.stage) {

@@ -69,13 +69,17 @@ async function stopPipelineRep({
 		evidence.resultSha,
 	);
 }
+interface FinalOutcomeEvidence {
+	readonly recordFile: string;
+	readonly resultSha: string;
+}
+
 function judgedFinalOutcome(
 	judge: JudgeResult,
-	recordFile: string,
-	resultSha: string,
+	evidence: FinalOutcomeEvidence,
 ): ConfirmationRepRecord["finalOutcome"] {
 	return {
-		evidence: { recordFile, resultSha },
+		evidence,
 		judgeContractSha256: judge.judgeContractSha256,
 		status: "JUDGED",
 		verdict: judge.grade.verdict,
@@ -106,11 +110,10 @@ async function completePipelineRep(
 	const record = pipelineRepRecord({
 		elapsedMs: scope.runtime.now() - scope.repStart,
 		evidence: metrics,
-		finalOutcome: judgedFinalOutcome(
-			finalJudge,
-			relative(repPaths.directory, repPaths.finalFile),
-			evidence.resultSha,
-		),
+		finalOutcome: judgedFinalOutcome(finalJudge, {
+			recordFile: relative(repPaths.directory, repPaths.finalFile),
+			resultSha: evidence.resultSha,
+		}),
 		plan: scope.context.plan,
 		request: scope.context.request,
 		stages: evidence.stageOutcomes,

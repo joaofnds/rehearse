@@ -16,15 +16,17 @@ import {
 
 const CONTRACT_CHOICES = 2;
 
+const firstGroup: CalibrationResponse["groups"][number] = {
+	drift: [{ dimension: "clarity", steps: 1 }],
+	judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
+	judgeModel: "opus",
+	reviews: 2,
+	rubricSha256: "abc123def456".padEnd(SHA256_HEX_CHARACTERS, "0"),
+	stage: "shape",
+};
+
 const groups: CalibrationResponse["groups"] = [
-	{
-		drift: [{ dimension: "clarity", steps: 1 }],
-		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
-		judgeModel: "opus",
-		reviews: 2,
-		rubricSha256: "abc123def456".padEnd(SHA256_HEX_CHARACTERS, "0"),
-		stage: "shape",
-	},
+	firstGroup,
 	{
 		drift: [{ dimension: "diff-hygiene", steps: -1 }],
 		judgeContractSha256: "a".repeat(SHA256_HEX_CHARACTERS),
@@ -229,17 +231,13 @@ async function switchesToAnotherGroupSDrift(): Promise<void> {
 }
 
 async function selectsBothContracts(): Promise<void> {
-	const [first] = groups;
-	if (first === undefined) {
-		throw new Error("missing drift group");
-	}
 	const secondContract = "b".repeat(SHA256_HEX_CHARACTERS);
 	renderCalibration(
 		reportWith({
 			groups: [
-				first,
+				firstGroup,
 				{
-					...first,
+					...firstGroup,
 					drift: [{ dimension: "clarity", steps: -1 }],
 					judgeContractSha256: secondContract,
 				},
